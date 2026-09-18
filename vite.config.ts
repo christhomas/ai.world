@@ -114,7 +114,31 @@ export default defineConfig(({ command }) => ({
    */
   test: {
     include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'tools/**/*.test.ts'],
-    testTimeout: 120_000,
+    /*
+     * Two minutes, unless the machine is slow enough to need longer — and some are.
+     *
+     * This is a budget for *work*, and the work is not the same size everywhere. Growing a patch of
+     * the endless country is *"about six hundred milliseconds"* on the desk `country.worker.ts` was
+     * written for. Measured on a four-core ARM box over two hundred seeds through `growPatch`: 2794.9
+     * seconds, or **fourteen each** — twenty times slower. A test that grows a handful of patches is
+     * then budgeted at two minutes against work that takes twenty times what the budget assumed, and
+     * it does not fail, it runs out of clock: 125s welcoming a player, 285s clearing a paddock.
+     *
+     * That is the same fault `maxWorkers` is about one paragraph down, wearing the other coat. There
+     * the machine is *shared* and the cure is fewer workers; here it is *slow* and two workers is
+     * already the right number — on four cores `50%` **is** two, so turning that knob changes
+     * nothing at all. The clock is what is wrong.
+     *
+     * It cost a release. `chore release` runs the whole suite as its first act, on the honest
+     * argument that a release is the wrong place to find out — so a machine that cannot finish the
+     * suite is a machine that cannot ship, however green CI is on the very same commit. See #362.
+     *
+     * So: one number from outside, `TEST_TIMEOUT=600000 chore test`, and `Math.max` rather than the
+     * env outright, because this may only ever lengthen the rope. Unset, it is the two minutes it
+     * has always been and nobody on a fast desk has to know this exists. `PATIENCE` in `shots.cjs`
+     * is the same idea for the same reason, and #350 is where that argument is written out.
+     */
+    testTimeout: Math.max(120_000, Number(process.env.TEST_TIMEOUT) || 0),
     /*
      * Half the machine, unless somebody says otherwise — and there is a good reason to.
      *
