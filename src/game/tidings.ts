@@ -192,6 +192,26 @@ export function createTidings(ctx: Telling) {
      * he decided to pay anybody.
      */
     const standing = new Map<string, readonly Post[]>();
+    /**
+     * Who a village employs this morning, and the coin actually changing hands for it.
+     *
+     * `postsToday` decides who and at what price and moves nothing; the coin itself goes through
+     * `deeds`, which is the one vocabulary in this world where money leaving a purse and arriving
+     * in another is a single act. Nothing is minted and nothing is burnt, and a village's own total
+     * is exactly what it was — which is why the books balance over this without a column.
+     */
+    const postAndPay = (village: string, pressure: number): void => {
+      // `madeOf` hands back the settlement itself and its declared shape is narrower than what it
+      // actually carries. Widening that return type is the one register edit this wants.
+      const holds = (register.madeOf(village).holdings ?? []) as readonly Held[];
+      const posts = postsToday(register.living(village), holds, pressure, state.day);
+      standing.set(village, posts);
+      const purses = new Map(register.living(village).map((p) => [p.id, p]));
+      for (const post of posts) {
+        const payer = purses.get(post.funder), man = purses.get(post.who);
+        if (payer && man) give(purseOf(payer), purseOf(man), post.wage);
+      }
+    };
     // a band camped on a village's doorstep costs it people, and the same people on every client
     // and what each village has grown into, because a band leans harder on a place worth leaning
     // on: a town has more in its granary than a hamlet. See `worthPressing`
@@ -212,18 +232,7 @@ export function createTidings(ctx: Telling) {
        * in another is a single act. Nothing is minted and nothing is burnt, and a village's own
        * total is exactly what it was — which is why the books balance over this without a column.
        */
-      if (!standing.has(press.village)) {
-        // `madeOf` hands back the settlement itself and its declared shape is narrower than what it
-        // actually carries. Widening that return type is the one register edit this wants.
-        const holds = (register.madeOf(press.village).holdings ?? []) as readonly Held[];
-        const posts = postsToday(register.living(press.village), holds, press.pressure, state.day);
-        standing.set(press.village, posts);
-        const purses = new Map(register.living(press.village).map((p) => [p.id, p]));
-        for (const post of posts) {
-          const payer = purses.get(post.funder), man = purses.get(post.who);
-          if (payer && man) give(purseOf(payer), purseOf(man), post.wage);
-        }
-      }
+      if (!standing.has(press.village)) postAndPay(press.village, press.pressure);
       /*
        * And what a dragon takes instead of people: the herd the farmers' whole living is made of,
        * so a village it passes over gets poorer in a way anybody living there could explain — less
@@ -267,6 +276,26 @@ export function createTidings(ctx: Telling) {
         say(way ? `${press.said} ${way}` : press.said);
         director.saw('trouble');
       }
+    }
+    /*
+     * And the villages nothing is leaning on, which on most mornings is all of them.
+     *
+     * `postsToday` was reached only from inside the loop above, so a village with no band near it
+     * never posted anybody at all — `pressings` yields nothing for a place no band is standing over,
+     * and no pressing meant no call. Right for the guard, whose wage is nought at peace and who is
+     * the whole reason the call was in there. Wrong for the crew: whether a house gets built has
+     * nothing to do with what is overhead, so a peaceful village with a yard, work on its books and
+     * a builder standing in it employed nobody, for ever.
+     *
+     * `postsToday`'s own comment had already made this argument about the gate one level in —
+     * *"how hard something is leaning on the village has nothing to do with whether a house gets
+     * built"* — and fixed the inner one. This is the outer one, a file up.
+     *
+     * At pressure nought, which is what a village with nothing overhead is: `wageForAGuard(0)` is
+     * nought, so no gate is manned and no farmer is charged, and the building gets done. See #355.
+     */
+    for (const village of register.settled()) {
+      if (!standing.has(village)) postAndPay(village, 0);
     }
     /*
      * Work and age one morning at a time. A clock jump must not post every missed shift against one
