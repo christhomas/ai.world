@@ -61,7 +61,7 @@ describe('how long a shot is allowed to take', () => {
   const source = readFileSync(join(here, 'shots.cjs'), 'utf8');
 
   it('is one number, and it can be raised', () => {
-    expect(source).toContain("const PATIENCE = Number(process.env.PATIENCE || 0);");
+    expect(source).toContain('const PATIENCE = patienceFrom(process.env.PATIENCE);');
   });
 
   it('never lowers what was there before', () => {
@@ -69,5 +69,57 @@ describe('how long a shot is allowed to take', () => {
     // wait shorter than the minute this always allowed.
     expect(source).toContain("{ timeout: Math.max(60000, PATIENCE) }");
     expect(source, 'and the default leaves playwright its own').toContain('if (PATIENCE) page.setDefaultTimeout(PATIENCE);');
+  });
+});
+
+/**
+ * And that a mistyped budget is refused rather than passed on.
+ *
+ * `Number()` takes any word at all. `PATIENCE=oops` is `NaN`, and `Math.max(60000, NaN)` is `NaN`
+ * rather than 60000 — so the guard written to stop this ever making a wait *shorter* would hand
+ * playwright a timeout that is not a number. Negative and infinite values get past a truthy check
+ * and reach `setDefaultTimeout` on their own. The way that fails is the worst kind: a mistyped flag
+ * comes back as a browser error about timeouts, which reads as the game being broken rather than as
+ * the flag being wrong.
+ *
+ * `shots.cjs` cannot be imported here — it requires playwright at its first line, which this
+ * project deliberately does not depend on and which the `check` job does not install. So the
+ * function is lifted out of the source and run. It is pure, it takes a string and returns a number,
+ * and testing the real one beats asserting that a regex still matches.
+ */
+describe('the patience a run is given', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'shots.cjs'), 'utf8');
+  const patienceFrom: (asked: string | undefined) => number = (() => {
+    const at = source.indexOf('function patienceFrom(asked) {');
+    expect(at, 'patienceFrom has moved or gone').toBeGreaterThan(0);
+    const body = source.slice(at, source.indexOf('\n}', at) + 2);
+    return new Function(`${body}; return patienceFrom;`)() as (asked: string | undefined) => number;
+  })();
+
+  it('is nought when nobody asked, which means everything waits as it always did', () => {
+    expect(patienceFrom(undefined)).toBe(0);
+    expect(patienceFrom('')).toBe(0);
+  });
+
+  it('is the number when the number is a number', () => {
+    expect(patienceFrom('500000')).toBe(500000);
+    expect(patienceFrom('0')).toBe(0);
+  });
+
+  it('refuses a word, rather than handing playwright a NaN', () => {
+    expect(() => patienceFrom('oops')).toThrow(/PATIENCE is milliseconds/);
+  });
+
+  it('refuses a wait that runs backwards', () => {
+    expect(() => patienceFrom('-5')).toThrow(/PATIENCE is milliseconds/);
+  });
+
+  it('refuses for ever, which is not a budget', () => {
+    expect(() => patienceFrom('Infinity')).toThrow(/PATIENCE is milliseconds/);
+  });
+
+  it('says what it wanted instead, because the flag is the thing that is wrong', () => {
+    expect(() => patienceFrom('oops')).toThrow(/try PATIENCE=500000/);
   });
 });

@@ -52,8 +52,26 @@ const CHANNEL = process.env.CHANNEL ?? 'chrome';
  *
  * So the budget is one number and it can be raised: `PATIENCE=500000 chore shots mountain`. The
  * default is what it always was, so nothing changes for anybody already able to run this.
+ *
+ * And it is read rather than merely converted. `Number()` takes any word at all: `PATIENCE=oops`
+ * is `NaN`, and `Math.max(60000, NaN)` is `NaN` rather than 60000 — so the guard that exists to
+ * stop this ever making a wait *shorter* would hand playwright a timeout that is not a number. A
+ * negative or infinite one gets past a truthy check and reaches `setDefaultTimeout` on its own.
+ * None of those is a timeout playwright has a contract for, and the way it fails is the worst kind:
+ * a mistyped flag comes back as a browser error about timeouts, which reads as the game being
+ * broken rather than as the flag being wrong. So it says so, and stops.
  */
-const PATIENCE = Number(process.env.PATIENCE || 0);
+const PATIENCE = patienceFrom(process.env.PATIENCE);
+
+/** How long to allow, read from the environment: nought for "as it always was", or a real wait. */
+function patienceFrom(asked) {
+  if (asked === undefined || asked === '') return 0;
+  const ms = Number(asked);
+  if (!Number.isFinite(ms) || ms < 0) {
+    throw new Error(`PATIENCE is milliseconds to wait, and "${asked}" is not — try PATIENCE=500000`);
+  }
+  return ms;
+}
 const OUT = process.env.OUT || 'docs/screenshots';
 /*
  * Which way to draw, so the same seed and the same camera can be shot both ways and the judgement
