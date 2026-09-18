@@ -351,20 +351,43 @@ export function theDaysPosts(
 ): Map<string, readonly Post[]> {
   const standing = new Map<string, readonly Post[]>();
   for (const [name, village] of villages) {
-    const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressureOn(name), day);
-    standing.set(name, posts);
-    if (posts.length === 0) continue;
-    const onTheRoll = new Set(village.people.map((person) => ownedBy(person)));
-    const owed = new Map<Owner, number>();
-    for (const post of posts) {
-      const man = ownerFromSave(post.who);
-      if (post.funder === man || !onTheRoll.has(post.funder) || !onTheRoll.has(man)) continue;
-      owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
-      owed.set(man, (owed.get(man) ?? 0) + post.wage);
-    }
-    if (owed.size === 0) continue;
-    payAndSweep(village, owed);
-    for (const [id, much] of owed) book.post(id, much);
+    standing.set(name, standPostsIn(village, pressureOn(name), day, book));
   }
   return standing;
+}
+
+/**
+ * One village's posts for one morning, stood and paid.
+ *
+ * Its own function because there are two ways a village lives a day and both have to do this. A
+ * page that was there walks it forward through `advance`; a village founded late, or re-lived after
+ * a killing was told out of order, is caught up inside `settle` — and `relived.test.ts` exists to
+ * hold those two to the same answer. *"If the two arrive anywhere different, two players are
+ * standing in villages that only look alike."*
+ *
+ * A carrier cannot be in here and says so: a cart is settled between *two* villages, so a village
+ * being caught up on its own has no road. A post is between two people in one village, so it can
+ * be — and therefore must be, or the catch-up arrives with a hall that is short by every wage that
+ * was ever swept into it.
+ */
+export function standPostsIn(
+  village: Settlement,
+  pressure: number,
+  day: number,
+  book: { post: (id: string, much: number) => void },
+): readonly Post[] {
+  const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressure, day);
+  if (posts.length === 0) return posts;
+  const onTheRoll = new Set(village.people.map((person) => ownedBy(person)));
+  const owed = new Map<Owner, number>();
+  for (const post of posts) {
+    const man = ownerFromSave(post.who);
+    if (post.funder === man || !onTheRoll.has(post.funder) || !onTheRoll.has(man)) continue;
+    owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
+    owed.set(man, (owed.get(man) ?? 0) + post.wage);
+  }
+  if (owed.size === 0) return posts;
+  payAndSweep(village, owed);
+  for (const [id, much] of owed) book.post(id, much);
+  return posts;
 }

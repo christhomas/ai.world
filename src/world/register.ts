@@ -16,7 +16,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
-import { theDaysPosts, type Post } from './postings';
+import { standPostsIn, theDaysPosts, type Post } from './postings';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
@@ -204,6 +204,20 @@ export class Register {
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
+      /*
+       * And its posts, for the same morning, because this is the *other* way a village lives a day.
+       *
+       * `relived.test.ts` holds these two paths to the same answer — a page that was there walks a
+       * village forward through `advance`, and a page that learns about a death afterwards throws
+       * the village away and catches it up here. Standing posts in one and not the other left the
+       * hall short by every wage that had ever been swept into it: 635.76 against 635.85 on seed 7,
+       * which is the shape of a divergence rather than the size of one.
+       *
+       * The carrier is deliberately not here and says why in its own file: a cart is settled between
+       * two villages, and a village being caught up on its own has no road. A post is between two
+       * people in one village, so it travels with the village.
+       */
+      standPostsIn(settlement, this.pressure.on(village, day), day, this.book);
       this.telling.votedOn(village, settlement, day);
     }
     return settlement.people;

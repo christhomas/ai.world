@@ -43,8 +43,14 @@ export class DayBook {
    * Added because the posting stopped being something the page did. It used to be paid out of
    * `tidings.ts`, on the client, inside the loop over the warbands — so it happened because a frame
    * was drawn, and a holding earned nothing on any day its owner was not looking at it. See #264.
+   *
+   * Set rather than added, exactly as the tax and the hall's wages are, and for a reason a village
+   * being re-lived makes visible: `advance` clears the book every morning, but a village founded and
+   * caught up inside `settle` lives a hundred days without one. A ledger that added would hand the
+   * audit the sum of every morning that village ever had. What is wanted is the last one. Several
+   * posts on one morning are summed before they get here.
    */
-  post(id: string, much: number): void { this.posted.set(id, (this.posted.get(id) ?? 0) + much); }
+  post(id: string, much: number): void { this.posted.set(id, much); }
 
   /** What the hall took from one person on the last day they lived through. */
   taxPaidBy(id: string): number { return this.taxed.get(id) ?? 0; }
