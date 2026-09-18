@@ -72,7 +72,7 @@ export const WORTH = {
   VILLAGES: 2,
 } as const;
 
-/** How many worlds to draw before settling for the first one. See `aWorldWorthOpening`. */
+/** How many worlds to draw before settling for the first one. See `drawAWorldWorthOpening`. */
 export const TRIES = 4;
 
 /**
@@ -109,25 +109,28 @@ export interface Drawn {
  * The settling rule is the part worth stating. When the tries run out this returns the **first**
  * seed drawn rather than the best of them — because "the best of them" needs a ranking, a ranking
  * needs weights, and weights are the score this file exists not to have. A player who somehow drew
- * eight bad worlds in a row gets the world they would have got before any of this existed, which is
+ * four bad worlds in a row gets the world they would have got before any of this existed, which is
  * the honest floor: this can make the game better and it must never make it worse.
  *
- * With the bars set where they are, exhausting the tries is not something anybody will meet — but
- * the branch is what makes it safe to tighten them later.
+ * With the bar set where it is, exhausting the tries is not something anybody will meet — but the
+ * branch is what makes it safe to tighten it later.
  *
  * `draw` and `read` are handed in so that this is a pure decision: the caller owns `Math.random`
- * and owns how a patch is grown, and this owns only "how many times, and when to stop".
+ * and owns *where* a patch is grown, and this owns only "how many times, and when to stop". That
+ * second one is why it awaits — the game measures on the worker that grows the country, because a
+ * patch grown on the thread that draws the game is a page that stops painting. See `seedworker.ts`
+ * and #358.
  */
-export function aWorldWorthOpening(
+export async function drawAWorldWorthOpening(
   draw: () => number,
-  read: (seed: number) => Reading = readSeed,
+  read: (seed: number) => Promise<Reading>,
   tries = TRIES,
-): Drawn {
+): Promise<Drawn> {
   let first = 0;
   for (let drawn = 1; drawn <= Math.max(1, tries); drawn++) {
     const seed = draw();
     if (drawn === 1) first = seed;
-    if (worthPlaying(read(seed))) return { seed, drawn, worth: true };
+    if (worthPlaying(await read(seed))) return { seed, drawn, worth: true };
   }
   return { seed: first, drawn: Math.max(1, tries), worth: false };
 }

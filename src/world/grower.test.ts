@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Grower } from './grower';
 import { PATCH, Patchwork, patchOf } from './patchwork';
-import type { CountryRequest } from './countrymessages';
+import type { CountryGrow } from './countrymessages';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
 
@@ -24,7 +24,7 @@ const SEED = 4242;
 const nothing = (patch: string) => ({ patch } as unknown as TerrainSampler);
 
 function harness(keeps = 9) {
-  const sent: CountryRequest[] = [];
+  const sent: CountryGrow[] = [];
   const patches = new Patchwork(SEED, (_s: number, within: Within) => nothing(String(within.x0)), keeps);
   const grower = new Grower(SEED, patches, (msg) => sent.push(msg), (_seed, _within, parts) =>
     nothing(String((parts as unknown as { of?: string }).of ?? '')));

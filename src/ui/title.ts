@@ -1,7 +1,8 @@
 import { SWITCHES, isOn, setOn } from './switches';
 import { kindOf, type SaveStore, type SessionSave, type WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
-import { aWorldWorthOpening } from '../world/goodseed';
+import { drawAWorldWorthOpening } from '../world/goodseed';
+import { measuringSeeds } from '../world/seedworker';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
@@ -191,17 +192,31 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         return;
       }
       /*
-       * Otherwise: drawn, measured, and drawn again where nobody lives there.
+       * Otherwise: drawn, measured, and drawn again where nobody lives there — off this thread.
        *
-       * Deferred by a tick so the line above is on the screen before the work starts, because the
-       * work is a patch grown — seconds on a slow machine, not the milliseconds this was hoped to
-       * be. `aWorldWorthOpening` stops at the first world worth opening, so the common cost is one
-       * grow; only the worlds being rejected pay for a second, which is under one in twenty.
+       * The measuring is a whole patch grown, which is six hundred milliseconds on a desk and
+       * fourteen seconds on a small ARM box. Done here it stopped the page painting at the exact
+       * moment somebody had asked for a new world, so the only part of the feature a player ever
+       * saw was the game appearing to hang. It goes to the worker that grows the country, which
+       * does this work anyway and is already on the other side of that line. See #358.
+       *
+       * The worker is closed whatever happens. One left running is a thread outliving the screen
+       * that made it, and this screen is about to be taken down.
        */
       worldError.textContent = 'Finding a world worth walking into…';
-      setTimeout(() => {
-        finish({ key, save: undefined, seed: aWorldWorthOpening(randomSeed).seed, worldName, world });
-      }, 0);
+      const measurer = measuringSeeds();
+      void drawAWorldWorthOpening(randomSeed, (seed) => measurer.measure(seed))
+        .then((drawn) => finish({ key, save: undefined, seed: drawn.seed, worldName, world }))
+        /*
+         * And a world all the same if the measuring cannot be done at all.
+         *
+         * A worker that will not start — an old browser, a blocked module — must not be the thing
+         * that stops somebody playing. `randomSeed()` is what the game handed out before any of
+         * this existed, which is the floor the whole feature is built to: it may make the game
+         * better and it must never make it worse.
+         */
+        .catch(() => finish({ key, save: undefined, seed: randomSeed(), worldName, world }))
+        .finally(() => measurer.close());
     };
     list.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');

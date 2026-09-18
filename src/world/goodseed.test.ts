@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TRIES, WORTH, aWorldWorthOpening, whatIsWrongWith, worthPlaying } from './goodseed';
+import { TRIES, WORTH, drawAWorldWorthOpening, whatIsWrongWith, worthPlaying } from './goodseed';
 import type { Reading } from './seedscore';
 
 /**
@@ -87,16 +87,16 @@ describe('drawing until one is worth opening', () => {
     return () => seeds[Math.min(at++, seeds.length - 1)];
   };
   /** A reading that is good for the seeds named and bad for every other. */
-  const goodFor = (...seeds: number[]) => (seed: number): Reading =>
+  const goodFor = (...seeds: number[]) => async (seed: number): Promise<Reading> =>
     (seeds.includes(seed) ? good({ seed }) : good({ seed, villages: 0 }));
 
-  it('takes the first one when the first one is worth opening', () => {
-    expect(aWorldWorthOpening(handing(11, 22), goodFor(11, 22)))
+  it('takes the first one when the first one is worth opening', async () => {
+    expect(await drawAWorldWorthOpening(handing(11, 22), goodFor(11, 22)))
       .toEqual({ seed: 11, drawn: 1, worth: true });
   });
 
-  it('draws again past a bad one, and says how many it took', () => {
-    expect(aWorldWorthOpening(handing(11, 22, 33), goodFor(33)))
+  it('draws again past a bad one, and says how many it took', async () => {
+    expect(await drawAWorldWorthOpening(handing(11, 22, 33), goodFor(33)))
       .toEqual({ seed: 33, drawn: 3, worth: true });
   });
 
@@ -106,25 +106,25 @@ describe('drawing until one is worth opening', () => {
    * A player who draws nothing but bad worlds gets the world they would have got before any of this
    * existed — this can make the game better and it must never make it worse.
    */
-  it('settles for the first it drew when every try was bad, rather than for nothing', () => {
-    const settled = aWorldWorthOpening(handing(11, 22, 33), goodFor(), 3);
+  it('settles for the first it drew when every try was bad, rather than for nothing', async () => {
+    const settled = await drawAWorldWorthOpening(handing(11, 22, 33), goodFor(), 3);
     expect(settled).toEqual({ seed: 11, drawn: 3, worth: false });
   });
 
-  it('never hands back nothing, whatever it is asked for', () => {
-    expect(aWorldWorthOpening(handing(7), goodFor(), 0).seed).toBe(7);
-    expect(aWorldWorthOpening(handing(7), goodFor(), -1).seed).toBe(7);
+  it('never hands back nothing, whatever it is asked for', async () => {
+    expect((await drawAWorldWorthOpening(handing(7), goodFor(), 0)).seed).toBe(7);
+    expect((await drawAWorldWorthOpening(handing(7), goodFor(), -1)).seed).toBe(7);
   });
 
-  it('reads no more worlds than it drew, because growing a patch is the cost here', () => {
+  it('reads no more worlds than it drew, because growing a patch is the cost here', async () => {
     const read: number[] = [];
-    aWorldWorthOpening(handing(1, 2, 3, 4), (seed) => { read.push(seed); return good({ seed, villages: 0 }); }, 4);
+    await drawAWorldWorthOpening(handing(1, 2, 3, 4), async (seed) => { read.push(seed); return good({ seed, villages: 0 }); }, 4);
     expect(read).toEqual([1, 2, 3, 4]);
   });
 
-  it('stops at the first good one rather than measuring the rest', () => {
+  it('stops at the first good one rather than measuring the rest', async () => {
     const read: number[] = [];
-    aWorldWorthOpening(handing(1, 2, 3, 4), (seed) => { read.push(seed); return good({ seed }); }, 4);
+    await drawAWorldWorthOpening(handing(1, 2, 3, 4), async (seed) => { read.push(seed); return good({ seed }); }, 4);
     expect(read).toEqual([1]);
   });
 

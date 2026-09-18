@@ -1,6 +1,6 @@
 import { rebuildPatch } from './endless';
 import { boundsOf, type Patchwork } from './patchwork';
-import type { CountryReply, CountryRequest } from './countrymessages';
+import type { CountryGrow, CountryGrown } from './countrymessages';
 import type { TerrainSampler } from './terrain';
 
 /**
@@ -44,7 +44,7 @@ export class Grower {
     private readonly seed: number,
     private readonly patches: Patchwork,
     /** How to send a square off to be grown. Handed in so a test needs no `Worker`. */
-    private readonly send: (msg: CountryRequest) => void,
+    private readonly send: (msg: CountryGrow) => void,
     /** And how to put one back together here, which is the cheap half. */
     private readonly rebuild: typeof rebuildPatch = rebuildPatch,
   ) {}
@@ -67,7 +67,7 @@ export class Grower {
   }
 
   /** A square has come back. Rebuild it here — about fifteen milliseconds — and put it with the rest. */
-  took(reply: CountryReply): void {
+  took(reply: CountryGrown): void {
     this.busy = false;
     this.grown++;
     this.lastTook = reply.took;

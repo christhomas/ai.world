@@ -1,5 +1,6 @@
 import { partsOf } from '../world/endless';
 import { growPatch } from '../world/growworld';
+import { readSeed } from '../world/seedscore';
 import { boundsOf } from '../world/patchwork';
 import type { CountryRequest, CountryReply } from '../world/countrymessages';
 
@@ -31,8 +32,25 @@ const post = (msg: CountryReply) => (self as unknown as Worker).postMessage(msg)
 
 self.onmessage = (e: MessageEvent<CountryRequest>) => {
   const msg = e.data;
-  if (msg.type !== 'grow') return;
   const started = Date.now();
-  const sampler = growPatch(msg.seed, boundsOf(msg.patch));
-  post({ type: 'grown', patch: msg.patch, parts: partsOf(sampler), took: Date.now() - started });
+  if (msg.type === 'grow') {
+    const sampler = growPatch(msg.seed, boundsOf(msg.patch));
+    post({ type: 'grown', patch: msg.patch, parts: partsOf(sampler), took: Date.now() - started });
+    return;
+  }
+  /*
+   * And what a seed is worth, which is the same work under a different question.
+   *
+   * `readSeed` grows the home patch and probes it, so it costs what growing costs — six hundred
+   * milliseconds on a desk and fourteen seconds on a small ARM box. On the thread that draws the
+   * game that is a frozen page at the exact moment somebody has just asked for a new world, which
+   * is #358. Here it is a page that keeps painting while the answer is worked out.
+   *
+   * The patch is thrown away rather than sent back. Handing it over would save the game growing the
+   * same one again a moment later — worth doing, and a different change, because what crosses is
+   * `PatchParts` and this would have to agree with `growerFor` about who owns it.
+   */
+  if (msg.type === 'measure') {
+    post({ type: 'measured', seed: msg.seed, reading: readSeed(msg.seed), took: Date.now() - started });
+  }
 };
