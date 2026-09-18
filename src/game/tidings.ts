@@ -181,19 +181,19 @@ export function createTidings(ctx: Telling) {
     for (const band of roaming.advance(state.day)) flash(warningOfBand(band));
     /** The worst thing leaning on each village today, which is what the register is told. */
     const worst = new Map<string, number>();
-    /**
-     * And who is standing over its cattle, which the page no longer works out for itself.
+    /*
+     * Who is standing over a village's cattle is no longer worked out here at all.
      *
-     * It used to: `postsToday` was called here, once per day's turn, inside the loop over the
-     * warbands, and the wages were handed over here too. That made a man's holding earn only on
-     * days somebody was looking at it, because a frame being drawn was what paid him. The posting
-     * lives in the register's own day now, beside the carrier — see `postings.ts` and #264.
+     * It used to be: `postsToday` was called in this function, inside the loop over the warbands,
+     * and the wages were handed over here too — so a man's holding earned only on days somebody was
+     * looking at it, because a frame being drawn was what paid him. The posting lives in the
+     * register's own day now, beside the carrier. See `postings.ts` and #264.
      *
-     * What is still wanted here is the *answer*, because `builderDay` must not offer a day of the
-     * hall's work to a man already standing somebody's gate. So it is read back rather than
-     * recomputed: one day, one set of posts, decided where the day is lived.
+     * Two readers are left and they want different things. What a dragon got past is asked of
+     * `postsOn`, which is what was actually stood and paid. Who is already spoken for — so
+     * `builderDay` does not offer the hall's work to a man on somebody's gate — is asked of
+     * `whoIsSpokenFor`, for the morning being worked rather than the one before it. See #360.
      */
-    const standing = (): ReadonlyMap<string, readonly Post[]> => register.postsStanding();
     // a band camped on a village's doorstep costs it people, and the same people on every client
     // and what each village has grown into, because a band leans harder on a place worth leaning
     // on: a town has more in its granary than a hamlet. See `worthPressing`
@@ -247,12 +247,12 @@ export function createTidings(ctx: Telling) {
     let mornings = 0;
     while (register.today < today) {
       const day = register.today + 1;
-      builderDay(day, day === today ? standing() : undefined);
+      builderDay(day, register.whoIsSpokenFor(day));
       changes.push(...register.advance(day));
       mornings++;
     }
     // A commission may have been placed after today's register work; it still gets this morning.
-    if (mornings === 0) builderDay(today, standing());
+    if (mornings === 0) builderDay(today, register.whoIsSpokenFor(today));
     /*
      * And what a dragon takes instead of people, now that the gates have been manned.
      *
