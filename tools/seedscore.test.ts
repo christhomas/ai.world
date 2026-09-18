@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { at, biggestPiece, GRID, readSeed, report } from './seedscore';
+import { at, report } from './seedscore';
+import { biggestPiece, GRID, readSeed } from '../src/world/seedscore';
 
 describe('what a seed is worth', () => {
   it('reads the same numbers off the same seed every time', () => {
