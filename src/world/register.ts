@@ -16,7 +16,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
-import { standPostsIn, theDaysPosts, type Post } from './postings';
+import { postsStandingOn, standPostsIn, theDaysPosts, type Post } from './postings';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
@@ -362,6 +362,16 @@ export class Register {
 
   /** What every village stood this morning, which is what a page reads back after a day turns. */
   postsStanding(): ReadonlyMap<string, readonly Post[]> { return this.posted; }
+
+  /**
+   * Who *would* stand what on a morning the register has not reached, paying nobody. `postings.ts`.
+   *
+   * `postsStanding` is the morning already lived and paid for, which is the right answer only while
+   * the day asked about is the day the register is on. A catch-up is where it is not.
+   */
+  postsFor(day: number): ReadonlyMap<string, readonly Post[]> {
+    return postsStandingOn(this.villages, (village) => this.pressure.on(village, day), day);
+  }
 
   /** Who stood what on the last day lived. Replaced whole each morning, like the book. */
   private posted: Map<string, readonly Post[]> = new Map();

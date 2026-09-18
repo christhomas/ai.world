@@ -247,7 +247,17 @@ export function createTidings(ctx: Telling) {
     let mornings = 0;
     while (register.today < today) {
       const day = register.today + 1;
-      builderDay(day, day === today ? standing() : undefined);
+      /*
+       * The morning being worked is the morning whose posts it is handed.
+       *
+       * It used to be `day === today ? standing() : undefined`, and both halves of that were wrong.
+       * `standing()` is what the register has *already* lived, and the advance below is what lives
+       * `day` — so the last morning got the map of the morning before it, and every earlier morning
+       * got no map at all. `workTheHallJobs` reads it to keep a man already standing somebody's gate
+       * off a day of the hall's work, and `postsToday` decides that fresh every morning, so a stale
+       * map hands hall work to a posted man or holds back a free one.
+       */
+      builderDay(day, register.postsFor(day));
       changes.push(...register.advance(day));
       mornings++;
     }

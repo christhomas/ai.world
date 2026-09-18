@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ownedBy, ownerFromSave } from './holdings';
-import { POST, postsToday, turnedAway, wageForAGuard } from './postings';
+import { POST, postsStandingOn, postsToday, turnedAway, wageForAGuard } from './postings';
 import { PROSPER } from './prosperity';
 import type { Person } from './people';
+import type { Settlement } from './settlement';
 
 /**
  * Work somebody is engaged to do that is not their own — a builder's job and a farmer's guard,
@@ -153,5 +154,58 @@ describe('what the post is worth to the man who paid for it', () => {
     expect(owed.get(ownedBy(two))).toBe(wageForAGuard(1));
     expect([...owed.values()].reduce((sum, much) => sum + much, 0))
       .toBe(posts.reduce((sum, post) => sum + post.wage, 0));
+  });
+});
+
+/**
+ * Which morning a map of posts belongs to.
+ *
+ * `standPostsIn` decides *and* pays, so it may be asked once a morning and no more.
+ * `postsStandingOn` only decides, which is what makes it askable about a morning nobody has lived
+ * yet — and asking it twice has to cost nothing, because a catch-up asks about several mornings
+ * before living any of them. See #360.
+ */
+describe('who would be standing what, on a morning nobody has lived', () => {
+  /** A farmer worth guarding, his farm, and a soldier cheap enough to stand at its gate. */
+  const guarded = (): { people: Person[]; holdings: ReturnType<typeof farm>[] } => {
+    const farmer = villager('farmer', 400);
+    return { people: [farmer, villager('soldier', 5)], holdings: [farm('f1', farmer.id)] };
+  };
+  const village = (of: ReturnType<typeof guarded>): Settlement =>
+    ({ people: of.people, holdings: of.holdings } as unknown as Settlement);
+
+  it('answers for every village it is given', () => {
+    const villages = new Map([
+      ['Ashford', village(guarded())],
+      ['Hawkstead', village(guarded())],
+    ]);
+    const standing = postsStandingOn(villages, () => 1, 40);
+    expect([...standing.keys()].sort()).toEqual(['Ashford', 'Hawkstead']);
+  });
+
+  it('stands somebody at all, or the rest of this proves nothing', () => {
+    const villages = new Map([['Ashford', village(guarded())]]);
+    expect(postsStandingOn(villages, () => 1, 40).get('Ashford')).not.toHaveLength(0);
+  });
+
+  it('pays nobody, however many times it is asked', () => {
+    const of = guarded();
+    const purses = of.people.map((one) => one.purse);
+    const villages = new Map([['Ashford', village(of)]]);
+
+    for (let i = 0; i < 5; i++) postsStandingOn(villages, () => 1, 40);
+
+    expect(of.people.map((one) => one.purse), 'not a coin has moved').toEqual(purses);
+  });
+
+  it('gives the same answer for the same morning and a different one for another', () => {
+    const villages = new Map([['Ashford', village(guarded())]]);
+    const once = postsStandingOn(villages, () => 1, 40).get('Ashford');
+    const again = postsStandingOn(villages, () => 1, 40).get('Ashford');
+
+    expect(again, 'a morning is a morning').toEqual(once);
+    // pressure is what a band camped on the doorstep does, and it is what a post is stood against
+    const pressed = postsStandingOn(villages, () => 0, 40).get('Ashford');
+    expect(pressed, 'and no pressure is a different morning').not.toEqual(once);
   });
 });

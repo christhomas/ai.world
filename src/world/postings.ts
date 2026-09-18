@@ -357,6 +357,33 @@ export function theDaysPosts(
 }
 
 /**
+ * Who *would* stand what on a given morning, in every village, without standing them or paying.
+ *
+ * The other half of `theDaysPosts`. That one decides *and* pays, so it can be asked once a morning
+ * and no more; this one only decides, so it can be asked about a morning nobody has lived yet and
+ * asked again afterwards without a coin moving. `tidings.ts` needs exactly that: it works each
+ * catch-up morning *before* advancing into it, so the map it wants belongs to a day the register
+ * has not reached.
+ *
+ * Keeping the two apart is what makes that safe. A single function that both decided and paid would
+ * have to be trusted not to be called twice, and "call this at most once per day per village" is
+ * not a thing a type can hold.
+ */
+export function postsStandingOn(
+  villages: ReadonlyMap<string, Settlement>,
+  pressureOn: (village: string) => number,
+  day: number,
+): Map<string, readonly Post[]> {
+  const standing = new Map<string, readonly Post[]>();
+  for (const [name, village] of villages) {
+    standing.set(name, postsToday(
+      village.people, (village.holdings ?? []) as readonly Held[], pressureOn(name), day,
+    ));
+  }
+  return standing;
+}
+
+/**
  * One village's posts for one morning, stood and paid.
  *
  * Its own function because there are two ways a village lives a day and both have to do this. A
