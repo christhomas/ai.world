@@ -1,4 +1,6 @@
 import { THE_HALL, isTheHall, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
+import { payAndSweep } from './purses';
+import type { Settlement } from './settlement';
 import { grownUp, type Person } from './people';
 
 /**
@@ -309,4 +311,60 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
 /** Whether a post is the hall's to pay for rather than a villager's. See item 37. */
 export function paidByTheHall(post: Post): boolean {
   return isTheHall(post.funder);
+}
+
+
+/**
+ * Every village's posts for one morning, stood and paid, in the village's own day.
+ *
+ * This used to happen in `tidings.ts` — on the page, once a frame's worth of day, and *inside* the
+ * loop over the warbands. Two things followed from that and both were wrong. A village with nothing
+ * leaning on it was never asked at all, which #355 fixed one file up; and the paying happened
+ * because a frame was drawn, so a man's holding earned him nothing on any day he was not looking at
+ * it. A hero who closed the tab employed nobody until he opened it again.
+ *
+ * Here instead, beside `aCarrierWalks` and for the same reason: the register's forward clock is the
+ * thing that runs while nobody is watching. *"A day away pays what a day present would have paid"*
+ * is #264's third line, and this is the whole of it — a day lived is a day paid, whoever was
+ * looking.
+ *
+ * Nothing is rolled and nothing is stored. Who stands what is worked out fresh from who is alive
+ * this morning, which is `postings.ts`'s oldest rule: *a post belongs to the holding, not to the
+ * person*, so a village re-lived from its founding arrives at the same men in the same fields.
+ *
+ * ## What is deliberately not changed with it
+ *
+ * A post whose funder is not a person on the roll is not paid, exactly as it was not before. In
+ * practice that is a hall-owned holding, and `payAndSweep` would happily take the wage out of the
+ * hall's purse now that the paying goes through it — which would be a change to *what* happens
+ * rather than to *where*, on the same morning as a change to where. It is left alone; whether the
+ * hall should pay for a man on its own farm is a question for its own issue.
+ *
+ * A post somebody stands on their own holding moves no money and is skipped, which is what the
+ * two-purse hand-over did before by arriving at the same purse twice.
+ */
+export function theDaysPosts(
+  villages: ReadonlyMap<string, Settlement>,
+  pressureOn: (village: string) => number,
+  day: number,
+  book: { post: (id: string, much: number) => void },
+): Map<string, readonly Post[]> {
+  const standing = new Map<string, readonly Post[]>();
+  for (const [name, village] of villages) {
+    const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressureOn(name), day);
+    standing.set(name, posts);
+    if (posts.length === 0) continue;
+    const onTheRoll = new Set(village.people.map((person) => ownedBy(person)));
+    const owed = new Map<Owner, number>();
+    for (const post of posts) {
+      const man = ownerFromSave(post.who);
+      if (post.funder === man || !onTheRoll.has(post.funder) || !onTheRoll.has(man)) continue;
+      owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
+      owed.set(man, (owed.get(man) ?? 0) + post.wage);
+    }
+    if (owed.size === 0) continue;
+    payAndSweep(village, owed);
+    for (const [id, much] of owed) book.post(id, much);
+  }
+  return standing;
 }

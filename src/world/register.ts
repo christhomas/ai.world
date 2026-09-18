@@ -16,6 +16,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
+import { theDaysPosts, type Post } from './postings';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
@@ -347,6 +348,24 @@ export class Register {
   /** What the next valley paid this person today, or what they paid it. Nought on most days. */
   carriedBy(id: string): number { return this.book.carriedBy(id); }
 
+  /** And what a post paid them, or cost them, on the last day they lived through. */
+  postedTo(id: string): number { return this.book.postedTo(id); }
+
+  /**
+   * Who is standing what this morning, for whoever has to know a man is already spoken for.
+   *
+   * `halljobs.ts` is the caller that matters: a man on somebody's gate must not also be offered a
+   * day of the hall's work, and until the posting moved in here the page worked that out for
+   * itself and handed it down. Now the day that stood them is the day that says so.
+   */
+  postsOn(village: string): readonly Post[] { return this.posted.get(village) ?? []; }
+
+  /** What every village stood this morning, which is what a page reads back after a day turns. */
+  postsStanding(): ReadonlyMap<string, readonly Post[]> { return this.posted; }
+
+  /** Who stood what on the last day lived. Replaced whole each morning, like the book. */
+  private posted: Map<string, readonly Post[]> = new Map();
+
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
     const here = this.villages.get(village);
@@ -444,6 +463,25 @@ export class Register {
         changes.push(...liveADay(this.theDay, name, village, this.day));
         this.telling.votedOn(name, village, this.day);
       }
+      /*
+       * The men on the gates and in the yards, stood and paid on the morning they worked.
+       *
+       * Here rather than on the page, which is where it used to be: `tidings.ts` computed and paid
+       * them inside its loop over the warbands, so it happened because a frame was drawn. A
+       * holding earned its owner nothing on any day nobody was looking at it, which is #264 — and
+       * the register's forward clock is the one thing in this world that runs while nobody is.
+       */
+      /*
+       * `pressure.on` rather than `pressureOn`, and the difference is a day.
+       *
+       * A pressing is *told* on the day somebody looked at the bands and is *felt* on the morning
+       * after — `on(village, day)` is `told + 1 === day`, which is the reader `liveADay` already
+       * uses for everything else a band costs a village. `pressureOn` is `now`, the same-day
+       * reading, and it is what a carrier wants because a cart is settled in the evening of the day
+       * it walked. A man is put on a gate in the morning against what is standing over the place
+       * that morning, so this is the one a day being lived asks with.
+       */
+      this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.book);
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
       aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);

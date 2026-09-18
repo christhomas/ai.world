@@ -95,6 +95,20 @@ export interface RollRow {
    */
   carried: number;
   /**
+   * And what a post paid them today, or what one cost them.
+   *
+   * Negative for the man who put somebody on his gate, positive for the man who stood it. On the
+   * row for the same reason as the tax and the cart: it is a record of a day rather than a forecast
+   * of one, and who was standing over whose cattle this morning is not a thing the evening before
+   * could have known.
+   *
+   * It only became a column when the posting moved into the village's own day. Paid on the page, as
+   * it was, it never reached a book at all — the money moved between two purses and the roll simply
+   * never mentioned it, which the audit could not see because the page and the bench are never
+   * running at the same time. See #264.
+   */
+  posted: number;
+  /**
    * And what their dinner costs, which is the rest of what a day takes out of a purse.
    *
    * Its own column rather than folded into `spends`, because the two are not the same fact: keep
@@ -250,6 +264,8 @@ export function theRoll(
       // and what a cart took over the hill, which is money that crossed a valley and so belongs in
       // no other column here: see `carriers.ts`
       carried: register.carriedBy(person.id),
+      // and what a day on somebody's gate or in their yard was worth: see `postings.ts`
+      posted: register.postedTo(person.id),
       // what dinner actually cost here this morning, not the constant. `FOOD.MEAL` is the price
       // at reference cover since item 138; a village with an empty cellar charges up to three
       // times it, and a roll that still said `FOOD.MEAL` had the books and the purses disagreeing
