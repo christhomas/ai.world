@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import config, { longerClock } from '../vite.config';
+import config from '../vite.config';
+import { TWO_MINUTES, atTheSamePace, longerClock } from './clock';
 
 /**
  * How long a test is allowed to take, and why it can be lengthened from outside — #362.
@@ -23,9 +24,9 @@ import config, { longerClock } from '../vite.config';
 
 /** The config as vitest actually asks for it: a function of the command it was invoked with. */
 const made = () => (config as unknown as (env: { command: string; mode: string }) =>
-  { test: { testTimeout: number } })({ command: 'serve', mode: 'test' });
+  { test: { testTimeout: number; hookTimeout: number } })({ command: 'serve', mode: 'test' });
 
-const DEFAULT = 120_000;
+const DEFAULT = TWO_MINUTES;
 
 afterEach(() => { delete process.env.TEST_TIMEOUT; });
 
@@ -69,5 +70,57 @@ describe('how long a test is allowed to take', () => {
     expect(made().test.testTimeout, 'infinity reached vitest').toBe(DEFAULT);
     process.env.TEST_TIMEOUT = '600000';
     expect(made().test.testTimeout).toBe(600_000);
+  });
+});
+
+/**
+ * And the hooks, which are where the slow machine actually died.
+ *
+ * `TEST_TIMEOUT` lengthened the test bodies and left setup and teardown on vitest's default ten
+ * seconds, which was never set here at all. Four server files stand a real HTTP and WebSocket
+ * server up in a hook and close it in another, and closing two of them ran past ten seconds — so
+ * the run died with `Hook timed out in 10000ms` **after 3563 of 3566 tests had passed**.
+ */
+describe('how long the setting up and tearing down is allowed to take', () => {
+  afterEach(() => { delete process.env.TEST_TIMEOUT; });
+
+  it('is the same clock the tests themselves are held to', () => {
+    expect(made().test.hookTimeout).toBe(made().test.testTimeout);
+  });
+
+  it('lengthens with it, because opening a world in a hook is the same work', () => {
+    process.env.TEST_TIMEOUT = '600000';
+    expect(made().test.hookTimeout).toBe(600_000);
+  });
+});
+
+/**
+ * A wait of its own, scaled rather than replaced.
+ *
+ * The handshake waits in `serve.test.ts` and `proxy.test.ts` are not test timeouts — they are how
+ * long to sit before calling a websocket upgrade dead. Handing them the test clock outright would
+ * mean a genuinely broken handshake taking fifteen minutes to be called broken, and then blowing
+ * the test's own budget and reporting the wrong fault entirely.
+ *
+ * What they want is the same machine, scaled: twenty seconds was chosen against a desk, and on a
+ * box where the clock has been stretched seven and a half times it is two and a half minutes.
+ */
+describe('a wait that is not a test timeout', () => {
+  it('is exactly what it was when nobody asked for longer', () => {
+    expect(atTheSamePace(20_000, undefined)).toBe(20_000);
+    expect(atTheSamePace(20_000, 'oops')).toBe(20_000);
+    expect(atTheSamePace(20_000, 'Infinity')).toBe(20_000);
+  });
+
+  it('stretches by the same ratio the clock did, and no further', () => {
+    // 900000 / 120000 is seven and a half, so twenty seconds becomes a hundred and fifty
+    expect(atTheSamePace(20_000, '900000')).toBe(150_000);
+    expect(atTheSamePace(20_000, '240000')).toBe(40_000);
+  });
+
+  it('stays well inside the budget it is spent out of', () => {
+    for (const asked of ['240000', '600000', '900000']) {
+      expect(atTheSamePace(20_000, asked)).toBeLessThan(longerClock(asked));
+    }
   });
 });

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import { startServer, type RunningServer } from './serve';
+import { atTheSamePace } from '../tools/clock';
 
 /**
  * The wire, end to end: a real server, real sockets, real messages. Everything the game does
@@ -36,7 +37,7 @@ import { startServer, type RunningServer } from './serve';
  * average of twenty these timed out together and passed one by one, which is a wait measuring the
  * machine rather than the server. A test nobody trusts is a test nobody reads.
  */
-const PATIENCE = 20_000;
+const PATIENCE = atTheSamePace(20_000);
 
 class Player {
   private readonly socket: WebSocket;
