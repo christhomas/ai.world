@@ -1,6 +1,7 @@
 import { SWITCHES, isOn, setOn } from './switches';
 import { kindOf, type SaveStore, type SessionSave, type WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
+import { aWorldWorthOpening } from '../world/goodseed';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
@@ -164,7 +165,43 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         return;
       }
       worldError.textContent = '';
-      finish({ key, save: undefined, seed: askedSeed ? Number(askedSeed) >>> 0 : randomSeed(), worldName, world: chosenWorld() });
+      const world = chosenWorld();
+      /*
+       * A seed somebody typed is theirs, and is handed over untouched.
+       *
+       * #323 is about the worlds the game *chooses*, and only those. A player who asks for 4815162342
+       * has asked for that world — refusing it because a measurement dislikes it would make the seed
+       * box a suggestion, and would make a shared link open a different country for the two people
+       * holding it.
+       */
+      if (askedSeed) {
+        finish({ key, save: undefined, seed: Number(askedSeed) >>> 0, worldName, world });
+        return;
+      }
+      /*
+       * And a country with an edge is not the country this was measured on.
+       *
+       * `readSeed` grows the *endless* home patch, which is what the distribution in
+       * `docs/reports/seeds-report.txt` is a distribution of. A road-tree world is a different
+       * generator, so a bar read off one and applied to the other would be rejecting seeds on the
+       * strength of a world the player is not about to open.
+       */
+      if (world !== 'endless') {
+        finish({ key, save: undefined, seed: randomSeed(), worldName, world });
+        return;
+      }
+      /*
+       * Otherwise: drawn, measured, and drawn again where nobody lives there.
+       *
+       * Deferred by a tick so the line above is on the screen before the work starts, because the
+       * work is a patch grown — seconds on a slow machine, not the milliseconds this was hoped to
+       * be. `aWorldWorthOpening` stops at the first world worth opening, so the common cost is one
+       * grow; only the worlds being rejected pay for a second, which is under one in twenty.
+       */
+      worldError.textContent = 'Finding a world worth walking into…';
+      setTimeout(() => {
+        finish({ key, save: undefined, seed: aWorldWorthOpening(randomSeed).seed, worldName, world });
+      }, 0);
     };
     list.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');
