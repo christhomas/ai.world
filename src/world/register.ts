@@ -205,8 +205,11 @@ export class Register {
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
       // and its posts, because this is the *other* way a village lives a day; `relived.test.ts`
-      // holds the two to one answer. See `standPostsIn` for why the carrier cannot come with it
-      standPostsIn(settlement, this.pressure.on(village, day), day, this.book);
+      // holds the two to one answer. See `standPostsIn` for why the carrier cannot come with it.
+      // What the last of these mornings stood is what the village is left standing, or a place
+      // founded late answers `[]` to `postsOn` and a re-lived one keeps the entry of the village
+      // it replaced — a map keyed by name outliving the thing it described
+      this.posted.set(village, standPostsIn(settlement, this.pressure.on(village, day), day, this.book));
       this.telling.votedOn(village, settlement, day);
     }
     return settlement.people;
