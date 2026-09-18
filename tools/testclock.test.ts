@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import config from '../vite.config';
+import config, { longerClock } from '../vite.config';
 
 /**
  * How long a test is allowed to take, and why it can be lengthened from outside — #362.
@@ -40,19 +40,34 @@ describe('how long a test is allowed to take', () => {
   });
 
   /*
-   * Only ever longer. The same rule `PATIENCE` follows in `shots.cjs`, and for the same reason: a
-   * knob that can shorten the clock is a knob that can make the suite fail for a reason nobody
-   * typed on purpose — and a mistyped one would otherwise be read as nought and time out instantly.
+   * Only ever longer, and only ever a number of milliseconds.
+   *
+   * The first version of this held the rule *"never shortens it"* and asserted `>= DEFAULT`, which
+   * is true of `Infinity` — so `TEST_TIMEOUT=Infinity` went straight through to vitest, which
+   * documents nought as the way to switch a timeout off and has no contract for infinity at all.
+   * The rule was right and the assertion was the wrong shape for it: the fault with infinity is not
+   * that it is short.
+   *
+   * #353 made the same call for `PATIENCE` in `shots.cjs`. A knob for a clock takes a finite number
+   * or it is not an answer.
    */
-  it('never shortens it, whatever it is handed', () => {
-    for (const asked of ['1000', '0', '-5', 'oops', '', 'Infinity']) {
-      process.env.TEST_TIMEOUT = asked;
-      expect(made().test.testTimeout, `TEST_TIMEOUT=${asked}`).toBeGreaterThanOrEqual(DEFAULT);
+  it('takes nothing but a finite number of milliseconds', () => {
+    for (const asked of ['1000', '0', '-5', 'oops', '', 'Infinity', '-Infinity', 'NaN', '1e400']) {
+      expect(longerClock(asked), `TEST_TIMEOUT=${asked}`).toBe(DEFAULT);
     }
+    expect(longerClock(undefined)).toBe(DEFAULT);
   });
 
-  it('reads a word as no answer rather than as no time at all', () => {
-    process.env.TEST_TIMEOUT = 'oops';
-    expect(made().test.testTimeout).toBe(DEFAULT);
+  it('is longer only when the answer is both a number and longer', () => {
+    expect(longerClock('600000')).toBe(600_000);
+    expect(longerClock('120001')).toBe(120_001);
+    expect(longerClock('119999'), 'shorter than the floor is the floor').toBe(DEFAULT);
+  });
+
+  it('is the one the config hands vitest', () => {
+    process.env.TEST_TIMEOUT = 'Infinity';
+    expect(made().test.testTimeout, 'infinity reached vitest').toBe(DEFAULT);
+    process.env.TEST_TIMEOUT = '600000';
+    expect(made().test.testTimeout).toBe(600_000);
   });
 });
