@@ -484,25 +484,36 @@ describe('a man already spoken for', () => {
   });
 
   /*
-   * And the reading is about the morning it names. The advice used to come off the register's
-   * *last* stood posts, so on a catch-up it described a day already gone — which is the shape of
-   * the fault rather than its size, since a death or a change in pressure moves a post between
-   * days.
+   * And each morning is handed its own answer, not the same one over and over.
+   *
+   * Recording only which days were asked about proved nothing: an implementation that ignored the
+   * day entirely and handed back one map five times would have passed. So a man is buried part way
+   * through the catch-up, which is a difference between two mornings that the maps have to show —
+   * he can be named on the mornings he was alive for and not on the ones after.
    */
-  it('is asked about the morning being worked', () => {
+  it('hands each morning its own answer, not the last one over again', () => {
     const register = new Register(7);
     register.settle(VILLAGE, 6, ['farmer', 'seller', 'builder']);
     register.advance(4);
     for (const person of register.living(VILLAGE)) person.purse = 500;
 
-    const asked: number[] = [];
+    const before = [...(register.whoIsSpokenFor(5).get(VILLAGE) ?? [])].map((post) => post.who);
+    expect(before.length, 'nobody was posted to begin with').toBeGreaterThan(0);
+    const doomed = before[0];
+
+    const named = new Map<number, string[]>();
     const morning = (day: number, already?: ReadonlyMap<string, readonly Post[]>): void => {
-      if (already !== undefined) asked.push(day);
+      named.set(day, [...(already?.get(VILLAGE) ?? [])].map((post) => post.who));
+      if (day === 6) register.bury(doomed, day);      // he does not see the seventh
     };
     const { tidings, state } = telling({ register, builderDay: morning, pressings: [] });
+
     state.day = 8;
     tidings.theDaysNews();
 
-    expect(asked, 'every morning worked should have been given its own posts').toEqual([5, 6, 7, 8]);
+    expect(named.get(5), 'he was alive on the fifth and should be named').toContain(doomed);
+    expect(named.get(6), 'and on the sixth, the morning he was buried').toContain(doomed);
+    expect(named.get(7), 'a buried man was still named on the seventh').not.toContain(doomed);
+    expect(named.get(8), 'nor on the eighth').not.toContain(doomed);
   });
 });

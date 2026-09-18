@@ -271,15 +271,45 @@ describe('who a village has already spoken for', () => {
   });
 
   /*
-   * And it is about the morning it was asked about, not the one the register happens to be on —
-   * which is the fault: a catch-up walks several mornings and the advice has to move with them.
+   * And it is about the morning it names, which needs a world that differs between two mornings to
+   * say anything at all. A man who dies is that difference: he can be posted on the morning he is
+   * alive and cannot be on the one after.
    */
-  it('is about the morning it was asked about', () => {
+  it('names a man on the morning he is alive and not on the one after', () => {
     const book = settled();
-    const named = (day: number) => (book.whoIsSpokenFor(day).get('Stonedale') ?? []).map((p) => p.holding).sort();
-    expect(named(21)).toEqual(named(21));
-    book.advance(21);
-    // after a day has been lived, what was stood and what would be stood are the same question
-    expect(named(22).length).toBeGreaterThan(0);
+    const posted = (day: number) => new Set(
+      (book.whoIsSpokenFor(day).get('Stonedale') ?? []).map((post) => post.who),
+    );
+
+    const doomed = [...posted(21)][0];
+    expect(doomed, 'nobody was posted to begin with').toBeDefined();
+    expect(posted(21).has(doomed)).toBe(true);
+
+    book.bury(doomed, 21);
+
+    expect(posted(22).has(doomed), 'a buried man was still named for a later morning').toBe(false);
+  });
+
+  /*
+   * And the day itself is read, not merely passed along.
+   *
+   * Most of the answer comes from the state of the village at the moment of asking, so a burial
+   * shows up whatever day is named. The one thing the *day argument* decides on its own is the
+   * pressing: `pressure.on` is `told + 1 === day`, so a band reported on the twentieth is felt on
+   * the twenty-first and on no other morning. A gate manned on the right morning and bare on the
+   * next is the day being read.
+   */
+  it('reads the day it was given, which is what decides whether a gate is manned', () => {
+    const book = settled();
+    // somebody to stand it: a guard is taken from the soldiers and the untraded
+    book.living('Stonedale')[0].trade = '';
+    book.leanedOn('Stonedale', 1);    // told on the twentieth, felt on the twenty-first
+
+    const kinds = (day: number) =>
+      (book.whoIsSpokenFor(day).get('Stonedale') ?? []).map((post) => post.kind);
+
+    expect(kinds(21), 'nothing was manned on the morning the band was overhead').toContain('guard');
+    expect(kinds(22), 'the gate was still manned a day after the band was reported')
+      .not.toContain('guard');
   });
 });
