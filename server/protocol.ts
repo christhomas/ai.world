@@ -6,6 +6,8 @@
 
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
+import type { WorldKind } from '../src/world/countries';
+import type { Anchor } from '../src/world/manifest';
 
 export const PROTOCOL_VERSION = 21;
 
@@ -14,6 +16,45 @@ export interface WorldRecord {
   /** The spelling chosen by the first person through the door. */
   name: string;
   seed: number;
+}
+
+/**
+ * What a page is told about a named world before it grows a square of it.
+ *
+ * `GET /world?name=` is the one exchange that happens *before* either half has a country, which is
+ * the only moment a page can still be told which country to grow. It used to answer with the
+ * record above and nothing else — a name and a seed — so everything else about the world was
+ * whatever that browser happened to hold in IndexedDB, and a browser that had never opened the
+ * world held nothing.
+ *
+ * The record is durable and these two fields are not: they are read off the world itself at the
+ * moment of asking, because that is where they live. The seed file beside the clock and the deltas
+ * holds the manifest, and the generator is a fact about the server rather than about the name.
+ *
+ * Both are optional, and it is the same optionality `country`'s `kind` has for the same reason: a
+ * server older than the field says nothing, and a page that hears nothing has to go on with what it
+ * had. Silence is not disagreement and it is not an instruction to forget — see `joinedManifest`,
+ * which is where the page decides what to do with each answer.
+ */
+export interface WorldInvite extends WorldRecord {
+  /**
+   * Which generator grows this country, which the page was guessing.
+   *
+   * #228 took the kind off `WorldRecord` and `boot.ts` has said ever since that putting it back
+   * wanted *"a wire change of its own rather than a line in this one"*, because letting a page pick
+   * a country the server is not growing is the exact fault `growworld.ts` was written about. This
+   * is that wire change: the server says, and the page is told rather than assuming.
+   */
+  kind?: WorldKind;
+  /**
+   * The elevation layers this world was authored with, as the anchors they are in the manifest.
+   *
+   * Anchors rather than the `Highland` list the ground is actually grown from, so that both halves
+   * go on reading a list out of a manifest through `elevationFor` — one function called twice
+   * rather than two that agree. They also carry the `version` that keeps an old anchor pinned when
+   * the generator that reads it changes, which a bare centre-and-shape would have thrown away.
+   */
+  layers?: Anchor[];
 }
 
 /**

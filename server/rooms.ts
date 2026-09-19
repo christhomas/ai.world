@@ -1,11 +1,12 @@
 import type { Entity } from '../src/entities/entity';
 import type { Manifest } from '../src/world/manifest';
+import type { WorldKind } from '../src/world/countries';
 import type { Register } from '../src/world/register';
 import type { Village } from '../src/world/structures';
 import type { Blow, Standing } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
-import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldRecord } from './protocol';
+import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldInvite, WorldRecord } from './protocol';
 import { worldKey } from './protocol';
 import { Forgetful, type Vault } from './vault';
 import { SharedWorld, manifestIn, worldPath } from './world';
@@ -185,6 +186,20 @@ export interface Room {
   world: SharedWorld;
 }
 
+/**
+ * The one kind of country this server grows, said out loud so a page can be told it.
+ *
+ * `Simulation.groundOf` builds a `Patchwork`, which is the endless generator and the only one the
+ * server has ever stood up. That was a fact a page had to guess — `boot.ts` hard-coded `endless`
+ * for every named world and left a comment saying the guess wanted a wire change of its own — and a
+ * page that guessed wrong would grow a completely different country from the same seed.
+ *
+ * It cannot drift from what the server actually does without something failing: `twohalves.test.ts`
+ * asserts on the literal `new Patchwork(seed, growPatch, undefined, layers)` in `sim.ts`, so the
+ * day this server grows a country of another kind that guard goes red beside this line.
+ */
+const SERVED_KIND: WorldKind = 'endless';
+
 export class Rooms {
   private readonly rooms = new Map<string, Room>();
   private readonly bySeed = new Map<number, string>();
@@ -228,6 +243,23 @@ export class Rooms {
     const open = this.get(seed);
     if (open) return open.world.manifest;
     return manifestIn(this.vault, worldPath(this.dataDir, seed >>> 0), seed >>> 0);
+  }
+
+  /**
+   * Everything a page needs to grow the country it is joining, answered before it grows any of it.
+   *
+   * The record says which world; the manifest says what was authored into it; `SERVED_KIND` says
+   * which generator this server grows it with. All three come from here rather than from the page's
+   * own storage, because the page's storage is a cache of a world somebody else is serving — see
+   * `joinedManifest` for the argument, which is the one this change turns on.
+   *
+   * `manifestOf` answers off the file when no room is open, which is the ordinary case: a page asks
+   * this *before* it joins, so on a first visit there is nobody in the world yet.
+   */
+  invite(name: unknown): WorldInvite | undefined {
+    const record = this.records.find(name);
+    if (!record) return undefined;
+    return { ...record, kind: SERVED_KIND, layers: this.manifestOf(record.seed).layers() };
   }
 
   worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }

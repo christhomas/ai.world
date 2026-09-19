@@ -54,6 +54,73 @@ const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SA
 /** Current generator version per kind; bump when a generator changes so old anchors stay pinned. */
 export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1, thicket: 1, skyisle: 1, eyrie: 1, highland: 1 };
 
+/**
+ * Whether an anchor is one of a world's elevation layers rather than a place on it.
+ *
+ * A `highland` anchor with no shape on it is a place somebody pinned and not a layer — `layer`
+ * above says so, and `elevationFor` reads it as no layer at all rather than as a flat one. Written
+ * once and asked in both directions: it is what a world hands over on a join, and it is therefore
+ * also exactly what a page joining that world gives up in exchange.
+ */
+function isLayer(anchor: Anchor): boolean {
+  return anchor.kind === 'highland' && anchor.layer !== undefined;
+}
+
+/**
+ * The manifest a page grows a named world from: the world's list, and the page's own everything
+ * else.
+ *
+ * ## Why the world's list wins
+ *
+ * The decision this is, stated where it is made. A page joining a named world used to grow its
+ * country from whatever its own IndexedDB held, and a browser that had never opened the world held
+ * nothing — so it grew the seed flat while the server grew the range, and #377 gave the two halves
+ * a fingerprint so they would at least be *told*. Being told is not agreeing.
+ *
+ * The server is the authority and the asymmetry is not a matter of rank. It decides where a hero
+ * may stand, where a creature walks and what the ground under a village is, and **nothing in a
+ * shared world was ever built on the page's copy of the list**: the villages, the holdings, the
+ * houses and the fields are the world's state, standing on the world's ground. So the page's copy
+ * is a cache of a fact, and a cache that disagrees with the fact is simply stale.
+ *
+ * That is the whole of why this does not read like the rule `anchors` is famous for — *"a world
+ * saved before that code existed has them somewhere else, and moving them would move the ground
+ * out from under a house somebody built on one."* That rule is about a **generator** changing what
+ * it derives underneath a world nobody re-authored, and it still holds: the list is still
+ * write-once per world, and a page playing alone still keeps its own, because in that world the
+ * page's copy *is* the fact. What changes is only who holds the original for a world somebody else
+ * is serving.
+ *
+ * The two alternatives were weighed and are worth saying out loud. Refusing the join would lock a
+ * player out of a world they can reach, over a fact the server can simply hand them, and it would
+ * make every authored change to a shared world an eviction notice. Keeping both lists and letting
+ * the stamp complain is what the game does today, and the issue is precisely that it is the right
+ * failure and not a fix.
+ *
+ * ## And why only the list
+ *
+ * Everything else the page's manifest holds stays. An eyrie is the one anchor in this game that no
+ * seed can be asked about — somebody carried a carcass up a mountain and the dice were thrown once
+ * — and a join is no reason to throw that away. A `highland` anchor with no shape on it is a place
+ * the page pinned rather than a layer, so it survives for the same reason.
+ *
+ * Islands go, as they always have here: a named world is grown by the server's generator, which
+ * plans its islands per square from the seed, so an island anchor under this key is a leftover from
+ * a world of another kind saved under the same name.
+ *
+ * `invited` absent is an older server saying nothing, and silence is not an instruction to forget:
+ * the page keeps what it had, exactly as `whyCountriesDiffer` reads an empty stamp as silence
+ * rather than as disagreement. An *empty* list is a world saying it has none, which is a fact, and
+ * a page holding a layer against it is holding it wrongly.
+ */
+export function joinedManifest(
+  seed: number, saved: ManifestJson | undefined, invited: readonly Anchor[] | undefined,
+): ManifestJson {
+  const mine = (saved?.anchors ?? []).filter((a) => a.kind !== 'island');
+  if (!invited) return { rootSeed: seed, anchors: mine };
+  return { rootSeed: seed, anchors: [...mine.filter((a) => !isLayer(a)), ...invited] };
+}
+
 export class Manifest {
   readonly anchors = new Map<string, Anchor>();
 
@@ -65,6 +132,19 @@ export class Manifest {
 
   byKind(kind: AnchorKind): Anchor[] {
     return [...this.anchors.values()].filter((a) => a.kind === kind);
+  }
+
+  /**
+   * The elevation layers this world was authored with, in the manifest's own words.
+   *
+   * `elevationFor` turns these into the `Highland` list the ground is grown from, and this is what
+   * travels to a page joining a named world. One method for both, because what a server *sends*
+   * and what either half *grows* have to be the same list — a wire that carried a slightly
+   * different selection than the generator reads would be two halves disagreeing about the one
+   * fact this whole seam exists to keep them agreeing about.
+   */
+  layers(): Anchor[] {
+    return this.byKind('highland').filter(isLayer);
   }
 
   /** Default seed for an anchor: parent's seed, the id, and the kind's salt. Order-independent. */
