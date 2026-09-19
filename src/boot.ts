@@ -5,6 +5,7 @@ import type { WorldRecord } from '../server/protocol';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { startGame } from './main';
+import type { GrownPatch } from './world/endless';
 import { installThemePicker } from './ui/themes';
 
 /**
@@ -36,6 +37,16 @@ export async function boot(): Promise<void> {
 
   let slotKey: string, saved: SessionSave | undefined, seed: number, world: WorldKind;
   let worldName: string | undefined;
+  /*
+   * And the home patch, where the title screen already grew one choosing the seed.
+   *
+   * It is carried rather than looked up because nothing here can look it up: it was grown on a
+   * worker the title screen opened and closed again, and the country that wants it does not exist
+   * until `startGame`. Neither way in below has one — a shared link and a seed in the address both
+   * name a world outright, and neither measures anything — so it stays undefined for both, and the
+   * game grows its first square exactly as it always did. See #358.
+   */
+  let home: GrownPatch | undefined;
   if (named) {
     seed = named.seed;
     /*
@@ -79,9 +90,10 @@ export async function boot(): Promise<void> {
     const choice = await showTitle(store);
     slotKey = choice.key; saved = choice.save; seed = choice.seed; world = choice.world;
     worldName = choice.worldName;
+    home = choice.home;
     $('loading').style.display = 'block';
   }
-  startGame(store, slotKey, saved, seed, worldName, url, world);
+  startGame(store, slotKey, saved, seed, worldName, url, world, home);
 }
 
 /**

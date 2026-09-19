@@ -151,6 +151,23 @@ export interface PatchParts {
   layers: readonly Highland[];
 }
 
+/**
+ * A grown patch, and which square of which world it is.
+ *
+ * `PatchParts` on its own says what a patch is made of and nothing about where it came from, which
+ * is all the country worker needs: the page asked for a named square of a known seed and gets it
+ * back on the same wire. The patch grown to *measure* a seed has no such conversation behind it —
+ * it is grown before the world it belongs to exists, by a title screen that does not own a
+ * country, and it is handed across as a thing rather than as an answer. So it has to carry its own
+ * address: which seed it is a patch of, and which square. See #358, and `PatchCountry`, which
+ * checks both before standing anybody on it.
+ */
+export interface GrownPatch {
+  seed: number;
+  patch: string;
+  parts: PatchParts;
+}
+
 /** What a grown patch has to hand over to be rebuilt somewhere else. */
 export function partsOf(sampler: TerrainSampler): PatchParts {
   return {

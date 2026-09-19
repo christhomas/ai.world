@@ -2,6 +2,7 @@ import { SWITCHES, isOn, setOn } from './switches';
 import { kindOf, type SaveStore, type SessionSave, type WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
 import { aWorldWorthOpeningAsync, seedsReadOffThread } from '../world/goodseed';
+import type { GrownPatch } from '../world/endless';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
@@ -51,6 +52,19 @@ export interface SlotChoice {
   worldName?: string;
   /** Which world to grow. Taken from the save when continuing one, and from the switch when not. */
   world: WorldKind;
+  /**
+   * The home patch, where choosing this seed happened to grow one.
+   *
+   * Part of the choice rather than something fetched afterwards, and that is the honest way round:
+   * this screen does not own a country and cannot put a patch into one. What it can say is *"this
+   * seed, and here is the square I looked at while deciding"* — a thing handed over with the
+   * answer, which `boot.ts` carries to the game and `growCountry` gives to the country the moment
+   * there is one. See #358.
+   *
+   * Nothing for a continued world, a typed seed or a bounded one: none of them measures anything,
+   * so none of them has a patch to hand on.
+   */
+  home?: GrownPatch;
 }
 
 /**
@@ -209,8 +223,16 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       const reader = seedsReadOffThread();
       void aWorldWorthOpeningAsync(randomSeed, reader.read)
         .then((drawn) => {
+          /*
+           * And the patch it grew to decide, which the world now opens with rather than growing
+           * the same square over again. Taken before the worker is closed and by seed rather than
+           * by hand: up to `TRIES` patches were grown and only one of them is the world being
+           * opened — see `SeedsRead.grownFor`, which answers nothing when the tries ran out and
+           * the seed settled for is not the one last measured.
+           */
+          const home = reader.grownFor(drawn.seed);
           reader.close();
-          finish({ key, save: undefined, seed: drawn.seed, worldName, world });
+          finish({ key, save: undefined, seed: drawn.seed, worldName, world, home });
         })
         .catch(() => {
           /*
