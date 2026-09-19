@@ -77,8 +77,16 @@ export interface Client {
   wire: Wire;
   presence: Presence;
   seed: number;
-  /** When we last heard anything from them, for dropping the silent. */
-  lastSeen: number;
+  /**
+   * How much silence the server has actually *heard* out of them, in milliseconds.
+   *
+   * Not "when we last heard from them", which is what this was and which measured the wrong thing.
+   * Wall clock counts the minutes the server spent founding a world with the event loop held, and
+   * a player cannot speak into those — so the old reading made a slow join look exactly like a dead
+   * client. `Simulation.tick` is what adds to this, and it may only add what one tick could
+   * plausibly have listened through.
+   */
+  silent: number;
   /** Offers this client has made, keyed by the id they were made to. */
   offers: Map<string, TradeOffer>;
   /** The party this client travels with, if any. */
@@ -243,7 +251,7 @@ export class Rooms {
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
   admit(wire: Wire, room: Room, seed: number, name: string): Client {
     const client: Client = {
-      wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
+      wire, seed, silent: 0, offers: new Map(), party: null, seeing: new Map(),
       knows: new Map(), standing: { x: 0, z: 0, gear: [], guilt: 0 }, guilt: 0,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null, boat: null,

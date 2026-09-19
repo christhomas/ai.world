@@ -155,14 +155,37 @@ describe('the simulation, hosted by nothing at all', () => {
   it('drops somebody it has not heard from, and closes the world they were alone in', () => {
     const sim = new Simulation({ vault: new Forgetful(), timeout: 1_000 });
     const rowan = new Pretend(sim).join(7, 'Rowan');
+    const from = Date.now();
     expect(sim.rooms.playerCount).toBe(1);
 
-    sim.tick(Date.now() + 5_000);
+    // a tenth of a second at a time, the way a server that is actually running does it. Jumping the
+    // clock in one tick used to work here and deliberately does not any more: see `HEARD_AT_MOST`,
+    // because a jump and a held event loop are the same thing seen from inside `tick`.
+    for (let at = 100; at <= 2_000; at += 100) sim.tick(from + at);
     expect(rowan.open, 'the wire was closed on them').toBe(false);
     expect(sim.rooms.playerCount).toBe(0);
     // and the room went with them: an empty world is not worth ticking
-    sim.tick(Date.now() + 6_000);
+    sim.tick(from + 2_100);
     expect(sim.rooms.worldCount).toBe(0);
+  });
+
+  it('does not drop somebody for a silence it spent itself', () => {
+    // The tick that comes out of a long hold used to read the whole gap off the clock and conclude
+    // the player had sat there saying nothing. They had not been given the chance: founding a world
+    // is synchronous, and on this four-core box a join measured 50817ms, 62642ms and 58701ms, all
+    // of it inside one `receive` with nothing else running — not the tick, not the socket.
+    //
+    // So the reward for opening a world was being thrown out of it the moment it was ready, which
+    // is what `operate.test.ts` reported as `expected +0 to be 2` and what failed the 0.100.1
+    // release. A thirty-second patience is the real one; the hold is twice it.
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 30_000 });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    expect(sim.rooms.playerCount, 'they got in').toBe(1);
+
+    sim.tick(Date.now() + 60_000);
+
+    expect(rowan.open, 'the wire was closed on them for the server\'s own minute').toBe(true);
+    expect(sim.rooms.playerCount).toBe(1);
   });
 
   it('gives a world back to whoever opens it next, out of whatever it was kept in', () => {
@@ -303,11 +326,13 @@ describe('the simulation holding the ground itself', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 1, timeout: 1_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
     rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
-    sim.tick(Date.now() + 100);
+    const from = Date.now();
+    sim.tick(from + 100);
     expect(sim.groundOf(3)!.held).toBeGreaterThan(0);
 
-    sim.tick(Date.now() + 5_000);          // long enough that they are dropped for silence
-    sim.tick(Date.now() + 6_000);          // and the empty room is closed
+    // ticked rather than jumped, for the reason given in `HEARD_AT_MOST`: long enough that they are
+    // dropped for silence, and then one more so the empty room is closed
+    for (let at = 200; at <= 2_100; at += 100) sim.tick(from + at);
     expect(sim.groundOf(3)!.held, 'a fresh world, not the old one').toBe(0);
   });
 
