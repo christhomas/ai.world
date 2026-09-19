@@ -123,3 +123,54 @@ describe('the patience a run is given', () => {
     expect(() => patienceFrom('oops')).toThrow(/try PATIENCE=500000/);
   });
 });
+
+/**
+ * Which village a shot means by "the village".
+ *
+ * `village()` has always said *"the nearest village to the middle of the world"* and has always
+ * taken `__villages[0]`, which is the order the generator built them in. In the road tree the two
+ * agree by luck: the first village built is the hub, on the crossroads the country was grown
+ * outward from, which is the middle of the world — measured on seeds 3, 4, 5, 7 and 11, Crossroads
+ * Town stands at 0,0 in every one.
+ *
+ * In the endless country they do not agree at all. There is no hub; the villages are founded from
+ * the patch's own list, in the order the places came off it. Measured on the patch a fresh world
+ * opens in: seed 5's first village is Blackreach at 37,406 — 408 tiles out — while Hartcross stands
+ * at 119,90, and seed 11's is Whitemoor at 109,480 with Kirkstead at 301,198. So the shot walked
+ * past the near village to photograph a far one, and the picture moves whenever the list order
+ * does, which is not a thing a reference picture can survive.
+ *
+ * So the helper does what it says. Seed 3 is unmoved by this — Blackby at 32,85 is both the first
+ * and the nearest — which is why the pictures on #299 still compare.
+ */
+describe('the village a shot is taken in', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'shots.cjs'), 'utf8');
+
+  /** The comparator itself, lifted out of the shot spec and run. */
+  const byDistanceFromTheMiddle = (() => {
+    const at = source.indexOf('const byDistanceFromTheMiddle =');
+    expect(at, 'the village helper no longer sorts by distance').toBeGreaterThan(0);
+    const line = source.slice(at, source.indexOf('\n', at));
+    return new Function(`${line}; return byDistanceFromTheMiddle;`)() as
+      (a: { x: number; z: number }, b: { x: number; z: number }) => number;
+  })();
+
+  it('is the one nearest the middle, whatever order the country built them in', () => {
+    const villages = [
+      { name: 'Blackreach', x: 37, z: 406 },
+      { name: 'Hartcross', x: 119, z: 90 },
+      { name: 'Kirkstead', x: 301, z: 198 },
+    ];
+    expect([...villages].sort(byDistanceFromTheMiddle).map((v) => v.name))
+      .toEqual(['Hartcross', 'Kirkstead', 'Blackreach']);
+  });
+
+  it('and the helper sorts with it rather than taking the list as it comes', () => {
+    const at = source.indexOf('village: async (n = 0)');
+    const helper = source.slice(at, source.indexOf('\n  },', at));
+    expect(helper).toContain('.sort(byDistanceFromTheMiddle)[n]');
+    expect(helper, 'the generator\'s own order is what this exists to stop using')
+      .not.toContain('__villages[n]');
+  });
+});

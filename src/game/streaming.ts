@@ -26,6 +26,14 @@ export interface Streaming {
   streamCountry: () => void;
   /** A piece of the world, arriving as bytes. */
   onParcel: (bytes: ArrayBuffer) => void;
+  /**
+   * The world is growing a different country from this page's: draw our own ground from here on.
+   *
+   * Said once, by whoever compared the two fingerprints, and never taken back — a world does not
+   * change country under a page that has already joined it. See `whyCountriesDiffer`, which is the
+   * sentence this is the answer to.
+   */
+  growItHere: () => void;
   /** What it has done: waiting on, asked for, read back, arrived. */
   tally: { asked: number; kept: number; arrived: number; wanted: number };
 }
@@ -97,9 +105,30 @@ export function streamTheCountry(ctx: StreamingCtx): Streaming {
    */
   const unheard = new Map<string, [number, number]>();
 
+  /**
+   * Whether the ground the world sends is the ground this page is standing on.
+   *
+   * It has to be asked, because the two halves can be in different countries by arrangement rather
+   * than by accident. A page opened with `?world=road` grows the road tree; the simulation it joins
+   * at boot — the worker beside it, which is what playing alone is — grows the endless country and
+   * nothing else, and `boot.ts` says why that is not being changed here: *"the server grows one
+   * kind"*. So a road page asks a world for ground and is sent another country's, and the wire
+   * wins: measured on 0.101.0 at seed 3, `asked 121, arrived 121, grown 0`. Every tile of the view
+   * came from a country the page was not in, under the road tree's own villages and people — bare
+   * rock where Crossroads Town stands, which is what #299 filed as the shot landing in the wrong
+   * place.
+   *
+   * The page's own generator is the right one for the world the player chose. So when the
+   * fingerprints disagree it stops asking, stops taking, and stops keeping: a country drawn whole
+   * from one generator, rather than half of each.
+   */
+  let ours = true;
+
   return {
     tally,
+    growItHere: (): void => { ours = false; },
     streamCountry: (): void => {
+      if (!ours) return;
       const waiting = ctx.chunks.wanted();
       tally.wanted = waiting.length;
 
@@ -140,6 +169,9 @@ export function streamTheCountry(ctx: StreamingCtx): Streaming {
     },
 
     onParcel: (bytes: ArrayBuffer): void => {
+      // ground from a country this page is not in is not kept either: what the store holds is
+      // handed back on the next visit, and a country drawn half from each is the fault twice
+      if (!ours) return;
       // read far enough to know where it belongs; the drawing is a worker's business and the
       // keeping is the store's
       const parcel = unpackChunk(bytes.slice(0));
