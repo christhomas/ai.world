@@ -18,6 +18,7 @@ import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
 import { standPostsIn, theDaysPosts, whoWouldStand, type Post } from './postings';
 import { DayBook } from './daybook';
+import { HoldingBook } from './holdingbook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
@@ -202,6 +203,7 @@ export class Register {
       herd: farmers * LIVELIHOOD.FIRST_HERD,
     };
     this.villages.set(village, settlement);
+    this.holdingsBook.forget(village);   // a life thrown away never happened: `holdingbook.ts`
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
       // and its posts, because this is the *other* way a village lives a day; `relived.test.ts`
@@ -209,7 +211,7 @@ export class Register {
       // What the last of these mornings stood is what the village is left standing, or a place
       // founded late answers `[]` to `postsOn` and a re-lived one keeps the entry of the village
       // it replaced — a map keyed by name outliving the thing it described
-      this.posted.set(village, standPostsIn(settlement, this.pressure.on(village, day), day, this.book));
+      this.posted.set(village, standPostsIn(village, settlement, this.pressure.on(village, day), day, this.holdingsBook));
       this.telling.votedOn(village, settlement, day);
     }
     return settlement.people;
@@ -354,8 +356,15 @@ export class Register {
   /** What the next valley paid this person today, or what they paid it. Nought on most days. */
   carriedBy(id: string): number { return this.book.carriedBy(id); }
 
-  /** And what a post paid them, or cost them, on the last day they lived through. */
-  postedTo(id: string): number { return this.book.postedTo(id); }
+  /**
+   * Every morning any holding paid for a man, kept for the life of the save. See `holdingbook.ts`.
+   * Not in the day book above: a post is a fact about a *holding* rather than about somebody's day,
+   * and is kept for good rather than cleared. Handed out for `cartsToday`'s reason.
+   */
+  readonly holdingsBook = new HoldingBook();
+
+  /** And what a post paid them, or cost them, on the last morning this village lived through. */
+  postedTo(id: string): number { return this.holdingsBook.paidTo(id, this.day); }
 
   /** Who is standing what, so a man on a gate is not also offered a day of the hall's work. */
   postsOn(village: string): readonly Post[] { return this.posted.get(village) ?? []; }
@@ -472,7 +481,7 @@ export class Register {
       // the men on the gates and in the yards, paid on the morning they worked rather than on a
       // frame somebody drew, which is #264. `pressure.on` and not `pressureOn`: a pressing is told
       // one day and felt the next. `postings.ts` has both arguments
-      this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.book);
+      this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.holdingsBook);
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
       aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);

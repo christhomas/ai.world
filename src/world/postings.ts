@@ -1,4 +1,5 @@
 import { THE_HALL, isTheHall, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
+import type { HoldingBook, HoldingDay } from './holdingbook';
 import { payAndSweep } from './purses';
 import type { Settlement } from './settlement';
 import { grownUp, type Person } from './people';
@@ -347,11 +348,11 @@ export function theDaysPosts(
   villages: ReadonlyMap<string, Settlement>,
   pressureOn: (village: string) => number,
   day: number,
-  book: { post: (id: string, much: number) => void },
+  book: HoldingBook,
 ): Map<string, readonly Post[]> {
   const standing = new Map<string, readonly Post[]>();
   for (const [name, village] of villages) {
-    standing.set(name, standPostsIn(village, pressureOn(name), day, book));
+    standing.set(name, standPostsIn(name, village, pressureOn(name), day, book));
   }
   return standing;
 }
@@ -380,26 +381,51 @@ export function theDaysPosts(
  * a village. `pressureOn` is `now`, the same-day reading, and it is what a carrier wants because a
  * cart is settled in the evening of the day it walked. A man is put on a gate in the morning
  * against what is standing over the place that morning.
+ *
+ * ## And the morning is written down
+ *
+ * One row per holding per morning, kept for the life of the save — `holdingbook.ts`. This is the
+ * only place it is written, which is what makes the two ways a village lives a day agree about the
+ * book without either of them having to know the other exists. #264.
  */
 export function standPostsIn(
+  name: string,
   village: Settlement,
   pressure: number,
   day: number,
-  book: { post: (id: string, much: number) => void },
+  book: HoldingBook,
 ): readonly Post[] {
   const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressure, day);
   if (posts.length === 0) return posts;
   const onTheRoll = new Set(village.people.map((person) => ownedBy(person)));
   const owed = new Map<Owner, number>();
+  const facts: HoldingDay[] = [];
   for (const post of posts) {
     const man = ownerFromSave(post.who);
-    if (post.funder === man || !onTheRoll.has(post.funder) || !onTheRoll.has(man)) continue;
-    owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
-    owed.set(man, (owed.get(man) ?? 0) + post.wage);
+    /*
+     * Whether a coin actually crosses, which is a different question from what the morning was
+     * worth and is why the book keeps both. A man standing his own yard is doing a real day at a
+     * real price with both ends of the hand-over in one purse, and a funder who is not on this
+     * roll is the hall, which is left alone here on purpose — see above.
+     */
+    const moves = post.funder !== man && onTheRoll.has(post.funder) && onTheRoll.has(man);
+    if (moves) {
+      owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
+      owed.set(man, (owed.get(man) ?? 0) + post.wage);
+    }
+    facts.push({
+      day, holding: post.holding, kind: post.kind, who: post.who,
+      funder: post.funder, wage: post.wage, paid: moves ? post.wage : 0,
+    });
   }
-  if (owed.size === 0) return posts;
-  payAndSweep(village, owed);
-  for (const [id, much] of owed) book.post(id, much);
+  if (owed.size > 0) payAndSweep(village, owed);
+  /*
+   * Written whether or not anything moved, because a morning on which a man stood his own yard is
+   * a fact about that yard and not an absence of one. #264 asks for every fact kept and nothing
+   * folded, and a book that only recorded the mornings money changed hands would have quietly
+   * decided which mornings counted.
+   */
+  book.stood(name, day, facts, owed);
   return posts;
 }
 
