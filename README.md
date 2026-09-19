@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.102.0 — 2026-09-19
+
+A title screen that opens the world it measured, a door the world can refuse, and a massif with a foot
+
 ### v0.101.0 — 2026-09-19
 
 A carcass on a crag, a holding that pays while you are away, and a country made of layers
@@ -637,10 +641,6 @@ a world generator you can choose again, the hero on the register, villagers who 
 ### v0.94.0 — 2026-09-16
 
 marriage, illness, faces that run in families, a shelf that runs out, and distance you can see
-
-### v0.93.0 — 2026-09-16
-
-the endless country, a hall that hires, and a phone you can actually play on
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

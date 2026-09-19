@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.102.0 — 2026-09-19
+
+A title screen that opens the world it measured, a door the world can refuse, and a massif with a foot
+
 ## v0.101.0 — 2026-09-19
 
 A carcass on a crag, a holding that pays while you are away, and a country made of layers
