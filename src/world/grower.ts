@@ -68,6 +68,9 @@ export class Grower {
 
   /** A square has come back. Rebuild it here — about fifteen milliseconds — and put it with the rest. */
   took(reply: CountryReply): void {
+    // the worker answers two questions and the grower asked only one of them: a measurement is the
+    // title screen's, and arrives on the same port because it is the same work. See #358.
+    if (reply.type !== 'grown') return;
     this.busy = false;
     this.grown++;
     this.lastTook = reply.took;

@@ -7,8 +7,15 @@ import { SALT } from '../core/salts';
  * parent by default, so the tree is reproducible from the root alone, but the manifest is persisted:
  * a stored anchor can be overridden, keeps its generator version, and new kinds can be appended
  * later without disturbing anything already there.
+ *
+ * `eyrie` is the odd one and the reason is worth knowing, because #324 makes a rule of it for
+ * everything that follows. Every other kind here is a place the *seed* implied and the manifest
+ * merely pinned. An eyrie is a place a **player** made: somebody carried a carcass up a mountain,
+ * an eagle came, and no seed can be asked about that. So the anchor is not a pin on a derived
+ * fact, it is the record of the fact itself — the dice were thrown once when the carcass went
+ * down, and this entry is what they gave. See `game/baiting.ts`.
  */
-export type AnchorKind = 'island' | 'dungeon' | 'cave' | 'wreck' | 'thicket' | 'skyisle';
+export type AnchorKind = 'island' | 'dungeon' | 'cave' | 'wreck' | 'thicket' | 'skyisle' | 'eyrie';
 
 export interface Anchor {
   id: string;
@@ -27,10 +34,10 @@ export interface ManifestJson {
   anchors: Anchor[];
 }
 
-const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK, thicket: SALT.FOREST, skyisle: SALT.SKY };
+const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK, thicket: SALT.FOREST, skyisle: SALT.SKY, eyrie: SALT.EYRIE };
 
 /** Current generator version per kind; bump when a generator changes so old anchors stay pinned. */
-export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1, thicket: 1, skyisle: 1 };
+export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1, thicket: 1, skyisle: 1, eyrie: 1 };
 
 export class Manifest {
   readonly anchors = new Map<string, Anchor>();
