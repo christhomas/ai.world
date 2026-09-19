@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.101.0 — 2026-09-19
+
+A carcass on a crag, a holding that pays while you are away, and a country made of layers
+
 ### v0.100.0 — 2026-09-18
 
 The hero's farm earns while he is away, a seed is measured before it is handed out, a killed release finishes itself, and the phone stops overlapping itself
@@ -637,10 +641,6 @@ marriage, illness, faces that run in families, a shelf that runs out, and distan
 ### v0.93.0 — 2026-09-16
 
 the endless country, a hall that hires, and a phone you can actually play on
-
-### v0.92.6 — 2026-09-13
-
-The watchman a village has been paying for since it bought the tower is now standing on it — and he and the tower agree to the tile about where the tower is.
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
