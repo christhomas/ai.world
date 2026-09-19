@@ -525,6 +525,11 @@ export type ClientMessage =
      * position in the world at all. The world was comparing it against the county anyway, which
      * agrees only by accident; this is the number that judgement needs. Optional, and a step that
      * omits it is never refused, because an old page cannot be asked for something it never had.
+     *
+     * It is a `Doorway` record rather than a position somebody stood on: `Places.enterBuilding`
+     * keeps the door's own tile as the room's exit and this is that tile. The world grows the same
+     * list from the same seed, which is what lets it ask whether there is a doorway here at all
+     * and not merely whether the hero could have got to one.
      */
     at?: { x: number; z: number };
   }
@@ -860,8 +865,12 @@ export type ServerMessage =
    * Sent for every numbered `stood`, believed or not — and from every branch of it, including the
    * ones where the world has no hero to judge against. `Claims` deliberately times nothing out, so
    * a branch that answered nothing would leave one entry standing in the page's map for the rest
-   * of the session, and the page would never learn that the room it drew was one the world did not
-   * think it could have reached.
+   * of the session, and the page would never learn that the room it drew was one the world had no
+   * door for, or one it did not think the hero could have reached.
+   *
+   * One flag for both, on purpose. Which of the two refusals it was is the world's business and
+   * not the player's: the undo is the same step back onto the same doorstep either way, and a
+   * reason on the wire would be a reason the page could only put in the same sentence.
    */
   | { type: 'stepped'; seq: number; ok: boolean }
   | { type: 'warband-muster'; swords: number; from: string }
