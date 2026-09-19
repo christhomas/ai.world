@@ -1,5 +1,7 @@
 import { samplerIn } from './endless';
+import { inOrder } from './elevation';
 import type { RoadGraph } from './graph';
+import type { Highland } from './highland';
 import { islandAnchors, planIslands, roadTreeWorld } from './roadtree';
 import type { Anchor, Manifest } from './manifest';
 import type { TerrainSampler } from './terrain';
@@ -73,8 +75,34 @@ export function islandsOfSeed(seed: number): Anchor[] {
  * not of what has already been grown, not of the order anybody walked. That is what lets a worker
  * hand a finished patch to a page, and what will let a server hand one to both.
  */
-export function growPatch(seed: number, within: Within): TerrainSampler {
-  return samplerIn(seed, within);
+export function growPatch(
+  seed: number, within: Within, layers: readonly Highland[] = [],
+): TerrainSampler {
+  return samplerIn(seed, within, layers);
+}
+
+/**
+ * A world's elevation layers: the ones it was saved with, and nothing else.
+ *
+ * `islandsFor` above with a different noun, and for the same reason. Where a mountain is put is one
+ * of the things a country is a function of, so it is read in the one place a country is grown — and
+ * it is read from the manifest rather than from the seed, because a layer list is the one part of a
+ * world that somebody *chose*. Nothing derives it: a world with no layers has none, which is every
+ * world saved to this day.
+ *
+ * Write-once, which the manifest already is: an anchor is written the moment it is known and never
+ * moved, *"because a world saved before that code existed has them somewhere else, and moving them
+ * would move the ground out from under a house somebody built on one"*. A layer list that could be
+ * changed afterwards would move the ground under everything in the world at once, so it is a fact
+ * about a world and never a setting. #324 is where an editor gets to add to one.
+ */
+export function elevationFor(manifest: Manifest): readonly Highland[] {
+  const out: Highland[] = [];
+  for (const anchor of manifest.byKind('highland')) {
+    // a highland anchor with no shape on it is not a layer: it is a place, saved by something else
+    if (anchor.layer) out.push({ x: anchor.x, z: anchor.z, ...anchor.layer });
+  }
+  return out;
 }
 
 /**
@@ -95,7 +123,10 @@ export function growPatch(seed: number, within: Within): TerrainSampler {
  *
  * The graph rather than the structures, because the graph is upstream of all of them: two equal
  * graphs put the same villages in the same places with the same names, and there is nothing derived
- * from a country that is not derived from this.
+ * from a country that is not derived from this — *and from the layer list beside it*, which is the
+ * other thing the ground is a function of and therefore the other thing this has to hash. A world
+ * is a seed and a short list; a fingerprint of half of that would say two worlds agree while every
+ * tile under a mountain stood at a different height in each.
  */
 /**
  * Why two halves are not in the same country, in words, or null if they are.
@@ -119,7 +150,7 @@ export function whyCountriesDiffer(mine: string, theirs: string): string | null 
   return `This world grew differently here (${mine}) and in the world you joined (${theirs}).`;
 }
 
-export function countryStamp(graph: RoadGraph): string {
+export function countryStamp(graph: RoadGraph, layers: readonly Highland[] = []): string {
   let h = 0x811c9dc5;
   const eat = (n: number): void => { h = Math.imul(h ^ (n | 0), 0x01000193) >>> 0; };
   eat(graph.seed);
@@ -131,5 +162,19 @@ export function countryStamp(graph: RoadGraph): string {
   for (const e of graph.edges) { eat(e.a); eat(e.b); }
   for (const t of graph.towns) eat(t);
   for (const isle of graph.islands) { eat(isle.seed); eat(Math.round(isle.x)); eat(Math.round(isle.z)); eat(isle.hub); }
+  /*
+   * And the layers, because they are the other half of what the ground is a function of.
+   *
+   * A stamp that hashed the graph and not the list would report agreement between two worlds whose
+   * every tile under a mountain stands at a different height — and it is the only question either
+   * half asks before it believes the other, so the silence would last until somebody noticed a
+   * hero walking through a hillside. Rounded to a thousandth for the reason the nodes are, and read
+   * in `inOrder`'s order so that two halves holding the same list differently sorted still agree.
+   */
+  eat(layers.length);
+  for (const l of inOrder(layers)) {
+    eat(Math.round(l.x * 1000)); eat(Math.round(l.z * 1000));
+    eat(Math.round(l.reach * 1000)); eat(Math.round(l.lift * 1000));
+  }
   return h.toString(16).padStart(8, '0');
 }

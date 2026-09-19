@@ -3,6 +3,7 @@ import type { RoadGraph } from './graph';
 import type { Hydrology } from './rivers';
 import type { Structures } from './structures';
 import type { Ranges } from './ranges';
+import type { Highland } from './highland';
 import type { Within } from './window';
 
 /**
@@ -40,6 +41,11 @@ export type WorkerRequest =
     graph: RoadGraph; hydro: Hydrology; structures: Structures;
     /** The rock already cut for this patch. Not recomputed on the far side: it is the expensive half. */
     ranges: Ranges | null;
+    /**
+     * The world's elevation layers. Cheap to send — a handful of numbers each — and the one thing
+     * here that cannot be worked out again from the seed, because nothing derives it.
+     */
+    layers: readonly Highland[];
   }
   | { type: 'gen'; id: number; cx: number; cz: number; patch?: string }
   /**

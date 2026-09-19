@@ -45,6 +45,6 @@ self.onmessage = (e: MessageEvent<CountryRequest>) => {
     return;
   }
   if (msg.type !== 'grow') return;
-  const sampler = growPatch(msg.seed, boundsOf(msg.patch));
+  const sampler = growPatch(msg.seed, boundsOf(msg.patch), msg.layers);
   post({ type: 'grown', patch: msg.patch, parts: partsOf(sampler), took: Date.now() - started });
 };

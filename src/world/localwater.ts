@@ -1,6 +1,7 @@
 import { rand2 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { highlandAt, highlandRidges, type Highland } from './highland';
+import { Elevations } from './elevation';
 import { groundAt } from './localgraph';
 import { highlandNear } from './localland';
 import type { Country } from './localmesh';
@@ -106,11 +107,22 @@ interface Slope {
   seed: number;
   hills: Highland[];
   ridges: Simplex2D;
+  /**
+   * The world's elevation layers, which a river has to know about before it is routed.
+   *
+   * This is #322's first worry in its smallest form. A layer that lifts the ground is read by the
+   * hydrology, and the hydrology runs *before* the sampler exists — `waterIn` plans the courses and
+   * `cutForWater` afterwards cuts the ground down to them. Give the sampler a layer the river
+   * planner never saw and the river is routed across a hillside that was not there when it was
+   * surveyed: it runs uphill, or out of the valley it cut for itself.
+   */
+  layers: Elevations;
 }
 
 /** How high the ground is at a point, for the purpose of running water down it. */
 function heightOn(slope: Slope, x: number, z: number): number {
-  return groundAt(slope.seed, x, z) + highlandAt(slope.hills, slope.ridges, x, z);
+  return groundAt(slope.seed, x, z) + highlandAt(slope.hills, slope.ridges, x, z)
+    + slope.layers.liftAt(x, z);
 }
 
 /**
@@ -121,7 +133,7 @@ function heightOn(slope: Slope, x: number, z: number): number {
  * where the others went: two springs that are too close both ask the same question of the same
  * pair, and the same one wins whichever of them is asked.
  */
-export function springsNear(world: Land, within: Within): Spring[] {
+export function springsNear(world: Land, within: Within, layers: Elevations): Spring[] {
   // Wider than the patch by exactly one spring's distance: a spring at the edge is beaten by
   // neighbours outside it, and a patch that could not see those would keep a spring its neighbour
   // knows was taken. The answer has to be the same from either side, so both sides look.
@@ -129,7 +141,7 @@ export function springsNear(world: Land, within: Within): Spring[] {
     x0: within.x0 - WATER.SPACING, z0: within.z0 - WATER.SPACING,
     x1: within.x1 + WATER.SPACING, z1: within.z1 + WATER.SPACING,
   };
-  const slope = slopeOf(world, asked);
+  const slope = slopeOf(world, asked, layers);
   const offered: Spring[] = [];
   for (const junction of junctionsIn(world, asked)) {
     if (!world.land(junction.x, junction.z)) continue;
@@ -244,13 +256,13 @@ function levelOn(slope: Slope, x: number, z: number): number {
  * are cut against each other — the lesser of two that meet ends where they meet — and what is left
  * is the patch's water.
  */
-export function waterIn(world: Land, within: Within): Hydrology {
+export function waterIn(world: Land, within: Within, layers: Elevations): Hydrology {
   const reach = WATER.MAX_STEPS * WATER.STEP;
   const wide = {
     x0: within.x0 - reach, z0: within.z0 - reach, x1: within.x1 + reach, z1: within.z1 + reach,
   };
-  const slope = slopeOf(world, wide);
-  const springs = springsNear(world, wide).sort(byRank);
+  const slope = slopeOf(world, wide, layers);
+  const springs = springsNear(world, wide, layers).sort(byRank);
 
   const rivers: RiverNode[][] = [];
   const lakes: Lake[] = [];
@@ -324,6 +336,8 @@ function wetNear(x: number, z: number, dist: number, rivers: RiverNode[][], lake
 }
 
 /** The ground of a patch, gathered once: its slope and the high country standing on it. */
-export function slopeOf(world: Country, within: Within): Slope {
-  return { seed: world.seed, hills: highlandNear(world, within), ridges: highlandRidges(world.seed) };
+export function slopeOf(world: Country, within: Within, layers: Elevations): Slope {
+  return {
+    seed: world.seed, hills: highlandNear(world, within), ridges: highlandRidges(world.seed), layers,
+  };
 }

@@ -13,7 +13,7 @@ import { viewOf } from '../world/patchview';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import { PatchCountry } from '../world/patchcountry';
 import { RoadCountry, type Country, type WorldKind } from '../world/countries';
-import { growWorld, islandsFor } from '../world/growworld';
+import { elevationFor, growWorld, islandsFor } from '../world/growworld';
 import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
@@ -74,7 +74,16 @@ export function growCountry(ctx: Growing) {
    * otherwise the first `moveTo` of the frame puts it where he actually is, which costs one patch
    * grown and thrown away and is not worth a special case to avoid.
    */
-  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0) : null;
+  /*
+   * What this world was authored with, before a square of it is grown.
+   *
+   * Read from the manifest for the reason the islands are: it is a thing about this world that the
+   * seed does not settle, it is written down once, and moving it afterwards would move the ground
+   * out from under everything standing on it. Empty for every world saved to this day, which is
+   * exactly the answer those worlds want — see `elevationFor`, and #322 for what fills it.
+   */
+  const layers = elevationFor(manifest);
+  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0, undefined, layers) : null;
   /*
    * And somebody else to grow the rest of it.
    *
@@ -183,6 +192,8 @@ export function growCountry(ctx: Growing) {
 
   return {
     manifest, around, daycycle, chunks, rock, mountains, skyline,
+    /** What the ground of this world was authored with, for the fingerprint sent at a join. */
+    layers,
     /*
      * Live, not read once. Anything that keeps one of these past the frame it asked in keeps it
      * across a patch crossing too, which is the fault `patchview.ts` exists to have ended.

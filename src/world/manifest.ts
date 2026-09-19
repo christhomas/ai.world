@@ -15,7 +15,7 @@ import { SALT } from '../core/salts';
  * fact, it is the record of the fact itself — the dice were thrown once when the carcass went
  * down, and this entry is what they gave. See `game/baiting.ts`.
  */
-export type AnchorKind = 'island' | 'dungeon' | 'cave' | 'wreck' | 'thicket' | 'skyisle' | 'eyrie';
+export type AnchorKind = 'island' | 'dungeon' | 'cave' | 'wreck' | 'thicket' | 'skyisle' | 'eyrie' | 'highland';
 
 export interface Anchor {
   id: string;
@@ -27,6 +27,21 @@ export interface Anchor {
   parent: string | null;
   /** Generator version that produced this anchor's content. */
   version: number;
+  /**
+   * What this anchor does to the height of the ground, for the kinds of anchor that are a layer
+   * of it rather than a place on it. How far the lift reaches in tiles, and how high it lifts in
+   * terraces.
+   *
+   * Absent on every other kind, and on every world saved before there were any — which is why it
+   * is optional rather than defaulted. A `highland` anchor without it is a place somebody pinned
+   * and not a shape, and `elevationFor` reads it as no layer at all rather than as a flat one.
+   *
+   * Two numbers rather than a seed, because tuning by eye needs parameters that mean something
+   * separately: with `[location, seed]` alone, "make it wider" has no handle and an editor is a
+   * slot machine. `version` above is what keeps an old anchor pinned when the generator that reads
+   * these changes. #322, #324.
+   */
+  layer?: { reach: number; lift: number };
 }
 
 export interface ManifestJson {
@@ -34,10 +49,10 @@ export interface ManifestJson {
   anchors: Anchor[];
 }
 
-const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK, thicket: SALT.FOREST, skyisle: SALT.SKY, eyrie: SALT.EYRIE };
+const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK, thicket: SALT.FOREST, skyisle: SALT.SKY, eyrie: SALT.EYRIE, highland: SALT.HIGHLAND };
 
 /** Current generator version per kind; bump when a generator changes so old anchors stay pinned. */
-export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1, thicket: 1, skyisle: 1, eyrie: 1 };
+export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1, thicket: 1, skyisle: 1, eyrie: 1, highland: 1 };
 
 export class Manifest {
   readonly anchors = new Map<string, Anchor>();

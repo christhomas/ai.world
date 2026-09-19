@@ -1,4 +1,5 @@
 import type { PatchParts } from './endless';
+import type { Highland } from './highland';
 import type { Reading } from './seedscore';
 
 /**
@@ -15,7 +16,17 @@ import type { Reading } from './seedscore';
 
 /** Page → worker. */
 export type CountryRequest =
-  | { type: 'grow'; seed: number; patch: string }
+  | {
+    type: 'grow'; seed: number; patch: string;
+    /**
+     * The world's elevation layers, sent with every ask rather than once at start-up.
+     *
+     * A worker told the seed and not the list would grow a country of the right shape at the wrong
+     * height and hand it back as finished ground. It goes with each request because the request is
+     * the only thing there is: this worker is handed no world to remember.
+     */
+    layers: readonly Highland[];
+  }
   /**
    * Measure this seed, and do it over there.
    *

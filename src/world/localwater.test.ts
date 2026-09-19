@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Elevations } from './elevation';
 import { countryOf } from './localmesh';
 import type { Land } from './localroads';
 import { riverFrom, slopeOf, springsNear, waterIn } from './localwater';
@@ -41,7 +42,7 @@ const inside = (within: Within, x: number, z: number): boolean =>
 
 describe('the water of an endless country', () => {
   it('rises in the same places whichever patch asks', () => {
-    const named = (within: Within): string[] => springsNear(country(SEED), within)
+    const named = (within: Within): string[] => springsNear(country(SEED), within, Elevations.none)
       .filter((s) => inside(OVERLAP, s.x, s.z))
       .map((s) => s.id)
       .sort();
@@ -51,7 +52,7 @@ describe('the water of an endless country', () => {
   });
 
   it('keeps its springs apart without a list of where the others went', () => {
-    const springs = springsNear(country(SEED), { x0: 0, z0: 0, x1: 400, z1: 400 });
+    const springs = springsNear(country(SEED), { x0: 0, z0: 0, x1: 400, z1: 400 }, Elevations.none);
     expect(springs.length, 'a country with no springs in it').toBeGreaterThan(3);
     for (const a of springs) {
       for (const b of springs) {
@@ -64,9 +65,9 @@ describe('the water of an endless country', () => {
 
   it('runs downhill the whole way, which is what makes a river a river', () => {
     const world = country(SEED);
-    const slope = slopeOf(world, { x0: -300, z0: -300, x1: 700, z1: 700 });
+    const slope = slopeOf(world, { x0: -300, z0: -300, x1: 700, z1: 700 }, Elevations.none);
     let traced = 0;
-    for (const spring of springsNear(world, { x0: 0, z0: 0, x1: 400, z1: 400 })) {
+    for (const spring of springsNear(world, { x0: 0, z0: 0, x1: 400, z1: 400 }, Elevations.none)) {
       const course = riverFrom(world, spring, slope);
       for (let i = 1; i < course.length; i++) {
         expect(course[i].level, `${spring.id} climbs at step ${i}`).toBeLessThanOrEqual(course[i - 1].level);
@@ -78,18 +79,18 @@ describe('the water of an endless country', () => {
 
   it('draws the same river from the same spring, alone or in company', () => {
     const world = country(SEED);
-    const spring = springsNear(world, { x0: 0, z0: 0, x1: 400, z1: 400 })[0];
+    const spring = springsNear(world, { x0: 0, z0: 0, x1: 400, z1: 400 }, Elevations.none)[0];
     expect(spring, 'nowhere for a river to rise').toBeTruthy();
     const patch = { x0: spring.x - 400, z0: spring.z - 400, x1: spring.x + 400, z1: spring.z + 400 };
-    const alone = riverFrom(world, spring, slopeOf(country(SEED), patch));
-    const again = riverFrom(country(SEED), spring, slopeOf(country(SEED), patch));
+    const alone = riverFrom(world, spring, slopeOf(country(SEED), patch, Elevations.none));
+    const again = riverFrom(country(SEED), spring, slopeOf(country(SEED), patch, Elevations.none));
     expect(again.map((n) => `${n.x.toFixed(4)},${n.z.toFixed(4)}@${n.level}`))
       .toEqual(alone.map((n) => `${n.x.toFixed(4)},${n.z.toFixed(4)}@${n.level}`));
   });
 
   it('gives two patches the same water in the ground they both hold', () => {
     const shown = (within: Within): string[] => {
-      const water = waterIn(country(SEED), within);
+      const water = waterIn(country(SEED), within, Elevations.none);
       const out: string[] = [];
       for (const river of water.rivers) {
         for (const node of river) {
@@ -110,7 +111,7 @@ describe('the water of an endless country', () => {
 
   it('ends a river at the sea or in a lake, never in mid air', () => {
     const world = country(SEED);
-    const water = waterIn(world, WEST);
+    const water = waterIn(world, WEST, Elevations.none);
     expect(water.rivers.length, 'a country with no rivers').toBeGreaterThan(0);
     for (const river of water.rivers) {
       const last = river[river.length - 1];

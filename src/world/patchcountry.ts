@@ -1,4 +1,5 @@
 import type { Country, WorldKind } from './countries';
+import type { Highland } from './highland';
 import { PATCH, Patchwork, patchOf } from './patchwork';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
@@ -49,9 +50,13 @@ export class PatchCountry implements Country {
     readonly seed: number,
     x: number,
     z: number,
-    grow?: (seed: number, within: Within) => TerrainSampler,
+    grow?: (seed: number, within: Within, layers: readonly Highland[]) => TerrainSampler,
+    /** What this world was authored with, on its way to the store that grows every square. */
+    layers: readonly Highland[] = [],
   ) {
-    this.patches = grow ? new Patchwork(seed, grow) : new Patchwork(seed);
+    this.patches = grow
+      ? new Patchwork(seed, grow, undefined, layers)
+      : new Patchwork(seed, undefined, undefined, layers);
     this.standing = patchOf(x, z);
     this.current = this.patches.patch(this.standing);
   }
