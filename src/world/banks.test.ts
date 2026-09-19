@@ -28,7 +28,29 @@ const fresh = () => ({
 const wet = (t: number): boolean =>
   t === TileType.Water || t === TileType.Seabed || t === TileType.Bridge;
 
-function worstSteps(seed: number, reach = 260) {
+/**
+ * The seeds this is measured on.
+ *
+ * It was 1 and 7, and those two passed by a unit and a quarter of the nine they are allowed —
+ * not because the country was walkable but because their rivers happened to miss the fault this
+ * file is about. Found by scanning seeds 1 to 30 with nothing changed: fourteen of the thirty had
+ * a wall over the bound, the worst 13.50 on seed 8, and seed 22 had an 11.33-unit stair with both
+ * tiles a road. The six added here are that scan's worst, kept because a guard two lucky worlds
+ * satisfy is not a guard.
+ */
+const SEEDS = [1, 7, 8, 17, 22, 25, 27, 29];
+
+/** One world per seed however many questions are asked of it: growing one is most of this file. */
+const measured = new Map<number, ReturnType<typeof measure>>();
+const worstSteps = (seed: number) => {
+  const had = measured.get(seed);
+  if (had) return had;
+  const now = measure(seed);
+  measured.set(seed, now);
+  return now;
+};
+
+function measure(seed: number, reach = 260) {
   const s = new TerrainSampler(generateWebGraph(seed));
   const a = fresh(), b = fresh();
   let worst = 0, road = 0, pairs = 0;
@@ -57,7 +79,7 @@ describe('what a bank does to the ground beside it', () => {
      * every water it is 4.91 and 3.16. The bound is set above both so that this fails when
      * something puts a stair back, and not when a road happens to climb a little harder.
      */
-    for (const seed of [1, 7]) {
+    for (const seed of SEEDS) {
       const { road, pairs } = worstSteps(seed);
       expect(pairs, 'nothing was measured at all').toBeGreaterThan(10_000);
       expect(road, `seed ${seed} has a ${road.toFixed(2)} stair between two road tiles`)
@@ -67,7 +89,7 @@ describe('what a bank does to the ground beside it', () => {
 
   it('leaves the country walkable, mountains excepted', () => {
     // mountains are built as polygons and are meant to be steep; this is the rest of the world
-    for (const seed of [1, 7]) {
+    for (const seed of SEEDS) {
       const { worst } = worstSteps(seed);
       expect(worst, `seed ${seed} has a ${worst.toFixed(2)} wall in open country`).toBeLessThan(9);
     }

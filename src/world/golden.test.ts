@@ -36,7 +36,21 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when the ground stopped being chequered (2026-09-16). Only `chunks`
+ * Last updated deliberately when the ground beside water stopped leaving walls (#391). Only
+ * `structures` moves on both seeds, and `quests` on seed 2 because a quest names a building.
+ *
+ * `graph`, `hydro` and `chunks` do not move a digit on either seed, and both of those are the
+ * check rather than the claim. `hydro` holds because this is the road-tree world and the one thing
+ * #391 changed about *routing* — `highNearby` being handed world units where it asked for terraces
+ * — only reaches a world with a mesh, so no river here starts anywhere new. `chunks` holds because
+ * the four squares it reads sit at the middle of the world, and nothing in them is near enough to
+ * water for a bank, a water surface or a valley side to have moved. What did move is where the
+ * ground stands beside water elsewhere: a bank ring now sits at the terrace *every* water near it
+ * leaves standing rather than at the nearest one's own surface, so villages founded on the country
+ * beside a river are seated a terrace or two from where they were, and everything laid out after
+ * them follows.
+ *
+ * Before that: when the ground stopped being chequered (2026-09-16). Only `chunks`
  * moves, on both seeds. Which of a biome's two greens a tile of open ground takes used to be an
  * independent coin flip per tile — white noise at exactly one tile of wavelength, which is what a
  * checkerboard is — and is now read off a noise field twelve tiles across, dithered at the join.
@@ -157,13 +171,13 @@ describe('generation fingerprint', () => {
 });
 
 /*
- * Moved on 2026-09-16, on purpose: the ground goes darker where something else touches it.
+ * Moved for #391, on purpose: the ground beside water no longer leaves a wall.
  *
- * `chunks` alone, and only the colours in it. Graph, water, structures and quests are the same
- * numbers they were, because a contact is read off heights and prop positions that already
- * existed rather than rolled for.
+ * `structures` on both seeds and `quests` on seed 2. Graph, water and the four sampled chunks are
+ * the same numbers they were — see the note above for why each of those three holding is a
+ * statement about the change rather than luck.
  */
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: '5256f550', hydro: '57d1f709', structures: '668000d3', chunks: '7b146f80', quests: '829c481b' },
-  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '2d01947e', chunks: '8b24c7a3', quests: '10f6f7ad' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: '6d876b4b', chunks: '7b146f80', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '68b7ce8e', chunks: '8b24c7a3', quests: 'f1511e0e' },
 };

@@ -10,8 +10,9 @@ import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
-import { VALLEY_SIDE, cutForWater, highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
+import { highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
 import { Elevations } from './elevation';
+import { valleyAt, waterAt, type Waters } from './waters';
 import { acrossCountry, widthBeside } from './countryside';
 import { despeckle } from './despeckle';
 import { rollProp } from './props';
@@ -92,6 +93,11 @@ export class TerrainSampler {
   private readonly wanders: Float32Array;
   private riverIndex: CellIndex;
   private readonly riverSegs: RiverSeg[] = [];
+  /**
+   * The same water, in the terms `waters.ts` reads it. Held rather than made per question: it is
+   * asked twice for every tile in the world and the answer is three references.
+   */
+  private readonly waters: Waters;
   private readonly noise: Simplex2D;
   private readonly biomeNoise: Simplex2D;
   private structIndex: CellIndex | null = null;
@@ -218,8 +224,16 @@ export class TerrainSampler {
       // is the mountain country itself, which is ground and therefore something a river must know
       // about or it will run uphill out of a valley.
       (x, z, roadDist) => (this.shaped ? this.highlandAt(x, z) : upliftAt(x, z, this.massifs, roadDist)),
-      // where they stand is still worth knowing, for where water comes out of the ground
-      (x, z) => (high ? nearestLift(high, x, z) : 0),
+      /*
+       * Where they stand is still worth knowing, for where water comes out of the ground — in
+       * terraces, which is what the ranking on the other side adds it to. `nearestLift` answers in
+       * world units, because `RANGE.TALLEST` is a height a camera has to frame; a terrace is half a
+       * unit, so this was handing the ranking *half* the number its own comment asked for.
+       * Measured on the bounded fixture, seed 1: `peak.lift` 13.69–19.65 units, so 27–39 terraces,
+       * against crossroads levels of 3–29 and an uplift of 0–19. The same division `rangesAsMassifs`
+       * does, for the same reason it gives.
+       */
+      (x, z) => (high ? nearestLift(high, x, z) / WORLD.STEP : 0),
     );
     for (const river of this.hydro.rivers) {
       for (let i = 0; i + 1 < river.length; i++) {
@@ -228,6 +242,7 @@ export class TerrainSampler {
       }
     }
     this.riverIndex = indexWater(this.riverSegs, this.hydro.lakes, null);
+    this.waters = { segs: this.riverSegs, lakes: this.hydro.lakes, noise: this.noise };
 
     // structures sample raw terrain, so they come last
     this.structures = prebuilt?.structures ?? generateStructures(this, prebuilt?.settling);
@@ -421,41 +436,6 @@ export class TerrainSampler {
   }
 
   /**
-   * Every water body in the candidate set, as how far outside it this point is and what terrace its
-   * surface belongs to.
-   *
-   * Walked rather than reduced, because the two questions asked of it want different answers. What
-   * the *nearest* water is decides whether you are standing in it and what the surface is doing
-   * around you. What the *most demanding* water is decides how far the country has to come down,
-   * and that is not always the nearest one — see `cutForWaters`.
-   */
-  private eachWater(px: number, pz: number, cands: number[], saw: (wd: number, level: number) => void): void {
-    const nSeg = this.riverSegs.length;
-    for (const i of cands) {
-      if (i < nSeg) {
-        const s = this.riverSegs[i];
-        const [d2, t] = segDist2(px, pz, s.ax, s.az, s.bx, s.bz);
-        const w = s.wa + (s.wb - s.wa) * t;
-        // level switches halfway along a segment: that seam is where the waterfall forms
-        saw(Math.sqrt(d2) - w, t < 0.5 ? s.la : s.lb);
-      } else {
-        const l = this.hydro.lakes[i - nSeg];
-        const dx = px - l.x, dz = pz - l.z;
-        const rr = l.r * (1 + 0.3 * this.noise.noise(px * 0.16, pz * 0.16));
-        saw(Math.sqrt(dx * dx + dz * dz) - rr, l.level);
-      }
-    }
-  }
-
-  private waterAt(px: number, pz: number, cands: number[]): { wd: number; level: number } | null {
-    let best: { wd: number; level: number } | null = null;
-    this.eachWater(px, pz, cands, (wd, level) => {
-      if (!best || wd < best.wd) best = { wd, level };
-    });
-    return best;
-  }
-
-  /**
    * Raw terrain for one tile. `cands`/`riverCands` may be passed when sampling many tiles in a
    * region; otherwise they are looked up per call.
    */
@@ -491,23 +471,20 @@ export class TerrainSampler {
     }
 
     if (!riverCands) riverCands = this.riverIndex.query(px - 1, pz - 1, px + 1, pz + 1);
-    const water = riverCands.length > 0 ? this.waterAt(px, pz, riverCands) : null;
+    const water = riverCands.length > 0 ? waterAt(this.waters, px, pz, riverCands) : null;
     const plaza = Math.hypot(px, pz) < HUB_PLAZA;
 
     /*
      * The country this is in — a road through the mountains is a road in the mountains — cut down
-     * into whatever valley it crosses, which is `cutForWater`'s whole subject.
-     *
-     * Against *every* water near this point rather than the nearest one. Each body constrains the
-     * ground independently and the binding constraint is the lowest of them, which is not always
-     * the closest. Taking the nearest was the worst wall in the world: at 158,-158 on seed 1 two
-     * neighbouring road tiles stood thirteen terraces apart, because the nearest water changed
-     * hands from a surface at terrace 38 to one at 22. Both were near both tiles the whole time.
+     * into whatever valley it crosses, and the terrace the water in that valley sits at. Both from
+     * *every* water near this point rather than the nearest one, which is `waters.ts`'s subject.
+     * Taking the nearest was the worst wall in the world twice over: at 158,-158 on seed 1 two
+     * neighbouring road tiles stood thirteen terraces apart because the nearest water changed
+     * hands from a surface at terrace 38 to one at 22, and at (116, 78) on seed 17 two tiles that
+     * were both bank sat at terraces 43.10 and 18.79 for the same reason. Both bodies were near
+     * both tiles the whole time; only which one was nearest changed.
      */
-    let country = this.highlandAt(px, pz);
-    this.eachWater(px, pz, riverCands, (wd, level) => {
-      country = cutForWater(country, { wd, level }, roadLevel, HYDRO.BANK);
-    });
+    const { country, surface } = valleyAt(this.waters, px, pz, riverCands, this.highlandAt(px, pz), roadLevel);
 
     if (d < e.roadWidth || plaza) {
       out.type = TileType.Road;
@@ -521,9 +498,9 @@ export class TerrainSampler {
       if (water && water.wd < 0) {
         // bridge: deck rides just above the river surface
         out.type = TileType.Bridge;
-        const surface = (Math.max(1, water.level) - 1) * STEP + WORLD.WATER_Y;
-        out.water = surface;
-        const deck = surface + BRIDGE_DECK_LIFT;
+        const top = (surface - 1) * STEP + WORLD.WATER_Y;
+        out.water = top;
+        const deck = top + BRIDGE_DECK_LIFT;
         for (let k = 0; k < 4; k++) out.corners[k] = Math.max(out.corners[k], deck);
         out.height = Math.max(out.height, deck);
       }
@@ -557,24 +534,30 @@ export class TerrainSampler {
     }
 
     if (water) {
-      const wl = Math.max(1, water.level);
+      /*
+       * `surface`, and not this water's own level. A river's level is fixed when it is routed, off
+       * country the water cut had not touched yet, so a river can come out standing above the
+       * ground its own valley leaves beside it: at (-72, -160) on seed 8 the bank ring sat at
+       * terrace 45.98 with the country beside it cut to 21 by a lower body six tiles further off,
+       * which is a 12.49-unit wall between two walkable tiles. Water does not perch: it comes down
+       * with the valley it is in.
+       */
       if (water.wd < 0) {
         type = TileType.Water;
-        level = wl - 1;
+        level = surface - 1;
         out.water = level * STEP + WORLD.WATER_Y;
       } else if (water.wd < HYDRO.BANK) {
-        level = wl;
+        level = surface;
         type = TileType.Sand;
         out.bank = true;
       } else {
-        // valley sides climb one terrace per VALLEY_SIDE tiles away from the bank.
-        // Measured against the ground rather than against the mountain standing on it: a river
-        // cuts a valley into the country it runs through, it does not shave the top off a peak
-        // half a mile above it. Without the `lift` here a massif with a stream anywhere near it
-        // came out as level 5 in the middle and broke into slabs around the edges.
-        const cap = wl + Math.floor((water.wd - HYDRO.BANK) / VALLEY_SIDE);
-        if (level - lift > cap) {
-          level = cap + lift;
+        // valley sides climb one terrace per VALLEY_SIDE tiles away from the bank, which is what
+        // `ceiling` counts. Measured against the ground rather than against the mountain standing
+        // on it: a river cuts a valley into the country it runs through, it does not shave the top
+        // off a peak half a mile above it. Without the `lift` here a massif with a stream anywhere
+        // near it came out as level 5 in the middle and broke into slabs around the edges.
+        if (level - lift > surface) {
+          level = surface + lift;
           if (type === TileType.High && level - baseLevel < def.highAt) type = TileType.Ground;
         }
       }

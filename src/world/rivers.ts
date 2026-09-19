@@ -44,6 +44,10 @@ export function generateHydrology(
   /**
    * How high the mountains stand *near* a point, in terraces, for choosing where rivers rise.
    *
+   * Terraces, and said twice because it was wrong: the sum below adds this to `n.level`, which a
+   * crossroads counts in terraces, and to `uplift`, which answers in terraces. A caller handing it
+   * world units is handing it half a number. `terrain.ts` is the only one and it divides.
+   *
    * Separate from `uplift`, which answers about the point itself and is nought a step outside a
    * mountain's own footprint. That is the right answer for the height of the ground and the wrong
    * one for where a river should start: a spring rises at the foot of a range, not on its summit,
