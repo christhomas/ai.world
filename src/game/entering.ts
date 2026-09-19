@@ -10,15 +10,22 @@ import { claimsFor } from './predicted';
  *
  * ## What the world is actually judging
  *
- * Not whether there is a door there. The world does not hold the doorways and cannot; it grows the
- * same villages from the same seed but nothing in it knows where a shop's step is, and giving it
- * that is the larger piece of work `docs/server-authority.md` calls phase three.
+ * Two things, and they refuse two different lies.
  *
- * What it does know is where it has been walking the hero, and that is enough for the check that
- * matters: a step claimed on the far side of the county is not a door, it is a way of travelling.
- * `server/messages.ts` has always made that judgement and always kept it to itself — it quietly
- * substituted its own position for the door and the page found out on the way back out, hauled
- * across the county after a shop visit. Now it answers, and the page can put it right at once.
+ * **Could he have been standing there?** The world has been walking the hero, so a step claimed on
+ * the far side of the county is not a door, it is a way of travelling. `server/messages.ts` has
+ * always made that judgement and always kept it to itself — it quietly substituted its own position
+ * for the door and the page found out on the way back out, hauled across the county after a shop
+ * visit. Now it answers, and the page can put it right at once.
+ *
+ * **And is there a door there at all?** A hero standing in an empty field can report a doorway at
+ * his own feet, and nothing about the distance is wrong. The world grows the same villages from the
+ * same seed as this page does, so it has the doorways of every one it has laid out and can say that
+ * this is not one of them — `GroundWorld.atADoor`, against the tile this page sends as `at`, which
+ * is a `Doorway` record copied out of the very list the world grows its own copy of.
+ *
+ * Neither is a judgement about the room. The world has never grown a shop floor and does not
+ * intend to; what it owns is the country outside the door.
  *
  * ## What is kept, and why it is the step
  *
@@ -44,8 +51,15 @@ export interface BackOut {
   flash: (message: string) => void;
 }
 
-/** Why he is suddenly on the step again, in the words somebody standing on it would want. */
-const REFUSED = 'That was not a door you could have reached.';
+/**
+ * Why he is suddenly on the step again, in the words somebody standing on it would want.
+ *
+ * One line for both refusals, because `stepped` carries `ok` and nothing else, and widening the
+ * wire to tell a player *which* way the world disagreed would be telling them something they
+ * cannot act on either way. It used to name the reach — "a door you could have reached" — which
+ * stopped being the whole truth the moment the world could also refuse one for not being there.
+ */
+const REFUSED = 'You did not come through that door.';
 
 export class Enterings {
   /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */

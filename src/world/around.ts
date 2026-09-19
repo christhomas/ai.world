@@ -1,5 +1,5 @@
 import { PATCH, patchOf, type Patchwork } from './patchwork';
-import type { Pier, Structures, Village } from './structures';
+import type { Doorway, Pier, Structures, Village } from './structures';
 import type { TerrainSampler } from './terrain';
 
 /**
@@ -59,6 +59,16 @@ export interface Around {
    * than a name and a point.
    */
   piers(x: number, z: number, reach: number): Pier[];
+  /**
+   * And the doorways within `reach`, nearest first.
+   *
+   * A fifth kind, and it costs nothing to offer: `generateStructures` has always built the flat
+   * list of every doorway it cut into a village — a tile just outside each house, chapel and watch
+   * house — because the game walks a hero into them. What was missing was anybody on the server's
+   * side asking. See `server/messages.ts`, which uses it to refuse a door on the grounds that
+   * there is no door there.
+   */
+  doors(x: number, z: number, reach: number): Doorway[];
 }
 
 /** A pier as somewhere with a position: the tile a boat ties up at, which is the far end of it. */
@@ -80,6 +90,7 @@ function aroundStructures(structures: Structures): Around {
     // measured from the tile a hull ties up at, which is the end of it that is out in the water and
     // the end anybody asking about a pier is asking about
     piers: (x, z, reach) => within(structures.piers.map(atItsDock), x, z, reach).map((p) => p.pier),
+    doors: (x, z, reach) => within(structures.doors, x, z, reach),
   };
 }
 
@@ -131,6 +142,7 @@ export function aroundPatches(patches: Patchwork): Around {
     ),
     piers: (x, z, reach) =>
       within(all(x, z, reach).flatMap((s) => s.piers.map(atItsDock)), x, z, reach).map((p) => p.pier),
+    doors: (x, z, reach) => within(all(x, z, reach).flatMap((s) => s.doors), x, z, reach),
   };
 }
 
