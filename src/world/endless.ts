@@ -1,3 +1,5 @@
+import { Elevations } from './elevation';
+import type { Highland } from './highland';
 import { Simplex2D } from './noise';
 import { countryOf, type Country } from './localmesh';
 import { graphIn, levelAt } from './localgraph';
@@ -87,17 +89,24 @@ export function townsIn(world: Land, within: Within): Founding[] {
  * and nothing else, so two patches side by side hold different things and agree about the ground
  * they share — which is the property everything above this was built to have.
  */
-export function samplerIn(seed: number, within: Within): TerrainSampler {
+export function samplerIn(seed: number, within: Within, layers: readonly Highland[] = []): TerrainSampler {
   const world = countryFor(seed);
   const graph = graphIn(world, within);
+  /*
+   * Indexed once for the whole patch rather than per question. The list is data — a few centres
+   * and their reach — and this is the arrangement of it that makes a million questions affordable;
+   * `elevation.ts` has the measurement that says where the crossover is.
+   */
+  const elevation = new Elevations(layers);
   return new TerrainSampler(graph, {
     within,
     // `world.land` is handed over rather than wrapped in an arrow that calls it. It is asked a
     // million and a half times while one patch is grown, and a wrapper is a second call frame on
     // every one of them for no reason: `landOf` already returns a closure over this world, so the
     // function and the arrow that called it did exactly the same thing.
-    country: { land: world.land, highland: highlandNear(world, within) },
-    hydro: waterIn(world, within),
+    country: { land: world.land, highland: highlandNear(world, within), elevation },
+    // the water is planned against the layered ground, not the bare one: see `Slope.layers`
+    hydro: waterIn(world, within, elevation),
     settling: {
       towns: townsIn(world, within),
       posts: junctionsIn(world, within).map((j) => ({ id: j.id, x: j.x, z: j.z })),
@@ -131,13 +140,22 @@ export interface PatchParts {
   structures: Structures;
   /** The rock standing on this patch's high country, already cut. */
   ranges: Ranges | null;
+  /**
+   * The world's elevation layers, travelling with the patch they grew.
+   *
+   * Here rather than handed separately to whoever rebuilds one, because a rebuild that used a
+   * different list would paint a different country from the one that was grown — quietly, inside
+   * the page, which is the fault `twohalves.test.ts` exists to catch between the page and the
+   * world. Carried with the parts, the two cannot come apart: there is nothing to remember.
+   */
+  layers: readonly Highland[];
 }
 
 /** What a grown patch has to hand over to be rebuilt somewhere else. */
 export function partsOf(sampler: TerrainSampler): PatchParts {
   return {
     graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
-    ranges: sampler.ranges,
+    ranges: sampler.ranges, layers: sampler.elevation.layers,
   };
 }
 
@@ -160,7 +178,9 @@ export function rebuildPatch(seed: number, within: Within, parts: PatchParts): T
     // million and a half times while one patch is grown, and a wrapper is a second call frame on
     // every one of them for no reason: `landOf` already returns a closure over this world, so the
     // function and the arrow that called it did exactly the same thing.
-    country: { land: world.land, highland: highlandNear(world, within) },
+    country: {
+      land: world.land, highland: highlandNear(world, within), elevation: new Elevations(parts.layers),
+    },
     hydro: parts.hydro,
     structures: parts.structures,
     // a patch with no high country in it has no rock, and the sampler wants to be told nothing

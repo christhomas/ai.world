@@ -43,6 +43,7 @@ export const SALT = {
   UNWATCHED: 0xc105,        // where a creature nobody was watching has got to by the time you arrive
   MEADOW: 0x3ead,           // which of a biome's two greens a patch of open ground is
   PROVINCE: 0x9401,         // what one five-hundred-tile square of country is like to walk into
+  HIGHLAND: 0x11f7,         // the elevation layers a world was authored with, and what they do
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

@@ -116,7 +116,7 @@ export function startGame(
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
-    eyries, skyIsles, skyRenderer, endless, grower, mountains,
+    eyries, skyIsles, skyRenderer, endless, grower, mountains, layers,
   } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
@@ -411,7 +411,8 @@ export function startGame(
     onCountryGrown: (stamp) => {
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`
-      const said = whyCountriesDiffer(countryStamp(graph), stamp);
+      // the layers too: half a fingerprint would call two countries at different heights equal
+      const said = whyCountriesDiffer(countryStamp(graph, layers), stamp);
       if (!said) return;
       console.error(said);
       hud.flash('This world does not match the one you joined.');

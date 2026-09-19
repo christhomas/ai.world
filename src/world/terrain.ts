@@ -11,6 +11,7 @@ import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
 import { VALLEY_SIDE, cutForWater, highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
+import { Elevations } from './elevation';
 import { acrossCountry, widthBeside } from './countryside';
 import { despeckle } from './despeckle';
 import { rollProp } from './props';
@@ -73,6 +74,15 @@ export interface Ground {
   land: (x: number, z: number) => boolean;
   /** The high country reaching into this patch, in the terms `highlandAt` reads. */
   highland: Highland[];
+  /**
+   * The elevation layers this world carries, summed on top of that high country.
+   *
+   * Not optional, and that is the point of it. A world is a seed and a list; a sampler handed the
+   * seed and not the list would grow a country that looks exactly like the right one and stands at
+   * a different height, which is the disagreement `growworld.ts` exists to make impossible. So the
+   * type asks for it and there is nowhere to forget it. `elevation.ts` says what one is.
+   */
+  elevation: Elevations;
 }
 
 /** Samples the world at tile resolution. Pure function of (seed, graph, x, z): safe to run in any worker. */
@@ -114,6 +124,15 @@ export class TerrainSampler {
    * on one. Null in the road-tree world, which has no mountain country in it.
    */
   private readonly highland: Highland[];
+  /**
+   * The elevation layers this world carries, which are ground like everything else here.
+   *
+   * Read at the one place the height of the country is asked — `highlandAt` below — so that a
+   * layer is in the ground *before* the rivers are cut against it, before the biome of a tile is
+   * decided by how high it stands, and before a village is founded on it. The stack is not a
+   * post-process: see #322, whose first worry is exactly this ordering.
+   */
+  readonly elevation: Elevations;
   /** The spurs and hollows that country is carved into, so a range is hills rather than a dome. */
   private readonly ridges: Simplex2D;
   /** The world's mountains. Planned before structures, because structures sample the ground. */
@@ -161,6 +180,8 @@ export class TerrainSampler {
       ? (x, z) => this.waterAway(x, z, DRY_ENOUGH, false) / DRY_ENOUGH
       : null);
     this.highland = this.country ? this.country.highland : this.mesh ? highlandLift(this.mesh) : [];
+    // a bounded world carries no list of its own yet, and a world with no list is the empty one
+    this.elevation = this.country ? this.country.elevation : Elevations.none;
     this.ridges = highlandRidges(graph.seed);
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
     this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
@@ -258,9 +279,15 @@ export class TerrainSampler {
     this.structIndex = indexStructures(this.structures, within);
   }
 
-  /** How high the ground stands here because of the country it is in, in terraces. */
+  /**
+   * How high the ground stands here because of the country it is in, in terraces.
+   *
+   * Two things summed: the swell of the ranges this place is among, which takes the largest of
+   * them, and the world's own elevation layers, which add. `elevation.ts` argues the difference —
+   * ranges that overlap make a saddle, components of one mountain make a peak.
+   */
   highlandAt(x: number, z: number): number {
-    return highlandAt(this.highland, this.ridges, x, z);
+    return highlandAt(this.highland, this.ridges, x, z) + this.elevation.liftAt(x, z);
   }
 
   newSample(): TileSample {

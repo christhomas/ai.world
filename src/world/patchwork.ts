@@ -1,5 +1,6 @@
 import { WORLD } from '../core/config';
 import { growPatch } from './growworld';
+import type { Highland } from './highland';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
 
@@ -106,8 +107,20 @@ export class Patchwork {
 
   constructor(
     private readonly seed: number,
-    private readonly grow: (seed: number, within: Within) => TerrainSampler = growPatch,
+    private readonly grow: (
+      seed: number, within: Within, layers: readonly Highland[],
+    ) => TerrainSampler = growPatch,
     private readonly keeps = KEEPS,
+    /**
+     * The world's elevation layers, which every square of it is grown with.
+     *
+     * Held here because this is the country: a patch is a function of the seed, of where it is and
+     * of this list, and the one place that knows all three is the store the squares come out of.
+     * Anything that grows a patch elsewhere — the worker, and the workers that paint chunks from
+     * one — is handed the list from here rather than finding its own, which is the whole of how two
+     * halves are kept from quietly holding different ones. See `growworld.ts` and #322.
+     */
+    readonly layers: readonly Highland[] = [],
   ) {}
 
   /** The sampler that answers for this point, growing its patch if this is the first time. */
@@ -127,7 +140,7 @@ export class Patchwork {
       already.touched = ++this.clock;
       return already.sampler;
     }
-    const sampler = this.grow(this.seed, boundsOf(patch));
+    const sampler = this.grow(this.seed, boundsOf(patch), this.layers);
     this.grown++;
     this.held.set(patch, { patch, sampler, touched: ++this.clock });
     this.forget();

@@ -167,6 +167,24 @@ export function highlandRidges(seed: number): Simplex2D {
 }
 
 /**
+ * How much of one swell's lift reaches a point: all of it over the middle, none at its reach.
+ *
+ * Lifted out of `highlandAt` below rather than written twice, because a world's stored elevation
+ * layers are the same shape composed a different way — `elevation.ts` sums these where this file
+ * takes the largest — and two functions that are meant to draw the same curve are two functions
+ * that will one day draw different ones. It is also what lets the layer list be `Highland[]` and
+ * nothing new: the issue's own point, that nothing in here cares where the list came from.
+ */
+export function swellAt(hill: Highland, x: number, z: number): number {
+  const away = Math.hypot(hill.x - x, hill.z - z);
+  if (away >= hill.reach) return 0;
+  // flat-ish over the middle, falling away over the outer part of the reach
+  const inward = (hill.reach - away) / (hill.reach * HIGHLAND.SHOULDER);
+  const share = Math.max(0, Math.min(1, inward));
+  return hill.lift * share * share * (3 - 2 * share);
+}
+
+/**
  * How high the ground stands at a point because of the country it is in, in terraces.
  *
  * Two things multiplied. The swell says how much height this country is allowed — the highest of
@@ -180,15 +198,7 @@ export function highlandAt(
   country: ReadonlyArray<Highland>, ridges: Simplex2D, x: number, z: number,
 ): number {
   let most = 0;
-  for (const hill of country) {
-    const away = Math.hypot(hill.x - x, hill.z - z);
-    if (away >= hill.reach) continue;
-    // flat-ish over the middle, falling away over the outer part of the reach
-    const inward = (hill.reach - away) / (hill.reach * HIGHLAND.SHOULDER);
-    const share = Math.max(0, Math.min(1, inward));
-    const eased = share * share * (3 - 2 * share);
-    most = Math.max(most, hill.lift * eased);
-  }
+  for (const hill of country) most = Math.max(most, swellAt(hill, x, z));
   if (most <= 0) return 0;
   // the noise already knows how to fold itself into crests; this only says at what size
   const ridge = ridges.ridged(x / HIGHLAND.RIDGE_SCALE, z / HIGHLAND.RIDGE_SCALE, HIGHLAND.RIDGE_OCTAVES);

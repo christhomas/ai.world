@@ -47,6 +47,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
      */
     patches.set(msg.patch, rebuildPatch(msg.seed, msg.within, {
       graph: msg.graph, hydro: msg.hydro, structures: msg.structures, ranges: msg.ranges,
+      layers: msg.layers,
     }));
     // oldest first, which for a Map is insertion order and is near enough: a hero walks, so the
     // patch told about longest ago is the one furthest behind him
