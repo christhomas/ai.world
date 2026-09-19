@@ -120,6 +120,31 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
  */
 const SAME_DOOR = 8;
 
+/**
+ * And how far a claimed doorstep may sit from a doorway the world grew, in tiles.
+ *
+ * Much smaller than `SAME_DOOR` above, and the two are not the same kind of number. `SAME_DOOR` is
+ * slack for a hero who is *moving*: the world's copy of him and the man at the door are a frame
+ * apart, and a frame is a stride. This is slack for a *record*. What the page sends as `at` is a
+ * `Doorway` copied straight out of `structures.doors` — `places.enterBuilding` keeps the door's own
+ * tile as the room's exit and that is what travels — and the world grows that same list from the
+ * same seed, so the honest tolerance is nought and this is a margin for the half-tile conventions
+ * that make one, not for anybody's position.
+ *
+ * Two rather than one because a doorstep is a tile and a tile has corners; two rather than four
+ * because the two nearest doors in Blackby, the village of seed 3 closest to the origin, are four
+ * tiles apart — so at two this cannot quietly turn "the wrong house" into "a house", and a world
+ * whose villages are a tile out from the page's is refusing something that has genuinely moved.
+ *
+ * What it deliberately does not cover: two halves that grew *different countries*. Those disagree
+ * by a village rather than by a tile, and no tolerance short of one that refuses nothing would
+ * bridge it. For a bounded world the `country` stamp says so out loud; an endless one sends an
+ * empty stamp and is not yet told, which is the second half of #377 and is a gap this check makes
+ * louder rather than one it creates — the same disagreement already put a hero's door in the wrong
+ * street, silently.
+ */
+const A_DOORSTEP = 2;
+
 /** And how far from his boat somebody may step off it, in tiles. A gangplank, and no more. */
 const OFF_THE_BOAT = 6;
 
@@ -186,6 +211,26 @@ function doorstep(message: Extract<ClientMessage, { type: 'stood' }>): { x: numb
   const x = Number(at.x);
   const z = Number(at.z);
   return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
+}
+
+/**
+ * Does this world have a doorway where a hero says he stepped through one?
+ *
+ * Silence is consent, twice over, and both cases are worlds with no opinion rather than worlds that
+ * agree. A simulation that grows no ground — a test harness, and the default — has never laid out a
+ * village and must not refuse anybody a door on the strength of that. Neither must a world whose
+ * ground is somebody else's kind of `TileWorld`.
+ *
+ * Where there *is* ground there is no third case to worry about, and it is worth saying why: this
+ * is only ever reached with a hero the world has been walking, and walking one means holding the
+ * chunks under him — three chunks either side by default, which is forty-eight tiles against the
+ * eight of `SAME_DOOR`. So the patch a claimed step falls in has always been grown by the time this asks,
+ * and "no door near here" cannot be "no country here yet" in disguise.
+ */
+function itHasADoorThere(rooms: Rooms, me: Client, step: { x: number; z: number }): boolean {
+  const ground = rooms.groundOf(me.seed);
+  if (!(ground instanceof GroundWorld)) return true;
+  return ground.atADoor(step.x, step.z, A_DOORSTEP);
 }
 
 function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'stood' }>): void {
@@ -305,10 +350,25 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
      */
     const step = doorstep(message);
     const at = step ?? { x, z };
-    const claimed = Math.hypot(at.x - hero.x, at.z - hero.z) <= SAME_DOOR;
-    me.leftSurfaceAt = claimed ? at : { x: hero.x, z: hero.z };
+    const reached = Math.hypot(at.x - hero.x, at.z - hero.z) <= SAME_DOOR;
+    /*
+     * And the second question, which is the one the world could not ask until it held the doorways:
+     * is there a door there at all?
+     *
+     * Two checks rather than one because they refuse two different lies. A step at the far side of
+     * the county is a way of travelling, and `reached` is the whole of what catches it. A step at
+     * the hero's own feet in an empty field passes `reached` outright — nothing about the distance
+     * is wrong — and is a claim to have walked through a door that was never built.
+     *
+     * Only asked of a page that said where the door was. `x`/`z` on their own are a position on
+     * some room's little interior map, so judging them against a county full of doorways would
+     * refuse every player of an older build in every shop in the world.
+     */
+    const aDoor = step === null || itHasADoorThere(rooms, me, step);
+    const believed = reached && aDoor;
+    me.leftSurfaceAt = believed ? at : { x: hero.x, z: hero.z };
     p.x = x; p.z = z;
-    answer(step === null || claimed);
+    answer(step === null || believed);
     return;
   }
 

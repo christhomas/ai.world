@@ -1,8 +1,32 @@
 import type { Country, WorldKind } from './countries';
+import { inOrder } from './elevation';
+import { rebuildPatch, type GrownPatch } from './endless';
 import type { Highland } from './highland';
-import { PATCH, Patchwork, patchOf } from './patchwork';
+import { boundsOf, PATCH, Patchwork, patchOf } from './patchwork';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
+
+/**
+ * Whether a patch grown elsewhere is a patch of *this* country.
+ *
+ * Two questions, and the second is the quiet one. A patch is a function of the seed, of where it
+ * is, and of the world's layer list — so a patch grown against a different list stands every tile
+ * under a mountain at a different height, in the one square a new hero starts in, and nothing
+ * would say so. No world made today has layers at all, which is exactly why this is checked rather
+ * than assumed: #324 is where an editor gets to add some, and the fault would arrive with it.
+ *
+ * Read in `inOrder`'s order because that is the order a list travels in — `Elevations` sorts what
+ * it is given, so the list that comes back on a patch is sorted and the one off a manifest is
+ * whatever it was written in.
+ */
+function thisCountrys(already: GrownPatch, seed: number, layers: readonly Highland[]): boolean {
+  if (already.seed !== seed) return false;
+  const mine = inOrder(layers), theirs = inOrder(already.parts.layers);
+  return mine.length === theirs.length && mine.every((one, i) => (
+    one.x === theirs[i].x && one.z === theirs[i].z
+    && one.reach === theirs[i].reach && one.lift === theirs[i].lift
+  ));
+}
 
 /**
  * The endless country, as the one thing the game can hold on to.
@@ -53,10 +77,27 @@ export class PatchCountry implements Country {
     grow?: (seed: number, within: Within, layers: readonly Highland[]) => TerrainSampler,
     /** What this world was authored with, on its way to the store that grows every square. */
     layers: readonly Highland[] = [],
+    /**
+     * A square of this country somebody grew before it existed.
+     *
+     * The title screen grows the home patch to measure the seed it is about to open — see #358 —
+     * and the world then grew that same square again the moment it opened, which is the second of
+     * two goes at the same two seconds of work. So it is handed in here, where the store that
+     * would have grown it lives: `Patchwork.put` is the door a patch grown elsewhere already comes
+     * through, and this is that door opened one moment earlier than the worker uses it.
+     *
+     * Nothing above this has to know: a country handed nothing grows its own square exactly as it
+     * always did, which is also what happens when what it was handed does not fit.
+     */
+    already?: GrownPatch,
   ) {
     this.patches = grow
       ? new Patchwork(seed, grow, undefined, layers)
       : new Patchwork(seed, undefined, undefined, layers);
+    // Before the first square is asked for, because after it the square has already been grown.
+    if (already && thisCountrys(already, seed, layers)) {
+      this.patches.put(already.patch, rebuildPatch(seed, boundsOf(already.patch), already.parts));
+    }
     this.standing = patchOf(x, z);
     this.current = this.patches.patch(this.standing);
   }

@@ -237,6 +237,19 @@ describe('the country around whoever is walking', () => {
   });
 });
 
+/*
+ * One real patch, grown once for the whole file.
+ *
+ * Two things below are about a patch that crossed a boundary — the worker's, and the title
+ * screen's — and growing a second one to ask the second question would put another two seconds
+ * into a suite that shares a machine with four others. What is under test is the journey, and one
+ * journey proves it.
+ */
+const within = boundsOf('0,0');
+const started = Date.now();
+const grown = samplerIn(SEED, within);
+const toGrow = Date.now() - started;
+
 describe('a patch sent somewhere else', () => {
   /*
    * The failure this exists to stop, and it shipped for one release before it was measured.
@@ -247,12 +260,6 @@ describe('a patch sent somewhere else', () => {
    * buildings alone paints a *different country* from the one that was grown. It looks perfectly
    * plausible on screen, which is what makes it the worst kind of wrong.
    */
-  // grown once and sent once, for the same reason as above: this is about what survives the
-  // journey, and one journey proves it
-  const within = boundsOf('0,0');
-  const started = Date.now();
-  const grown = samplerIn(SEED, within);
-  const toGrow = Date.now() - started;
   const then = Date.now();
   const sent = rebuildPatch(SEED, within, partsOf(grown));
   const toRebuild = Date.now() - then;
@@ -275,5 +282,52 @@ describe('a patch sent somewhere else', () => {
     // that ratio ever collapses, growing country off the main thread stops being worth the
     // machinery and somebody should know
     expect(toRebuild, `rebuilding took ${toRebuild}ms against ${toGrow}ms to grow`).toBeLessThan(toGrow / 2);
+  });
+});
+
+/**
+ * And the patch that was grown before the country was.
+ *
+ * #358's other half. The title screen grows the home patch to measure the seed it is about to open
+ * — that is what `seedscore.ts` does and why it happens on a worker — and the game then grew the
+ * very same square again the moment the world opened. Two goes at the same two seconds of work for
+ * one world, with a loading screen over the second one.
+ *
+ * `counted` is what makes these tests rather than coincidences. The generator is deterministic, so
+ * a patch grown twice *is* identical tile for tile and comparing the ground would prove nothing at
+ * all. The only honest question is how many times it was grown, so that is what is asked.
+ */
+describe('a patch grown before the country that opens with it', () => {
+  const measured = () => ({ seed: SEED, patch: '0,0', parts: partsOf(grown) });
+
+  it('opens the world with it rather than growing the same square again', () => {
+    const { built, grow } = counted();
+    const country = new PatchCountry(SEED, 0, 0, grow, [], measured());
+    expect(built, 'the square the hero is standing in was grown a second time').toEqual([]);
+    expect(country.store.grown, 'the country grew a patch it had been handed').toBe(0);
+    // and it is the country that was measured rather than whatever was lying about: `counted`
+    // hands back a stand-in with no ground on it, so this is also what proves the real one is in
+    expect([...country.sampler.generateChunk(4, 3).type])
+      .toEqual([...grown.generateChunk(4, 3).type]);
+  });
+
+  it('grows its own when what it was handed belongs to another world', () => {
+    const { built, grow } = counted();
+    new PatchCountry(SEED + 1, 0, 0, grow, [], measured());
+    expect(built.length, "a patch of another seed's country was taken for this one").toBe(1);
+  });
+
+  /*
+   * The other half of the same question, and the one that would be silent. A patch is a function of
+   * the seed, of where it is *and of the world's layer list* — so a patch grown on flat ground and
+   * put into a world with a mountain in it would stand every tile under that mountain at the wrong
+   * height, in the one square the hero starts in. No new world has layers today, which is exactly
+   * why this is worth a test rather than a comment: nothing else would notice when one does.
+   */
+  it('grows its own when the ground it was handed is not the ground this world stands on', () => {
+    const { built, grow } = counted();
+    const country = new PatchCountry(SEED, 0, 0, grow, [{ x: 0, z: 0, reach: 200, lift: 6 }], measured());
+    expect(built.length, 'a patch grown on flat ground was taken for a world with a mountain in it').toBe(1);
+    expect(country.store.grown).toBe(1);
   });
 });

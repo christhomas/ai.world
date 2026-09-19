@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { TRIES, WORTH, aWorldWorthOpening, aWorldWorthOpeningAsync, whatIsWrongWith, worthPlaying } from './goodseed';
+import {
+  TRIES, WORTH, aWorldWorthOpening, aWorldWorthOpeningAsync, seedsReadOffThread, whatIsWrongWith,
+  worthPlaying,
+} from './goodseed';
+import type { CountryReply, CountryRequest } from './countrymessages';
+import type { PatchParts } from './endless';
 import type { Reading } from './seedscore';
 
 /**
@@ -189,5 +194,101 @@ describe('the same decision, whether the reading comes back now or later', () =>
       return good({ seed, villages: 0 });
     });
     expect(most, 'never more than one measurement at a time').toBe(1);
+  });
+});
+
+/**
+ * And what becomes of the patches that were grown to measure with — #358's second half.
+ *
+ * Measuring a seed grows its home patch and then threw it away, and the game grew the very same
+ * square again the moment the world opened. So the reader keeps one: the patch of the seed it was
+ * last asked about, which is the seed the decision settles on when it settles on anything.
+ *
+ * The rule has two halves and both are worth holding. **Only one is kept** — up to `TRIES` patches
+ * are grown and three of them are worlds nobody is going to walk into, so each arriving patch
+ * releases the one before it. **And it is kept by seed**, because the one case where the settled
+ * seed is not the last measured is the case where the tries ran out and the *first* is taken: a
+ * reader that handed over whatever it happened to be holding would open that world on another
+ * world's ground.
+ */
+describe('the patch a seed was measured by', () => {
+  /** The parts of a grown patch, as the one thing a test can tell apart: one object per seed. */
+  const parts = new Map<number, PatchParts>();
+  const partsFor = (seed: number): PatchParts => {
+    if (!parts.has(seed)) parts.set(seed, { seed } as unknown as PatchParts);
+    return parts.get(seed)!;
+  };
+
+  /**
+   * The country worker, as much of it as reading a seed uses: it answers a measurement at once,
+   * with the patch it grew to make it.
+   */
+  const workerWhere = (worth: (seed: number) => boolean) => {
+    const grew: number[] = [];
+    const hears: Array<(e: MessageEvent<CountryReply>) => void> = [];
+    let shut = false;
+    return {
+      grew,
+      get shut() { return shut; },
+      postMessage(msg: CountryRequest): void {
+        if (msg.type !== 'measure') return;
+        grew.push(msg.seed);
+        const reading = good({ seed: msg.seed, villages: worth(msg.seed) ? WORTH.VILLAGES : 0 });
+        const reply: CountryReply = {
+          type: 'measured', seed: msg.seed, reading, patch: '0,0', parts: partsFor(msg.seed), took: 1,
+        };
+        for (const hear of [...hears]) hear({ data: reply } as MessageEvent<CountryReply>);
+      },
+      addEventListener(_type: 'message', hear: (e: MessageEvent<CountryReply>) => void): void {
+        hears.push(hear);
+      },
+      removeEventListener(_type: 'message', hear: (e: MessageEvent<CountryReply>) => void): void {
+        hears.splice(hears.indexOf(hear), 1);
+      },
+      terminate(): void { shut = true; },
+    };
+  };
+  const handing = (...seeds: number[]) => {
+    let at = 0;
+    return () => seeds[Math.min(at++, seeds.length - 1)];
+  };
+
+  it('is the patch of the seed the drawing settled on', async () => {
+    const worker = workerWhere((seed) => seed === 33);
+    const reader = seedsReadOffThread(worker);
+    const drawn = await aWorldWorthOpeningAsync(handing(11, 22, 33), reader.read);
+    expect(worker.grew, 'it measured a seed it did not need to').toEqual([11, 22, 33]);
+    expect(drawn.seed).toBe(33);
+    expect(reader.grownFor(33)).toEqual({ seed: 33, patch: '0,0', parts: partsFor(33) });
+  });
+
+  it('is let go of the moment a rejected seed is done with', async () => {
+    const worker = workerWhere((seed) => seed === 33);
+    const reader = seedsReadOffThread(worker);
+    await aWorldWorthOpeningAsync(handing(11, 22, 33), reader.read);
+    expect(reader.grownFor(11), 'a rejected world was still being held').toBeUndefined();
+    expect(reader.grownFor(22), 'a rejected world was still being held').toBeUndefined();
+  });
+
+  /*
+   * The case that makes this keyed by seed rather than "the last one". When nothing drawn is worth
+   * opening the *first* seed is taken, and the patch grown for it went three measurements ago. A
+   * reader that handed over the one it was holding would hand over the fourth world's ground for
+   * the first world's seed, which is the worst outcome available here: not a slow world, a wrong
+   * one.
+   */
+  it('is nothing at all when the tries ran out and the first seed was settled for', async () => {
+    const worker = workerWhere(() => false);
+    const reader = seedsReadOffThread(worker);
+    const drawn = await aWorldWorthOpeningAsync(handing(11, 22, 33, 44), reader.read);
+    expect(drawn, 'the settling rule changed').toEqual({ seed: 11, drawn: TRIES, worth: false });
+    expect(reader.grownFor(drawn.seed), 'another world\'s patch was offered for this seed')
+      .toBeUndefined();
+  });
+
+  it('closes the worker it opened, because a title screen draws more than one world', () => {
+    const worker = workerWhere(() => true);
+    seedsReadOffThread(worker).close();
+    expect(worker.shut).toBe(true);
   });
 });

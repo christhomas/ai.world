@@ -46,13 +46,16 @@ const heroSworn = (trade: string, houses = 2): Register => {
 const hero = (book: Register) => book.living('Ashford').find((person) => person.name === 'Rowan');
 const holdingsOf = (book: Register) => book.madeOf('Ashford').holdings ?? [];
 /*
- * What one person works, filtered here rather than asked of `holdings.ts`.
+ * What one person works, which is this file's own question and now nobody else's.
  *
- * That file exports a reader for exactly this question and nothing in the game calls it. Naming it
- * from a test is what *makes* it count against `reachable.test.ts` — the bench's measure is work
- * reached only by its own tests, so an export nothing calls at all is invisible to it until a test
- * touches it. Importing it here would have turned this into a pull request about that export. It is
- * recorded on #264 instead, where the work that wants it lives.
+ * `holdings.ts` used to export a `workedBy` reader for exactly this, and nothing in the game ever
+ * called it — so this test wrote the filter out longhand rather than import it, because importing
+ * it would have been the one thing that made `reachable.test.ts` notice the dead export. #372
+ * deleted it: no panel, clerk, record or survey in this game asks a person what he works, and the
+ * nearest thing that does — `whoFoundsAnother` — wants the first one and a `find`, not a list.
+ *
+ * So this is no longer a copy of anything. It is four holdings and a village, filtered where it is
+ * read.
  */
 const worked = (book: Register, who: string) => holdingsOf(book).filter((one) => one.worker === who);
 const live = (book: Register, to: number): void => { for (let day = 2; day <= to; day++) book.advance(day); };

@@ -11,6 +11,7 @@ import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { viewOf } from '../world/patchview';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
+import type { GrownPatch } from '../world/endless';
 import { PatchCountry } from '../world/patchcountry';
 import { RoadCountry, type Country, type WorldKind } from '../world/countries';
 import { elevationFor, growWorld, islandsFor } from '../world/growworld';
@@ -43,10 +44,31 @@ export interface Growing {
    */
   world: WorldKind;
   savedManifest: ManifestJson | undefined;
+  /**
+   * The home patch, if somebody has already grown it.
+   *
+   * The title screen grows it to measure the seed it is about to open, and this world used to grow
+   * the same square again the moment it opened — see #358. It travels as parts rather than as a
+   * sampler because that is how it left the worker it was grown in, and it is `PatchCountry` that
+   * puts it back together, because the store that would otherwise have grown it is the thing that
+   * should own it. Missing for a continued world, a typed seed and a bounded one, none of which
+   * measures anything.
+   */
+  home?: GrownPatch;
   rig: SceneRig;
   props: PropLibrary;
   seasonTintMaterials: SeasonTintMaterials;
 }
+
+/**
+ * And the type of one, published here rather than imported from `world/endless` where it lives.
+ *
+ * `main.ts` is what hands one over and it is two lines under the seven hundred
+ * `architecture.test.ts` allows — an import line of its own is one of those two. It calls
+ * `growCountry`, so the type it must name comes through the same door as the function, which is
+ * also the more honest reading of it: what `main.ts` knows is that this module takes one.
+ */
+export type { GrownPatch };
 
 /**
  * A world's islands: the ones it was saved with, or the ones its seed says it should have.
@@ -55,7 +77,7 @@ export interface Growing {
  * saved yesterday keeps the ones it had.
  */
 export function growCountry(ctx: Growing) {
-  const { seed, world, savedManifest, rig, props, seasonTintMaterials } = ctx;
+  const { seed, world, savedManifest, home, rig, props, seasonTintMaterials } = ctx;
 
   // chosen when the world was made and written into its save, so it never changes underneath one
   const manifest = new Manifest(seed, savedManifest);
@@ -83,7 +105,7 @@ export function growCountry(ctx: Growing) {
    * exactly the answer those worlds want — see `elevationFor`, and #322 for what fills it.
    */
   const layers = elevationFor(manifest);
-  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0, undefined, layers) : null;
+  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0, undefined, layers, home) : null;
   /*
    * And somebody else to grow the rest of it.
    *
