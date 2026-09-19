@@ -1,5 +1,5 @@
 import { whichFieldClears, type FieldClearing } from '../world/fieldbuilds';
-import { clearedFieldTiles, type FieldTile } from '../world/fields';
+import { clearedFieldTiles } from '../world/fields';
 import type { Settlement } from '../world/settlement';
 import type { TerrainSampler } from '../world/terrain';
 import { RAISING_TAKES, beganOn, isARoof } from '../world/roofs';
@@ -195,24 +195,6 @@ export function roofWatch(
       built = raisedRoofs(villages, worksOf, today);
     }
     return built;
-  };
-}
-
-/** Watch raised roofs and apply newly recorded field clearings once per village day. */
-export function villageWatch(
-  villagesNow: () => readonly Village[],
-  worksOf: (village: string) => readonly string[],
-  clearFields: (fields: readonly FieldTile[]) => void,
-): (day: number) => readonly Raised[] {
-  const roofs = roofWatch(villagesNow, worksOf);
-  let fieldsDay = -1;
-  return (day) => {
-    const today = Math.floor(day);
-    if (today !== fieldsDay) {
-      fieldsDay = today;
-      clearFields(clearedFieldTiles(villagesNow().flatMap((village) => worksOf(village.name))));
-    }
-    return roofs(day);
   };
 }
 
