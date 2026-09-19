@@ -85,7 +85,7 @@ import { aftermath, createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
 import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
 import { familyOfDoor } from './world/homes';
-import { growCountry } from './game/country';
+import { growCountry, type GrownPatch } from './game/country';
 import { countryStamp, whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
@@ -94,7 +94,7 @@ import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
-  worldName: string | undefined, url: URL, world: WorldKind,
+  worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
 ): void {
   /**
    * Whether the player has ever picked a quality themselves — asked before anything else, because
@@ -117,7 +117,7 @@ export function startGame(
   const {
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains, layers,
-  } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
