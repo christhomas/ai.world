@@ -71,7 +71,8 @@ describe('asking for a square of country', () => {
     grower.want('0,0');
     grower.want('1,0');
     grower.took(reply('0,0'));
-    expect(sent.map((m) => m.patch)).toEqual(['0,0', '1,0']);
+    // the grower only ever sends `grow`; `measure` is the title screen's half of the same worker
+    expect(sent.map((m) => (m.type === 'grow' ? m.patch : m.type))).toEqual(['0,0', '1,0']);
     expect(grower.waiting).toEqual(['1,0']);
   });
 });
