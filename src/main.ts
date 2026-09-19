@@ -56,6 +56,7 @@ import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
+import { whereAWorldOpens } from './world/opening';
 import { walksIn } from './game/arriving';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
@@ -287,8 +288,10 @@ export function startGame(
     persist();
   };
 
-  // where the hero stands when the world opens: where he was left, or where a link says
-  let startX = 0, startZ = 0;
+  // where the hero stands when the world opens: where he was left, where a link says, or — in a
+  // world nobody has ever stood in — the village `world/opening.ts` picks out of it. #394
+  const opening = saved?.player ? null : whereAWorldOpens(structures.villages);
+  let startX = opening?.x ?? 0, startZ = opening?.z ?? 0;
   if (saved) {
     iso.rotation = saved.cam.rot;
     iso.restoreZoom(saved.cam.zoom);
