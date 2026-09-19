@@ -118,7 +118,7 @@ export function startGame(
     eyries, skyIsles, skyRenderer, endless, grower, mountains, stamp: mine,
   } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
-  const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
+  const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
   });
   /*
@@ -409,6 +409,8 @@ export function startGame(
       // `growCountry` for why the country takes its own rather than this taking one of it
       const said = whyCountriesDiffer(mine, stamp);
       if (!said) return;
+      // and saying it is not enough: the page draws its own ground instead. See `streaming.ts`.
+      growItHere();
       console.error(said);
       hud.flash('This world does not match the one you joined.');
       chat.line(said, 'sys');

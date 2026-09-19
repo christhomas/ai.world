@@ -200,9 +200,25 @@ const verbs = (page) => ({
     await page.waitForTimeout(600);
   },
   wait: (ms) => page.waitForTimeout(ms),
-  /** The nearest village to the middle of the world, and the hero stood in the middle of it. */
+  /**
+   * The nearest village to the middle of the world, and the hero stood in the middle of it.
+   *
+   * Sorted rather than taken off the front, which is what this said it did and did not do.
+   * `__villages` is the order the generator built them in: in the road tree that is the hub first,
+   * on the crossroads the country grew outward from, so the first and the nearest are the same
+   * place and the difference never showed. The endless country has no hub and founds its villages
+   * from the patch's own list — so seed 5's first is Blackreach at 37,406 while Hartcross stands at
+   * 119,90, and the shot walked past the near village to photograph one four hundred tiles out.
+   *
+   * A picture taken off a list order is a picture that moves when the order does, which is the one
+   * thing a reference picture cannot do. Seed 3, which #299's pictures are taken on, is unmoved:
+   * Blackby is both the first and the nearest.
+   */
   village: async (n = 0) => {
-    const v = await page.evaluate((n) => window.__villages[n], n);
+    const v = await page.evaluate((n) => {
+      const byDistanceFromTheMiddle = (a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z);
+      return [...window.__villages].sort(byDistanceFromTheMiddle)[n];
+    }, n);
     await page.evaluate(([x, z]) => window.__teleport(x, z), [v.x, v.z]);
     // long enough for the village to fill: the people are streamed in like everything else, and a
     // picture taken the moment the hero lands is a picture of an empty square
