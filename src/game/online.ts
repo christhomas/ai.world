@@ -446,8 +446,18 @@ export class Online {
    * The hero has been put somewhere rather than having walked there: a teleport, a staircase, a
    * door, a gangplank, a saddle. The world moves its own copy of him and answers with where.
    */
-  stood(x: number, z: number, why: Extract<ClientMessage, { type: 'stood' }>['why']): void {
-    if (this.connected) this.send({ type: 'stood', x, z, why });
+  stood(
+    x: number, z: number, why: Extract<ClientMessage, { type: 'stood' }>['why'],
+    /**
+     * A door, numbered, with the step it was taken from in the world's own tiles.
+     *
+     * Only a door carries this: it is the one of these the page can take back. `x`/`z` is where he
+     * is standing now, which inside a building is a position on that room's own map, so the step
+     * has to travel separately or the world has nothing in its own coordinates to judge.
+     */
+    through?: { seq: number; at: { x: number; z: number } },
+  ): void {
+    if (this.connected) this.send({ type: 'stood', x, z, why, seq: through?.seq, at: through?.at });
   }
 
   /**
@@ -600,8 +610,9 @@ export class Online {
     if (this.connected) this.send({ type: 'duel-answer', from, yes });
   }
 
-  duelHit(damage: number): void {
-    if (this.connected) this.send({ type: 'duel-hit', damage });
+  /** A blow landed in the ring, numbered so the world's answer can name this one. */
+  duelHit(damage: number, seq?: number): void {
+    if (this.connected) this.send({ type: 'duel-hit', damage, seq });
   }
 
   yieldDuel(): void {

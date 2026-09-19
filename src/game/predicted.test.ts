@@ -81,10 +81,20 @@ describe('what may be done before the world agrees', () => {
     for (const act of claimed) {
       expect(inTheHand(), `${act} is predicted in the code and is not a hand on the list`).toContain(act);
     }
-    // and the three the list is carrying for those files, named here so that quietly dropping one
-    // from `ACTS` is a failure rather than a smaller set agreeing with itself. `swing` joined them
-    // when `multiplayer.ts` stopped taking health off the far side with nothing able to contradict
-    // it — the first act on this list whose prediction anybody else could see
-    expect([...new Set(claimed)].sort()).toEqual(['chest', 'crop', 'swing']);
+    /*
+     * And the list the code is carrying, named here so that quietly dropping one from `ACTS` is a
+     * failure rather than a smaller set agreeing with itself.
+     *
+     * `swing` joined when `multiplayer.ts` stopped taking health off the far side with nothing able
+     * to contradict it — the first act here whose prediction anybody else could see. `door` joined
+     * last, and with it the two sets are the same set: every act `predicted.ts` calls a hand is
+     * predicted *and* reconciled, and nothing predicts anything that is not on the list. That is
+     * #235's own division — *predict what the hand feels, and let the ledger take its time* — with
+     * the hand half emptied. It is asserted as an equality rather than as four strings so that
+     * adding a `hand` to `ACTS` and not wiring it fails here, which is the shape of fault this
+     * codebase produces most.
+     */
+    expect([...new Set(claimed)].sort()).toEqual([...inTheHand()].sort());
+    expect([...new Set(claimed)].sort(), 'the hand, in full').toEqual(['chest', 'crop', 'door', 'swing']);
   });
 });

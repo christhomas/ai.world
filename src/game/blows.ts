@@ -202,8 +202,11 @@ export function createBlows(ctx: Fighting) {
     if (duel.active) {
       const them = online.players.get(duel.opponent);
       if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
-        duel.landed(landed);
-        online.duelHit(landed);
+        // numbered on the way out, so the world's answer can name this blow. The page throws
+        // first — `predicted.ts` settles a swing as `hand` — and `Duel` keeps what it took until
+        // the answer arrives, because a bout that ended while the blow was in flight is a hit the
+        // world never carried and the readout must give back
+        online.duelHit(landed, duel.landed(landed));
         sound.thud();
         return;
       }
@@ -213,8 +216,10 @@ export function createBlows(ctx: Fighting) {
     if (warband.active && warband.mayStrike(online.id, warband.opponent, hires)) {
       const them = online.players.get(warband.opponent);
       if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
-        warband.landed({ damage: landed, sword: false });
-        online.warbandHit(landed, false);
+        // his own blow, numbered the same way his hired men's have been since #281 — which left
+        // this one, the only blow the player actually swings, as the one nothing could contradict
+        const landing = warband.landed({ damage: landed, sword: false });
+        online.warbandHit(landed, false, landing ? warband.threw(landing) : undefined);
         sound.thud();
         return;
       }

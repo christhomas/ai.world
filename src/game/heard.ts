@@ -105,6 +105,16 @@ export interface OnlineEvents {
    * gave itself. See `Warband.takeBack` and `claims.ts`.
    */
   onWarbandBlow: (seq: number, stood: boolean) => void;
+  /** The same for a blow in the ring. `stood` false is the world saying it never carried it. */
+  onDuelBlow: (seq: number, stood: boolean) => void;
+  /**
+   * What became of a door this page has already walked the hero through.
+   *
+   * `ok` false is the world saying it could not have been that door — it has been walking him
+   * somewhere else entirely — and the page steps him back out onto the step it kept. See
+   * `Enterings` and `claims.ts`.
+   */
+  onStepped: (seq: number, ok: boolean) => void;
   /** How many of their men are still on their feet. */
   onWarbandMuster: (swords: number) => void;
   /** The fight is over: the winner's id, empty when it was called off. */
@@ -284,6 +294,12 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'warband-blow':
       o.events.onWarbandBlow(message.seq, message.stood);
+      break;
+    case 'duel-blow':
+      o.events.onDuelBlow(message.seq, message.stood);
+      break;
+    case 'stepped':
+      o.events.onStepped(message.seq, message.ok);
       break;
     case 'warband-muster':
       o.events.onWarbandMuster(message.swords);
