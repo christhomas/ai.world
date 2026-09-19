@@ -282,6 +282,29 @@ export class GroundWorld implements TileWorld, ChunkSource {
   }
 
   /**
+   * Is there a doorway here — a door somebody could actually have stepped through?
+   *
+   * Asked of a hero who says he has just gone indoors. The reachability rule in `server/messages.ts`
+   * catches a step claimed at the far side of the county, because that is a way of travelling
+   * rather than a doorway; it has nothing at all to say about a hero standing in an empty field
+   * who reports a door at his own feet. This is the other half, and it is possible for the same
+   * reason the carried-home check is: a village is grown from the seed, so both halves of the game
+   * know where its doors are without either being told.
+   *
+   * Cheap, and cheap by accident rather than by design — `generateStructures` already builds the
+   * doorways of every village it lays out, four to twelve apiece, because the game walks a hero
+   * into them. Eighty-three of them across the ten villages of a 512-tile patch of seed 3, six
+   * kilobytes as JSON, measured; the server has been carrying the list all along and has never
+   * asked it anything.
+   *
+   * @param within the caller's own tolerance, as with `atAPier` above and `atAVillage` below: how
+   *   far a claimed step may sit from a doorway the world grew and still be that doorway.
+   */
+  atADoor(x: number, z: number, within: number): boolean {
+    return this.around.doors(x, z, within).length > 0;
+  }
+
+  /**
    * Is this the middle of one of this world's villages?
    *
    * Asked of a hero who says he was carried home after a knock on the head. Villages are grown from

@@ -1,4 +1,4 @@
-import { THE_HALL, isTheHall, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
+import { THE_HALL, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
 import type { HoldingBook, HoldingDay } from './holdingbook';
 import { payAndSweep } from './purses';
 import type { Settlement } from './settlement';
@@ -308,12 +308,6 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
   const guards = posts.filter((post) => post.kind === 'guard').length;
   return Math.min(cattle, Math.floor(cattle * Math.min(1, guards * POST.SAVES)));
 }
-
-/** Whether a post is the hall's to pay for rather than a villager's. See item 37. */
-export function paidByTheHall(post: Post): boolean {
-  return isTheHall(post.funder);
-}
-
 
 /**
  * Every village's posts for one morning, stood and paid, in the village's own day.

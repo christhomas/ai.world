@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { migrateDomain, openDurable } from '../durable/db';
+import { migrateDomain } from '../durable/db';
 import { hashPassword, hashPasswordAsync, passwordMatchesAsync, wantsRehashing } from './passwords';
 import { newSessionId, TOKEN_LASTS } from './tokens';
 
@@ -58,13 +58,6 @@ const SCHEMA: readonly string[] = [
    CREATE INDEX session_by_account ON session(account);
    CREATE INDEX session_by_expiry ON session(expires);`,
 ];
-
-/** Open the durable database and bring this domain's tables up to date. */
-export function openAccounts(file: string): DatabaseSync {
-  const db = openDurable(file);
-  migrate(db);
-  return db;
-}
 
 /** Run whatever of this domain's schema the file has not had yet. See `migrateDomain`. */
 export function migrate(db: DatabaseSync): number {
