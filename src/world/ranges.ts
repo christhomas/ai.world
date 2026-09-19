@@ -51,17 +51,35 @@ export const RANGE = {
    *
    * Answerable to the camera as well, which is fixed at forty-five degrees and cannot step back. The
    * picture is fifteen world units tall above the hero, so a peak that stands much more than twice
-   * that above its own foot is a wall rather than a view, whatever the camera does. Thirty is that
-   * bound, and the number is now sitting on it rather than two thirds of the way to it.
+   * that above its own foot is a wall rather than a view, whatever the camera does.
    *
-   * Twenty-one was measured and found to be the whole answer rather than a ceiling nothing reached:
-   * forty seeds grown headless all had their tallest peak at exactly 21.0, because a patch carries
-   * thirteen to thirty-one mountain faces and the largest of that many draws sits at the top of its
-   * range. So the ceiling *is* how big a mountain gets in this game, and it was tuned against the
-   * fifty-five unit peak `SPREAD` below still talks about.
+   * This is a ceiling that everything reaches rather than one nothing does, and it is worth knowing
+   * before anybody tunes it: forty seeds grown headless all had their tallest peak at exactly 21.0,
+   * because a patch carries thirteen to thirty-one mountain faces and the largest of that many
+   * draws sits at the top of its range. So this number *is* how big a mountain gets in this game.
+   *
+   * **It was raised to thirty for #307 and put back, and the reason is not the mountain.** The only
+   * road out of this constant into the ground anything walks on is `liftField` → `nearestLift` →
+   * `generateHydrology`'s `highNearby`, which ranks crossroads by how high the hills beside them
+   * stand and starts rivers at the highest. Change the heights and that ranking reshuffles, so a
+   * different set of springs runs and the lakes land somewhere else. Somewhere else turned out to
+   * include a place where the ground beside water leaves an eleven-unit wall between two ordinary
+   * land tiles, which `banks.test.ts` exists to forbid.
+   *
+   * Swept, worst step between two neighbouring walkable tiles inside 260 tiles of the middle, with
+   * everything else of #307's in place and the bound at 9:
+   *
+   *     TALLEST  |   21 |    24 |   26 |    28 |    30
+   *     seed 1   | 6.09 |  6.09 | 5.50 | 11.09 | 11.09
+   *     seed 7   | 7.79 | 11.00 | 9.24 | 11.29 |  9.12
+   *
+   * There is no safe larger value in that table, and the shape of it says why: the wall is not the
+   * mountain getting steeper, it is a latent fault in the ground beside water that this particular
+   * river layout happens to miss. Seed 7 already sits at 7.79 of its allowed 9 without touching
+   * anything. Raising this wants that fixed first — #391.
    */
-  TALLEST: 30,
-  SHORTEST: 16,
+  TALLEST: 21,
+  SHORTEST: 11,
   /**
    * How much of that a face gets for being large.
    *
@@ -106,8 +124,12 @@ export const RANGE = {
    * for a mountain that no longer exists was steepening one on half the ground — which is the
    * player's own complaint, *"dimensionally small… a pointy hill rather than a sprawling mountain
    * range"*, arrived at from the other end. Measured on the tallest peak of five seeds, the rock
-   * reached a mean of 0.57 of its own face. Back out to 0.82 the flank is about one in one on a
-   * footprint half again as wide, which is steeper than the ramp 0.62 was avoiding.
+   * reached a mean of 0.57 of its own face.
+   *
+   * Back out to 0.82 it reaches three quarters, and the flank is about one in one and a half — far
+   * from the one in one and a half of a fifty-five unit peak over seventy-five tiles, because the
+   * peak is twenty-one rather than fifty-five. This is the half of "dimensionally small" that can
+   * be had without touching the height, which #307 found it could not: see `TALLEST` above.
    */
   SPREAD: 0.82,
   /**
