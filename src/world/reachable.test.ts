@@ -212,21 +212,27 @@ const ALREADY_UNEXPLAINED = 0;
  * when it open-coded a filter rather than name `workedBy`, met from the other side. The report
  * names them, because the report is not read by the bench; #380 argues them one at a time.
  *
- * It is a number rather than nought for the same reason the line above is, and with the same
- * bargain: nine is what was already there when the instrument was built, and the instrument is
- * worth more now than it will be after an afternoon of triage nobody has done yet. Each of the
- * nine wants its own answer — a caller found, or a deletion — and settling nine of those inside
- * the change that made them visible would bury the change that made them visible.
+ * It is nought, and it took one afternoon rather than the one the note here used to defer.
+ *
+ * It stood at nine when the instrument was built — deliberately, because settling nine exports
+ * inside the change that made them countable would have buried the change that made them
+ * countable. #380 then gave each of the nine its own answer. Eight were leftovers and were
+ * deleted, every one checked with `git log -S` first: each returned exactly one commit, the one
+ * that wrote it, so none had ever had a caller and lost it. The ninth was not a leftover at all —
+ * `fields.ts`'s reader for what a sown field yields the man who farms it, written, documented, and
+ * called by nothing, while a village paid its farmers off a second expression of the same number.
+ * Wiring it closed a fault in the dinner money (#384).
+ *
+ * `workedBy` was the tenth, and went in the change that made this countable, because a bench that
+ * reports a fault is worth less than one that reports a fault and has had it fixed once.
  *
  * **These cannot be excused.** An excuse names the test that owns an export or the issue its
  * caller waits on, and a name nothing mentions has no test to name — so `tools/excused.ts` has no
  * honest form of words for one of these, and there is deliberately no second list here in which to
- * park them. Lower it when you triage. Never raise it.
- *
- * `workedBy` was the tenth, and it is gone in the change that made this countable, because a bench
- * that reports a fault is worth less than one that reports a fault and has had it fixed once.
+ * park them. Nought is now the only number that is not slack: the next export nothing mentions is
+ * red on the commit that adds it, which is the whole of what this was built for. Never raise it.
  */
-const NAMED_NOWHERE_ALREADY = 9;
+const NAMED_NOWHERE_ALREADY = 0;
 
 /*
  * Where the reviewed exceptions live, and why they are not written down here.
