@@ -315,12 +315,10 @@ const SHOTS = [
      * returns null there, which is the supported "not today" — but it means every picture in #307
      * is a picture of the endless country whether or not it says so.
      *
-     * And on seed 3 the tallest peak within nine hundred tiles of the middle lifts about nineteen
-     * terraces, which is under ten world units — high ground with a snow line on it rather than the
-     * grey slab the issue's own picture shows. Which is the player's complaint in #307 almost word
-     * for word: *"dimensionally small… almost like a pointy hill rather than a sprawling mountain
-     * range"*. The framing here is a starting point and wants an eye on it: `away` and the zoom are
-     * the two numbers to move.
+     * And the framing was wrong in a way that hid what it was pointed at. `away` and the zoom were
+     * the two numbers to move, the note said, and both of them had to: see `away` below. With them
+     * moved, seed 3's Stonecrown Highlands photographs as a massif rather than as an empty hillside,
+     * which is what settled the shape half of #307.
      */
     /*
      * And the endless country, because the road tree has no mountains to photograph.
@@ -350,15 +348,30 @@ const SHOTS = [
       });
       if (!peak) return null;                    // a seed with no mountain near the middle: not today
       /*
-       * A hundred and fifty tiles off, on whichever side of it is dry.
+       * Forty-five tiles off, on whichever side of it is dry.
        *
        * Far enough out to be standing on ordinary country — the seam where rock meets ground is
        * half of what this photographs — and close enough that the rock fills the frame rather than
        * sitting on the horizon. The side is looked for rather than chosen: the first version walked
        * back along the line to the origin and put the hero in the sea, because a peak nearer the
        * middle than the standing distance is a peak you walk *past* doing that.
+       *
+       * It was seventy, with a twenty-six unit frustum, and that pair could not photograph a
+       * mountain — which is why the previous attempt at #307 parked: *"neither has the massif in
+       * frame, which is the blocker"*. The arithmetic says why rather than the eye. The camera is
+       * fixed at forty-five degrees, so a point `d` tiles in front of the hero standing `h` units
+       * up sits about `0.7·(d + h)` world units above the middle of the picture, and the picture is
+       * only `zoom` units tall. Seventy tiles and a twenty-one unit peak is sixty-four units above
+       * the middle against a half-frame of thirteen: the massif was five frames off the top.
+       *
+       * So both numbers moved, and a shot of a mountain is a wide shot whether or not one wanted it
+       * to be: forty-five tiles out at ninety-six units tall puts `0.7·66 = 46` against a half-frame
+       * of forty-eight, which is the summit near the top edge and the flank and its foot below it.
+       * There is room in that for a taller peak than the game has, which is deliberate — #391 has
+       * to be answered before `RANGE.TALLEST` can move, and this should not need retuning when it
+       * does.
        */
-      const away = 70;
+      const away = 45;
       const sides = [[1, 1], [-1, 1], [1, -1], [-1, -1], [1, 0], [0, 1], [-1, 0], [0, -1]];
       const spot = await ask(([peak, away, sides]) => {
         for (const [dx, dz] of sides) {
@@ -370,7 +383,8 @@ const SHOTS = [
       }, [peak, away, sides]);
       if (!spot) return null;                    // a mountain standing in the sea: not this one
       await stand(spot.x, spot.z, 6000);
-      await zoom(26);
+      // a mountain will not fit in the zoom a village is photographed at; see `away` above
+      await zoom(96);
       await face(peak.x, peak.z);
       return `${away} tiles from a peak ${Math.round(Math.hypot(peak.x, peak.z))} out`;
     },
