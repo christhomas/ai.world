@@ -518,7 +518,7 @@ export function startGame(
   if (saved?.sky) skies.restore(saved.sky);
 
   const interactions = createInteractions({
-    player, state, discovered, eyries, skies, ore, forge,
+    player, state, discovered, eyries, high, skies, ore, forge,
     luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     saidOfMine,
     structures, around, sampler, chunks, manifest, entities, entityRenderer, places, seed,

@@ -3,21 +3,22 @@ import { KINDS } from '../../entities/animals';
 import { isDaytime } from '../../entities/entity';
 import { BIOMES } from '../../world/biomes';
 import { CAMP, heartsFrom, huntersOf, nightAt, tilesToVillage, wakes, type Country } from '../camp';
-import { Carcasses, paidFor } from '../furs';
+import { Carcasses, paidFor, type Carcass } from '../furs';
 import { ITEMS } from '../items';
 import type { Surroundings } from './context';
 
 /**
  * What Enter does over a body and at the end of a day's walk: take the hide off something you
- * killed, and pitch a tent where you are standing.
+ * killed, leave it where it fell for the eagles, and pitch a tent where you are standing.
  *
- * The two belong together because they are the same journey. Furs are only worth carrying to the
+ * The three belong together because they are the same journey. Furs are only worth carrying to the
  * far country that has none, and the far country is further than a day, so the trade exists only
- * for somebody willing to sleep out on the way there.
+ * for somebody willing to sleep out on the way there — and the one country where a carcass is
+ * worth more left than carried is the high one you have to sleep out to reach.
  */
 export function campInteractions(ctx: Surroundings) {
   const {
-    player, state, structures, sampler, sailing, dialogue, hud, sound, seed, persist,
+    player, state, structures, sampler, sailing, dialogue, hud, sound, seed, high, persist,
   } = ctx;
 
   /**
@@ -44,6 +45,34 @@ export function campInteractions(ctx: Surroundings) {
 
   /** The bodies still lying about, for whatever draws them. */
   const bodies = () => carcasses.all;
+
+  /**
+   * Leave the body on the ledge and walk away, which is the other thing a carcass is for.
+   *
+   * The whole of #325 is behind this one choice. An eagle comes to carrion, and where it comes to
+   * carrion on a mountain far enough from people it sometimes stays — so a player who found a
+   * village in the clouds with no crag under it has a reason to climb, a reason to hunt, and a
+   * reason to come back and look. What it ends with is a nest and a line in the manifest, the same
+   * two things a map editor would have produced, except that this happened in the world.
+   *
+   * Offered wherever there is a body rather than only where it would work, because the refusal is
+   * the teaching: an eagle that eats and flies away tells a hunter the ledge was too low, and that
+   * is a hint system with no tutorial text anywhere in it. `baiting.ts` owns every word of it.
+   */
+  const layItOut = (body: Carcass) => {
+    const laid = high.bait(body.x, body.z, state.day, tilesToVillage(structures.villages, body.x, body.z));
+    carcasses.leaveIt(body);
+    if (laid.nest) {
+      sound.chime();
+      state.version++;
+      // the nest is a told fact from here on, so the save has to have it before anything else can
+      // go wrong: see `baiting.ts` on why nothing re-rolls it afterwards
+      persist();
+    } else {
+      sound.thud();
+    }
+    return { speaker: 'The high country', emoji: '🦅', pages: [laid.said] };
+  };
 
   /**
    * Enter over a body: take the hide. A knife makes it certain, and bare hands are worth trying
@@ -79,6 +108,7 @@ export function campInteractions(ctx: Surroundings) {
           persist();
           return null;
         } },
+        { label: 'Leave it for the eagles', next: () => layItOut(body) },
         { label: 'Leave it', next: () => null },
       ],
     });
