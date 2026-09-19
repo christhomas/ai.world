@@ -439,3 +439,81 @@ describe('a village with nothing leaning on it', () => {
     expect(net, 'a wage was minted or burnt').toBeCloseTo(0, 6);
   });
 });
+
+/**
+ * The hall does not hire a man who is already on somebody's gate — #360.
+ *
+ * `workTheHallJobs` takes the day's posts and leaves those men out, because a day is a day and
+ * nobody works two. The page used to hand it the posts of the morning *before*: it read them off
+ * the register and then told it to live the day, and every morning of a catch-up but the last got
+ * `undefined`. So on any morning that was not the last one, a man standing a yard could be paid a
+ * second time for the hall's work.
+ *
+ * Asking the register for the morning being worked is safe because `postsToday` moves nothing —
+ * the paying still happens once, where the day is lived.
+ */
+describe('a man already spoken for', () => {
+  it('is known about on every morning of a catch-up, not only the last', () => {
+    const register = new Register(7);
+    register.settle(VILLAGE, 6, ['farmer', 'seller', 'builder']);
+    register.advance(4);
+    for (const person of register.living(VILLAGE)) person.purse = 500;
+
+    const houses = new Houses();
+    houses.takeOn(VILLAGE, BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+
+    /** Which mornings were told who was already posted, and which were told nothing. */
+    const told = new Map<number, number | null>();
+    const shifts: Array<{ day: number; who: string }> = [];
+    const morning = (day: number, already?: ReadonlyMap<string, readonly Post[]>): void => {
+      const busy = already === undefined ? null : [...already.values()].flat();
+      told.set(day, busy === null ? null : busy.length);
+      for (const shift of workTheHallJobs(houses, day, () => register.living(VILLAGE), busy ?? [])) {
+        shifts.push({ day, who: shift.who });
+      }
+    };
+    const { tidings, state } = telling({ register, builderDay: morning, pressings: [] });
+
+    state.day = 9;                    // five mornings at once, which is where the gap was
+    tidings.theDaysNews();
+
+    expect(told.size, 'no mornings were worked at all').toBeGreaterThan(1);
+    const blind = [...told].filter(([, many]) => many === null).map(([day]) => day);
+    expect(blind, `mornings ${blind.join(', ')} were told nothing about who was posted`).toEqual([]);
+  });
+
+  /*
+   * And each morning is handed its own answer, not the same one over and over.
+   *
+   * Recording only which days were asked about proved nothing: an implementation that ignored the
+   * day entirely and handed back one map five times would have passed. So a man is buried part way
+   * through the catch-up, which is a difference between two mornings that the maps have to show —
+   * he can be named on the mornings he was alive for and not on the ones after.
+   */
+  it('hands each morning its own answer, not the last one over again', () => {
+    const register = new Register(7);
+    register.settle(VILLAGE, 6, ['farmer', 'seller', 'builder']);
+    register.advance(4);
+    for (const person of register.living(VILLAGE)) person.purse = 500;
+
+    const before = [...(register.whoIsSpokenFor(5).get(VILLAGE) ?? [])].map((post) => post.who);
+    expect(before.length, 'nobody was posted to begin with').toBeGreaterThan(0);
+    const doomed = before[0];
+
+    const named = new Map<number, string[]>();
+    const morning = (day: number, already?: ReadonlyMap<string, readonly Post[]>): void => {
+      named.set(day, [...(already?.get(VILLAGE) ?? [])].map((post) => post.who));
+      if (day === 6) register.bury(doomed, day);      // he does not see the seventh
+    };
+    const { tidings, state } = telling({ register, builderDay: morning, pressings: [] });
+
+    state.day = 8;
+    tidings.theDaysNews();
+
+    expect(named.get(5), 'he was alive on the fifth and should be named').toContain(doomed);
+    expect(named.get(6), 'and on the sixth, the morning he was buried').toContain(doomed);
+    expect(named.get(7), 'a buried man was still named on the seventh').not.toContain(doomed);
+    expect(named.get(8), 'nor on the eighth').not.toContain(doomed);
+  });
+});

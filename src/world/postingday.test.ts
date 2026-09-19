@@ -230,3 +230,86 @@ describe('a village founded into a world that is already old', () => {
       .toEqual(forward.postsOn('Ashford').map((post) => `${post.kind}:${post.holding}:${post.who}`));
   });
 });
+
+/**
+ * Who is already spoken for, asked about the morning being worked — #360.
+ *
+ * `halljobs.ts` must not offer a day of the hall's work to a man already standing somebody's gate.
+ * The page used to be handed the posts of the morning *before*: it read them off the register and
+ * then told it to live the day, and every morning of a catch-up but the last got nothing at all. A
+ * death or a change in pressure moves a post between days, so the advice was about the wrong one.
+ *
+ * Safe to ask because `postsToday` decides who and at what price and **moves nothing** — the
+ * paying still happens once, where the day is lived.
+ */
+describe('who a village has already spoken for', () => {
+  const settled = (): Register => {
+    const book = new Register(7);
+    book.settle('Stonedale', 6, ['farmer', 'hunter', 'seller', 'builder']);
+    for (let day = 2; day <= 20; day++) book.advance(day);
+    for (const person of book.living('Stonedale')) person.purse = 500;
+    return book;
+  };
+
+  it('answers for a morning that has not been lived yet', () => {
+    const book = settled();
+    const ahead = book.whoIsSpokenFor(21).get('Stonedale') ?? [];
+    expect(ahead.length, 'nobody was named for a morning the village can afford').toBeGreaterThan(0);
+  });
+
+  /*
+   * The whole point of it being safe to ask: it is a reading, not an act. Asking a hundred times
+   * must leave every purse exactly where asking once did.
+   */
+  it('moves no money, however often it is asked', () => {
+    const book = settled();
+    const before = book.living('Stonedale').map((person) => person.purse ?? 0);
+    for (let i = 0; i < 100; i++) book.whoIsSpokenFor(21);
+    expect(book.living('Stonedale').map((person) => person.purse ?? 0)).toEqual(before);
+    expect(book.living('Stonedale').every((person) => book.postedTo(person.id) === 0),
+      'a reading wrote into the day book').toBe(true);
+  });
+
+  /*
+   * And it is about the morning it names, which needs a world that differs between two mornings to
+   * say anything at all. A man who dies is that difference: he can be posted on the morning he is
+   * alive and cannot be on the one after.
+   */
+  it('names a man on the morning he is alive and not on the one after', () => {
+    const book = settled();
+    const posted = (day: number) => new Set(
+      (book.whoIsSpokenFor(day).get('Stonedale') ?? []).map((post) => post.who),
+    );
+
+    const doomed = [...posted(21)][0];
+    expect(doomed, 'nobody was posted to begin with').toBeDefined();
+    expect(posted(21).has(doomed)).toBe(true);
+
+    book.bury(doomed, 21);
+
+    expect(posted(22).has(doomed), 'a buried man was still named for a later morning').toBe(false);
+  });
+
+  /*
+   * And the day itself is read, not merely passed along.
+   *
+   * Most of the answer comes from the state of the village at the moment of asking, so a burial
+   * shows up whatever day is named. The one thing the *day argument* decides on its own is the
+   * pressing: `pressure.on` is `told + 1 === day`, so a band reported on the twentieth is felt on
+   * the twenty-first and on no other morning. A gate manned on the right morning and bare on the
+   * next is the day being read.
+   */
+  it('reads the day it was given, which is what decides whether a gate is manned', () => {
+    const book = settled();
+    // somebody to stand it: a guard is taken from the soldiers and the untraded
+    book.living('Stonedale')[0].trade = '';
+    book.leanedOn('Stonedale', 1);    // told on the twentieth, felt on the twenty-first
+
+    const kinds = (day: number) =>
+      (book.whoIsSpokenFor(day).get('Stonedale') ?? []).map((post) => post.kind);
+
+    expect(kinds(21), 'nothing was manned on the morning the band was overhead').toContain('guard');
+    expect(kinds(22), 'the gate was still manned a day after the band was reported')
+      .not.toContain('guard');
+  });
+});

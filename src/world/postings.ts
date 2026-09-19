@@ -402,3 +402,30 @@ export function standPostsIn(
   for (const [id, much] of owed) book.post(id, much);
   return posts;
 }
+
+/**
+ * Who would be standing a post on one morning, worked out and not paid.
+ *
+ * The advisory `halljobs.ts` wants: a man already on somebody's gate must not also be offered a day
+ * of the hall's work. It used to be handed the posts of the morning *before* — the page read them
+ * off the register and then told it to live the day, and every morning of a catch-up but the last
+ * got nothing at all. A death or a change in pressure moves a post between days, so the advice was
+ * about the wrong one. See #360.
+ *
+ * Safe to ask as often as anybody likes, which is the property that makes this the small fix rather
+ * than a reordering of the day: `postsToday` decides who and at what price and **moves nothing**.
+ * The paying still happens once, in `standPostsIn`, where a day is lived.
+ */
+export function whoWouldStand(
+  villages: ReadonlyMap<string, Settlement>,
+  pressureOn: (village: string) => number,
+  day: number,
+): Map<string, readonly Post[]> {
+  const standing = new Map<string, readonly Post[]>();
+  for (const [name, village] of villages) {
+    standing.set(name, postsToday(
+      village.people, (village.holdings ?? []) as readonly Held[], pressureOn(name), day,
+    ));
+  }
+  return standing;
+}
