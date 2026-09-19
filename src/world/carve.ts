@@ -66,7 +66,7 @@ export const CARVE = {
    * two peaks wherever a corner was shared by mountain faces, on the argument that a col between
    * two summits belongs to the smaller of them. But `RANGE.SPREAD` pulls each fan in towards its
    * own apex, so two neighbours no longer meet at that corner: each stopped several units above the
-   * ground with nothing beside it, which measured as up to 5.7 units of rock ending in mid-air.
+   * ground with nothing beside it, which measured as up to 4.2 units of rock ending in mid-air.
    * A col is made of ground here — `highland.ts` raises the country between summits, and roads run
    * over it — so the rock has nothing to say about it and now says nothing.
    */
