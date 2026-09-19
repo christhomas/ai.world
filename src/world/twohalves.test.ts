@@ -307,8 +307,19 @@ describe('the same world, grown on both sides', () => {
     expect(join).toContain('x?: number');
     expect(join).toContain('z?: number');
     const sim = readFileSync('server/sim.ts', 'utf8');
-    expect(sim).toContain('new Patchwork(seed, growPatch)');
-    covered.push('PASS      1  the world grows the acre named at the join');
+    /*
+     * The literal moved, deliberately, and this is the second thing it now guards.
+     *
+     * It read `new Patchwork(seed, growPatch)` and that was the whole of #377: the fourth argument
+     * — the layers this world was authored with — was left at its default of nothing while the
+     * page grew the same world from the list in its manifest. The guard was doing its job by
+     * refusing to let that line change quietly, so it is updated rather than loosened, and it now
+     * asserts the list is there as well as the generator.
+     */
+    expect(sim).toContain('new Patchwork(seed, growPatch, undefined, layers)');
+    expect(sim, 'the world grows its country from a layer list it never read a manifest for')
+      .toContain('elevationFor(this.rooms.manifestOf(seed))');
+    covered.push('PASS      1  the world grows the acre named at the join, from its own manifest');
   });
 });
 

@@ -1,9 +1,11 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { countryStamp, growPatch, whyCountriesDiffer } from './growworld';
+import { countryStamp, endlessStamp, growPatch, stampFor, whyCountriesDiffer } from './growworld';
 import { PATCH, boundsOf } from './patchwork';
 import { partsOf, rebuildPatch } from './endless';
+import type { RoadGraph } from './graph';
+import type { Highland } from './highland';
 
 /*
  * One square of country, named and fingerprinted.
@@ -180,5 +182,74 @@ describe('why two halves are not in the same country', () => {
   it('still catches a drift when the world is too old to say what kind it grew', () => {
     // the case the field being optional has to keep working: no kind, two stamps, a real difference
     expect(whyCountriesDiffer('aaaa', 'bbbb')).toContain('bbbb');
+  });
+});
+
+/**
+ * The fingerprint of a country with no edge.
+ *
+ * This message carried an empty string until #377, on the argument that an endless country has no
+ * whole-country fingerprint. That was true of the *road graph* — there is one per square, and
+ * hashing the square somebody happens to be standing in would report a disagreement between two
+ * halves standing in different places — and false of the world, which since #376 carries a layer
+ * list that is whole-country, cheap, and the one thing about such a world two halves can hold
+ * differently.
+ *
+ * What the four below hold is the pair of properties that make it worth sending at all: it can
+ * disagree, and it does not disagree about anything that is not a fact about the world. A stamp
+ * that cannot disagree is worse than no stamp, because it reports agreement.
+ */
+describe('the fingerprint of a country that has no edge', () => {
+  const range: Highland[] = [{ x: 200, z: 0, reach: 300, lift: 24 }];
+  const far: Highland[] = [{ x: 900, z: 0, reach: 300, lift: 24 }];
+  /** A country with nothing in it, for the one question below that is about the other stamp. */
+  const bounded: RoadGraph = {
+    seed: 4242, radius: 100, nodes: [], edges: [], towns: [], islands: [],
+    mainlandNodes: 0, sectors: [], sectorOffset: 0,
+  };
+
+  it('is something rather than the silence it used to be', () => {
+    // silence is what the page reads as "this world had nothing to say", so a country that has
+    // something to say has to say something
+    expect(endlessStamp(4242)).not.toBe('');
+    expect(endlessStamp(4242)).toHaveLength(8);
+  });
+
+  it('says two worlds differ when only their layers do', () => {
+    expect(endlessStamp(4242, range)).not.toBe(endlessStamp(4242));
+    expect(endlessStamp(4242, far)).not.toBe(endlessStamp(4242, range));
+    expect(endlessStamp(4242, [...range, ...far])).not.toBe(endlessStamp(4242, range));
+  });
+
+  it('says two worlds differ when they are different worlds', () => {
+    expect(endlessStamp(4243, range)).not.toBe(endlessStamp(4242, range));
+  });
+
+  /*
+   * And which of the two a country takes of itself, which is the choice both halves have to make
+   * the same way while neither can see the other make it.
+   *
+   * It is here rather than in the page's assembly because nothing can reach that: `growCountry`
+   * wants a renderer. The page calls this and so, in effect, does the server — `Simulation` grows
+   * only endless worlds and reaches `endlessStamp` directly — so what is held here is that the
+   * kind decides, and that getting the kind backwards is two different words rather than one.
+   */
+  it('gives each kind of country the fingerprint that kind can take', () => {
+    expect(stampFor('endless', 4242, bounded, range)).toBe(endlessStamp(4242, range));
+    expect(stampFor('road', 4242, bounded, range)).toBe(countryStamp(bounded, range));
+    expect(stampFor('endless', 4242, bounded, range)).not.toBe(stampFor('road', 4242, bounded, range));
+  });
+
+  it('has no opinion about the order a list arrived in, or about which square is grown', () => {
+    // two orders of one list are two floating-point sums of the same numbers, and a stamp that
+    // told them apart would fail between a world restored from a save and one built from a seed
+    expect(endlessStamp(4242, [...far, ...range])).toBe(endlessStamp(4242, [...range, ...far]));
+    /*
+     * And it is not the other stamp wearing the same name. The two hash different questions about
+     * different kinds of country, so a page that grew a bounded world and a server that grew an
+     * endless one must read as a disagreement — a collision there would read as agreement, which
+     * is the one answer worse than silence.
+     */
+    expect(endlessStamp(4242, range)).not.toBe(countryStamp(bounded, range));
   });
 });

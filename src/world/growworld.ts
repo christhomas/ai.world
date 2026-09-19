@@ -1,5 +1,6 @@
 import { samplerIn } from './endless';
 import { inOrder } from './elevation';
+import type { WorldKind } from './countries';
 import type { RoadGraph } from './graph';
 import type { Highland } from './highland';
 import { planIslands, roadTreeWorld } from './roadtree';
@@ -146,8 +147,7 @@ export function whyCountriesDiffer(mine: string, theirs: string): string | null 
 }
 
 export function countryStamp(graph: RoadGraph, layers: readonly Highland[] = []): string {
-  let h = 0x811c9dc5;
-  const eat = (n: number): void => { h = Math.imul(h ^ (n | 0), 0x01000193) >>> 0; };
+  const { eat, said } = fingerprint();
   eat(graph.seed);
   eat(graph.nodes.length);
   eat(graph.edges.length);
@@ -166,10 +166,101 @@ export function countryStamp(graph: RoadGraph, layers: readonly Highland[] = [])
    * hero walking through a hillside. Rounded to a thousandth for the reason the nodes are, and read
    * in `inOrder`'s order so that two halves holding the same list differently sorted still agree.
    */
+  eatLayers(eat, layers);
+  return said();
+}
+
+/**
+ * And the fingerprint of a country that has no edge, which is a smaller thing and had to be.
+ *
+ * `countryStamp` above hashes a road graph because in a bounded world the graph is upstream of
+ * everything: one graph, grown once, and every village and door and ferry in the world derived
+ * from it. An endless country has no such object. What it has is a graph *per patch*, grown for
+ * the square somebody happens to be standing in — so a page in one square and a server in another
+ * hold two perfectly correct graphs of the same country, and hashing either would report a
+ * disagreement that is not one. That is why this message carried an empty string until now, and
+ * the empty string was honest as far as it went.
+ *
+ * What it missed is that a country with no edge still has whole-country facts, and since #376 it
+ * has one that can differ: the layer list. It is the thing a person *chose* about a world, it is
+ * read from the manifest on both sides of the wire, and two halves holding different lists grow
+ * every tile under a mountain at a different height while agreeing about everything either of them
+ * would otherwise say. So this hashes what is whole-country about an endless world and nothing
+ * that is per-patch: the seed, and the list, in `inOrder`'s order.
+ *
+ * ## What it can and cannot say
+ *
+ * It can disagree, which is the whole of the point — *"a stamp that cannot disagree is worse than
+ * no stamp, because it reports agreement"*. A server growing a world with an authored range and a
+ * page growing the same seed flat now exchange two different words and the page says so.
+ *
+ * It cannot notice a generator that drifted between two commits, which the bounded stamp can,
+ * because noticing that in an endless world would mean both halves growing one agreed square — and
+ * a square is fourteen seconds of work to answer a question asked at a join. The ground itself
+ * travels down the wire, so drift of that kind shows up as the *derived* things disagreeing rather
+ * than as a hero in a hillside, and that is a different fault wanting a different answer. Said out
+ * loud here rather than left to be assumed: this is a fingerprint of what a world *is*, not of the
+ * code that grew it.
+ */
+export function endlessStamp(seed: number, layers: readonly Highland[] = []): string {
+  const { eat, said } = fingerprint();
+  // a tag of its own, so an endless stamp and a bounded one can never be the same eight characters
+  // by accident: two halves that grew different *kinds* of country have to read as a disagreement,
+  // and a collision here would read as agreement, which is the one answer worse than silence
+  eat(0x656e6421);
+  eat(seed >>> 0);
+  eatLayers(eat, layers);
+  return said();
+}
+
+/**
+ * The fingerprint a country of this kind takes of itself.
+ *
+ * The one place the choice is made, because it is a choice both halves have to make the same way
+ * and neither of them can see the other making it. A page that took a bounded stamp of an endless
+ * world would hash the square its hero happens to be standing in and report a disagreement with a
+ * server standing in another; a server that took an endless stamp of a bounded world would throw
+ * away the graph that is the whole of what a bounded world is. Two lines of `?:` in the page's
+ * assembly and two more in the server's would be two chances to get that backwards, in code that
+ * no test can reach because it needs a renderer.
+ *
+ * `graph` is ignored for an endless country and must be: it belongs to one square. It is taken
+ * anyway rather than made optional, because every caller has one to hand and an argument that is
+ * sometimes absent is an argument somebody will forget when it matters.
+ */
+export function stampFor(
+  kind: WorldKind, seed: number, graph: RoadGraph, layers: readonly Highland[] = [],
+): string {
+  return kind === 'endless' ? endlessStamp(seed, layers) : countryStamp(graph, layers);
+}
+
+/**
+ * The hash both fingerprints are taken with: FNV-1a over a stream of integers.
+ *
+ * One of it rather than one apiece, because two halves of this game compare these across a wire
+ * and a second copy of a hash is a second chance to change one of them. Eight hex characters,
+ * which is what a `hello` can afford to carry.
+ */
+function fingerprint(): { eat: (n: number) => void; said: () => string } {
+  let h = 0x811c9dc5;
+  return {
+    eat: (n: number): void => { h = Math.imul(h ^ (n | 0), 0x01000193) >>> 0; },
+    said: (): string => h.toString(16).padStart(8, '0'),
+  };
+}
+
+/**
+ * The layer list, into whichever fingerprint is being taken.
+ *
+ * Rounded to a thousandth for the reason a node's place is, and read in `inOrder`'s order so that
+ * two halves holding the same list differently sorted still agree. Shared by both stamps because
+ * it is the same list saying the same thing about the same ground, and a bounded world and an
+ * endless one disagreeing about how to hash it would be the fault this exists to catch.
+ */
+function eatLayers(eat: (n: number) => void, layers: readonly Highland[]): void {
   eat(layers.length);
   for (const l of inOrder(layers)) {
     eat(Math.round(l.x * 1000)); eat(Math.round(l.z * 1000));
     eat(Math.round(l.reach * 1000)); eat(Math.round(l.lift * 1000));
   }
-  return h.toString(16).padStart(8, '0');
 }

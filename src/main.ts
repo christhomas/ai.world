@@ -85,7 +85,7 @@ import { joinAWorld } from './game/joining';
 import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
 import { familyOfDoor } from './world/homes';
 import { growCountry, type GrownPatch } from './game/country';
-import { countryStamp, whyCountriesDiffer } from './world/growworld';
+import { whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
 import { bindKeys } from './game/keys';
@@ -115,7 +115,7 @@ export function startGame(
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
-    eyries, skyIsles, skyRenderer, endless, grower, mountains, layers,
+    eyries, skyIsles, skyRenderer, endless, grower, mountains, stamp: mine,
   } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
@@ -405,9 +405,9 @@ export function startGame(
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
     onCountryGrown: (stamp) => {
       chunks.theCountryIsGrown();
-      // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`
-      // the layers too: half a fingerprint would call two countries at different heights equal
-      const said = whyCountriesDiffer(countryStamp(graph, layers), stamp);
+      // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`, and
+      // `growCountry` for why the country takes its own rather than this taking one of it
+      const said = whyCountriesDiffer(mine, stamp);
       if (!said) return;
       console.error(said);
       hud.flash('This world does not match the one you joined.');
