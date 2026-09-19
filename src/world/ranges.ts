@@ -3,6 +3,7 @@ import { mulberry32, rand2 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { FaceKind, faceAt, type WorldMesh } from './mesh';
 import type { Massif } from './mountains';
+import { CARVE, carveSpurs, cut, spursOf, type Point, type Rock } from './carve';
 
 /**
  * Mountains as polygons, not as a hill turned up.
@@ -14,11 +15,10 @@ import type { Massif } from './mountains';
  *
  * The mesh already holds the shape a mountain wants. A face is a polygon of three to six sides,
  * sixty-odd tiles across, and the faces the generator marked as mountain run together into
- * territories. So a range is built the way a range looks: a peak over the middle of each face, the
- * corners it shares with its neighbours held down to make cols between the peaks, and the border
- * of the whole territory at ground level. Fan the triangles from the peak to the corners and the
- * result is a handful of enormous flat faces per mountain — which is the low-poly language the
- * rest of the game is drawn in, rather than a heightfield pretending to be rock.
+ * territories. So a range is built the way a range looks: a peak over the middle of each face and
+ * the border of the whole territory at ground level. Fan the triangles from the peak to the corners
+ * and the result is a handful of enormous flat faces per mountain — which is the low-poly language
+ * the rest of the game is drawn in, rather than a heightfield pretending to be rock.
  *
  * Three things come free from doing it this way, and they are the reason it is the right shape
  * rather than merely a better-looking one.
@@ -27,9 +27,14 @@ import type { Massif } from './mountains';
  * this holds the ground down. A road through mountain country therefore threads the valleys
  * between the peaks without anything having to carve it a corridor.
  *
- * The ridges. Two mountain faces that share an edge share its two corners, so they agree exactly
- * about the height along it. A range is continuous, with a saddle where the faces meet, and no
- * seam can open between them because there is only one number.
+ * The saddles. Every fan comes down to the ground at its own border, and the ground between two
+ * summits is not the plain: `highland.ts` has already raised the whole territory, so what lies
+ * between two mountains is high country with a road over it rather than a slot. That is a col made
+ * of ground, which is the only kind anything in this game can walk across.
+ *
+ * The spurs. A fan is a cone and a cone is a hill however big it is, so the flank is carved into
+ * arms with valleys between them — `carve.ts`, which is also where the cutting went when this file
+ * ran out of the seven hundred lines a module is allowed.
  *
  * The scale. A face is not a tile. One mountain is six or eight triangles instead of four thousand
  * quads, so the whole of a world's mountain country costs less to draw than a single chunk of
@@ -46,10 +51,17 @@ export const RANGE = {
    *
    * Answerable to the camera as well, which is fixed at forty-five degrees and cannot step back. The
    * picture is fifteen world units tall above the hero, so a peak that stands much more than twice
-   * that above its own foot is a wall rather than a view, whatever the camera does.
+   * that above its own foot is a wall rather than a view, whatever the camera does. Thirty is that
+   * bound, and the number is now sitting on it rather than two thirds of the way to it.
+   *
+   * Twenty-one was measured and found to be the whole answer rather than a ceiling nothing reached:
+   * forty seeds grown headless all had their tallest peak at exactly 21.0, because a patch carries
+   * thirteen to thirty-one mountain faces and the largest of that many draws sits at the top of its
+   * range. So the ceiling *is* how big a mountain gets in this game, and it was tuned against the
+   * fifty-five unit peak `SPREAD` below still talks about.
    */
-  TALLEST: 21,
-  SHORTEST: 11,
+  TALLEST: 30,
+  SHORTEST: 16,
   /**
    * How much of that a face gets for being large.
    *
@@ -59,16 +71,6 @@ export const RANGE = {
    * die.
    */
   BY_AREA: 0.66,
-  /**
-   * Where a corner shared by mountain faces stands, as a share of the lower of the peaks it is
-   * shared between.
-   *
-   * This is the single number that decides whether a range reads as a range. At 0 the faces are
-   * separate pyramids with a slot between each pair; at 1 the whole territory is one slab with
-   * bumps. Just under half leaves a col deep enough to see the sky through from the valley floor
-   * and high enough to be a climb rather than a walk.
-   */
-  COL: 0.42,
   /**
    * How much face there has to be per peak, in tiles of area.
    *
@@ -97,48 +99,17 @@ export const RANGE = {
    * hundred and fifty tiles across: fifty-five units of height spread over seventy-five tiles of
    * ground is a one-in-one-and-a-half ramp, which from a camera looking down at forty-five degrees
    * is a grey stain on the map rather than a mountain. Pulled in to under two thirds, the same
-   * height stands on half the ground and the flanks are steep enough to read as rock. What is
-   * given up is that neighbouring mountains no longer share their corners exactly — they overlap
-   * instead, which draws as a saddle between two peaks and is what a range looks like anyway.
+   * height stands on half the ground and the flanks are steep enough to read as rock.
+   *
+   * That was 0.62, and 0.62 is the answer to a question about a fifty-five unit peak. `TALLEST` has
+   * been a third of that for a long time since and nobody put the spread back, so a flank steepened
+   * for a mountain that no longer exists was steepening one on half the ground — which is the
+   * player's own complaint, *"dimensionally small… a pointy hill rather than a sprawling mountain
+   * range"*, arrived at from the other end. Measured on the tallest peak of five seeds, the rock
+   * reached a mean of 0.57 of its own face. Back out to 0.82 the flank is about one in one on a
+   * footprint half again as wide, which is steeper than the ramp 0.62 was avoiding.
    */
-  SPREAD: 0.62,
-  /**
-   * How far below the ground the border of a range is buried, in world units.
-   *
-   * Nought would put the rim exactly in the plane of the terraced ground it meets, and two
-   * surfaces in one plane flicker against each other as the camera moves. Buried, the ground hides
-   * the seam and the mountain grows out of it instead of resting on it.
-   */
-  BURY: 0.75,
-  /**
-   * How many times each triangle of a fan is cut into four, and how rough the cutting is.
-   *
-   * A fan alone is a tent: five or six enormous flat planes meeting at a point, which is a
-   * polygon, not a mountain. Every cut adds a vertex at the middle of each edge and moves it up or
-   * down by a share of that edge's own length, so the surface gains ridges at every scale down to
-   * the last cut — the same trick a fractal landscape is made with, applied to a shape the map
-   * chose rather than to a square of noise.
-   *
-   * Four cuts take a sixty-tile face down to triangles about four tiles across, which is the scale
-   * the eye reads as rock. It also multiplies the triangle count by two hundred and fifty-six: a
-   * world's mountains go from twenty triangles to about five thousand, which is still less than
-   * two chunks of ground.
-   *
-   * The displacement is a hash of the two ends of the edge being cut, so both triangles sharing an
-   * edge move its midpoint to exactly the same place and the surface cannot tear. It is also why
-   * the mountains are the same every time the world is opened.
-   */
-  CUTS: 4,
-  /** How far a midpoint moves, as a share of the length of the edge it sits on. */
-  ROUGH: 0.34,
-  /**
-   * How much of that a low-lying midpoint gets.
-   *
-   * Full roughness everywhere puts crags on the valley floor and lifts the borders the roads run
-   * along, which is exactly where the ground has to stay flat. Scaled by how high the edge already
-   * is, the peaks are ragged and the passes stay passes.
-   */
-  ROUGH_FLOOR: 0.12,
+  SPREAD: 0.82,
   /**
    * The walled-in village: how far the wall stands from the middle of it, as a share of the
    * village's own radius, and how high it goes.
@@ -200,6 +171,8 @@ export interface Peak {
 export interface Ranges {
   /** Three vertices a triangle, nine floats: x, y, z each. */
   tris: Float32Array;
+  /** How far each of those vertices stands above the ground under it, one entry per vertex. */
+  above: Float32Array;
   /** Which peak each triangle belongs to, one entry per triangle. */
   owner: Int32Array;
   peaks: Peak[];
@@ -266,42 +239,13 @@ export function buildRanges(mesh: WorldMesh, ground: GroundAt, walled?: WalledVi
     lift[face.id] = RANGE.SHORTEST + share * (RANGE.TALLEST - RANGE.SHORTEST);
   }
 
-  /**
-   * How high each corner of the mesh stands.
-   *
-   * A corner is held at ground level unless every face meeting there is a mountain — one foot in
-   * open country and the range has to come down to meet it, which is what makes a range end rather
-   * than break off. Corners deep inside a range stand at a share of the lowest peak around them,
-   * so the col between two mountains belongs to the smaller of the two.
-   */
-  const cornerLift = new Float32Array(mesh.vertices.length);
-  const allMountain = new Uint8Array(mesh.vertices.length).fill(1);
-  const lowestPeak = new Float32Array(mesh.vertices.length).fill(Infinity);
-  const touched = new Uint8Array(mesh.vertices.length);
-  for (const face of mesh.faces) {
-    for (const c of face.corners) {
-      touched[c] = 1;
-      if (face.kind !== FaceKind.Mountain) { allMountain[c] = 0; continue; }
-      lowestPeak[c] = Math.min(lowestPeak[c], lift[face.id]);
-    }
-  }
-  for (let v = 0; v < cornerLift.length; v++) {
-    // A corner on the hull of the world has faces missing rather than faces that are not mountain,
-    // and an unvisited corner belongs to no face at all; both are edges of the country and come
-    // down to the ground like any other border.
-    cornerLift[v] = touched[v] === 1 && allMountain[v] === 1 && lowestPeak[v] < Infinity
-      ? lowestPeak[v] * RANGE.COL
-      : 0;
-  }
-
   // The fans, cut down into rock. Each face becomes one triangle per side — apex, corner, next
   // corner — and each of those is cut into four again and again, every new midpoint moved off the
   // straight line it was on. What comes out is the same mountain the polygon described, with a
   // surface at every scale between the whole face and a few tiles.
   const tallest = mountains.reduce((most, f) => Math.max(most, lift[f.id]), 1);
   const peaks: Peak[] = [];
-  const tris: number[] = [];
-  const owner: number[] = [];
+  const rock: Rock = { tris: [], owner: [], above: [] };
   for (const face of mountains) {
     const reach = Math.sqrt(face.area / Math.PI);
     // How many summits this face carries. A big territory is a range and wants several; a small one
@@ -322,88 +266,30 @@ export function buildRanges(mesh: WorldMesh, ground: GroundAt, walled?: WalledVi
       peaks.push({ face: face.id, range: face.region, x: ax, z: az, lift: height, y: under + height });
       const apex: Point = { x: ax, z: az, ground: under, lift: height };
 
-      // the rim: the polygon's own shape, pulled in towards this apex so the flanks are steep. With
-      // several on one face they overlap, and where two flanks cross is a saddle.
+      // the rim: the polygon's own shape, pulled in towards this apex so the flanks are steep, and
+      // buried wherever it stops so that the rock is underground before it runs out
       const spread = RANGE.SPREAD / Math.sqrt(many);
       const rim = face.corners.map((c) => {
         const v = mesh.vertices[c];
         const rx = ax + (v.x - ax) * spread;
         const rz = az + (v.z - az) * spread;
-        return { x: rx, z: rz, ground: ground(rx, rz), lift: cornerLift[c] * spread - RANGE.BURY };
+        return { x: rx, z: rz, ground: ground(rx, rz), lift: -CARVE.BURY };
       });
+      const before = rock.above.length;
       for (let k = 0; k < rim.length; k++) {
-        cut(apex, rim[k], rim[(k + 1) % rim.length], RANGE.CUTS, mesh.seed, tallest, tris, owner, id);
+        cut(apex, rim[k], rim[(k + 1) % rim.length], CARVE.CUTS, mesh.seed, tallest, rock, id);
       }
+      carveSpurs(rock, before, spursOf(mesh.seed, ax, az, reach * spread));
     }
   }
 
-  if (walled) buildWall(walled, ground, mesh.seed, tris, owner);
+  if (walled) buildWall(walled, ground, mesh.seed, rock);
 
-  const flat = new Float32Array(tris);
+  const flat = new Float32Array(rock.tris);
   return {
-    tris: flat, owner: new Int32Array(owner), peaks,
+    tris: flat, owner: new Int32Array(rock.owner), above: new Float32Array(rock.above), peaks,
     bowl: walled?.bowl ?? null,
     index: indexTriangles(flat, mesh.radius),
-  };
-}
-
-/**
- * A point on the mountain being built: where it is, how high the ground under it is, and how far
- * above that the rock stands.
- *
- * The two heights are kept apart all the way down the subdivision because they behave differently.
- * The ground is what it is and is only ever averaged between neighbours; the lift is what gets
- * roughened, and how much it may be roughened depends on how high it already is — a crag belongs
- * near a summit, and the same crag on the valley floor is a boulder in the middle of a road.
- */
-export interface Point {
-  x: number;
-  z: number;
-  ground: number;
-  lift: number;
-}
-
-/**
- * Cut one triangle into four, and those into four again, until there is nothing left to cut.
- *
- * The midpoint of each side is displaced along the vertical by a hash of that side's two ends —
- * not by the recursion's own random source, which would give the two triangles sharing the side
- * different answers and open a seam down every edge. Because the hash is taken from the sum of the
- * coordinates it is the same whichever way round the side is handed in.
- */
-export function cut(
-  a: Point, b: Point, c: Point, depth: number, seed: number, tallest: number,
-  tris: number[], owner: number[], id: number,
-): void {
-  if (depth <= 0) {
-    tris.push(a.x, a.ground + a.lift, a.z, b.x, b.ground + b.lift, b.z, c.x, c.ground + c.lift, c.z);
-    owner.push(id);
-    return;
-  }
-  const ab = between(a, b, seed, tallest);
-  const bc = between(b, c, seed, tallest);
-  const ca = between(c, a, seed, tallest);
-  cut(a, ab, ca, depth - 1, seed, tallest, tris, owner, id);
-  cut(ab, b, bc, depth - 1, seed, tallest, tris, owner, id);
-  cut(ca, bc, c, depth - 1, seed, tallest, tris, owner, id);
-  cut(ab, bc, ca, depth - 1, seed, tallest, tris, owner, id);
-}
-
-/** The midpoint of a side, moved off the straight line by an amount that side alone decides. */
-export function between(a: Point, b: Point, seed: number, tallest: number): Point {
-  const x = (a.x + b.x) / 2;
-  const z = (a.z + b.z) / 2;
-  const lift = (a.lift + b.lift) / 2;
-  const span = Math.hypot(b.x - a.x, b.z - a.z);
-  // high ground is rough, the valley floor is not: the borders carry the roads through
-  const share = RANGE.ROUGH_FLOOR + (1 - RANGE.ROUGH_FLOOR) * Math.max(0, Math.min(1, lift / tallest));
-  // the sum of the two ends, so the side hashes the same from either triangle that owns it
-  const die = rand2(seed, Math.round((a.x + b.x) * 4), Math.round((a.z + b.z) * 4), SALT.MOUNTAINS);
-  return {
-    x, z,
-    ground: (a.ground + b.ground) / 2,
-    // never below the ground it stands on: a mountain that digs is a hole with a view
-    lift: Math.max(-RANGE.BURY, lift + (die - 0.5) * 2 * RANGE.ROUGH * span * share),
   };
 }
 
@@ -420,7 +306,7 @@ export function between(a: Point, b: Point, seed: number, tallest: number): Poin
  * lifted a road, and geometry has no such manners.
  */
 function buildWall(
-  walled: WalledVillage, ground: GroundAt, seed: number, tris: number[], owner: number[],
+  walled: WalledVillage, ground: GroundAt, seed: number, into: Rock,
 ): void {
   const { bowl, roadAway } = walled;
   const sides = WALL_SIDES;
@@ -430,7 +316,7 @@ function buildWall(
     const z = bowl.z + Math.sin(a) * radius;
     // a gate where a road already runs, and nothing but ground for its verge
     const open = Math.max(0, Math.min(1, (roadAway(x, z) - RANGE.BOWL_GATE) / RANGE.BOWL_GATE));
-    return { x, z, ground: ground(x, z), lift: lift * open - (lift > 0 ? 0 : RANGE.BURY) };
+    return { x, z, ground: ground(x, z), lift: lift * open - (lift > 0 ? 0 : CARVE.BURY) };
   });
 
   const outer = ring(bowl.radius * RANGE.BOWL_OUTER, 0);
@@ -444,7 +330,7 @@ function buildWall(
       [outer[k], crest[k], crest[next]], [outer[k], crest[next], outer[next]],
       [crest[k], inner[k], inner[next]], [crest[k], inner[next], crest[next]],
     ] as Array<[Point, Point, Point]>) {
-      cut(a, b, c, RANGE.CUTS - 1, seed, RANGE.BOWL_HIGH, tris, owner, -1);
+      cut(a, b, c, CARVE.CUTS - 1, seed, RANGE.BOWL_HIGH, into, -1);
     }
   }
 }

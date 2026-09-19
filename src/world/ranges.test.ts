@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { FaceKind, type WorldMesh } from './mesh';
 import { generateMesh } from './roadweb.test.fixture';
-import { RANGE, buildRanges, mountainAt, planBowl, reachOfEachPeak, type Ranges } from './ranges';
+import { RANGE, buildRanges, mountainAt, planBowl, reachOfEachPeak, type Peak, type Ranges } from './ranges';
 import { highlandAt, highlandLift, highlandRidges } from './highland';
+import { CARVE, spursOf } from './carve';
 
 /**
  * The mountains, as the shape they are rather than as a picture of one.
@@ -41,7 +42,7 @@ describe('mountains built from the polygons', () => {
 
       // one triangle per side of the polygon per summit, each cut into four RANGE.CUTS times
       const sides = ranges.peaks.reduce((n, p) => n + mesh.faces[p.face].corners.length, 0);
-      expect(ranges.tris.length / 9, `seed ${seed}`).toBe(sides * 4 ** RANGE.CUTS);
+      expect(ranges.tris.length / 9, `seed ${seed}`).toBe(sides * 4 ** CARVE.CUTS);
     }
   });
 
@@ -308,6 +309,7 @@ describe('how far a peak reaches', () => {
       owner: Int32Array.from([0]),
       // one triangle, its furthest vertex eight tiles out from the apex
       tris: Float32Array.from([0, 0, 0, 8, 0, 0, 0, 0, 6]),
+      above: Float32Array.from([0, 0, 0]),
       bowl: null,
       index: { minX: 0, minZ: 0, cols: 1, rows: 1, starts: Int32Array.from([0, 1]), ids: Int32Array.from([0]) },
     };
@@ -319,6 +321,7 @@ describe('how far a peak reaches', () => {
       peaks: [{ face: 0, range: 0, x: 0, z: 0, lift: 10, y: 10 }],
       owner: Int32Array.from([0]),
       tris: Float32Array.from([0, 0, 0, 2, 0, 0, 0, 0, 1]),
+      above: Float32Array.from([0, 0, 0]),
       bowl: null,
       index: { minX: 0, minZ: 0, cols: 1, rows: 1, starts: Int32Array.from([0, 1]), ids: Int32Array.from([0]) },
     };
@@ -331,9 +334,160 @@ describe('how far a peak reaches', () => {
       peaks: [{ face: 0, range: 0, x: 0, z: 0, lift: 10, y: 10 }],
       owner: Int32Array.from([-1]),
       tris: Float32Array.from([0, 0, 0, 99, 0, 0, 0, 0, 99]),
+      above: Float32Array.from([0, 0, 0]),
       bowl: null,
       index: { minX: 0, minZ: 0, cols: 1, rows: 1, starts: Int32Array.from([0, 1]), ids: Int32Array.from([0]) },
     };
     expect(reachOfEachPeak(ranges, null)).toEqual([0]);
+  });
+});
+
+/**
+ * The shape of one massif, as numbers rather than as a screenshot.
+ *
+ * #307 is a complaint about how a mountain looks — *"dimensionally small… almost like a pointy hill
+ * rather than a sprawling mountain range"* — and the half of it that is still open is the shape.
+ * None of that can be settled by looking at a constant, and the machine this is grown on cannot
+ * cheaply take the picture the issue asks for, so the three things the eye would judge are measured
+ * instead: how much ground the rock stands on, whether the flank is organised into ridges or is a
+ * smooth cone, and whether the rock is underground by the time it runs out.
+ *
+ * Everything here is one peak — the tallest in its world — on flat ground, so that what is being
+ * measured is the mountain rather than the country it was put in.
+ */
+describe('the shape of a massif', () => {
+  /** The triangles of one peak's own fan, so a neighbour's rock cannot answer for it. */
+  const rockOf = (ranges: Ranges, id: number): number[] => {
+    const mine: number[] = [];
+    for (let t = 0; t < ranges.owner.length; t++) if (ranges.owner[t] === id) mine.push(t);
+    return mine;
+  };
+
+  /** How high one peak's own rock stands over a point, or null where its fan does not reach. */
+  const heightOn = (ranges: Ranges, mine: number[], x: number, z: number): number | null => {
+    let top: number | null = null;
+    for (const t of mine) {
+      const i = t * 9;
+      const x1 = ranges.tris[i], y1 = ranges.tris[i + 1], z1 = ranges.tris[i + 2];
+      const x2 = ranges.tris[i + 3], y2 = ranges.tris[i + 4], z2 = ranges.tris[i + 5];
+      const x3 = ranges.tris[i + 6], y3 = ranges.tris[i + 7], z3 = ranges.tris[i + 8];
+      const det = (z2 - z3) * (x1 - x3) + (x3 - x2) * (z1 - z3);
+      if (det === 0) continue;
+      const a = ((z2 - z3) * (x - x3) + (x3 - x2) * (z - z3)) / det;
+      const b = ((z3 - z1) * (x - x3) + (x1 - x3) * (z - z3)) / det;
+      if (a < 0 || b < 0 || 1 - a - b < 0) continue;
+      const y = a * y1 + b * y2 + (1 - a - b) * y3;
+      if (top === null || y > top) top = y;
+    }
+    return top;
+  };
+
+  /** The tallest peak of a world, its own triangles, and how wide the face it grew from is. */
+  const tallestOf = (seed: number) => {
+    const mesh = generateMesh(seed);
+    const ranges = buildRanges(mesh, FLAT);
+    const id = ranges.peaks.reduce((best, p, i) => (p.lift > ranges.peaks[best].lift ? i : best), 0);
+    const peak = ranges.peaks[id];
+    const face = mesh.faces[peak.face];
+    return {
+      mesh, ranges, peak, mine: rockOf(ranges, id),
+      faceReach: Math.sqrt(face.area / Math.PI),
+      // a face carrying a chain divides its ground between its summits, which is what the build
+      // does with `spread / sqrt(many)`; the measure has to divide it back out
+      many: ranges.peaks.filter((p) => p.face === peak.face).length,
+    };
+  };
+
+  /** Walking out from the apex on one bearing: where the rock runs out, and how high it is there. */
+  const alongBearing = (
+    ranges: Ranges, mine: number[], peak: Peak, bearing: number,
+  ): { above: number; ends: number; last: number } => {
+    let above = 0, ends = 0, last = 0;
+    for (let r = 1; r < 300; r += 0.5) {
+      const x = peak.x + Math.cos(bearing) * r, z = peak.z + Math.sin(bearing) * r;
+      const y = heightOn(ranges, mine, x, z);
+      if (y === null) continue;
+      ends = r; last = y;                       // FLAT ground, so the height is the height above it
+      if (y > 0.05) above = r;
+    }
+    return { above, ends, last };
+  };
+
+  const BEARINGS = 48;
+  const bearings = Array.from({ length: BEARINGS }, (_, b) => (b / BEARINGS) * Math.PI * 2);
+
+  /**
+   * The complaint, as a number. `SPREAD` was pulled in to 0.62 to stop a fifty-five unit peak over
+   * seventy-five tiles reading as a grey stain; the height has been a third of that for a long time
+   * since and the spread was never put back, so a flank steepened for a mountain that no longer
+   * exists is steepening one on half the ground.
+   */
+  it('stands on most of the face the map gave it rather than on a pulled-in core', () => {
+    for (const seed of [1, 3, 42]) {
+      const { ranges, peak, mine, faceReach, many } = tallestOf(seed);
+      expect(mine.length, `seed ${seed} has rock of its own`).toBeGreaterThan(0);
+      const reaches = bearings.map((b) => alongBearing(ranges, mine, peak, b).above);
+      const mean = reaches.reduce((a, b) => a + b, 0) / reaches.length;
+      expect((mean * Math.sqrt(many)) / faceReach, `seed ${seed} spreads over its face`)
+        .toBeGreaterThan(0.75);
+    }
+  });
+
+  /**
+   * Ridges and spurs, which the massif has never had: the midpoint displacement that roughens it is
+   * isotropic, and isotropic roughness on a cone is a lumpy cone. Water does not work like that —
+   * it runs off a summit in spurs with valleys between them — so the flank should be organised at
+   * some angular scale rather than at none.
+   *
+   * Measured as the angular spectrum of the rock's height on a ring half way up each bearing's own
+   * flank, which is what takes the lean out: `LEAN` pushes the apex off-centre on purpose, and an
+   * off-centre cone sampled at a fixed radius is a wave of wavenumber one all by itself.
+   */
+  it('runs spurs down its flanks rather than falling away evenly on every bearing', () => {
+    for (const seed of [1, 3, 42]) {
+      const { mesh, ranges, peak, mine } = tallestOf(seed);
+      const rays = bearings.map((b) => alongBearing(ranges, mine, peak, b));
+      const ring: number[] = [];
+      for (let k = 0; k < BEARINGS; k++) {
+        const at = rays[k].above * 0.5;
+        ring.push(Math.max(0, heightOn(ranges, mine, peak.x + Math.cos(bearings[k]) * at, peak.z + Math.sin(bearings[k]) * at) ?? 0));
+      }
+      const avg = ring.reduce((a, b) => a + b, 0) / ring.length;
+      expect(avg, `seed ${seed} has a flank to measure`).toBeGreaterThan(1);
+      const amplitude = (k: number): number => {
+        let re = 0, im = 0;
+        for (let s = 0; s < ring.length; s++) {
+          const th = (s / ring.length) * Math.PI * 2;
+          re += ring[s] * Math.cos(k * th); im += ring[s] * Math.sin(k * th);
+        }
+        return (2 * Math.hypot(re, im)) / ring.length;
+      };
+      // the scale a spur runs at: a handful of arms round one summit, not a texture and not a tilt
+      const scales = [CARVE.ARMS_LEAST - 1, 4, 5, 6, 7, 8, CARVE.ARMS_MOST + 1];
+      const loudest = scales.reduce((a, b) => (amplitude(a) > amplitude(b) ? a : b));
+      expect(amplitude(loudest) / avg, `seed ${seed} carves valleys worth seeing`).toBeGreaterThan(0.2);
+      // and at the number of arms this summit was actually given, rather than at whatever the
+      // roughness happened to leave behind
+      expect(loudest, `seed ${seed} is shaped at the scale its own spurs were cut at`)
+        .toBe(spursOf(mesh.seed, peak.x, peak.z, 1).arms);
+    }
+  });
+
+  /**
+   * Item 4 of the issue: the foot. Where a range *ends* the rim is already buried and there is no
+   * seam — that half is correct and is left alone. Where two mountain faces meet, the rim carried a
+   * share of the lower peak as a col and then simply stopped, so the rock ended in mid-air several
+   * units above the ground with a step down to the country.
+   *
+   * So this asks the strict question rather than the eye's: at the last point its fan covers at all,
+   * on every bearing, is the rock already underground?
+   */
+  it('is underground by the time its rock runs out, on every bearing', () => {
+    for (const seed of [1, 3, 42]) {
+      const { ranges, peak, mine } = tallestOf(seed);
+      const proud = bearings.map((b) => alongBearing(ranges, mine, peak, b).last);
+      // half a tile of sampling either side of the true edge on a flank of about one in one
+      expect(Math.max(...proud), `seed ${seed} ends its rock in mid-air`).toBeLessThan(0.6);
+    }
   });
 });
