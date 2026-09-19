@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
-import type { ServerMessage, WorldRecord } from './protocol';
+import type { ServerMessage, WorldInvite } from './protocol';
 import { FileVault } from './filevault';
 import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
@@ -210,12 +210,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
      * A named invite reaches this before the game is grown, so the seed comes from the server's
      * record rather than from facts copied into a link.
      *
-     * The seed and nothing else, which is worth saying because this comment used to claim the
-     * kind and the manifest came with it. #228 took the kind off `WorldRecord` deliberately — see
-     * `boot.ts` — and there was never a manifest on it at all. #377 came looking for one here on
-     * the strength of this sentence and found the record was two fields. A world's manifest lives
-     * in its own file beside its clock and its deltas, which is where `SharedWorld` keeps it and
-     * where the ground is now grown from; what a page holds is still its own.
+     * The kind and the manifest come with it too, and the route each takes is worth saying,
+     * because this comment once claimed they came off the record and sent #377 looking there. They
+     * do not. `WorldRecord` is a name and a seed — #228 took the kind off it deliberately, see
+     * `boot.ts`, and there was never a manifest on it at all. A world's manifest lives in its own
+     * file beside its clock and its deltas, which is where `SharedWorld` keeps it and where the
+     * ground is grown from; the kind is a fact about this server rather than about the name. So
+     * `Rooms.invite` reads all three from where each actually lives, and #385 is where they
+     * stopped being things a page had to hold for itself.
      */
     if (req.method === 'GET' && req.url?.startsWith('/world?')) {
       namedWorld(rooms, req, res);
@@ -266,19 +268,26 @@ function listen(http: Server, port: number): Promise<number> {
     });
   });
 }
-/** Resolve one durable world name for a title/invite before the client grows its country. */
+/**
+ * Resolve one durable world name for a title/invite before the client grows its country.
+ *
+ * "Before" is the whole value of this handler and the reason the answer grew. It is the last moment
+ * a page can still be told *which* country to grow, so it now carries what the world was authored
+ * with as well as which world it is — see `Rooms.invite`, and `joinedManifest` for what the page
+ * does with it.
+ */
 function namedWorld(rooms: Rooms, req: IncomingMessage, res: ServerResponse): void {
   const asked = new URL(req.url ?? '/', 'http://world.invalid').searchParams.get('name');
-  const record: WorldRecord | undefined = rooms.worldRecord(asked);
+  const invite: WorldInvite | undefined = rooms.invite(asked);
   res.setHeader('access-control-allow-origin', '*');
   res.setHeader('cache-control', 'no-store');
-  if (!record) {
+  if (!invite) {
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: 'No world has that name.' }));
     return;
   }
   res.writeHead(200, { 'content-type': 'application/json' });
-  res.end(JSON.stringify(record));
+  res.end(JSON.stringify(invite));
 }
 
 /**
