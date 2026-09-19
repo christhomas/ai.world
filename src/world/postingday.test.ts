@@ -4,6 +4,7 @@ import { THE_HALL_OWNER } from './holdings';
 import type { Person } from './people';
 import type { Settlement } from './settlement';
 import { Register } from './register';
+import { HoldingBook } from './holdingbook';
 
 /**
  * A day's posts, stood and paid in the village's own day — #264.
@@ -41,11 +42,17 @@ const village = (people: Person[], owner: string): ReadonlyMap<string, Settlemen
   } as unknown as Settlement],
 ]);
 
-/** A book that remembers what it was told, which is all `theDaysPosts` asks of one. */
-const aBook = () => {
-  const rows = new Map<string, number>();
-  return { rows, post: (id: string, much: number) => rows.set(id, (rows.get(id) ?? 0) + much) };
-};
+/**
+ * The real book, not a stand-in for one.
+ *
+ * It used to be a two-line stub with a `post` method, and a stub is the wrong thing here now: the
+ * book is what #264's fourth line is *about*, so a test that asserted against a fake would be
+ * asserting against something nobody runs. It is a map of maps and costs nothing to stand up.
+ */
+const aBook = (): HoldingBook => new HoldingBook();
+
+/** What a post moved in or out of somebody's purse on the morning these tests name. */
+const moved = (book: HoldingBook, id: string): number => book.paidTo(id, GROWN_BY);
 
 describe('the posts a village stands on one morning', () => {
   it('pays the man who stood it out of the purse of the man who owns it', () => {
@@ -57,8 +64,8 @@ describe('the posts a village stands on one morning', () => {
 
     expect(bob.purse, 'the builder was not paid').toBe(500 + POST.BUILDER);
     expect(rich.purse, 'the yard was built for nothing').toBe(500 - POST.BUILDER);
-    expect(book.rows.get('bob')).toBe(POST.BUILDER);
-    expect(book.rows.get('rich')).toBe(-POST.BUILDER);
+    expect(moved(book, 'bob')).toBe(POST.BUILDER);
+    expect(moved(book, 'rich')).toBe(-POST.BUILDER);
   });
 
   /*
@@ -74,7 +81,7 @@ describe('the posts a village stands on one morning', () => {
     theDaysPosts(village([rich, bob], 'rich'), () => 0, GROWN_BY, book);
 
     expect(rich.purse + bob.purse).toBe(before);
-    expect([...book.rows.values()].reduce((sum, much) => sum + much, 0)).toBe(0);
+    expect(moved(book, 'rich') + moved(book, 'bob')).toBe(0);
   });
 
   /*
@@ -90,7 +97,15 @@ describe('the posts a village stands on one morning', () => {
 
     expect(stood.get('Ashford')?.map((post) => post.kind), 'he is still working it').toContain('crew');
     expect(bob.purse, 'he paid himself').toBe(500);
-    expect(book.rows.size).toBe(0);
+    expect(moved(book, 'bob')).toBe(0);
+    /*
+     * And the morning is still written down, which is the part that is easy to get wrong. A day a
+     * man spent on his own yard is a day of real work at a real price; only the hand-over is
+     * missing, because both ends of it are one purse. A book that recorded only the mornings money
+     * changed hands would have silently decided which mornings counted.
+     */
+    expect(book.on('y1').map((fact) => [fact.day, fact.wage, fact.paid]))
+      .toEqual([[GROWN_BY, POST.BUILDER, 0]]);
   });
 
   /*
@@ -106,7 +121,10 @@ describe('the posts a village stands on one morning', () => {
     theDaysPosts(village([bob], THE_HALL_OWNER), () => 0, GROWN_BY, book);
 
     expect(bob.purse).toBe(500);
-    expect(book.rows.size).toBe(0);
+    expect(moved(book, 'bob')).toBe(0);
+    // and nothing is written down either, because no post was stood: `postsToday` looks the owner
+    // up on the roll to see what he can lay out, and the hall is not on it
+    expect(book.on('y1'), 'the hall stood a post').toEqual([]);
   });
 
   /*

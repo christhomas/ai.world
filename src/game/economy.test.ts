@@ -924,6 +924,35 @@ describe('what the hundred days came to', () => {
     });
 
     /*
+     * 6. and what the holdings book weighs, which #264 asked for as a measurement rather than a rule
+     *
+     * *"Keep every fact and bound nothing … report the book's measured size after a hundred days in
+     * the bench rather than arguing about it."* So: no bound, no assertion about how big it may get,
+     * a number printed for somebody to decide about. What grows is memory, saves and what a joining
+     * client is handed; replay does not, because it is one keyed write a village a morning.
+     *
+     * A bytes-a-day figure is given beside the total because the total is only true at this length,
+     * and the question anybody will actually ask — *what does a save that has been going for a year
+     * cost* — is the daily figure multiplied out.
+     */
+    const posts = runs().map((run) => run.posts);
+    const facts = posts.reduce((sum, one) => sum + one.facts, 0);
+    const bytes = posts.reduce((sum, one) => sum + one.bytes, 0);
+    const villageDays = VILLAGES.length * DAYS * runs().length;
+    report({
+      verdict: 'NOTE',
+      count: bytes,
+      what: `bytes of holdings book after ${DAYS} days, across ${runs().length} worlds of ${VILLAGES.length} villages`,
+      detail: [
+        `${facts.toLocaleString()} mornings written down on ${posts.reduce((sum, one) => sum + one.holdings, 0)} holdings —`,
+        `${(bytes / villageDays).toFixed(1)} bytes per village-day, or ${(bytes / runs().length / 1024).toFixed(1)}kB a world.`,
+        'One row per holding per morning it posted somebody, kept for the life of the save and folded',
+        'nowhere: `deeds.ts` clamps a take at nought and a give at PROSPER.MOST, so a summed',
+        'checkpoint would mint money wherever the cap binds. See `holdingbook.ts` and #264.',
+      ],
+    });
+
+    /*
      * Written to a file rather than logged, because a passing test's output is swallowed and the
      * run that passed is the whole point of the exercise. `chore test economy` prints it.
      */
@@ -951,6 +980,9 @@ describe('what the hundred days came to', () => {
 
     expect(covered.length, 'the bench stopped reporting what it did').toBeGreaterThan(8);
     expect(wages.size, 'the villages have stopped raising anybody who works for a living').toBeGreaterThan(5);
+    // and the measurement above has to be a measurement of something: a book that filled with
+    // nothing would print a tidy nought a hundred days running and nobody would look twice
+    expect(facts, 'no holding in any world posted anybody in a hundred days').toBeGreaterThan(0);
     expect(failed.map((line) => line.what), 'the account above is not clean').toEqual([]);
   });
 });
