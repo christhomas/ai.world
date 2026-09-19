@@ -1,7 +1,7 @@
 import type { Rng } from '../core/rng';
 import { PropKind } from '../world/biomes';
 import type { SpawnSpot } from '../entities/spawns';
-import { BASE_LEVEL, DTile, WALL_LEVEL, type Furnishing, type Room, type Torch } from './map';
+import { DTile, WALL_LEVEL, type Furnishing, type Room, type Torch } from './map';
 
 /**
  * What the rooms of a castle are *for*, and what stands in them.
@@ -646,10 +646,4 @@ function grow(r: Room, by: number): Room {
  */
 function whatItIs(space: Space): Sort | Role {
   return space.sort === 'chamber' ? (space.role ?? 'store') : space.sort;
-}
-
-/** The terrace a tile sits on, reading the plan's own array rather than a finished map. */
-export function levelOf(plan: Dressable, x: number, z: number): number {
-  const l = plan.levels[z * plan.size + x];
-  return l === 0 ? BASE_LEVEL : l;
 }

@@ -46,10 +46,6 @@ export function fieldOfWork(work: string): FieldWork | null {
   return { holding: match[1], x: Number(match[2]), z: Number(match[3]) };
 }
 
-export function isAField(work: string): boolean {
-  return fieldOfWork(work) !== null;
-}
-
 /** Everything this ledger has permanently cleared, with duplicate reports collapsed. */
 export function clearedFieldTiles(works: readonly string[]): FieldTile[] {
   const tiles = new Map<string, FieldTile>();
@@ -160,6 +156,18 @@ export function withoutClearedTrees<T extends { kind: PropKind; x: number; z: nu
  *
  * `meals` is the same total the larder takes, so the village is fed by the number it pays for. See
  * `whoFed`, which is the other half of that agreement.
+ *
+ * ## And nothing calls it yet, which is #384
+ *
+ * Written on the 13th and never reached. `aDaysTrade` counts the crop itself instead and adds only
+ * the cleared acres, so `whoFed` takes the base yield out of a farmer's pay — see `broughtIn`'s
+ * third argument — and nothing puts it back: a village of two farmers, a soldier and a seller grows
+ * twelve meals, the farmers put five each into it, and all four are credited with one. #380 read
+ * this against the other eight names the game mentions nowhere and kept it, because the fault it
+ * fixes is live and this is the only written statement of the right arithmetic. What stopped it
+ * being wired in the same change is the rate below: one flat number per farm pays every farmer a
+ * master's crop while `mastery.ts` feeds him a novice's, so making it right means deciding where a
+ * hand's worth is applied rather than merely calling this.
  */
 export function fieldCrop(
   people: readonly Person[], working: readonly Person[], farmers: readonly Person[],

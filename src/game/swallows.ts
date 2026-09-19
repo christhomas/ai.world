@@ -96,6 +96,3 @@ export function createSwallows(o: {
     get under(): Maelstrom | null { return below; },
   };
 }
-
-/** How wide the turning water is drawn, which the water shader and the minimap both ask. */
-export const SWALLOW_WIDTH = MAELSTROM.RADIUS;

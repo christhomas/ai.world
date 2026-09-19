@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Biome, PropKind } from '../world/biomes';
 import { StructureKind, type Structure, type Village } from '../world/structures';
+import { fieldWork } from '../world/fields';
+import type { TerrainSampler } from '../world/terrain';
 import { propOf } from '../render/site';
-import { raisedRoofs, raisedStage, roofWatch } from './villageroofs';
+import { raisedRoofs, raisedStage, roofWatch, whatTheVillagesRaised } from './villageroofs';
 
 function plot(tx: number, tz: number, biome: Biome = Biome.Plains): Structure {
   return { kind: StructureKind.House, tx, tz, hw: 1, hd: 1, level: 0, rot: 0, biome, path: [] };
@@ -56,6 +59,51 @@ describe('the houses a village raised for itself', () => {
     const [hall] = raisedRoofs([town], () => ['townhall@100'], 102);
     expect(hall).toMatchObject({ id: 'Fell-hall', x: 2.5, z: 3.5, stage: 'begun', what: `civic-townhall-${Biome.Snow}` });
     expect(propOf({ ...hall, stage: 'done' })).toBe(PropKind.TownHallSnow);
+  });
+});
+
+/*
+ * The roofs and the acres are one book and one question, and the boot file is not where it is asked.
+ *
+ * `works` holds a raised roof and a cleared acre alike, and both are wanted once a day rather than
+ * sixty times a second. `whatTheVillagesRaised` is the one call that says so — it tells the register
+ * who may clear an acre this morning, tells the ground which trees the cleared acres took, and hands
+ * back the roofs. The boot file having its own copy of that wiring is the thing this pair is
+ * against: `main.ts` is assembly, and a feature that needs six lines of it has put its wiring in the
+ * wrong place.
+ */
+describe('what the villages raised, asked once', () => {
+  it('tells the register who surveys a field and the ground which acres were cleared', () => {
+    let survey: unknown = null;
+    let cleared: Array<{ x: number; z: number }> | null = null;
+    const works = ['house:cottage', fieldWork('farm-1', 4, 9)];
+    const roofs = whatTheVillagesRaised(
+      { worksOf: () => works, fieldsAreSurveyedBy: (asked) => { survey = asked; } },
+      () => [village('Ashby', [plot(4, 9)])],
+      // the survey is handed the sampler and this test never runs one, so a stand-in is honest
+      // here: what is under test is that the register was given a surveyor at all
+      null as unknown as TerrainSampler,
+      { clearFields: (tiles) => { cleared = [...tiles]; } },
+    );
+    expect(typeof survey, 'the register was never told how a farm surveys its ground').toBe('function');
+    // the precondition, before the behaviour: nothing is cleared until somebody asks for a day
+    expect(cleared, 'the ground was told before anybody asked what day it was').toBeNull();
+    expect(roofs(3.1)).toHaveLength(1);
+    expect(cleared, 'the ground was never told which acres the village had cleared').toEqual([{ x: 4, z: 9 }]);
+  });
+
+  /*
+   * And the boot file goes through it. A behaviour test of the call above cannot notice that nothing
+   * makes it — which is exactly how this export sat written, documented and unreached while the six
+   * lines it replaces lived in `main.ts`. So the shape is asserted the way `growworld.test.ts`
+   * asserts its own: by reading the source.
+   */
+  it('is what the boot file asks for, rather than six lines of the same wiring', () => {
+    const boot = readFileSync('src/main.ts', 'utf8');
+    expect(boot.includes('whatTheVillagesRaised('),
+      'main.ts no longer asks villageroofs.ts for the roofs and the acres together').toBe(true);
+    expect(boot.includes('fieldsAreSurveyedBy'),
+      'main.ts has gone back to wiring the field survey itself').toBe(false);
   });
 });
 
