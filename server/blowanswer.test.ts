@@ -101,3 +101,47 @@ describe('what the world says about a blow', () => {
     expect(wren.of('warband-struck'), 'and its blow still lands').toHaveLength(1);
   });
 });
+
+/**
+ * And the same for the ring, which was left out of #281 and has the identical fault.
+ *
+ * `duel-hit` ends in `if (!me.duel) return;` and says nothing, and a bout ending on the far side
+ * while a blow is in flight is the most ordinary way in the world to reach it — somebody yields,
+ * and the blow already thrown arrives a moment later. The page had taken the health off the
+ * readout in the corner of the screen and had nothing that could ever put it back.
+ */
+const inTheRing = () => {
+  const sim = new Simulation({ vault: new Forgetful() });
+  const rowan = new Pretend(sim).join(11, 'Rowan');
+  const wren = new Pretend(sim).join(11, 'Wren');
+  const wrenId = rowan.of('joined')[0].player.id;
+  const rowanId = wren.of('welcome')[0].players[0].id;
+  rowan.say({ type: 'duel-challenge', to: wrenId });
+  wren.say({ type: 'duel-answer', from: rowanId, yes: true });
+  if (rowan.of('duel-begun').length !== 1) throw new Error('the two never squared up');
+  return { rowan, wren };
+};
+
+describe('what the world says about a blow in the ring', () => {
+  it('answers a numbered blow it passed on', () => {
+    const { rowan, wren } = inTheRing();
+    rowan.say({ type: 'duel-hit', damage: 6, seq: 1 });
+    expect(rowan.of('duel-blow')).toEqual([{ type: 'duel-blow', seq: 1, stood: true }]);
+    expect(wren.of('duel-struck'), 'and it still reaches the far side').toHaveLength(1);
+  });
+
+  it('answers a blow thrown into a bout that is already over', () => {
+    const { rowan, wren } = inTheRing();
+    wren.say({ type: 'duel-yield' });
+    rowan.say({ type: 'duel-hit', damage: 6, seq: 2 });
+    expect(rowan.of('duel-blow')).toEqual([{ type: 'duel-blow', seq: 2, stood: false }]);
+    expect(wren.of('duel-struck'), 'a blow after the yield reaches nobody').toHaveLength(0);
+  });
+
+  it('says nothing to a page that did not number its blow', () => {
+    const { rowan, wren } = inTheRing();
+    rowan.say({ type: 'duel-hit', damage: 6 });
+    expect(rowan.of('duel-blow'), 'an old page gets the old behaviour').toHaveLength(0);
+    expect(wren.of('duel-struck'), 'and its blow still lands').toHaveLength(1);
+  });
+});

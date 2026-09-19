@@ -34,9 +34,8 @@ import type { Register } from '../world/register';
 import { HIRE, type Hires } from './hire';
 import {
   WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
-  type Landing,
 } from './warband';
-import { claimsFor } from './predicted';
+import { Enterings } from './entering';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -142,6 +141,8 @@ export function createMultiplayer(ctx: MultiplayerContext) {
 
   /** A fight with sides, and the men already paid for who stand in it. */
   const warband = new Warband();
+  /** Doors the page has walked him through and the world has not yet agreed to. See `entering.ts`. */
+  const doors = new Enterings();
   /** How many of your own are on their feet, which is all the far side is ever told. */
   const mySwords = (): number => hires.roster(online.id).length;
 
@@ -309,12 +310,26 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       sound.chime();
       chat.line(`A fight with ${withName} begins. ${warband.readout()}`, 'sys');
     },
-    onWarbandBlow: (seq, stood) => {
-      const given = blows.answered(seq);
-      // `answered` hands it back once, so an answer arriving twice cannot undo a blow twice —
-      // which would put a heart back that had already been returned
-      if (given && !stood) warband.takeBack(given);
-    },
+    /*
+     * What the world made of a blow this page has already shown landing.
+     *
+     * The keeping and the numbering live in `Warband` and `Duel` rather than here, and that is not
+     * tidiness: the hero's own blow is thrown in `blows.ts`, which cannot reach a const inside this
+     * closure, so a claim held here could only ever cover his hired men. It did, and his own blow —
+     * the only one the player actually swings — was the one with nothing kept for it.
+     */
+    onWarbandBlow: (seq, stood) => warband.answered(seq, stood),
+    onDuelBlow: (seq, stood) => duel.answered(seq, stood),
+    /*
+     * And a door. The undo is the whole of what differs from a blow: step back out onto the step,
+     * which is `leaveBuilding` and nothing else — `Enterings` refuses to fire it unless the hero is
+     * still standing in the room the claim was made for.
+     */
+    onStepped: (seq, ok) => doors.answered(seq, ok, {
+      step: () => (places.indoors ? { x: places.indoors.exit[0], z: places.indoors.exit[1] } : null),
+      out: () => places.leaveBuilding(),
+      flash: (line) => hud.flash(line),
+    }),
     onWarbandStruck: (damage, sword) => {
       const landing = warband.struck({ damage, sword });
       if (!landing) return;
@@ -511,17 +526,6 @@ export function createMultiplayer(ctx: MultiplayerContext) {
    * far client is not simulated at all: only the blow travels, exactly as the hero's own does.
    */
   let sinceBite = 0;
-  /**
-   * Blows thrown and not yet answered for.
-   *
-   * The page takes the health off the moment a man swings, and it asks `predicted.ts` for the right
-   * to do so rather than helping itself: `claimsFor('swing')` is the guarded door, and it would
-   * throw if somebody ever moved a swing to the ledger's side of that list.
-   * What it had no answer for is the world disagreeing: `server/messages.ts` drops a `warband-hit`
-   * where the duel has already ended on its side or the blow fails `cleanSwing`, and until this
-   * existed the page went on showing a hit that nothing ever counted.
-   */
-  const blows = claimsFor<Landing>('swing');
   const swingSwords = (dt: number): void => {
     if (!warband.active) return;
     sinceBite += dt;
@@ -533,7 +537,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       if (!warband.mayStrike(man.who, warband.opponent, hires)) continue;
       const landing = warband.landed({ damage: WARBAND.SWORD_BLOW, sword: true });
       if (!landing) continue;
-      online.warbandHit(WARBAND.SWORD_BLOW, true, blows.ask(landing));
+      online.warbandHit(WARBAND.SWORD_BLOW, true, warband.threw(landing));
     }
   };
 
@@ -568,7 +572,26 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       const ridden = aboard !== lastRide;
       lastPlace = standingIn;
       lastRide = aboard;
-      online.stood(player.x, player.z, ridden ? 'ride' : 'place');
+      /*
+       * A door is numbered; nothing else here is.
+       *
+       * It is the one of these the page can take back — the room is its own and stepping out onto
+       * the step is `leaveBuilding` — so it is the one the world is allowed to refuse. A staircase
+       * goes down into a floor the world has never grown, and a gangplank and a saddle move him
+       * about on ground the world is already walking him over; none of the three has anywhere to be
+       * put back to. `predicted.ts` says a door is `hand`, and this is the other two thirds of it.
+       *
+       * The step travels separately from `x`/`z` because by the time this runs `player.x` is a
+       * position on that room's own little map, which the world has no use for.
+       *
+       * Only against a world that could answer, too. Offline `online.stood` is a no-op, and a claim
+       * nobody will ever answer would stand in the map for the rest of the session — `Claims` times
+       * nothing out on purpose, so not asking is the whole of the discipline that rests on.
+       */
+      const room = !ridden && online.connected ? places.indoors : null;
+      const step = room && { x: room.exit[0], z: room.exit[1] };
+      online.stood(player.x, player.z, ridden ? 'ride' : 'place',
+        step ? { seq: doors.ask(step), at: step } : undefined);
     }
     online.update(dt, {
       x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,

@@ -2,6 +2,7 @@ import { LIMITS, clamp } from '../../server/protocol';
 import { HEALTH } from '../world/health';
 import { COMBAT } from './combat';
 import { HIRE, type Hires } from './hire';
+import { claimsFor } from './predicted';
 import type { GameState } from './state';
 
 /**
@@ -348,6 +349,16 @@ export function cleanSwing(swing: unknown): Swing | null {
 export class Warband {
   /** Askings outstanding, either way round, held as a set for the reason the server holds one. */
   private readonly askings = new Set<string>();
+  /**
+   * Blows thrown by this side and not yet answered for — the hero's own and his men's together.
+   *
+   * One numbering rather than one per thrower, because the world numbers what arrives on the wire
+   * and every one of these arrives as a `warband-hit`. It lives here rather than in
+   * `multiplayer.ts` where it started, because that left the hero's own blow — thrown in
+   * `blows.ts`, which has no way of reaching a const inside another module's closure — as the only
+   * blow in the fight with nothing kept for it. See `claims.ts`.
+   */
+  private readonly blows = claimsFor<Landing>('swing');
   private us: Side | null = null;
   private them: Side | null = null;
 
@@ -412,6 +423,25 @@ export class Warband {
    */
   takeBack(landing: Landing): void {
     if (this.them) unland(this.them, landing);
+  }
+
+  /** How many blows are still owed an answer. Nothing in the game needs it; a probe and a test do. */
+  get owed(): number { return this.blows.pending; }
+
+  /** A blow already shown landing. Keep exactly what it took, and take a number for the answer. */
+  threw(landing: Landing): number {
+    return this.blows.ask(landing);
+  }
+
+  /**
+   * The world's word on a numbered blow: forget it, or put back exactly what was given.
+   *
+   * `Claims.answered` hands it back once, so an answer arriving twice cannot undo a blow twice —
+   * which would put back a heart that had already been returned.
+   */
+  answered(seq: number, stood: boolean): void {
+    const given = this.blows.answered(seq);
+    if (given && !stood) this.takeBack(given);
   }
 
   /** Take the far side's word for how many of them are still up, since only they can know. */

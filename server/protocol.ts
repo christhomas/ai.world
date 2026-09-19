@@ -507,7 +507,27 @@ export type ClientMessage =
    * can ask whether the spot named is a village square of its own world — which is the whole of
    * what being carried home means, and the whole of what a client may claim by saying it.
    */
-  | { type: 'stood'; x: number; z: number; why: 'teleport' | 'place' | 'ride' | 'carried' }
+  | {
+    type: 'stood'; x: number; z: number; why: 'teleport' | 'place' | 'ride' | 'carried';
+    /**
+     * Numbers a door, so the world can answer this one.
+     *
+     * Only a door is numbered, because a door is the only one of these the page can take back:
+     * the room is its own and stepping out onto the step is `Places.leaveBuilding`. A teleport, a
+     * gangplank and a saddle have nowhere to be put back to.
+     */
+    seq?: number;
+    /**
+     * Where the door is, in the world's own tiles.
+     *
+     * `x` and `z` are where the hero is standing *now*, and a room has coordinates of its own — an
+     * interior map is a few tiles across — so the position that arrives with a door is not a
+     * position in the world at all. The world was comparing it against the county anyway, which
+     * agrees only by accident; this is the number that judgement needs. Optional, and a step that
+     * omits it is never refused, because an old page cannot be asked for something it never had.
+     */
+    at?: { x: number; z: number };
+  }
   /**
    * The hero has gone underground, and this is the floor he is standing on.
    *
@@ -647,8 +667,15 @@ export type ClientMessage =
   | { type: 'ping'; x: number; z: number }
   | { type: 'duel-challenge'; to: string }
   | { type: 'duel-answer'; from: string; yes: boolean }
-  /** A blow landed on the person you are dueling; they decide what it does to them. */
-  | { type: 'duel-hit'; damage: number }
+  /**
+   * A blow landed on the person you are dueling; they decide what it does to them.
+   *
+   * `seq` numbers it so the world can answer *this* blow, on the same terms `warband-hit` has been
+   * numbered since #281: the page throws first — `predicted.ts` settles a swing as `hand` — and
+   * `Duel` keeps what it took until the answer arrives. Optional, so a page that has not upgraded
+   * still lands blows and simply gets nothing to reconcile against, which is where every page was.
+   */
+  | { type: 'duel-hit'; damage: number; seq?: number }
   /** Called off, or lost: either way the bout is over. */
   | { type: 'duel-yield' }
   /**
@@ -825,6 +852,18 @@ export type ServerMessage =
    * never learn that the blow it showed was never counted.
    */
   | { type: 'warband-blow'; seq: number; stood: boolean }
+  /** The same for a blow in the ring, and sent for every numbered `duel-hit` for the same reason. */
+  | { type: 'duel-blow'; seq: number; stood: boolean }
+  /**
+   * What became of a door, to the page that has already walked through it.
+   *
+   * Sent for every numbered `stood`, believed or not — and from every branch of it, including the
+   * ones where the world has no hero to judge against. `Claims` deliberately times nothing out, so
+   * a branch that answered nothing would leave one entry standing in the page's map for the rest
+   * of the session, and the page would never learn that the room it drew was one the world did not
+   * think it could have reached.
+   */
+  | { type: 'stepped'; seq: number; ok: boolean }
   | { type: 'warband-muster'; swords: number; from: string }
   /** Over: `winner` is whoever was left standing, or empty when it was called off. */
   | { type: 'warband-over'; winner: string; name: string }

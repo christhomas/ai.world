@@ -174,6 +174,20 @@ function sailed(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
  */
 const CARRIED_TO_A_SQUARE = 6;
 
+/**
+ * The doorstep a step claims, when it names one at all.
+ *
+ * Off the wire and therefore not to be believed as a number: a doorway at infinity would make
+ * `Math.hypot` say a hero is nowhere near anywhere, which would refuse every door he opened.
+ */
+function doorstep(message: Extract<ClientMessage, { type: 'stood' }>): { x: number; z: number } | null {
+  const at = message.at as { x?: unknown; z?: unknown } | undefined;
+  if (!at) return null;
+  const x = Number(at.x);
+  const z = Number(at.z);
+  return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
+}
+
 function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'stood' }>): void {
   const p = me.presence;
   const x = Number(message.x) || 0;
@@ -253,6 +267,19 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
    */
   if (message.why !== 'place') return;
 
+  /*
+   * A door the page has already walked him through, and the number it will hear the answer by.
+   *
+   * Answered from every branch below rather than only from the one that judges anything. `Claims`
+   * times nothing out, so a branch that said nothing would leave an entry standing in the page's
+   * map for the rest of the session — and silence cannot be told from an answer still in flight,
+   * which is the same argument `warband-blow` is written under.
+   */
+  const numbered = Math.floor(Number((message as { seq?: unknown }).seq) || 0);
+  const answer = (ok: boolean): void => {
+    if (numbered > 0) rooms.send(me, { type: 'stepped', seq: numbered, ok });
+  };
+
   // Going somewhere the world does not own — a door, a staircase. The hero stays where he was and
   // the door is remembered, because that is where he will come back out: the world has no business
   // following anybody into a cellar it has never grown.
@@ -269,10 +296,19 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
      *
      * So: believe it when it agrees with what the world can see, which covers the frame of drift
      * and covers nothing else.
+     *
+     * What is measured is `at` — the doorstep, in the world's own tiles — and that is the part that
+     * was wrong rather than the rule. `x`/`z` is where the hero is standing *now*, which for a
+     * building is a position on an interior map a few tiles across, so the old comparison held a
+     * room coordinate against a county one and agreed only by accident. A page that sends no `at`
+     * is judged the way it always was and, having claimed nothing, is never refused.
      */
-    const claimed = Math.hypot(x - hero.x, z - hero.z) <= SAME_DOOR;
-    me.leftSurfaceAt = claimed ? { x, z } : { x: hero.x, z: hero.z };
+    const step = doorstep(message);
+    const at = step ?? { x, z };
+    const claimed = Math.hypot(at.x - hero.x, at.z - hero.z) <= SAME_DOOR;
+    me.leftSurfaceAt = claimed ? at : { x: hero.x, z: hero.z };
     p.x = x; p.z = z;
+    answer(step === null || claimed);
     return;
   }
 
@@ -280,6 +316,9 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
   // long way from the one he went in by did not walk there — he is put back at it. This is the
   // last of the trust in this message, and the reason the two above are worth separating out.
   p.x = x; p.z = z;
+  // coming out is not a prediction the world can refuse — he is leaving a room it never held — so
+  // the claim is settled rather than judged, and `youAre` below is what puts him right
+  answer(true);
   if (!hero) return;
   const door = me.leftSurfaceAt;
   const wandered = door !== null && Math.hypot(x - door.x, z - door.z) > SAME_DOOR;
@@ -737,8 +776,20 @@ function bout(rooms: Rooms, me: Client, room: Room, message: ClientMessage): voi
       return;
     }
     case 'duel-hit': {
-      if (!me.duel) return;
-      rooms.send(me.duel, {
+      /*
+       * The answer goes back whether or not the blow was carried, which is the change.
+       *
+       * This used to `return` in silence on the one ordinary condition it has: the bout had ended
+       * on this side while the blow was in flight — somebody yields, and a blow already thrown
+       * arrives a moment later. The page had taken the health off its own readout and had nothing
+       * that could ever contradict it. `warband-hit` was given this in #281 and the ring was left
+       * out, which is the same fault in the same fight wearing the other shoe.
+       */
+      const stood = Boolean(me.duel);
+      const numbered = Math.floor(Number((message as { seq?: unknown }).seq) || 0);
+      if (numbered > 0) rooms.send(me, { type: 'duel-blow', seq: numbered, stood });
+      if (!stood) return;
+      rooms.send(me.duel!, {
         type: 'duel-struck',
         damage: clamp(Math.floor(message.damage), 0, LIMITS.DAMAGE),
         from: me.presence.id,
