@@ -7,6 +7,8 @@ import { TerrainSampler } from './terrain';
 import { TREES } from './biomes';
 import { FIELD, farmsteadOf, fieldOfWork, foodAt } from './fields';
 import { whichFieldClears } from './fieldbuilds';
+import { mannedFarms } from './holdings';
+import { wellEnough } from './ailments';
 import type { Village } from './structures';
 import { WORLD } from '../core/config';
 
@@ -54,16 +56,31 @@ describe('bounded local field clearing', () => {
     const run = livedFields(4321);
     const people = run.register.living(run.village.name);
     const holdings = run.register.madeOf(run.village.name).holdings ?? [];
+    const cleared = run.register.worksOf(run.village.name);
     const plain = aDaysTrade(people, 0, 0, { holdings, works: [] });
-    const improved = aDaysTrade(people, 0, 0, {
-      holdings,
-      works: run.register.worksOf(run.village.name),
-    });
-    const gain = holdings.reduce(
-      (sum, holding) => sum + (holding.kind === 'farm' ? foodAt(run.register.worksOf(run.village.name), holding.id) : 0),
+    const improved = aDaysTrade(people, 0, 0, { holdings, works: cleared });
+    /*
+     * The acres that count are the acres of a farm somebody is standing in, which is the seam
+     * `mannedFarms` settles and the same one the paddocks are already counted off. A farm whose
+     * only hand is laid up keeps its beasts and works none of them, and since #384 its ground
+     * agrees with its rails: it grows nothing that morning, neither the founding yield nor what
+     * the village cleared for it.
+     *
+     * The seed is doing real work here rather than decorating the sum. On 4321 at twenty days one
+     * of the six farmers is ill and his farm has two acres against it, so a gain read off every
+     * farm on the roll comes to eight where the village grew six — which is the precondition
+     * below, and without it this assertion would pass whichever rule were in force.
+     */
+    const working = people.filter(wellEnough);
+    const gain = (mannedFarms(holdings, working) ?? [])
+      .reduce((sum, farm) => sum + foodAt(cleared, farm.id ?? ''), 0);
+    const everywhere = holdings.reduce(
+      (sum, holding) => sum + (holding.kind === 'farm' ? foodAt(cleared, holding.id) : 0),
       0,
     );
-    expect(improved.grown - plain.grown).toBe(gain);
+    expect(everywhere, 'a farm nobody is standing in has cleared acres here, or the rule is untested')
+      .toBeGreaterThan(gain);
+    expect(improved.grown - plain.grown).toBeCloseTo(gain, 10);
     expect(gain).toBeLessThanOrEqual(holdings.filter((holding) => holding.kind === 'farm').length
       * FIELD.MOST * FIELD.FOOD);
     expect(FOOD.PER_FARMER + FIELD.MOST * FIELD.FOOD).toBe(8);

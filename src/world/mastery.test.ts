@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { FIELD, fieldWork } from './fields';
 import { FOOD, broughtIn } from './food';
+import { ownedBy } from './holdings';
 import { aDaysTrade } from './livelihoods';
 import { aDaysPractice, handOf } from './mastery';
 import { LIFE, foundVillage, type Person } from './people';
@@ -146,6 +148,41 @@ describe('what it does to a village', () => {
     const master = aDaysTrade([...others, villager('farmer', MASTERED)], 0, 0).grown;
     const novice = aDaysTrade([...others, villager('farmer', 0)], 0, 0).grown;
     expect(novice).toBeLessThan(master);
+  });
+
+  it('pays a man standing in a farm for the hand he has rather than for the trade he holds', () => {
+    /*
+     * The half of #384 that made it its own issue. A village with holdings counts its crop per
+     * *farm* — one entry per gate, because a cleared acre is an improvement to a holding — and a
+     * farm is capital, which this file's own argument says does not get better at anything. The
+     * hand standing in it does. So the rate the day hands over is the man's and not the trade's:
+     * wired the other way round, a novice would be paid a master's crop while being fed a novice's,
+     * which is the same mismatch #384 exists to remove wearing the other coat.
+     *
+     * Four acres against each gate as well, so the two halves can be told apart: the acres are the
+     * same for both men and only the base yield moves.
+     */
+    const green = villager('farmer', 0);
+    const master = villager('farmer', MASTERED);
+    const acres = [green, master].flatMap((who) =>
+      Array.from({ length: FIELD.MOST }, (_, n) => fieldWork(`farm-${who.id}`, n, 0)));
+    const day = aDaysTrade([green, master], 0, 0, {
+      holdings: [green, master].map((who) => ({
+        id: `farm-${who.id}`, kind: 'farm', owner: ownedBy(who), worker: who.id,
+      })),
+      works: acres,
+    });
+    const cleared = FIELD.MOST * FIELD.FOOD;
+    expect(cleared, 'the acres are counted, or the difference below proves nothing').toBeGreaterThan(0);
+    expect(day.fields.get(ownedBy(master))).toBeCloseTo(FOOD.PER_FARMER + cleared, 10);
+    expect(day.fields.get(ownedBy(green)))
+      .toBeCloseTo(FOOD.PER_FARMER * handOf(green) + cleared, 10);
+    // the ground each of them stands on is identical, so the whole of the gap is the hand
+    expect(day.fields.get(ownedBy(master))! - day.fields.get(ownedBy(green))!)
+      .toBeCloseTo(FOOD.PER_FARMER * (1 - handOf(green)), 10);
+    // and the larder took what the gates were credited with, so nobody is fed by a second number
+    expect(day.grown).toBeCloseTo(2 * FOOD.PER_HEAD + 2 * cleared
+      + FOOD.PER_FARMER * (1 + handOf(green)), 10);
   });
 
   it('founds a village whose grandparents already know their work', () => {

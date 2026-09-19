@@ -30,21 +30,34 @@ const roomFor = (book: Register, holding: string): number =>
   herdRoomFor(book.worksOf('Ashford'), [holding]);
 
 /*
- * Seed 11 at two hundred days, which is a village whose rails are full and whose farmers can
+ * Seed 44 at two hundred days, which is a village whose rails are full and whose farmers can
  * afford to widen them — `whichFarmerBuilds` refuses on both counts and most villages fail one.
  * Found by scanning rather than chosen: a seed where nothing is ever bought would let every
- * assertion below pass without measuring anything, which is its own kind of failure.
+ * assertion below pass without measuring anything, which is its own kind of failure. Seeds 1 to 60
+ * were lived to day two hundred and six of them buy; this one is picked from those six for having
+ * the most room on *both* gates at once, which is the thing that keeps expiring.
  *
- * Re-scanned twice now, for the same reason both times. It was seed 1234 until bounded local farm
- * clearings (#126) changed what a village has built by day two hundred; then seed 10 until local
- * prices (#230) changed what a farmer can afford to have left over. Each time the seed stopped
- * buying and four assertions here stopped measuring. A seed picked for a property is
- * a seed that has to be picked again when the property's inputs change, which is the cost of
- * choosing one this way and worth paying: the alternative is a village built by hand that no
- * simulation ever produces.
+ * Re-scanned three times now, for the same reason every time. It was seed 1234 until bounded local
+ * farm clearings (#126) changed what a village has built by day two hundred; then seed 10 until
+ * local prices (#230) changed what a farmer can afford to have left over; then seed 11 until #384
+ * stopped paying a farmer one number and feeding the village another. Each time the seed stopped
+ * buying and four assertions here stopped measuring. A seed picked for a property is a seed that
+ * has to be picked again when the property's inputs change, which is the cost of choosing one this
+ * way and worth paying: the alternative is a village built by hand that no simulation ever
+ * produces.
+ *
+ * **Which gate went last time is worth writing down, because nobody could tell from the failure.**
+ * Seed 11 did not go broke. At day two hundred its herd stood at 88.81 against ninety beasts of
+ * room, so `whichFarmerBuilds` returned on its very first line — *the rails have to be full before
+ * anybody widens them* — and no purse was ever consulted. It had been 84.00 beasts in 84 of room,
+ * exactly full, and #384 moved a farm's crop and with it the day a fifteenth farm was manned. The
+ * same seed still buys at day three hundred with a farmer holding 3,038. So the margins are
+ * recorded here for whoever scans next: on day two hundred this village holds **86.40 beasts
+ * against 78 of room** and its richest farmer holds **1,605.39 against the 648 the bill wants**,
+ * which is 8.4 spare on the rails and 2.5 times over on the purse.
  */
 const aVillage = (): Register => {
-  const book = new Register(11, 1);
+  const book = new Register(44, 1);
   book.settle('Ashford', 8, ['farmer', 'seller', 'builder', 'woodcutter']);
   for (let day = 2; day <= 200; day++) book.advance(day);
   return book;
