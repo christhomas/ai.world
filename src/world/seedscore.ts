@@ -28,6 +28,7 @@
  */
 import { growPatch } from './growworld';
 import { boundsOf, PATCH, patchOf } from './patchwork';
+import type { TerrainSampler } from './terrain';
 
 /** One seed, as four numbers. */
 export interface Reading {
@@ -65,10 +66,18 @@ export const GRID = 25;
  * around him that gets grown first, not a square centred on him. That is the right window all the
  * same: it is what the page builds before anything else, and what a new player walks into.
  */
-const HOME = boundsOf(patchOf(0, 0));
+export const HOME_PATCH = patchOf(0, 0);
+const HOME = boundsOf(HOME_PATCH);
 
-export function readSeed(seed: number): Reading {
-  const sampler = growPatch(seed, HOME);
+/**
+ * A seed, read off a patch of it somebody has already grown.
+ *
+ * Split out of `readSeed` because the growing is the whole cost and the patch is worth keeping:
+ * the country worker grows the home patch to answer a measurement and the world then opens with
+ * that same patch rather than growing it again. See #358, and `country.worker.ts`, which is the
+ * one caller that has the sampler in its hand at the moment the reading is made.
+ */
+export function readGrown(seed: number, sampler: TerrainSampler): Reading {
   const land: boolean[] = [];
   let dry = 0;
   for (let i = 0; i < GRID; i++) {
@@ -90,6 +99,11 @@ export function readSeed(seed: number): Reading {
   }
   const home = villages.reduce((near, v) => Math.min(near, Math.hypot(v.x, v.z)), Infinity);
   return { seed, land: dry / samples, whole: biggestPiece(land), villages: villages.length, spread, home };
+}
+
+/** The same reading, for a caller with nothing but the seed: it grows the home patch to make it. */
+export function readSeed(seed: number): Reading {
+  return readGrown(seed, growPatch(seed, HOME));
 }
 
 /**

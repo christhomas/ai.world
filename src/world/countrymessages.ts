@@ -43,6 +43,18 @@ export type CountryReply =
     type: 'measured';
     seed: number;
     reading: Reading;
+    /**
+     * Which square was grown to read it, and the parts of it — because the patch is not thrown
+     * away any more.
+     *
+     * Measuring a seed grows the square a new hero stands in, and the game used to grow that very
+     * same square again the moment the world opened: two goes at the same two seconds for one
+     * world. So the patch comes back with the reading and the world opens with it. It is the parts
+     * rather than the patch for the reason `grown` below is: a sampler does not cross a worker
+     * boundary and does not need to. See #358.
+     */
+    patch: string;
+    parts: PatchParts;
     /** How long the measurement took, for the same reason `took` is sent below. */
     took: number;
   }

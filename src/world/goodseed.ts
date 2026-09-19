@@ -1,5 +1,6 @@
 import { readSeed, type Reading } from './seedscore';
 import type { CountryReply, CountryRequest } from './countrymessages';
+import type { GrownPatch } from './endless';
 
 /**
  * Drawing a world somebody would want to play, rather than the first number that came up.
@@ -161,6 +162,39 @@ export async function aWorldWorthOpeningAsync(
 }
 
 /**
+ * As much of a `Worker` as reading seeds uses.
+ *
+ * Handed in so a test needs no worker, which is the same seam `Grower` opens for the same reason:
+ * everything interesting about the arrangement — one at a time, which patch is kept, which is let
+ * go — is arithmetic about messages, and none of it should need a browser to prove.
+ */
+export interface SeedPort {
+  postMessage(msg: CountryRequest): void;
+  addEventListener(type: 'message', hear: (e: MessageEvent<CountryReply>) => void): void;
+  removeEventListener(type: 'message', hear: (e: MessageEvent<CountryReply>) => void): void;
+  terminate(): void;
+}
+
+/** A reader backed by the country worker, and what it keeps of what came back. */
+export interface SeedsRead {
+  read: (seed: number) => Promise<Reading>;
+  /**
+   * The patch grown to measure this seed, if it is still the one being held.
+   *
+   * By seed rather than "the last one", and that is the whole of the rule. `TRIES` seeds may be
+   * measured and each of them grew a patch, so only the newest is kept and every arriving one
+   * releases the one before it — three of the four are worlds nobody is going to walk into. But
+   * the seed the decision *settles* on is not always the last one measured: when nothing drawn is
+   * worth opening the **first** seed is taken, and its patch went three measurements ago. Asked
+   * for that seed this answers nothing, and the world grows its own square, which is what it did
+   * before any of this existed. Handing over the one in hand instead would open a world on another
+   * world's ground.
+   */
+  grownFor: (seed: number) => GrownPatch | undefined;
+  close: () => void;
+}
+
+/**
  * A reader backed by the country worker, and the worker it is backed by.
  *
  * Its own function so the title screen holds a reader rather than a worker: what it wants is "read
@@ -172,19 +206,28 @@ export async function aWorldWorthOpeningAsync(
  * only after the last has come back, so there is never more than one measurement in flight and no
  * queue to keep.
  */
-export function seedsReadOffThread(): { read: (seed: number) => Promise<Reading>; close: () => void } {
-  const worker = new Worker(new URL('../workers/country.worker.ts', import.meta.url), { type: 'module' });
+export function seedsReadOffThread(port?: SeedPort): SeedsRead {
+  const worker: SeedPort = port
+    ?? new Worker(new URL('../workers/country.worker.ts', import.meta.url), { type: 'module' });
+  /*
+   * The one patch kept, and nothing else. Overwritten by each measurement that comes back, which
+   * is how the rejected ones are released: nothing else holds a reference to them, and the world
+   * that opens wants exactly one square.
+   */
+  let held: GrownPatch | undefined;
   return {
     read: (seed) => new Promise<Reading>((answer) => {
       const hear = (e: MessageEvent<CountryReply>): void => {
         // the worker answers two questions; this one asked for a measurement of this seed
         if (e.data.type !== 'measured' || e.data.seed !== seed) return;
         worker.removeEventListener('message', hear);
+        held = { seed, patch: e.data.patch, parts: e.data.parts };
         answer(e.data.reading);
       };
       worker.addEventListener('message', hear);
       worker.postMessage({ type: 'measure', seed } satisfies CountryRequest);
     }),
+    grownFor: (seed) => (held?.seed === seed ? held : undefined),
     close: () => worker.terminate(),
   };
 }
