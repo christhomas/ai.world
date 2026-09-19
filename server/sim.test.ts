@@ -9,6 +9,7 @@ import { DAY_LENGTH } from './protocol';
 import { homelandsOf } from '../src/entities/homeland';
 import { provinceOfHome } from '../src/world/provinces';
 import { Manifest } from '../src/world/manifest';
+import { endlessStamp } from '../src/world/growworld';
 import { generateDungeon } from '../src/dungeon/generate';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../src/world/chests';
 import { CROPS } from '../src/game/farming';
@@ -1226,7 +1227,9 @@ describe('a page asking the world for country', () => {
     // and it said so, which is the page's cue to stop drawing ground it is about to be sent
     const [country] = rowan.of('country');
     expect(country, 'the world never told the page its country was grown').toBeTruthy();
-    expect(country.stamp, 'an endless country incorrectly claimed a whole-country fingerprint').toBe('');
+    // and what it said about the country it grew: the seed and the list it was authored with,
+    // which is what is whole-country about a world that has no whole country. See `endlessStamp`.
+    expect(country.stamp, 'an endless country said nothing about itself').toBe(endlessStamp(31, []));
   });
 
   it('and answers the whole of it inside the time a page will wait', () => {

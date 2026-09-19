@@ -43,6 +43,40 @@ describe('the shared world', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
+  /**
+   * The manifest, which is the part of a world nobody can grow back.
+   *
+   * A seed grows a country; a manifest says what was *authored* about it — where the islands hang,
+   * where a dungeon's stairs are, and since #376 the layers that lift the ground. The server had
+   * nowhere to keep one at all until #377, and the ground it grew was the seed's alone while the
+   * page grew the seed and the list. The dangerous half of putting one here is the writing rather
+   * than the reading: `save` rewrites the whole file, so a manifest this class knew how to read and
+   * not to write would vanish the first time anybody sowed a field, and the ground would move under
+   * everything standing on it at the next restart.
+   */
+  it('keeps what was authored about its country across a restart', () => {
+    const dir = scratch();
+    try {
+      const path = worldPath(dir, 13);
+      const first = new SharedWorld(13, path, { day: 1, time: 0.2 }, dir, kept);
+      const range = first.manifest.ensure('highland:the-range', 'highland', 256, 256);
+      range.layer = { reach: 300, lift: 24 };
+      first.apply({ kind: 'sow', tile: '4,9', crop: 'wheat', day: 2 });
+      first.save();
+
+      const second = new SharedWorld(13, path, { day: 1, time: 0.2 }, dir, kept);
+      expect(second.manifest.get('highland:the-range')?.layer).toEqual({ reach: 300, lift: 24 });
+      expect(second.manifest.get('highland:the-range')?.x).toBe(256);
+
+      // and a save with nothing authored in it is the world its seed implies, not a broken one
+      const bare = new SharedWorld(14, worldPath(dir, 14), { day: 1, time: 0.2 }, dir, kept);
+      bare.apply({ kind: 'sow', tile: '1,1', crop: 'wheat', day: 2 });
+      bare.save();
+      expect(new SharedWorld(14, worldPath(dir, 14), { day: 1, time: 0.2 }, dir, kept)
+        .manifest.anchors.size).toBe(0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('survives a restart: the clock and the log come back', () => {
     const dir = scratch();
     try {
