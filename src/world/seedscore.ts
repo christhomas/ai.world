@@ -61,10 +61,16 @@ export const GRID = 25;
 /**
  * The home patch: the square of country the hero is standing in when a world opens.
  *
- * Asked of the game rather than written out, so it cannot drift from it. A new hero starts at the
- * origin (`main.ts`), which is the *corner* of patch `0,0` — so this is the quarter of the country
- * around him that gets grown first, not a square centred on him. That is the right window all the
- * same: it is what the page builds before anything else, and what a new player walks into.
+ * Asked of the game rather than written out, so it cannot drift from it. The origin is the *corner*
+ * of patch `0,0` — so this is the quarter of the country around it that gets grown first, not a
+ * square centred on anybody. That is the right window all the same: it is what the page builds
+ * before anything else, and what a new player walks into.
+ *
+ * Since #394 a fresh world does not open at the origin but in one of this patch's own villages, so
+ * the window is if anything more exactly right than it was: the square this measures is the square
+ * the hero is put down in. It is also why `world/opening.ts` can only choose between the biomes a
+ * quadrant reaches — which is one or two of the pie's six, and the whole of why that file picks by
+ * distance and not by ground.
  */
 export const HOME_PATCH = patchOf(0, 0);
 const HOME = boundsOf(HOME_PATCH);
