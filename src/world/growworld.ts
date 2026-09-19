@@ -93,12 +93,9 @@ export function growPatch(
  * about a world and never a setting. #324 is where an editor gets to add to one.
  */
 export function elevationFor(manifest: Manifest): readonly Highland[] {
-  const out: Highland[] = [];
-  for (const anchor of manifest.byKind('highland')) {
-    // a highland anchor with no shape on it is not a layer: it is a place, saved by something else
-    if (anchor.layer) out.push({ x: anchor.x, z: anchor.z, ...anchor.layer });
-  }
-  return out;
+  // `Manifest.layers` decides what counts as one, so that what a world hands a joining page and
+  // what either half grows from cannot be two different selections of the same anchors
+  return manifest.layers().map((anchor) => ({ x: anchor.x, z: anchor.z, ...anchor.layer! }));
 }
 
 /**

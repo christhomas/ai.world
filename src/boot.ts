@@ -1,7 +1,8 @@
 import { IndexedDbStore } from './save/store';
 import { serverOf } from './game/joining';
 import { kindOf, type SessionSave, type WorldKind } from './save/store';
-import type { WorldRecord } from '../server/protocol';
+import type { WorldInvite } from '../server/protocol';
+import { joinedManifest } from './world/manifest';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { startGame } from './main';
@@ -50,15 +51,21 @@ export async function boot(): Promise<void> {
   if (named) {
     seed = named.seed;
     /*
-     * A shared world is whatever the server grows, and the server grows one kind.
+     * A shared world is whatever the server grows, and now the server says which that is.
      *
-     * `WorldRecord` carried the kind until #228 took it off, and this is deliberately not putting
-     * it back yet: the choice restored here is the page's, for a world it walks alone in. Letting a
-     * page pick a country the server is not growing is the exact fault `growworld.ts` was written
-     * about — two halves in two countries — and it is worth a wire change of its own rather than a
-     * line in this one.
+     * `WorldRecord` carried the kind until #228 took it off, and this file said for a long while
+     * that putting it back was worth a wire change of its own rather than a line here. #385 is
+     * that change: the invite answers with the kind, so a page is told the country it is joining
+     * instead of assuming one. Letting a page pick a country the server is not growing is the exact
+     * fault `growworld.ts` was written about — two halves in two countries.
+     *
+     * Through `kindOf` rather than taken as it stands, because this is a value parsed out of a
+     * server's JSON and the type on it is a promise rather than a check. Absent means endless, which
+     * is the guess this line used to make unconditionally — so a server older than the field leaves
+     * the page exactly where it was rather than anywhere worse — and so does anything this build
+     * cannot actually grow.
      */
-    world = 'endless';
+    world = kindOf(named.kind);
     worldName = named.name;
     /*
      * Scoped by the server as well as the name, because a name is only unique on the server that
@@ -71,11 +78,19 @@ export async function boot(): Promise<void> {
     slotKey = `ai.world/named/${serverOf(url)}/${named.name.toLocaleLowerCase('en-US')}`;
     saved = await store.load<SessionSave>(slotKey);
     if (saved?.seed !== seed) saved = undefined;
-    const localAnchors = saved?.manifest?.anchors.filter((anchor) => anchor.kind !== 'island') ?? [];
+    /*
+     * And what the world was authored with, which used to be whatever this browser happened to
+     * hold.
+     *
+     * A page that had never opened the world held nothing, so it grew the seed flat while the
+     * server grew the range — #385. The list travels with the invite now and the world's copy is
+     * the one that counts; `joinedManifest` is where that is argued and where the page's own
+     * anchors are kept out of it.
+     */
     saved = {
       ...(saved ?? { seed, cam: { x: 0, z: 0, rot: 0, zoom: 1 } }),
       seed, world, worldName,
-      manifest: { rootSeed: seed, anchors: localAnchors },
+      manifest: joinedManifest(seed, saved?.manifest, named.layers),
     };
   } else if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
     // Old seed links and saves remain valid: a name is an added handle, not a new generator.
@@ -112,7 +127,7 @@ function worldFromLink(url: URL): WorldKind | null {
 export async function namedWorldFromLink(
   url: URL,
   request: typeof fetch = fetch,
-): Promise<WorldRecord | null> {
+): Promise<WorldInvite | null> {
   if (url.searchParams.has('seed')) return null;
   const name = url.searchParams.get('world');
   const server = url.searchParams.get('server');
@@ -128,7 +143,7 @@ export async function namedWorldFromLink(
     const body = await response.json().catch(() => ({})) as { error?: string };
     throw new Error(body.error ?? `Could not open world “${name}”.`);
   }
-  return await response.json() as WorldRecord;
+  return await response.json() as WorldInvite;
 }
 
 boot().catch((err) => {
