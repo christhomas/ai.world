@@ -19,11 +19,12 @@ import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Person } from '../src/world/people';
+import type { Highland } from '../src/world/highland';
 import { HeldMinds, forgetMind, keepMinds, mindsOf } from './durable/minds';
 import { eventsOf, keepEvents } from './durable/events';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
-import { growPatch } from '../src/world/growworld';
+import { elevationFor, endlessStamp, growPatch } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
 import { lidLifted } from './chests';
@@ -225,6 +226,18 @@ export class Simulation {
   }
 
   /**
+   * What a world's ground was authored with, on this side of the wire.
+   *
+   * The manifest is the page's word for the same thing and `elevationFor` is the one reading of
+   * it, so the two halves are not two implementations that agree — they are one function called
+   * twice. Asked rather than kept, because the answer comes from the room when a world is open and
+   * from its file when it is not, and a copy held here would be the stale one of the two.
+   */
+  private layersOf(seed: number): readonly Highland[] {
+    return elevationFor(this.rooms.manifestOf(seed));
+  }
+
+  /**
    * The ground of a world, grown the first time anybody stands in it.
    *
    * The same terrain the players have: the same seed through the same generator, so what the
@@ -241,10 +254,20 @@ export class Simulation {
     if (held) return held;
     const room = this.rooms.get(seed);
     /*
-     * There is no whole country to grow or fingerprint. `Patchwork` retains the squares somebody
-     * has approached, and the page/server agreement is checked a patch at a time.
+     * There is no whole country to grow. `Patchwork` retains the squares somebody has approached,
+     * and every one of them is grown from the seed *and the list* — the layers this world was
+     * authored with, read out of its manifest exactly as the page reads them out of its save.
+     *
+     * That list was missing here until #377 and the omission was inert only by luck: no world had
+     * any layers, so the page's list and this default were the same empty list. The day one is
+     * authored, a page draws a mountain and this grows the plain underneath it — and this is the
+     * half that decides where a hero may stand, where a creature walks and what the ground under a
+     * village is. A hero would walk through a hillside the page had drawn, which is the exact
+     * failure `growworld.ts` exists to make impossible, arriving through the one door #376 could
+     * not close from the other side.
      */
-    const patches = new Patchwork(seed, growPatch);
+    const layers = this.layersOf(seed);
+    const patches = new Patchwork(seed, growPatch, undefined, layers);
     const country = patchedCountry(patches);
     const grown = new GroundWorld(country, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
@@ -879,8 +902,16 @@ export class Simulation {
    * of being thrown away and grown again for every page that wants one. By the time a page asks,
    * the answer is packing bytes it already has.
    *
-   * The `country` that goes out afterwards is the page's cue that the waiting is over. Its stamp is
-   * empty because an endless country has no whole-country fingerprint.
+   * The `country` that goes out afterwards is the page's cue that the waiting is over, and its
+   * stamp is the evidence. It said nothing at all until #377 — *"an endless country has no
+   * whole-country fingerprint"* — which was true of the road graph and false of the world: an
+   * endless country has a layer list, that list is whole-country, and it is the one thing about
+   * such a world that two halves can hold differently. See `endlessStamp`, which says what it can
+   * and cannot catch.
+   *
+   * Still silent where this server grows no ground at all, which is a test harness rather than a
+   * game. A stamp taken off a country nobody grew would be a fingerprint of nothing, and the page
+   * reads an empty string as silence rather than as agreement.
    *
    * A join that does not say where it is standing gets the country but not the first view. There is
    * nowhere to grow, and guessing a place would be growing the wrong one.
@@ -889,7 +920,8 @@ export class Simulation {
     const ground = this.groundOf(client.seed);
     const x = Number(message.x), z = Number(message.z);
     if (ground && Number.isFinite(x) && Number.isFinite(z)) ground.ready(x, z, VIEW);
-    this.rooms.send(client, { type: 'country', stamp: '' });
+    const stamp = ground ? endlessStamp(client.seed, this.layersOf(client.seed)) : '';
+    this.rooms.send(client, { type: 'country', stamp });
   }
 }
 

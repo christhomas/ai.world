@@ -6,6 +6,7 @@ import {
 import {
   KEEP_READY, provinceOf, provincePath, provincesNear, type ProvinceId,
 } from '../src/world/provinces';
+import { Manifest, type ManifestJson } from '../src/world/manifest';
 
 /** One province's leavings, while somebody is near enough for them to matter. */
 interface Province {
@@ -71,6 +72,18 @@ export interface WorldFile {
   stalls?: Stall[];
   letters?: Letter[];
   folk?: string[];
+  /**
+   * What was authored about this world's country, as against what its seed grew.
+   *
+   * The anchors: where the islands hang, where a dungeon's stairs are, and — since #376 — the
+   * elevation layers that lift its ground. Optional because every world saved before there was a
+   * field says nothing, and a world that says nothing has the manifest its seed implies.
+   *
+   * Here rather than in `world-records.json` because a record is only made for a world somebody
+   * *named*, and every world has a country. #377 went looking for this file expecting to find it
+   * in the registry and it was not there; the seed file is the one thing every world has.
+   */
+  manifest?: ManifestJson;
 }
 
 /** What a stall did with what it was asked, and what the asker should be told. */
@@ -109,6 +122,21 @@ export class SharedWorld {
   private readonly seen = new Set<string>();
   private saveTimer: NodeJS.Timeout | null = null;
   private dirty = false;
+  /**
+   * What was written down about this world's country, which the ground is grown from.
+   *
+   * The server's copy of the thing the page has kept in its save since the islands were first
+   * pinned: *"a world saved before that code existed has them somewhere else, and moving them
+   * would move the ground out from under a house somebody built on one."* Write-once in exactly
+   * the same sense — `Manifest.ensure` never overwrites — so what is in here is a fact about the
+   * world rather than a setting on it.
+   *
+   * It is read at every join and written back with the rest of the file. Read *and* written
+   * matters more than it looks: `save()` rewrites the whole file, so a manifest this class did not
+   * know about would be dropped the first time anybody sowed a field, and the ground would move
+   * under everything standing on it at the next restart.
+   */
+  readonly manifest: Manifest;
 
   constructor(
     readonly seed: number,
@@ -134,6 +162,7 @@ export class SharedWorld {
     private register: { compact(day: number): void } | null = null,
   ) {
     const loaded = this.load();
+    this.manifest = new Manifest(seed, loaded?.manifest);
     this.clock = loaded?.clock ?? start;
     for (const delta of loaded?.deltas ?? []) this.remember(delta);
     for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
@@ -473,6 +502,9 @@ export class SharedWorld {
       // reading a stale copy back the next time anybody opened the world
       seed: this.seed, clock: this.clock, deltas: [...this.deltas.values()],
       stalls: this.stalls, letters: this.letters, folk: this.folk,
+      // written back rather than merely read: this rewrites the whole file, and a manifest left
+      // out of it would be a world whose authored ground quietly vanished on the next save
+      manifest: this.manifest.toJSON(),
     };
     try {
       this.vault.write(this.path, JSON.stringify(file, null, 2));
@@ -506,4 +538,29 @@ function sameDelta(a: WorldDelta, b: WorldDelta): boolean {
  */
 export function worldPath(dataDir: string, seed: number): string {
   return dataDir ? `${dataDir}/${seed}.json` : `${seed}.json`;
+}
+
+/**
+ * The manifest of a world nobody has opened.
+ *
+ * `SharedWorld` holds one for every world with a room, which is every world somebody is standing
+ * in. The ground is grown for worlds nobody is standing in too — a survey asks for one, and
+ * `Simulation.groundOf` caches whatever it grows — so a manifest that could only be reached
+ * through an open room would mean a world grown flat by the registry and then handed, still flat,
+ * to the first player through the door. The layers would be missing for the rest of the process
+ * and nothing anywhere would say so.
+ *
+ * So the file is read directly when there is no room to ask. Unreadable is the same as absent: a
+ * world whose file cannot be parsed already starts fresh in `load` above, and this must agree with
+ * it rather than throwing on a path that used to be quiet.
+ */
+export function manifestIn(vault: Vault, path: string, seed: number): Manifest {
+  try {
+    const kept = vault.read(path);
+    if (kept === null) return new Manifest(seed);
+    const raw = JSON.parse(kept) as WorldFile;
+    return new Manifest(seed, raw?.seed === seed ? raw.manifest : undefined);
+  } catch {
+    return new Manifest(seed);
+  }
 }

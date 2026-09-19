@@ -5,7 +5,7 @@ import { Simulation } from './sim';
 import { Forgetful } from './vault';
 import { Patchwork, PATCH } from '../src/world/patchwork';
 import { patchedCountry } from '../src/world/groundworld';
-import { growPatch } from '../src/world/growworld';
+import { endlessStamp, growPatch } from '../src/world/growworld';
 import { peopleOf } from './people';
 
 /**
@@ -143,7 +143,7 @@ describe('and the simulation standing one up', () => {
     rowan.say({
       type: 'join', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     });
-    expect(rowan.of('country')[0]?.stamp).toBe('');
+    expect(rowan.of('country')[0]?.stamp).toBe(endlessStamp(7, []));
     const ground = sim.groundOf(7);
     expect(ground).not.toBeNull();
     expect(ground!.villages.length).toBeGreaterThan(0);
@@ -155,28 +155,48 @@ describe('and the simulation standing one up', () => {
     rowan.say({
       type: 'join', world: 'road', seed: 11, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     } as never);
-    expect(rowan.of('country')[0]?.stamp).toBe('');
+    expect(rowan.of('country')[0]?.stamp).toBe(endlessStamp(11, []));
 
     // an older build, which says nothing about the country, lands where it always did
     const bryn = new Pretend(sim);
     bryn.say({ type: 'join', seed: 12, name: 'Bryn', version: PROTOCOL_VERSION, day: 2, time: 0.4 } as never);
-    expect(bryn.of('country')[0]?.stamp).toBe('');
+    expect(bryn.of('country')[0]?.stamp).toBe(endlessStamp(12, []));
   });
 
   /*
-   * And an endless room really is one. A road world stamps a fingerprint of its whole country; an
-   * endless one has no whole country to take one of, so silence there is the tell that this is not
-   * simply a road room wearing the word.
+   * And an endless room really is one — which used to be said by silence, and is now said by the
+   * stamp itself.
+   *
+   * A road world hashes its whole country because it has one: one graph, grown once, with every
+   * village and door in the world derived from it. An endless world has a graph per square, so
+   * hashing the square somebody happens to be standing in would report a disagreement between two
+   * halves standing in different places, and this message carried an empty string rather than do
+   * that. #377 is the argument that the empty string went too far: a country with no edge still
+   * has whole-country facts, it has had one that can *differ* since #376 — the layer list — and a
+   * stamp that cannot disagree is worse than no stamp, because it reports agreement.
+   *
+   * So what is asserted here is that it is `endlessStamp` and not the road graph's: the same eight
+   * characters for a world with no layers whichever square is grown, and different eight the
+   * moment the world was authored with something.
    */
-  it('has no whole-country fingerprint, because it has no whole country', () => {
+  it('fingerprints what is whole-country about a country that has no whole country', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true });
     const rowan = new Pretend(sim);
     rowan.say({
       type: 'join', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     });
-    expect(rowan.of('country')[0]?.stamp).toBe('');
+    const stamp = rowan.of('country')[0]?.stamp;
+    expect(stamp).toBe(endlessStamp(7, []));
+    expect(stamp, 'an endless country went back to saying nothing about itself').not.toBe('');
+    // and it is evidence rather than a formality: a world authored with a range is a different word
+    expect(stamp).not.toBe(endlessStamp(7, [{ x: 0, z: 0, reach: 300, lift: 24 }]));
   });
 
+  /*
+   * And a server that grows no ground at all still says nothing, which is the one case where
+   * silence remains the right answer: there is no country here to take a fingerprint of, and an
+   * empty string is read by the page as silence rather than as agreement.
+   */
   it('does not revive a whole-country fingerprint for a retired kind', () => {
     const sim = new Simulation({ vault: new Forgetful() });
     const rowan = new Pretend(sim);

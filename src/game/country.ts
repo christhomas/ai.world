@@ -14,7 +14,7 @@ import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import type { GrownPatch } from '../world/endless';
 import { PatchCountry } from '../world/patchcountry';
 import { RoadCountry, type Country, type WorldKind } from '../world/countries';
-import { elevationFor, growWorld, islandsFor } from '../world/growworld';
+import { elevationFor, growWorld, islandsFor, stampFor } from '../world/growworld';
 import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
@@ -214,8 +214,17 @@ export function growCountry(ctx: Growing) {
 
   return {
     manifest, around, daycycle, chunks, rock, mountains, skyline,
-    /** What the ground of this world was authored with, for the fingerprint sent at a join. */
-    layers,
+    /**
+     * This country's own fingerprint, for the one the world sends at a join to be held against.
+     *
+     * Taken here rather than at the join because this is where it is known what kind of country
+     * this is, and the two kinds have different whole-country facts to hash — `stampFor` is where
+     * that choice lives and says why. `main.ts` used to take this itself out of the graph and the
+     * layers, which worked only for as long as the graph it was handed was a bounded world's;
+     * handed a patch's graph it would compare the square the hero is standing in against the
+     * square the server grew first and report a disagreement that is not one.
+     */
+    stamp: stampFor(world, seed, graph, layers),
     /*
      * Live, not read once. Anything that keeps one of these past the frame it asked in keeps it
      * across a patch crossing too, which is the fault `patchview.ts` exists to have ended.

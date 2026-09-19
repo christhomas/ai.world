@@ -206,8 +206,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       registry(sim, options, req, res);
       return;
     }
-    // A named invite reaches this before the game is grown, so seed, kind and manifest all come
-    // from the server's record rather than from facts copied into a link.
+    /*
+     * A named invite reaches this before the game is grown, so the seed comes from the server's
+     * record rather than from facts copied into a link.
+     *
+     * The seed and nothing else, which is worth saying because this comment used to claim the
+     * kind and the manifest came with it. #228 took the kind off `WorldRecord` deliberately — see
+     * `boot.ts` — and there was never a manifest on it at all. #377 came looking for one here on
+     * the strength of this sentence and found the record was two fields. A world's manifest lives
+     * in its own file beside its clock and its deltas, which is where `SharedWorld` keeps it and
+     * where the ground is now grown from; what a page holds is still its own.
+     */
     if (req.method === 'GET' && req.url?.startsWith('/world?')) {
       namedWorld(rooms, req, res);
       return;

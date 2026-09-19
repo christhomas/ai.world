@@ -1,4 +1,5 @@
 import type { Entity } from '../src/entities/entity';
+import type { Manifest } from '../src/world/manifest';
 import type { Register } from '../src/world/register';
 import type { Village } from '../src/world/structures';
 import type { Blow, Standing } from './wildlife';
@@ -7,7 +8,7 @@ import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldRecord } from './protocol';
 import { worldKey } from './protocol';
 import { Forgetful, type Vault } from './vault';
-import { SharedWorld, worldPath } from './world';
+import { SharedWorld, manifestIn, worldPath } from './world';
 import { WorldRecords } from './worldrecords';
 
 /**
@@ -212,6 +213,21 @@ export class Rooms {
   get(seed: number): Room | undefined {
     const key = this.bySeed.get(seed >>> 0);
     return key ? this.rooms.get(key) : undefined;
+  }
+
+  /**
+   * What was written down about a world's country, whether or not anybody is standing in it.
+   *
+   * The open room's copy when there is one, because that is the one anything playing would write
+   * into; the file otherwise. Both have to answer, and answer the same: `Simulation.groundOf`
+   * grows a world's ground on a survey as readily as on a join and keeps whatever it grew, so a
+   * manifest that only a room could produce would be a country grown flat by whichever of the two
+   * asked first.
+   */
+  manifestOf(seed: number): Manifest {
+    const open = this.get(seed);
+    if (open) return open.world.manifest;
+    return manifestIn(this.vault, worldPath(this.dataDir, seed >>> 0), seed >>> 0);
   }
 
   worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }
