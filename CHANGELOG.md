@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.101.0 — 2026-09-19
+
+A carcass on a crag, a holding that pays while you are away, and a country made of layers
+
 ## v0.100.0 — 2026-09-18
 
 The hero's farm earns while he is away, a seed is measured before it is handed out, a killed release finishes itself, and the phone stops overlapping itself
