@@ -1,7 +1,7 @@
 import { SWITCHES, isOn, setOn } from './switches';
 import { kindOf, type SaveStore, type SessionSave, type WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
-import { aWorldWorthOpening } from '../world/goodseed';
+import { aWorldWorthOpeningAsync, seedsReadOffThread } from '../world/goodseed';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
@@ -193,15 +193,36 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       /*
        * Otherwise: drawn, measured, and drawn again where nobody lives there.
        *
-       * Deferred by a tick so the line above is on the screen before the work starts, because the
-       * work is a patch grown — seconds on a slow machine, not the milliseconds this was hoped to
-       * be. `aWorldWorthOpening` stops at the first world worth opening, so the common cost is one
+       * Measured *in the country worker*, which is the whole of #358. It used to be a `setTimeout`
+       * on this thread, and a tick is not a thread: it bought one paint of the line below and then
+       * froze everything — fourteen seconds on a slow machine, because a measurement grows a whole
+       * patch and a rejected seed grows another. The spinner could not spin and a tap could not
+       * land.
+       *
+       * The worker was already there for exactly this work: growing a patch off the thread the game
+       * is drawn on. A measurement is that grow with the patch thrown away.
+       *
+       * `aWorldWorthOpening` stops at the first world worth opening, so the common cost is one
        * grow; only the worlds being rejected pay for a second, which is under one in twenty.
        */
       worldError.textContent = 'Finding a world worth walking into…';
-      setTimeout(() => {
-        finish({ key, save: undefined, seed: aWorldWorthOpening(randomSeed).seed, worldName, world });
-      }, 0);
+      const reader = seedsReadOffThread();
+      void aWorldWorthOpeningAsync(randomSeed, reader.read)
+        .then((drawn) => {
+          reader.close();
+          finish({ key, save: undefined, seed: drawn.seed, worldName, world });
+        })
+        .catch(() => {
+          /*
+           * A worker that will not start is not a reason to refuse somebody a world.
+           *
+           * Blocked workers, a very old browser, a page served from a file — in any of them the
+           * honest answer is the world they would have had before any of this existed, drawn and
+           * unmeasured, rather than a title screen that never opens one.
+           */
+          reader.close();
+          finish({ key, save: undefined, seed: randomSeed(), worldName, world });
+        });
     };
     list.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');
