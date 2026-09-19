@@ -186,10 +186,31 @@ export function broughtIn(person: Person, shore = false, field: number = FOOD.PE
   // the rocks first, because they are the one thing here that everybody gets and nobody works at:
   // a child with a bucket at low water brings back what a soldier would, and so does a master
   const gathered = FOOD.PER_HEAD + (shore ? FOOD.PER_SHORE : 0);
-  const hand = handOf(person);
-  if (person.trade === 'farmer') return gathered + field * hand;
-  if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER * hand;
+  if (person.trade === 'farmer') return gathered + theirField(person, field);
+  if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER * handOf(person);
   return gathered;
+}
+
+/**
+ * And the field's half of that on its own, for whoever is counting fields rather than people.
+ *
+ * The one place a crop is worked out, lifted out of `broughtIn` rather than written a second time
+ * beside it, which is the whole of what this file forbids one paragraph above: *"a second
+ * expression of 'what a farmer grows' ... would be a farmer who is fed by one number and paid by
+ * another"*. `broughtIn` answers it about a person and `fieldCrop` answers it about a gate, and
+ * both of them get the number from here.
+ *
+ * A *farm* cannot ask this, and that is the point of taking a person rather than a rate. A cleared
+ * acre is an improvement to a holding and holds what it holds whoever is standing in it — but the
+ * founding field is the trade, and `mastery.ts` scales a trade by the hand doing it. Handed a flat
+ * `FOOD.PER_FARMER` a village pays a novice a master's crop while feeding him a novice's, which is
+ * the same mismatch the other way round.
+ *
+ * Nought for everybody who is not a farmer, including a hunter: the woods are worked rather than
+ * owned, so there is no gate to count them against and `broughtIn` is where they belong.
+ */
+export function theirField(person: Person, field: number = FOOD.PER_FARMER): number {
+  return person.trade === 'farmer' ? field * handOf(person) : 0;
 }
 
 /**

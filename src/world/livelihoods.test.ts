@@ -156,6 +156,53 @@ describe('what the village paid for its dinner', () => {
     expect(fed.get(ownedBy(people[0]))!).toBeGreaterThan(fed.get(ownedBy(people[1]))!);
   });
 
+  /*
+   * And the same promise kept for a village that *did* count them, which is the ordinary case
+   * rather than the corner: `aDaysTrade` hands back an empty map rather than `null` for a village
+   * with no holdings at all, so every day the register runs goes down this path.
+   *
+   * The arithmetic is #384's own measurement. Two farmers, a soldier and a seller: each farmer puts
+   * `PER_HEAD` and `PER_FARMER` on the table and the other two put their gardens on it, so the
+   * larder takes twelve. `whoFed` takes the whole farm share out of `broughtIn` the moment a map
+   * arrives, and the day used to put back only what the village had *cleared* — nought acres here —
+   * so all four were credited with one apiece and the dinner money went out four equal ways instead
+   * of five, five, one and one.
+   */
+  it('feeds and pays a farmer by the same number when the village counted its fields', () => {
+    const people = [person('farmer'), person('farmer'), person('soldier'), person('seller')];
+    const day = aDaysTrade(people, 8, 0);
+    /*
+     * The precondition, asked before a word about who was paid: the village actually grew it. A
+     * herd of eight is under the butcher's threshold, so the larder here is the fields and the
+     * gardens and nothing else — and without this an assertion about the shares would pass just as
+     * happily in a world where the base yield never reached the larder at all, which is the exact
+     * fault being held down.
+     */
+    expect(day.meat, 'a herd of eight is not butchered, so the larder is fields and gardens').toBe(0);
+    expect(broughtIn(people[0])).toBe(FOOD.PER_HEAD + FOOD.PER_FARMER);
+    expect(day.grown, 'the two farmers put in five each and the other two one each')
+      .toBeCloseTo(2 * (FOOD.PER_HEAD + FOOD.PER_FARMER) + 2 * FOOD.PER_HEAD, 10);
+
+    // a day that counted its fields and a day that did not must pay a farmer the same number,
+    // because there is only one number: what he grew
+    const fed = whoFed(people, 0, day.shore, 0, day.fields);
+    const uncounted = whoFed(people, 0, day.shore);
+    for (const farmer of people.slice(0, 2)) {
+      expect(fed.get(ownedBy(farmer))).toBeCloseTo(broughtIn(farmer, day.shore), 10);
+      expect(fed.get(ownedBy(farmer))).toBeCloseTo(uncounted.get(ownedBy(farmer))!, 10);
+    }
+    expect(fed.get(ownedBy(people[2]))).toBeCloseTo(FOOD.PER_HEAD, 10);
+    // every meal in the larder is somebody's: the agreement `fieldCrop` and `whoFed` are two halves of
+    expect(total(fed)).toBeCloseTo(day.grown, 10);
+
+    // and so the dinner money is five, five, one and one of twelve rather than three apiece
+    const paid = paidForFood(people, day.grown, 0, day.shore, 0, day.fields);
+    expect(paid.get(ownedBy(people[0]))).toBeCloseTo(5, 10);
+    expect(paid.get(ownedBy(people[1]))).toBeCloseTo(5, 10);
+    expect(paid.get(ownedBy(people[2]))).toBeCloseTo(1, 10);
+    expect(paid.get(ownedBy(people[3]))).toBeCloseTo(1, 10);
+  });
+
   it('pays the farmers for the meat as well as for the field', () => {
     const people = [person('farmer'), person('soldier')];
     const without = paidForFood(people, 10)?.get(ownedBy(people[0]))!;

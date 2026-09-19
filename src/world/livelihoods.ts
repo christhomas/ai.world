@@ -1,4 +1,4 @@
-import { FOOD, broughtIn, cellarCap, eat } from './food';
+import { FOOD, broughtIn, cellarCap, eat, theirField } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
 import { ownedBy, BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing, type Owner } from './holdings';
@@ -6,7 +6,7 @@ import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { wellEnough } from './ailments';
-import { foodAt } from './fields';
+import { fieldCrop } from './fields';
 import { priceOfAMeal } from './prices';
 
 /**
@@ -243,7 +243,7 @@ export function whoFed(
      * `broughtIn` is the one expression of what a farmer grows, and its own comment says why: *"a
      * second expression of 'what a farmer grows' living in `livelihoods.ts` would be a farmer who
      * is fed by one number and paid by another"*. A caller that has counted the fields takes the
-     * farm's share out of `broughtIn` and adds the measured crop below, so the two agree. A caller
+     * farm's share out of `broughtIn` and adds what `fieldCrop` counted, so the two agree. A caller
      * that has not counted them — every caller outside `aDaysTrade` — must get the same number the
      * larder got, which is `broughtIn`'s own default. An empty map from a village that has fields
      * means nobody's field yielded; `null` means nobody asked.
@@ -413,22 +413,17 @@ export function aDaysTrade(
   // is the same number until a man owns two: `mannedFarms` settles that seam, and it says the
   // rails belong to the farm
   const farms = mannedFarms(village.holdings, working);
-  const fields = new Map<Owner, number>();
-  let fieldMeals = 0;
-  const addField = (owner: Owner, meals: number): void => {
-    fields.set(owner, (fields.get(owner) ?? 0) + meals);
-    fieldMeals += meals;
-  };
-  if (village.holdings !== undefined) {
-    const byId = new Map(working.map((person) => [person.id, person]));
-    const farmerOwners = new Set(farmers.map(ownedBy));
-    for (const farm of village.holdings.filter((holding) => holding.kind === 'farm')) {
-      const worker = byId.get(farm.worker ?? '');
-      const owner = farm.owner ?? (worker ? ownedBy(worker) : undefined);
-      const recipient = owner && (worker || farmerOwners.has(owner)) ? owner : worker && ownedBy(worker);
-      if (recipient) addField(recipient, foodAt(village.works ?? [], farm.id ?? ''));
-    }
-  }
+  /*
+   * What each farm put on the table, counted once and by `fields.ts`.
+   *
+   * This used to be sixteen lines here that added only what the village had *cleared* and never
+   * the founding yield, while `whoFed` read a map — even an empty one, which is what a village
+   * with no holdings hands it — as "the caller has counted the fields" and took the farm's whole
+   * share out of `broughtIn`. So the base crop left a farmer's pay and nothing put it back: two
+   * farmers, a soldier and a seller grew twelve meals between them and all four were credited with
+   * one, and the dinner money went out in quarters instead of 5:5:1:1. See #384.
+   */
+  const crop = fieldCrop(people, working, farmers, farms, village.works ?? [], theirField);
   // by id and with what the village has built, so a farm that was built up holds what it was built
   // to hold rather than the same as every other farm. See `aDayOfCattle`
   // a holding's id is optional on `Standing` — a farm mid-founding has none yet — and one with no
@@ -490,9 +485,12 @@ export function aDaysTrade(
 
   return {
     herd: cattle.herd,
-    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore), 0)
-      + fieldMeals + cattle.meals + caught.meals,
-    fields,
+    // the gardens, the rocks and the woods off the people, and the fields off the farms — the
+    // farm's share taken out of `broughtIn` here exactly as `whoFed` takes it out there, so the
+    // larder is filled by the same expression the purses are paid out of
+    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore, 0), 0)
+      + crop.meals + cattle.meals + caught.meals,
+    fields: crop.fields,
     meat: cattle.meals,
     fish: caught.meals,
     shore: coast.shore,

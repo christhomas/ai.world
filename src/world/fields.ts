@@ -157,22 +157,25 @@ export function withoutClearedTrees<T extends { kind: PropKind; x: number; z: nu
  * `meals` is the same total the larder takes, so the village is fed by the number it pays for. See
  * `whoFed`, which is the other half of that agreement.
  *
- * ## And nothing calls it yet, which is #384
+ * ## Why the founding yield arrives as a function and not as a number
  *
- * Written on the 13th and never reached. `aDaysTrade` counts the crop itself instead and adds only
- * the cleared acres, so `whoFed` takes the base yield out of a farmer's pay — see `broughtIn`'s
- * third argument — and nothing puts it back: a village of two farmers, a soldier and a seller grows
- * twelve meals, the farmers put five each into it, and all four are credited with one. #380 read
- * this against the other eight names the game mentions nowhere and kept it, because the fault it
- * fixes is live and this is the only written statement of the right arithmetic. What stopped it
- * being wired in the same change is the rate below: one flat number per farm pays every farmer a
- * master's crop while `mastery.ts` feeds him a novice's, so making it right means deciding where a
- * hand's worth is applied rather than merely calling this.
+ * It was one flat number per farm for as long as nothing called this, and that is what kept #384
+ * from being a one-line wiring job. A farm is capital, and `mastery.ts` says at length that the
+ * paddocks hold what the paddocks hold and a holding does not get better at anything. A *hand*
+ * does, and the founding field is the hand's work — so one number per gate pays a farmer who came
+ * of age this morning exactly what it pays one of forty days, while `broughtIn` goes on feeding
+ * the village the novice's smaller crop. That is the same fault this function exists to remove,
+ * wearing the other coat.
+ *
+ * So the rate is asked of the man standing in the field, and `food.ts: theirField` is what every
+ * caller hands over — the single expression of a crop that `broughtIn` reads too. What the farm
+ * adds on top of it is `foodAt`, and that stays flat: the acres are the capital, and the argument
+ * above is exactly that capital does not learn.
  */
 export function fieldCrop(
   people: readonly Person[], working: readonly Person[], farmers: readonly Person[],
   farms: readonly Standing[] | null, works: readonly string[],
-  perFarmer: number,
+  grownBy: (worker: Person) => number,
 ): { fields: Map<Owner, number>; meals: number } {
   const fields = new Map<Owner, number>();
   let meals = 0;
@@ -187,10 +190,10 @@ export function fieldCrop(
       const worker = byId.get(farm.worker ?? '');
       if (!worker) continue;
       const owner = farm.owner ?? ownedBy(worker);
-      add(here.has(owner) ? owner : ownedBy(worker), perFarmer + foodAt(works, farm.id ?? ''));
+      add(here.has(owner) ? owner : ownedBy(worker), grownBy(worker) + foodAt(works, farm.id ?? ''));
     }
   } else {
-    for (const farmer of farmers) add(ownedBy(farmer), perFarmer);
+    for (const farmer of farmers) add(ownedBy(farmer), grownBy(farmer));
   }
   return { fields, meals };
 }
