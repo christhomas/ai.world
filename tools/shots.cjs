@@ -361,12 +361,15 @@ const SHOTS = [
        * frame, which is the blocker"*. The arithmetic says why rather than the eye. The camera is
        * fixed at forty-five degrees, so a point `d` tiles in front of the hero standing `h` units
        * up sits about `0.7·(d + h)` world units above the middle of the picture, and the picture is
-       * only `zoom` units tall. Seventy tiles and thirty units of mountain is seventy units above
+       * only `zoom` units tall. Seventy tiles and a twenty-one unit peak is sixty-four units above
        * the middle against a half-frame of thirteen: the massif was five frames off the top.
        *
        * So both numbers moved, and a shot of a mountain is a wide shot whether or not one wanted it
-       * to be: forty-five tiles out at ninety-six units tall puts `0.7·75 = 53` against a half-frame
+       * to be: forty-five tiles out at ninety-six units tall puts `0.7·66 = 46` against a half-frame
        * of forty-eight, which is the summit near the top edge and the flank and its foot below it.
+       * There is room in that for a taller peak than the game has, which is deliberate — #391 has
+       * to be answered before `RANGE.TALLEST` can move, and this should not need retuning when it
+       * does.
        */
       const away = 45;
       const sides = [[1, 1], [-1, 1], [1, -1], [-1, -1], [1, 0], [0, 1], [-1, 0], [0, -1]];
