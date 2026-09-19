@@ -425,10 +425,6 @@ export function vacancies(holdings: readonly Holding[]): Holding[] {
   return holdings.filter((holding) => holding.worker === '');
 }
 
-/** And whatever they actually work, which is a different question in a village with a hall farm. */
-export function workedBy(holdings: readonly Holding[], who: string): Holding[] {
-  return holdings.filter((holding) => holding.worker === who);
-}
 
 /**
  * How many beasts one farm's paddocks hold.
