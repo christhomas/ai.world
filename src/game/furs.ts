@@ -178,6 +178,15 @@ export class Carcasses {
     return skin(body.kind, knife, roll);
   }
 
+  /**
+   * Walk away from it and leave it lying. The body is spent, because what is on that ledge now is
+   * bait rather than a hide: see `baiting.ts`, where somebody else eats it.
+   */
+  leaveIt(body: Carcass): void {
+    const at = this.bodies.indexOf(body);
+    if (at >= 0) this.bodies.splice(at, 1);
+  }
+
   /** Let the ones nobody came back for go. */
   age(dt: number): void {
     for (let i = this.bodies.length - 1; i >= 0; i--) {

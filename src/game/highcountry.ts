@@ -4,7 +4,10 @@ import { rangesAsMassifs } from '../world/ranges';
 import { buildSkyIsland, planSkyIslands, type SkyIsland } from '../world/skyisland';
 import { skyGroundsIn } from '../world/skygrounds';
 import { planEyries, type Eyrie } from './eyries';
+import { layTheCarcass, nestsOn, type Bait } from './baiting';
 import type { Manifest } from '../world/manifest';
+import type { Massif } from '../world/mountains';
+import type { Within } from '../world/window';
 import type { SkyIslands } from '../render/skyisland';
 import type { TerrainSampler } from '../world/terrain';
 
@@ -32,6 +35,14 @@ import type { TerrainSampler } from '../world/terrain';
  * console — and kept. Handing back a fresh array on every crossing would leave every one of those
  * holders looking at the country as it was when they took it, which is exactly the fault this item
  * is about wearing different clothes. So the lists are emptied and refilled rather than rebound.
+ *
+ * ## And the crags nobody planned
+ *
+ * A nest somebody baited is an anchor in the manifest rather than a thing read off the rock — see
+ * `baiting.ts` — so it belongs on the end of the same list. It is added here, after the planned
+ * pairs and from the same square, because everything that reads `eyries` should not have to care
+ * which of the two a crag came from: a bird is a bird whether the world put it there or a hunter
+ * did.
  */
 export class HighCountry {
   /** The crags with eagles on them, for whoever took this list on the first morning. */
@@ -39,6 +50,20 @@ export class HighCountry {
   /** And the islands in the sky over them. */
   readonly isles: SkyIsland[] = [];
   private standing: TerrainSampler | null = null;
+  /**
+   * Where the planned crags stop and the baited ones begin.
+   *
+   * The lists are refilled rather than rebound, so a nest baited between one crossing and the next
+   * has to go onto the end of the array everything else is already holding. Keeping the count is
+   * what lets the baited tail be rebuilt — partners and fares and all — without re-planning the
+   * pairs the world grew, which would be doing the mountain's work twice for nothing.
+   */
+  private planned = 0;
+  /** The square being stood in, for narrowing the manifest's nests to it. Null in a world with an edge. */
+  private square: Within | null = null;
+  /** This square's high ground and its footing, kept because baiting asks the same two questions. */
+  private high: readonly Massif[] = [];
+  private land: (x: number, z: number) => boolean = () => false;
 
   constructor(
     private readonly seed: number,
@@ -56,9 +81,14 @@ export class HighCountry {
 
     const high = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
     const land = (x: number, z: number): boolean => sampler.probe(x, z).land;
+    this.high = high;
+    this.land = land;
+    this.square = sampler.within;
 
     this.eyries.length = 0;
     this.eyries.push(...planEyries(this.seed, high, land));
+    this.planned = this.eyries.length;
+    this.perchesBaited();
 
     // the old islands leave the sky before the new ones arrive, or a hero two squares along is
     // under every island he has ever walked past
@@ -89,5 +119,29 @@ export class HighCountry {
           ? WORLD.WATER_Y : sample.height;
       });
     }
+  }
+
+  /**
+   * Leave a carcass where the hero is standing, and see whether anything comes down to it.
+   *
+   * Here rather than in the interaction because the two questions a site is judged on — what high
+   * ground is under it and whether anybody could stand on it — are the two this class already
+   * holds the answers to, and asking the sampler for them a second time somewhere else is how two
+   * halves of a program quietly acquire different ideas of the same place.
+   *
+   * @param toVillage tiles to the edge of the nearest village, which the caller measures
+   */
+  bait(x: number, z: number, day: number, toVillage: number): Bait {
+    const laid = layTheCarcass(this.manifest, this.seed, day, this.high, this.land, toVillage, x, z);
+    // and the nest is on the crag now rather than at the next patch crossing, because a hunter who
+    // has watched a bird settle should be able to turn round and see it there
+    if (laid.nest) this.perchesBaited();
+    return laid;
+  }
+
+  /** Rebuild the baited tail of the list, leaving the pairs the world planned exactly where they are. */
+  private perchesBaited(): void {
+    this.eyries.length = this.planned;
+    this.eyries.push(...nestsOn(this.manifest, this.square, this.eyries));
   }
 }

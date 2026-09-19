@@ -234,6 +234,15 @@ export interface Run {
    * this still a place anybody could believe in" — and cannot ask it from a ledger of purses.
    */
   standing: Map<string, Standing[]>;
+  /**
+   * What the holdings book came to, which #264 asked to be measured rather than argued about.
+   *
+   * *"Keep every fact and bound nothing … report the book's measured size after a hundred days in
+   * the bench rather than arguing about it."* It keeps one row per holding per morning it posted
+   * somebody, for the life of the save, and what that costs is memory, saves and what a joining
+   * client is handed. Bytes are the serialised rows, because a save is JSON and a join is JSON.
+   */
+  posts: { holdings: number; facts: number; bytes: number };
 }
 
 /** What a village held one evening, beyond what was in its people's pockets. */
@@ -411,7 +420,14 @@ export function liveForward(seed: number, days = DAYS): Run {
     standing.get(regime.village)!.push(stood(register, regime.village, FOUNDED + days));
   }
 
-  return { seed, books, minted, taxed, restarted, founded, roomAtFounding, standing };
+  return {
+    seed, books, minted, taxed, restarted, founded, roomAtFounding, standing,
+    posts: {
+      holdings: register.holdingsBook.holdings(),
+      facts: register.holdingsBook.facts(),
+      bytes: register.holdingsBook.weigh(),
+    },
+  };
 }
 
 /** The books of one village, shut for the night. */
