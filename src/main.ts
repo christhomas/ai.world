@@ -31,7 +31,7 @@ import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
-import { villageWatch } from './game/villageroofs';
+import { whatTheVillagesRaised } from './game/villageroofs';
 import { Beam } from './render/beam';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
@@ -56,7 +56,6 @@ import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
-import { whichFieldClears } from './world/fieldbuilds';
 import { walksIn } from './game/arriving';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
@@ -164,10 +163,6 @@ export function startGame(
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
   const register = new Register(seed);
   register.theyStandAt(structures.villages);
-  register.fieldsAreSurveyedBy((name, settlement) => {
-    const village = structures.villages.find((at) => at.name === name);
-    return village ? whichFieldClears(village, settlement, sampler) : null;
-  });
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     // What a villager is paid for what they sell — the same share of the shop price the player
@@ -238,10 +233,10 @@ export function startGame(
   rig.scene.add(ownBoat);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
-  // and on the same sites, the houses the villages built themselves: `game/villageroofs.ts`
-  const villageRoofs = villageWatch(
-    () => structures.villages, (v) => register.worksOf(v), (fields) => chunks.clearFields(fields),
-  );
+  // and on the same sites, the houses the villages built themselves — and, out of the same book and
+  // on the same day, the acres they cleared to fields: `game/villageroofs.ts` owns both, because
+  // this file is assembly and a feature that needs six lines of it is wired in the wrong place
+  const villageRoofs = whatTheVillagesRaised(register, () => structures.villages, sampler, chunks);
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,

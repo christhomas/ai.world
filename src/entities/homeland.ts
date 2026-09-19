@@ -79,8 +79,3 @@ export function homelandsOf(filed: ReadonlyMap<string, Entity[]>): Map<ProvinceI
   }
   return out;
 }
-
-/** The herds one province is answerable for, and nobody else's. */
-export function herdsIn(filed: ReadonlyMap<string, Entity[]>, id: ProvinceId): Herd[] {
-  return homelandsOf(filed).get(id) ?? [];
-}

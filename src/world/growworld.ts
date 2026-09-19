@@ -3,7 +3,7 @@ import { inOrder } from './elevation';
 import type { WorldKind } from './countries';
 import type { RoadGraph } from './graph';
 import type { Highland } from './highland';
-import { islandAnchors, planIslands, roadTreeWorld } from './roadtree';
+import { planIslands, roadTreeWorld } from './roadtree';
 import type { Anchor, Manifest } from './manifest';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
@@ -51,11 +51,6 @@ export function islandsFor(manifest: Manifest, seed: number): readonly Anchor[] 
   if (saved.length > 0) return saved;
   for (const p of planIslands(roadTreeWorld(seed), seed)) manifest.ensure(p.id, 'island', p.x, p.z);
   return manifest.byKind('island');
-}
-
-/** Where a world's islands hang, for a manifest that has not written them down yet. */
-export function islandsOfSeed(seed: number): Anchor[] {
-  return islandAnchors(roadTreeWorld(seed), seed);
 }
 /**
  * The endless country, one patch of it, and the same rule about there being one caller.
