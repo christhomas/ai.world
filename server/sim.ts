@@ -87,6 +87,32 @@ export const TICK = 100;
 /** Drop anyone we have not heard from in this long. */
 export const TIMEOUT = 30_000;
 /**
+ * The most silence one tick is allowed to claim it heard, in milliseconds.
+ *
+ * Ticks are meant to arrive every `TICK`. When one arrives a minute late it is not because the
+ * players went quiet for a minute — it is because nothing ran for a minute, including the tick
+ * itself. Founding a world is synchronous, and on a four-core ARM box a join measured **50817ms,
+ * 62642ms and 58701ms**, all of it inside one `receive`. Nobody was given a chance to speak in
+ * that gap, so charging it to them as silence dropped the player who had just opened the world,
+ * the instant it was ready for them.
+ *
+ * That is what it cost: `operate.test.ts` joined two players, saw both welcomed, and then had the
+ * operator door count nought of them — `expected +0 to be 2`. It failed the 0.100.1 release, and
+ * it is not a test fault. A player joining a fresh world on the homelab box was being thrown out
+ * of it for the wait the server had just put them through.
+ *
+ * Two ticks, because that is the most a tick that is merely *late* can honestly claim, and every
+ * number above is hundreds of times larger. A running server fills this every tick, so real silence
+ * still arrives at full speed and a patience shorter than this one is still a patience.
+ *
+ * It follows — and it cost two tests to notice — that **a clock jump is no longer a way to be
+ * silent**. `sim.tick(now + 5_000)` used to drop a player because the reaper read the jump off a
+ * wall clock; it cannot now, because a five-second jump is indistinguishable from five seconds of
+ * the loop being held, which is the whole fault being fixed. A test that wants somebody let go of
+ * ticks the way a live server does, a tenth of a second at a time.
+ */
+export const HEARD_AT_MOST = TICK * 2;
+/**
  * How often each player is told what is alive near them, in milliseconds.
  *
  * A third of a second. Presence is ten times a second because a hero that stutters is unplayable;
@@ -409,7 +435,7 @@ export class Simulation {
         if (!client) return;
         const room = this.rooms.get(client.seed);
         if (!room) return;
-        client.lastSeen = Date.now();
+        client.silent = 0;
         // A floor is the one thing a message can ask the simulation to *make*, so it is answered
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
@@ -437,11 +463,14 @@ export class Simulation {
    */
   tick(now = Date.now()): void {
     const seconds = (now - this.lastTick) / 1000;
+    // Silence is counted in time the server was awake for, not in wall clock: see `HEARD_AT_MOST`.
+    const heard = Math.min(now - this.lastTick, HEARD_AT_MOST);
     this.lastTick = now;
 
     for (const [seed, room] of this.rooms.entries()) {
       for (const client of room.clients) {
-        if (now - client.lastSeen > this.timeout) { client.wire.close(); this.rooms.leave(client); }
+        client.silent += heard;
+        if (client.silent > this.timeout) { client.wire.close(); this.rooms.leave(client); }
       }
       if (room.clients.size === 0) {
         // the loudest "nobody is here" there is, so the provinces are put away properly rather than
