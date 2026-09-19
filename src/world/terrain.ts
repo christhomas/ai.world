@@ -226,7 +226,15 @@ export class TerrainSampler {
       // is the mountain country itself, which is ground and therefore something a river must know
       // about or it will run uphill out of a valley.
       (x, z, roadDist) => (this.shaped ? this.highlandAt(x, z) : upliftAt(x, z, this.massifs, roadDist)),
-      // Springs are ranked in terraces; nearestLift reports world units.
+      /*
+       * Where they stand is still worth knowing, for where water comes out of the ground — in
+       * terraces, which is what the ranking on the other side adds it to. `nearestLift` answers in
+       * world units, because `RANGE.TALLEST` is a height a camera has to frame; a terrace is half a
+       * unit, so this was handing the ranking *half* the number its own comment asked for.
+       * Measured on the bounded fixture, seed 1: `peak.lift` 13.69–19.65 units, so 27–39 terraces,
+       * against crossroads levels of 3–29 and an uplift of 0–19. The same division `rangesAsMassifs`
+       * does, for the same reason it gives.
+       */
       (x, z) => (high ? nearestLift(high, x, z) / WORLD.STEP : 0),
     );
     for (const river of this.hydro.rivers) {
