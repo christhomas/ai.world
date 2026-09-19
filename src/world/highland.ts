@@ -99,8 +99,27 @@ export function cutForWater(
   country: number, water: { level: number; wd: number } | null, roadLevel: number, bank: number,
 ): number {
   if (!water) return country;
-  const allowed = (Math.max(1, water.level) - roadLevel) + Math.max(0, water.wd - bank) / VALLEY_SIDE;
-  return Math.min(country, Math.max(0, allowed));
+  return Math.min(country, Math.max(0, waterCeiling(water, bank) - roadLevel));
+}
+
+/**
+ * The highest terrace anything may stand at beside one water, in absolute terraces.
+ *
+ * The water's own surface out to the edge of its bank, and a terrace for every `VALLEY_SIDE` tiles
+ * after that. It is one expression because four things have to agree about it, and every time one
+ * of them has answered separately it has left a wall: how far the country is cut down
+ * (`cutForWater` above), what terrace the bank ring itself sits at, where the surface of the water
+ * is drawn, and how high the ground a little further out is allowed to climb.
+ *
+ * Asked of *every* water near a point rather than the nearest, and the answer is the smallest —
+ * each body constrains the ground on its own and the binding one is the lowest, which is not the
+ * closest. Taken of the nearest alone it is discontinuous by construction: walk one tile, the
+ * nearest water changes hands, and the ground jumps by the difference between two surfaces. That
+ * is the 12.15-unit wall at (116, 78) on seed 17, where two tiles that are both bank sat at
+ * terraces 43.10 and 18.79.
+ */
+export function waterCeiling(water: { level: number; wd: number }, bank: number): number {
+  return Math.max(1, water.level) + Math.max(0, water.wd - bank) / VALLEY_SIDE;
 }
 
 /** One face's worth of high country: where it is, how far its ground rises, and how high. */

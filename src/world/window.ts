@@ -1,6 +1,7 @@
 import { GRAPH, HYDRO, WORLD } from '../core/config';
 import type { RoadGraph } from './graph';
 import type { Lake } from './rivers';
+import { VALLEY_SIDE } from './highland';
 import { CellIndex } from './spatial';
 import { structureBounds, type Structures } from './structures';
 
@@ -41,10 +42,36 @@ export const CELL = 32;
  * it, since a road near the coast paints the shallows too.
  */
 export const EDGE_MARGIN = GRAPH.MAX_WIDTH * 1.45 + WORLD.SEABED_RANGE + 2;
-/** A river's own width plus its banks. */
-export const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + HYDRO.BANK + 8;
-/** A lake's banks. Its radius wobbles, so the caller adds a fraction of that as well. */
-export const LAKE_MARGIN = HYDRO.BANK + 8;
+/**
+ * How far from a water the ground it decides reaches, in tiles.
+ *
+ * It was the banks — a river's width plus `HYDRO.BANK` plus eight — and the banks are not what a
+ * water paints. `cutForWater` holds the country down to the water's own surface climbing away at
+ * `VALLEY_SIDE`, and that rule carries no distance in it at all: a river at terrace ten running
+ * through country that wants to stand at forty-five holds the ground down for (45 − 10) × 1.4 =
+ * forty-nine tiles.
+ *
+ * Indexed under twelve, a water was therefore *visible* to one tile and invisible to the one beside
+ * it, because what a query returns is the cells its two-tile box touches and a cell is thirty-two
+ * tiles wide. At (-66, -164) on seed 8 the left tile saw fourteen waters and the right one
+ * twenty-one; the extra was a river at terrace ten, 12.9 tiles off, and it cut that tile's ground
+ * from terrace 45 to terrace 18. A **13.50-unit wall** between two ordinary land tiles, and nothing
+ * in the world to explain it: the wall is the edge of an index.
+ *
+ * Twenty-four is measured rather than derived, and the derivation is worth knowing before anybody
+ * lowers it. The reach past which no water can bind is `BANK + (the highest the country ever
+ * stands above its road) × VALLEY_SIDE`, which with `HIGHLAND.MOST` is eighty tiles. Across seeds
+ * 1–30 every measurement in `banks.test.ts` is identical at 24, 40 and 80 — because a river only
+ * runs at terrace ten where the country around it is low, and the rivers up in the high country
+ * carry a high surface with them — while eighty doubles what a world costs to grow against thirty
+ * per cent for twenty-four. If a seed ever appears that binds past this, `banks.test.ts` is what
+ * says so, and the answer is to raise this rather than the bound.
+ */
+const VALLEY_REACH = HYDRO.BANK + 16 * VALLEY_SIDE;
+/** A river's own width plus the valley it cuts. */
+export const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + VALLEY_REACH;
+/** A lake's. Its radius wobbles, so the caller adds a fraction of that as well. */
+export const LAKE_MARGIN = VALLEY_REACH;
 
 /** One straight run of a river, with its level and width at either end. */
 export interface RiverSeg {
