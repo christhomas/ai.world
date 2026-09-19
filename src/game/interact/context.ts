@@ -8,6 +8,7 @@ import type { Flier } from '../craft';
 import type { WorldDelta } from '../../../server/protocol';
 import type { Player } from '../../entities/player';
 import type { Eyrie } from '../eyries';
+import type { HighCountry } from '../highcountry';
 import type { Skies } from '../skies';
 import type { Luxury } from '../../world/prosperity';
 import type { Structures } from '../../world/structures';
@@ -129,6 +130,14 @@ export interface Surroundings {
   ferries: Array<{ line: FerryLine; mesh: THREE.Object3D }>;
   /** The crags with eagles on them, empty in a world with no mountains worth flying over. */
   eyries: readonly Eyrie[];
+  /**
+   * What stands on this square's rock, for the one interaction that can add to it.
+   *
+   * `eyries` above is the list to read; this is the thing that owns it. Leaving a carcass for the
+   * eagles is the only act in the game that can put a crag in the country, and it has to go
+   * through the owner so the nest is written into the manifest and on the ledge in one place.
+   */
+  high: HighCountry;
   /** The villages in the clouds, and whether the hero is standing on one of them. */
   skies: Skies;
   /** What a village has built for itself with what it earned, by name. */
