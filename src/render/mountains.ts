@@ -156,8 +156,18 @@ export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THR
     // that points at the sky: a mountain has no underside anybody can get to.
     if (n.y < 0) n.negate();
 
-    // the middle of the triangle decides its colour, so one surface is one shade
-    const mid = (positions[i + 1] + positions[i + 4] + positions[i + 7]) / 3;
+    /*
+     * How far up its mountain this triangle is, which decides its colour — and the middle of the
+     * triangle rather than a vertex, so one surface is one shade.
+     *
+     * Height *above the ground it stands on*, which is what `ranges.above` was kept for. This used
+     * to divide the absolute world height by the tallest peak's lift, and those are two different
+     * measurements: the endless country's rock stands on high ground, so a summit twenty-one units
+     * tall on country twelve units up came out at 33 / 21 = 1.57 and clamped. Every triangle above
+     * y = 13 was at the top of the ramp, which put `SNOWLINE` — 0.62 of the tallest peak — about
+     * one unit above the foot of the mountain and left #308's snow line with nothing to mark.
+     */
+    const mid = (ranges.above[t * 3] + ranges.above[t * 3 + 1] + ranges.above[t * 3 + 2]) / 3;
     const up = Math.max(0, Math.min(1, mid / tallest));
     const stone = mix(rockLow, rockHigh, up);
     // snow lies on what is flat enough to hold it: a wall stays bare however high it stands, which

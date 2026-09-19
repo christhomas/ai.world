@@ -1,11 +1,12 @@
 import { rand2 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
+import { CARVE, carveSpurs, cut, spursOf, type Point, type Rock } from './carve';
 import { areaOf, kindOf } from './localland';
 import { facesIn, type Country, type Face } from './localmesh';
-import { hashOfName, junctionsIn } from './localroads';
+import { hashOfName } from './localroads';
 import type { Land } from './localroads';
 import { FaceKind } from './mesh';
-import { RANGE, cut, indexTriangles, type Peak, type Point, type Ranges } from './ranges';
+import { RANGE, indexTriangles, type Peak, type Ranges } from './ranges';
 import type { Within } from './window';
 
 /**
@@ -15,17 +16,16 @@ import type { Within } from './window';
  * cone dropped on a plain. This is the last few hundred feet, the part that is geometry rather than
  * heightfield, and it was the one thing the endless country did not have.
  *
- * `buildRanges` does it for a bounded world and cannot do it here for three reasons, all of the same
+ * `buildRanges` does it for a bounded world and cannot do it here for two reasons, both of the same
  * kind. It rolls a die for every face in the world in id order, so a mountain's height depends on
- * how many faces sort before it. It measures each face against the widest mountain face in the
- * world, so adding country somewhere else makes this mountain shorter. And it holds a corner down
- * unless every face meeting there is a mountain, which it answers from an array of the world's
- * corners.
+ * how many faces sort before it; and it measures each face against the widest mountain face in the
+ * world, so adding country somewhere else makes this mountain shorter.
  *
- * Each has a local answer. A face's height comes from its own name. It is measured against the size
- * a face of this country's spacing has, which is a constant rather than a survey. And a corner is a
- * crossroads, so what meets there is a question `junctionsIn` already answers inside a bounded
- * neighbourhood.
+ * Both have a local answer: a face's height comes from its own name, measured against the size a
+ * face of this country's spacing has, which is a constant rather than a survey. There was a third —
+ * a corner held down unless every face meeting there was a mountain, answered out of an array of
+ * the whole world's corners — and it stopped being a question when #307 buried every rim. The rim
+ * comes down to the ground wherever it stops now, like any other border.
  *
  * What is not replaced is the subdivision, because it never needed replacing: a midpoint is
  * displaced by a hash of the two ends of the side it sits on, so two triangles sharing a side agree
@@ -63,24 +63,6 @@ function liftOf(world: Country, face: Face): number {
 }
 
 /**
- * How high a corner of the country stands.
- *
- * Held at ground level unless every face meeting there is a mountain: one foot in open country and
- * the range has to come down to meet it, which is what makes a range end rather than break off.
- * Deep inside a range it stands at a share of the lowest peak around it, so the col between two
- * mountains belongs to the smaller of the two.
- */
-function cornerLift(world: Land, around: string[]): number {
-  let lowest = Infinity;
-  for (const id of around) {
-    const face = world.faces.get(id);
-    if (!face || kindOf(world, face) !== FaceKind.Mountain) return 0;
-    lowest = Math.min(lowest, liftOf(world, face));
-  }
-  return lowest === Infinity ? 0 : lowest * RANGE.COL;
-}
-
-/**
  * The rock standing in a patch.
  *
  * `ground` is how high the finished ground is at a point — the mountains stand on it rather than
@@ -92,15 +74,8 @@ export function rockIn(world: Land, within: Within, ground: (x: number, z: numbe
     x0: within.x0 - spill, z0: within.z0 - spill, x1: within.x1 + spill, z1: within.z1 + spill,
   };
 
-  // every crossroads the patch can see, so a face can ask how high its own corners stand
-  const corners = new Map<string, number>();
-  for (const junction of junctionsIn(world, wider)) {
-    corners.set(cornerName(junction.x, junction.z), cornerLift(world, junction.id.split('|')));
-  }
-
   const peaks: Peak[] = [];
-  const tris: number[] = [];
-  const owner: number[] = [];
+  const rock: Rock = { tris: [], owner: [], above: [] };
   for (const face of facesIn(world, wider)) {
     if (kindOf(world, face) !== FaceKind.Mountain) continue;
     const area = areaOf(face);
@@ -126,35 +101,25 @@ export function rockIn(world: Land, within: Within, ground: (x: number, z: numbe
       peaks.push({ face: id, range: id, x: ax, z: az, lift: height, y: under + height });
       const apex: Point = { x: ax, z: az, ground: under, lift: height };
 
-      // the rim: the face's own shape, pulled in towards this apex so the flanks are steep
+      // the rim: the face's own shape, pulled in towards this apex so the flanks are steep, and
+      // buried wherever it stops so the rock is underground before it runs out
       const spread = RANGE.SPREAD / Math.sqrt(many);
       const rim = face.corners.map((c) => {
         const rx = ax + (c.x - ax) * spread;
         const rz = az + (c.z - az) * spread;
-        const held = corners.get(cornerName(c.x, c.z)) ?? 0;
-        return { x: rx, z: rz, ground: ground(rx, rz), lift: held * spread - RANGE.BURY };
+        return { x: rx, z: rz, ground: ground(rx, rz), lift: -CARVE.BURY };
       });
+      const before = rock.above.length;
       for (let k = 0; k < rim.length; k++) {
-        cut(apex, rim[k], rim[(k + 1) % rim.length], RANGE.CUTS, world.seed, RANGE.TALLEST, tris, owner, id);
+        cut(apex, rim[k], rim[(k + 1) % rim.length], CARVE.CUTS, world.seed, RANGE.TALLEST, rock, id);
       }
+      carveSpurs(rock, before, spursOf(world.seed, ax, az, reach * spread));
     }
   }
 
-  const flat = new Float32Array(tris);
+  const flat = new Float32Array(rock.tris);
   return {
-    tris: flat, owner: new Int32Array(owner), peaks, bowl: null,
+    tris: flat, owner: new Int32Array(rock.owner), above: new Float32Array(rock.above), peaks, bowl: null,
     index: indexTriangles(flat, Math.hypot(wider.x1 - wider.x0, wider.z1 - wider.z0) / 2),
   };
-}
-
-/**
- * A corner's name: where it is, rounded fine.
- *
- * A face names its corners by position and a junction names itself by the faces that meet there, so
- * the two are joined by the one thing they agree about. Rounded because both arrive at the same
- * point by different arithmetic — a circumcentre and a clipped polygon corner — and the last bit of
- * a double is not something two routes to the same place can be asked to share.
- */
-function cornerName(x: number, z: number): string {
-  return `${Math.round(x * 64)},${Math.round(z * 64)}`;
 }
