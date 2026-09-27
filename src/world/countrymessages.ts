@@ -1,5 +1,6 @@
 import type { PatchParts } from './endless';
 import type { Highland } from './highland';
+import type { TerrainLayer } from './terrainlayers';
 import type { Reading } from './seedscore';
 
 /**
@@ -26,6 +27,7 @@ export type CountryRequest =
      * the only thing there is: this worker is handed no world to remember.
      */
     layers: readonly Highland[];
+    terrain: readonly TerrainLayer[];
   }
   /**
    * Measure this seed, and do it over there.

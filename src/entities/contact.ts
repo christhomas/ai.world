@@ -24,21 +24,27 @@ import { BEHAVIOUR, tryMove, type Entity, type Herd, type TileWorld } from './en
  */
 export function keepApart(
   e: Entity, fromX: number, fromZ: number, room: number, dt: number, world: TileWorld,
-): void {
+  maxPush = Infinity,
+): number {
   const dx = e.x - fromX, dz = e.z - fromZ;
   const away = Math.hypot(dx, dz);
-  if (away >= room) return;
+  if (away >= room || maxPush <= 0) return 0;
 
   // exactly on top of each other has no direction to it, so pick one from where they are
   const len = away || 0.0001;
   const nx = away > 0.001 ? dx / len : Math.cos(e.phase);
   const nz = away > 0.001 ? dz / len : Math.sin(e.phase);
-  const push = Math.min(room - away, BEHAVIOUR.SHOVE * dt);
+  const x = e.x, z = e.z;
+  const push = Math.min(room - away, BEHAVIOUR.SHOVE * dt, maxPush);
   tryMove(world, e, nx * push, nz * push);
+  return Math.hypot(e.x - x, e.z - z);
 }
 
 /** How far from the hero bodies are held apart from each other as well as from him. */
 const ELBOWS_OUT = 14;
+
+/** Bound a creature's total positional correction from separation in one simulation tick. */
+const MAX_SEPARATION_PER_BODY = 0.2;
 
 /** Room two of these need between them, which is bigger the bigger they are. */
 function elbowRoom(a: Entity, b: Entity): number {
@@ -64,6 +70,12 @@ export function keepBodiesApart(
 ): void {
   const r2 = range * range, seen2 = ELBOWS_OUT * ELBOWS_OUT;
   const inSight: Entity[] = [];
+  const separated = new Map<Entity, number>();
+  const separate = (e: Entity, x: number, z: number, room: number): void => {
+    const spent = separated.get(e) ?? 0;
+    const moved = keepApart(e, x, z, room, dt, world, MAX_SEPARATION_PER_BODY - spent);
+    if (moved > 0) separated.set(e, spent + moved);
+  };
   for (const list of crowds) {
     for (const e of list) {
       const dx = e.x - playerX, dz = e.z - playerZ;
@@ -73,14 +85,14 @@ export function keepBodiesApart(
       if (e.role === 'mount') continue;
       // scaled up by big things and never down by small ones: the room the hero needs is the
       // hero's, and a bat being small is no reason to let it stand on their head
-      keepApart(e, playerX, playerZ, BEHAVIOUR.PERSONAL * Math.max(1, e.kind.scale), dt, world);
+      separate(e, playerX, playerZ, BEHAVIOUR.PERSONAL * Math.max(1, e.kind.scale));
       if (away <= seen2) inSight.push(e);
     }
   }
   for (let i = 0; i < inSight.length; i++) {
     for (let j = i + 1; j < inSight.length; j++) {
       const a = inSight[i], b = inSight[j];
-      keepApart(a, b.x, b.z, elbowRoom(a, b), dt, world);
+      separate(a, b.x, b.z, elbowRoom(a, b));
     }
   }
   for (const herd of herds) {
@@ -92,7 +104,7 @@ export function keepBodiesApart(
         // already elbowed apart above, and pushing twice in a frame makes them jitter
         const dx = a.x - playerX, dz = a.z - playerZ;
         if (dx * dx + dz * dz <= seen2) continue;
-        keepApart(a, b.x, b.z, elbowRoom(a, b), dt, world);
+        separate(a, b.x, b.z, elbowRoom(a, b));
       }
     }
   }

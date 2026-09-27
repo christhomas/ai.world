@@ -3,6 +3,7 @@ import { inOrder } from './elevation';
 import type { WorldKind } from './countries';
 import type { RoadGraph } from './graph';
 import type { Highland } from './highland';
+import type { TerrainLayer } from './terrainlayers';
 import { planIslands, roadTreeWorld } from './roadtree';
 import type { Anchor, Manifest } from './manifest';
 import type { TerrainSampler } from './terrain';
@@ -72,9 +73,9 @@ export function islandsFor(manifest: Manifest, seed: number): readonly Anchor[] 
  * hand a finished patch to a page, and what will let a server hand one to both.
  */
 export function growPatch(
-  seed: number, within: Within, layers: readonly Highland[] = [],
+  seed: number, within: Within, layers: readonly Highland[] = [], terrain: readonly TerrainLayer[] = [],
 ): TerrainSampler {
-  return samplerIn(seed, within, layers);
+  return samplerIn(seed, within, layers, terrain);
 }
 
 /**
@@ -96,6 +97,11 @@ export function elevationFor(manifest: Manifest): readonly Highland[] {
   // `Manifest.layers` decides what counts as one, so that what a world hands a joining page and
   // what either half grows from cannot be two different selections of the same anchors
   return manifest.layers().map((anchor) => ({ x: anchor.x, z: anchor.z, ...anchor.layer! }));
+}
+
+/** Authored land and sea edits in application order, from the same manifest on both halves. */
+export function terrainFor(manifest: Manifest): readonly TerrainLayer[] {
+  return manifest.terrain;
 }
 
 /**
@@ -138,12 +144,19 @@ export function elevationFor(manifest: Manifest): readonly Highland[] {
  * `theirs` may be empty and `theirKind` missing: a world that grows no ground says nothing, and one
  * older than the field says nothing about its kind. Both are silence rather than disagreement.
  */
-export function whyCountriesDiffer(mine: string, theirs: string): string | null {
+export function whyCountriesDiffer(
+  mine: string, theirs: string, myKind?: WorldKind, theirKind?: WorldKind,
+): string | null {
+  if (theirKind && myKind && theirKind !== myKind) {
+    return `This page grew a ${myKind} country and the world you joined grew a ${theirKind} country.`;
+  }
   if (!theirs || theirs === mine) return null;
   return `This world grew differently here (${mine}) and in the world you joined (${theirs}).`;
 }
 
-export function countryStamp(graph: RoadGraph, layers: readonly Highland[] = []): string {
+export function countryStamp(
+  graph: RoadGraph, layers: readonly Highland[] = [], terrain: readonly TerrainLayer[] = [],
+): string {
   const { eat, said } = fingerprint();
   eat(graph.seed);
   eat(graph.nodes.length);
@@ -164,6 +177,7 @@ export function countryStamp(graph: RoadGraph, layers: readonly Highland[] = [])
    * in `inOrder`'s order so that two halves holding the same list differently sorted still agree.
    */
   eatLayers(eat, layers);
+  eatTerrain(eat, terrain);
   return said();
 }
 
@@ -199,7 +213,9 @@ export function countryStamp(graph: RoadGraph, layers: readonly Highland[] = [])
  * loud here rather than left to be assumed: this is a fingerprint of what a world *is*, not of the
  * code that grew it.
  */
-export function endlessStamp(seed: number, layers: readonly Highland[] = []): string {
+export function endlessStamp(
+  seed: number, layers: readonly Highland[] = [], terrain: readonly TerrainLayer[] = [],
+): string {
   const { eat, said } = fingerprint();
   // a tag of its own, so an endless stamp and a bounded one can never be the same eight characters
   // by accident: two halves that grew different *kinds* of country have to read as a disagreement,
@@ -207,6 +223,7 @@ export function endlessStamp(seed: number, layers: readonly Highland[] = []): st
   eat(0x656e6421);
   eat(seed >>> 0);
   eatLayers(eat, layers);
+  eatTerrain(eat, terrain);
   return said();
 }
 
@@ -227,8 +244,9 @@ export function endlessStamp(seed: number, layers: readonly Highland[] = []): st
  */
 export function stampFor(
   kind: WorldKind, seed: number, graph: RoadGraph, layers: readonly Highland[] = [],
+  terrain: readonly TerrainLayer[] = [],
 ): string {
-  return kind === 'endless' ? endlessStamp(seed, layers) : countryStamp(graph, layers);
+  return kind === 'endless' ? endlessStamp(seed, layers, terrain) : countryStamp(graph, layers, terrain);
 }
 
 /**
@@ -259,5 +277,17 @@ function eatLayers(eat: (n: number) => void, layers: readonly Highland[]): void 
   for (const l of inOrder(layers)) {
     eat(Math.round(l.x * 1000)); eat(Math.round(l.z * 1000));
     eat(Math.round(l.reach * 1000)); eat(Math.round(l.lift * 1000));
+  }
+}
+
+/** Terrain edits are ordered: the last one touching a face wins. */
+function eatTerrain(eat: (n: number) => void, terrain: readonly TerrainLayer[]): void {
+  if (terrain.length === 0) return; // preserve existing stamps for worlds without authored terrain
+  eat(0x74657272);
+  eat(terrain.length);
+  for (const layer of terrain) {
+    eat(Math.round(layer.x * 1000)); eat(Math.round(layer.z * 1000));
+    eat(Math.round(layer.reach * 1000)); eat(layer.seed >>> 0);
+    eat(layer.kind === 'land' ? 1 : 2);
   }
 }

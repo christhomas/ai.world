@@ -316,9 +316,11 @@ describe('the same world, grown on both sides', () => {
      * refusing to let that line change quietly, so it is updated rather than loosened, and it now
      * asserts the list is there as well as the generator.
      */
-    expect(sim).toContain('new Patchwork(seed, growPatch, undefined, layers)');
+    expect(sim).toContain('new Patchwork(seed, growPatch, undefined, layers, terrain)');
     expect(sim, 'the world grows its country from a layer list it never read a manifest for')
       .toContain('elevationFor(this.rooms.manifestOf(seed))');
+    expect(sim, 'the world grows its country without the authored land and sea edits')
+      .toContain('terrainFor(this.rooms.manifestOf(seed))');
     covered.push('PASS      1  the world grows the acre named at the join, from its own manifest');
   });
 });

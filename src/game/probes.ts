@@ -136,7 +136,7 @@ export interface Probed {
    * together — `0 corrections` is a world drawn perfectly or a world nobody measured, and which of
    * those it is depends on whether there was a creature to stand beside.
    */
-  wildlife: Pick<Wildlife, 'drift' | 'nearestCounted'>;
+  wildlife: Pick<Wildlife, 'drift' | 'nearestCounted' | 'correctionTrace'>;
   /** What has bitten the hero lately, and how far off the biter was drawn. */
   bites: ReadonlyArray<{ at: number; id: number; damage: number; away: number | null }>;
   /** What the water listener last worked out. Read live: it changes every frame. */

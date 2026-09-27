@@ -20,8 +20,7 @@
  *   WORLD=endless chore shots -- town   # the same shot in the other generator
  *   SEED=7 chore shots -- town          # or on another seed
  *
- * It borrows playwright exactly the way `playtest.cjs` does and for the same reason — a browser
- * toolchain has no business in a world-server image — and it starts a page server if nothing is
+ * It uses the project's development Playwright install and starts a page server if nothing is
  * already answering, leaving one it did not start alone.
  *
  * A shot that cannot be set up says so and the run carries on: a sea that has no whales in it this
@@ -34,12 +33,9 @@ const path = require('node:path');
 
 const PORT = process.env.PORT || '5173';
 /*
- * Which browser. Empty means playwright's own chromium, which a *borrowed* playwright usually
- * cannot reach: its bundled browser is a numbered download matching the version that was borrowed,
- * and the checkout it came from has a different number on disk. So the default is the real Chrome,
- * and `BROWSER=/path/to/one` covers the machine that has neither.
+ * Which browser. Empty means the Chromium binary installed for this project's Playwright version.
  */
-const CHANNEL = process.env.CHANNEL ?? 'chrome';
+const CHANNEL = process.env.CHANNEL ?? '';
 
 /**
  * How long anything here is allowed to take, in milliseconds.
@@ -101,6 +97,8 @@ const writeSweep = () => { if (COUNTS_OUT) fs.writeFileSync(COUNTS_OUT, JSON.str
 const origin = `http://localhost:${PORT}`;
 /** The shape of the pictures in the README: wide enough to show a street, short enough to scroll past. */
 const VIEW = { width: 1440, height: 900 };
+/** Hide transient capture clutter without changing the running page or the rest of its HUD. */
+const CLEAN_FRAME = '#areaName, #toast, #debug { visibility: hidden !important; }';
 /** A phone held upright, for the one shot that is about the touch controls. */
 /*
  * A phone, at the size the design is drawn at.
@@ -239,6 +237,7 @@ const verbs = (page) => ({
 const SHOTS = [
   {
     name: 'town', title: 'The crossroads at midday',
+    cleanFrame: true,
     setup: async (p, { village, time, zoom }) => {
       const v = await village();
       await time(NOON);
@@ -862,7 +861,7 @@ async function take(browser, shot) {
    */
   await page.waitForTimeout(shot.settle ?? 9000);
   const file = path.join(OUT, `${shot.name}.png`);
-  await page.screenshot({ path: file });
+  await page.screenshot({ path: file, style: shot.cleanFrame ? CLEAN_FRAME : undefined });
   await done();
   return { ok: true, file, note, errs: errs.length };
 }

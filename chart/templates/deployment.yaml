@@ -1,3 +1,6 @@
+{{- if ne (int .Values.replicaCount) 1 }}
+{{- fail "ai.world builder routing requires replicaCount: 1 until sockets use shared routing" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -48,6 +51,14 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.containerPort | quote }}
+            - name: AI_WORLD_REPLICAS
+              value: {{ .Values.replicaCount | quote }}
+            {{- if .Values.ingress.enabled }}
+            # The ingress terminates TLS, so the portal must use its forwarded protocol when
+            # deciding whether the tools session cookie needs Secure.
+            - name: TRUST_PROXY
+              value: "1"
+            {{- end }}
             - name: DATA_DIR
               value: {{ .Values.persistence.mountPath | quote }}
             {{- if .Values.page.enabled }}

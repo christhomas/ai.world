@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   addAccount, accountNamed, beginSession, endSession, howManyAccounts,
   migrate, sessionStands, sweepSessions, whoIsThis,
+  pairWorker, pairedWorker, unpairWorker, hasWorkerPair,
 } from './accounts';
 import { SCRYPT, hashPassword, passwordMatchesAsync, wantsRehashing } from './passwords';
 import { TOKEN_LASTS, newSessionId, readToken, signToken } from './tokens';
@@ -221,5 +222,27 @@ describe('who may open the tools', () => {
     const seen = new Set(Array.from({ length: 200 }, () => newSessionId()));
     expect(seen.size).toBe(200);
     expect([...seen][0].length).toBeGreaterThanOrEqual(24);
+  });
+});
+
+describe('one builder pairing per account', () => {
+  it('stores only a digest and revokes both rotated and removed bearers', () => {
+    const db = book();
+    const chris = addAccount(db, 'chris', 'password')!;
+    const alex = addAccount(db, 'alex', 'password')!;
+    const first = pairWorker(db, chris.id);
+    expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(pairedWorker(db, first)).toBe(chris.id);
+    expect(hasWorkerPair(db, chris.id)).toBe(true);
+    expect(JSON.stringify(db.prepare('SELECT * FROM builder_pair').all())).not.toContain(first);
+    const second = pairWorker(db, chris.id);
+    expect(second).not.toBe(first);
+    expect(pairedWorker(db, first)).toBeNull();
+    expect(pairedWorker(db, second)).toBe(chris.id);
+    expect(pairedWorker(db, second.slice(0, -1))).toBeNull();
+    expect(hasWorkerPair(db, alex.id)).toBe(false);
+    unpairWorker(db, chris.id);
+    expect(pairedWorker(db, second)).toBeNull();
+    expect(hasWorkerPair(db, chris.id)).toBe(false);
   });
 });

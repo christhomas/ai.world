@@ -29,30 +29,23 @@
  *
  *   PORT=5173  SEED=3                 the address, assembled
  *   ADDRESS=...                       or the whole address at once, if you want a different shape
- *   CHANNEL=chrome                    which browser; empty means playwright's own chromium
+ *   CHANNEL=chrome                    use system Chrome instead of installed Chromium
  *   DRIFT=0.35                        how far a creature may be drawn from where the world has it
  *   OUT=playtest-report.txt           where the account of the run is written
  *
- * Playwright is deliberately not a dependency of this project and still is not. Borrow one with
- * NODE_PATH — a checkout that already has it locally, an `npm i -g playwright` in CI. The reason
- * is that `package.json` is installed by things that will never play the game: the Pages build, and
- * the server image, which does `pnpm install --frozen-lockfile` twice, once per architecture. A
- * browser toolchain in a world-server image is exactly the shape of the last thing that nearly
- * killed that container. And a devDependency would only half-declare it anyway: the browser
- * binaries are a separate download keyed by the playwright version, not something the lockfile has
- * ever held.
+ * Playwright is a development dependency. Install its matching browser once with
+ * `pnpm browser:install`; browser binaries stay outside the repository and production image.
  */
 const { chromium } = require('playwright');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
+const { chooseHouseApproach, chooseGroundedDoors } = require('./playtest-approach.cjs');
 
 const PORT = process.env.PORT || '5173';
 const SEED = process.env.SEED || '3';
 const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?seed=${SEED}`;
-// Empty means playwright's own chromium. The default is the real Chrome because that is the one a
-// borrowed playwright can always reach: its bundled chromium is a numbered download that matches
-// the borrowed version and is usually not the one that checkout happens to have on disk.
-const CHANNEL = process.env.CHANNEL ?? 'chrome';
+// Empty means the Chromium binary installed for this project's pinned Playwright version.
+const CHANNEL = process.env.CHANNEL ?? '';
 // kept as a literal because this file is CommonJS and `src/core/reports.ts` is an ES module.
 // The one place that decides this is that file; a second spelling of it here is the cost of the
 // two module systems, and `reports.test.ts` fails if they ever disagree.
@@ -70,6 +63,7 @@ const OUT = process.env.OUT || require('node:path').join(REPORTS_DIR, 'playtest-
  * so the line can be drawn from evidence rather than from nerve.
  */
 const DRIFT = Number(process.env.DRIFT || '0.35');
+const DRIFT_SAMPLES = 30;
 
 const results = [];
 const errs = [];
@@ -156,11 +150,97 @@ const finish = async () => {
   const page = await browser.newPage({ viewport: { width: 1100, height: 720 } });
   page.on('pageerror', (e) => errs.push(e.message));
   await page.goto(ADDRESS, { waitUntil: 'load' });
-  await page.waitForTimeout(18000);
+  /*
+   * The page starts its own world in a worker. Vite answering says only that the page was served;
+   * the worker still has to grow a country, admit the player, and send its welcome. On a busy CI
+   * runner that can outlast a fixed sleep, leaving every later check to measure a world that has
+   * not answered yet. Wait for the actual handshake and report that one failure if it never comes.
+   */
+  const ready = await page.waitForFunction(() => window.__world?.online === 'online', null,
+    { timeout: 180000, polling: 250 }).then(() => true, () => false);
+  if (!ready) {
+    const world = await page.evaluate(() => window.__world ?? null).catch(() => null);
+    say('the world in this tab answered', false, JSON.stringify(world));
+    await finish();
+    return;
+  }
+  /*
+   * Welcome arrives before the worker finishes preparing the nearby country. At that point the
+   * page says "online", but it has no wildlife to draw or measure yet. The creature check must
+   * begin after a countable creature has arrived, not merely after the handshake.
+   */
+  const wildlifeReady = await page.waitForFunction(() => window.__creature?.() != null, null,
+    { timeout: 60000, polling: 250 }).then(() => true, () => false);
+  if (!wildlifeReady) {
+    const seen = await page.evaluate(() => ({ wire: window.__wire, drift: window.__peekDrift }))
+      .catch(() => null);
+    say('the world sent a creature to measure', false, JSON.stringify(seen));
+    await finish();
+    return;
+  }
+
+  // The close tally only counts a creature when the world sends a second position for it. Find a
+  // ground animal that actually moved between two readings, then stand close enough to measure it.
+  // A recently reported but stationary villager can otherwise leave this check with no sample.
+  const PREY = ['sheep', 'cow', 'goat', 'pig', 'chicken', 'boar', 'wolf', 'deer'];
+  const seenPrey = () => page.evaluate((kinds) => window.__entitiesFull()
+    .filter((e) => e.id !== null && kinds.includes(e.kind) && !e.dead)
+    .map((e) => ({ id: e.id, kind: e.kind, x: e.x, z: e.z })), PREY);
+  const tried = new Set();
+  let beside = 'no moving animal found', driftReady = false;
+  for (let tries = 0; tries < 3 && !driftReady; tries++) {
+    const before = new Map((await seenPrey()).map((e) => [e.id, e]));
+    await page.waitForTimeout(1200);
+    const moving = (await seenPrey())
+      .map((e) => ({ ...e, moved: Math.hypot(e.x - (before.get(e.id)?.x ?? e.x), e.z - (before.get(e.id)?.z ?? e.z)) }))
+      .filter((e) => e.moved > 0.1 && !tried.has(e.id))
+      .sort((a, b) => b.moved - a.moved)[0];
+    if (!moving) { await page.waitForTimeout(2000); continue; }
+    tried.add(moving.id);
+    await page.evaluate(([x, z]) => window.__teleport(x, z), [moving.x + 1.2, moving.z + 1.2]);
+    const atCreature = await page.evaluate(() => ({ x: window.__player.x, z: window.__player.z }));
+    beside = `${moving.kind} ${Math.hypot(atCreature.x - moving.x, atCreature.z - moving.z).toFixed(1)} tiles away after moving ${moving.moved.toFixed(1)}`;
+    // Let the server acknowledge the new position and discard corrections from the move itself.
+    // The assertion is about steady nearby sync, not the one large correction caused by teleport.
+    await page.waitForTimeout(1800);
+    await page.evaluate(() => window.__drift);
+    // One or two packets make this average hinge on a single turn. Hold the sample open until it
+    // includes enough updates to describe steady sync, with the same timeout when a quiet world
+    // never supplies them.
+    driftReady = await page.waitForFunction((minimum) => window.__peekDrift.wrongClose.of >= minimum, DRIFT_SAMPLES,
+      { timeout: 10000, polling: 100 }).then(() => true, () => false);
+  }
+  const d = await page.evaluate(() => window.__drift);
+  const driftTrace = await page.evaluate(() => window.__driftTrace());
+  const largeCorrections = driftTrace.filter((entry) => entry.distance > DRIFT).slice(-8).map((entry) => {
+    const previous = driftTrace.slice(0, driftTrace.indexOf(entry)).reverse().find((older) => older.id === entry.id);
+    return {
+      id: entry.id, kind: entry.kind, distance: +entry.distance.toFixed(2),
+      interval: previous ? +(entry.at - previous.at).toFixed(2) : null,
+      frames: previous ? entry.frame - previous.frame : null,
+      drawn: entry.drawn, snapshot: entry.snapshot,
+    };
+  });
 
   const at = () => page.evaluate(() => ({ x: window.__player.x, z: window.__player.z, place: window.__place() }));
   const go = async (x, z, wait = 5000) => { await page.evaluate(([x, z]) => window.__teleport(x, z), [x, z]); await page.waitForTimeout(wait); };
   const walk = async (key, ms) => { await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key); await page.waitForTimeout(180); };
+  const observedWalk = async (key, ms) => {
+    await page.keyboard.down(key);
+    const observedAfter = Math.min(180, Math.floor(ms / 2));
+    await page.waitForTimeout(observedAfter);
+    const during = await page.evaluate(() => {
+      const p = window.__player;
+      return { x: p.x, z: p.z, mode: p.mode, riding: p.riding,
+        mounted: p.entity.mounted?.id ?? null, steered: p.steered !== null,
+        solid: window.__solid(p.x, p.z), placed: p.placed,
+        ground: p.ground.heightAt(p.x, p.z), place: window.__place() };
+    });
+    await page.waitForTimeout(ms - observedAfter);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(180);
+    return during;
+  };
   const face = async (tx, tz) => { await page.evaluate(([tx, tz]) => { const p = window.__player; window.__iso.rotation = Math.atan2(tz - p.z, tx - p.x) + Math.PI; }, [tx, tz]); await page.waitForTimeout(150); };
   /**
    * Back out onto the grass, wherever the last check left him.
@@ -175,28 +255,44 @@ const finish = async () => {
    * work indoors, costs a page evaluation and removes the whole family of failures.
    */
   const backOutside = async () => {
-    for (let i = 0; i < 8 && (await at()).place !== 'surface'; i++) await walk('w', 260);
+    for (let i = 0; i < 8 && (await at()).place !== 'surface'; i++) {
+      // A room transition starts a game-time latch. On a software-rendered browser, five and a
+      // half wall seconds need not contain five game seconds, so wait for the latch itself before
+      // trying to leave. Otherwise each short walk can be ignored and the test reports a false
+      // door failure.
+      await page.waitForFunction(() => {
+        const room = window.__room();
+        return !room || room.resting <= 0;
+      }, null, { timeout: 30000, polling: 100 }).catch(() => {});
+      if ((await at()).place === 'surface') break;
+      await walk('w', 260);
+    }
     return (await at()).place === 'surface';
   };
   const enter = async () => {
     await backOutside();
-    const door = await page.evaluate(() => {
-      const v = window.__villages[0];
-      const d = window.__doors.filter((x) => x.village === v.name)[0];
-      /*
-       * The doorway record is already the clear outside tile generated for somebody to stand on
-       * and knock. Starting another two tiles through a live village added traffic and scenery to
-       * a check whose subject is the leaf, not the street leading to it. Stand on the doorstep and
-       * face the centre of the building: that line is square through whichever wall owns the door.
-       */
-      window.__teleport(d.x, d.z);
-      return { x: d.bx + 0.5, z: d.bz + 0.5 };
-    });
-    await page.waitForTimeout(5000);
+    const candidates = await page.evaluate(chooseGroundedDoors);
+    let doorway = null;
+    // A record for a door can be known before its terrain patch is loaded. Only judge the door
+    // after the player has actually settled on a grounded outside tile near that record.
+    for (const candidate of candidates.slice(0, 6)) {
+      await go(candidate.x, candidate.z, 0);
+      const landed = await page.waitForFunction(({ x, z }) => {
+        const p = window.__player;
+        return p.placed && p.ground.heightAt(p.x, p.z) !== null &&
+          Math.hypot(p.x - x, p.z - z) < 2;
+      }, { x: candidate.x, z: candidate.z }, { timeout: 5000, polling: 100 }).then(() => true, () => false);
+      if (landed) { doorway = candidate; break; }
+    }
+    if (!doorway) return { place: 'surface', restedOnArrival: 0,
+      why: `no grounded doorstep after ${candidates.length} loaded candidates` };
+    /* The outside doorstep faces the centre of its building, square through the door leaf. */
+    const door = { x: doorway.bx + 0.5, z: doorway.bz + 0.5 };
     const from = await at();
     let place = from.place;
     let restedOnArrival = 0;
     let steps = 0;
+    let firstPress = null;
     for (let i = 0; i < 14 && place === 'surface'; i++) {
       /*
        * Aimed again before every step, not once before the first.
@@ -207,7 +303,8 @@ const finish = async () => {
        * the corner, which is how this check failed intermittently on a seed it passes on.
        */
       await face(door.x, door.z);
-      await walk('w', 220);
+      const pressed = await observedWalk('w', 220);
+      if (i === 0) firstPress = pressed;
       steps = i + 1;
       place = (await at()).place;
       // read the rest at the moment we land, not after several more attempts to get in: five
@@ -225,11 +322,11 @@ const finish = async () => {
     const now = await at();
     const moved = Math.hypot(now.x - from.x, now.z - from.z);
     const short = Math.hypot(now.x - door.x, now.z - door.z);
-    return { door, place, restedOnArrival, why: `${steps} steps, moved ${moved.toFixed(2)}, ${short.toFixed(2)} from the door` };
+    return { door, place, restedOnArrival,
+      why: `${steps} steps, moved ${moved.toFixed(2)}, ${short.toFixed(2)} from the door; start ${JSON.stringify(from)}, first press ${JSON.stringify(firstPress)}` };
   };
   // anything with hearts that is not a person and does not fly: something a swing can land on
   // slowest first: a hero can catch a sheep, and cannot catch a deer that has seen him
-  const PREY = ['sheep', 'cow', 'goat', 'pig', 'chicken', 'boar', 'wolf', 'deer'];
   // the same animal each time, by the number the world knows it by: "the nearest wolf" is two
   // different wolves either side of a swing, and a test that compares those is measuring nothing
   const quarryNow = (id) => page.evaluate((id) => {
@@ -242,42 +339,34 @@ const finish = async () => {
   say('the running world is the endless country', w.world === 'endless' && w.online === 'online', JSON.stringify(w));
 
   // --- walking into things ---
-  const house = await page.evaluate(() => { const v = window.__villages[0]; const h = v.houses[0]; return { x: h.tx + 0.5, z: h.tz + 0.5, rot: h.rot }; });
+  const nearbyHouses = await page.evaluate(() => {
+    const p = window.__player;
+    return window.__villages.flatMap((v) => v.houses.map((h) => ({
+      x: h.tx + 0.5, z: h.tz + 0.5, rot: h.rot, name: v.name,
+    }))).filter((h) => Math.hypot(h.x - p.x, h.z - p.z) < 60);
+  });
   /*
-   * One approach, used twice.
+   * One clear approach ray, used for both walks.
    *
    * The mounted run used to begin six tiles out while its control on foot began four tiles out.
    * That is not the same approach through a generated village: on seed 3 the extra two tiles held
    * other scenery, so Dusty stopped 4.53 tiles from the house and the check blamed its wall. The
    * wall had never held him there; the test had ridden him into something else.
    *
-   * Keep the start as a value rather than repeating the arithmetic so neither half can quietly
-   * choose a different path again. Four tiles leaves a horse wholly clear of a cottage before the
-   * walk starts, and is the point the on-foot control has already proved usable.
+   * Keep the chosen side as a value so both walks use the same ray. The on-foot control starts four
+   * tiles out; the mounted walk starts farther out to give the horse room to begin moving.
    */
-  const approach = await page.evaluate(({ x, z, rot }) => {
-    /*
-     * And which side of it. The front used to be assumed, and that is the same fault one step
-     * further back: a generated village puts a wall, a fence or a neighbour where it likes, and on
-     * the day the road web was thinned the front of house zero on seed 3 stopped being clear. The
-     * hero was standing in something before the walk began, moved four tenths of a tile in five
-     * seconds, and the check blamed the wall it never reached.
-     *
-     * So: the front if the front is clear, and whichever side is otherwise. Four tiles out and the
-     * two tiles of it nearest the house both have to be walkable, because a horse needs the room
-     * and because a start that is clear and a path that is not is the same bug wearing a hat.
-     */
-    for (const turn of [0, Math.PI, Math.PI / 2, -Math.PI / 2]) {
-      const a = rot + turn;
-      const from = { x: x - Math.cos(a) * 4, z: z - Math.sin(a) * 4 };
-      let clear = true;
-      for (const step of [4, 3.4, 2.8]) {
-        if (window.__solid(x - Math.cos(a) * step, z - Math.sin(a) * step)) { clear = false; break; }
-      }
-      if (clear) return from;
-    }
-    return { x: x - Math.cos(rot) * 4, z: z - Math.sin(rot) * 4 };
-  }, house);
+  /* `page.evaluate` runs this same selection inside the game, using its live `__solid` probe. */
+  let house = nearbyHouses[0] ?? null;
+  let approach = house ? await page.evaluate(chooseHouseApproach, house) : null;
+  // The first cottage can be boxed in by the village that grew around it. The collision question
+  // needs an open ten-tile run-up, so search nearby houses before treating town scenery as a wall.
+  for (const candidate of nearbyHouses.slice(1)) {
+    if (approach?.fullRay) break;
+    const ray = await page.evaluate(chooseHouseApproach, candidate);
+    if (ray.fullRay) { house = candidate; approach = ray; break; }
+  }
+  if (!house || !approach) throw new Error('no nearby house to check collision against');
   await go(approach.x, approach.z);
   await face(house.x, house.z);
   await walk('w', 5000);
@@ -297,44 +386,17 @@ const finish = async () => {
 
   // --- creature sync ---
   /*
-   * Stand where the animals are, wherever that turns out to be.
-   *
-   * This walked to 133.5, 67.5 — a field in the polygon world, and open sea in the road world that
-   * replaced it, so the hero never arrived and the check measured nothing at all and said so as a
-   * failure. What it actually needs is to be near enough to something living for the world to be
-   * correcting it, so it goes and finds one.
-   *
-   * Which one it goes to is the page's business rather than this script's, and that is the second
-   * half of the same fault. This picked the nearest living thing; the tally counts something
-   * narrower, and it read `0 corrections, mean 0.00, worst 0.00 ()` on two unrelated branches —
-   * a measurement that never happened, reported as a failure with no cause in it.
-   *
-   * Two ways that happens, and the second is the one it was: the tally leaves out anything that
-   * flies, so an eagle overhead is nobody to stand by; and the world sends a client only what
-   * *changed*, so a man idling in a village is not in a snapshot at all and no tally will ever hear
-   * of him. The hero duly stood 4.2 tiles from a man who never moved and measured nothing for eight
-   * seconds. `__creature` answers with a creature the tally is actually about, so the thing stood
-   * beside and the thing measured are one animal.
+   * A nearby man at spawn need not move, and the world only sends changed creatures. The sample
+   * above watched a ground animal move before standing beside it; this checks the corrections it
+   * actually counted, rather than treating an empty tally as a perfect drawing.
    */
-  let d = null, beside = 'nothing to stand by';
-  // A creature can stop between being chosen and being reached, and then there is nothing to
-  // measure through no fault of the game, so this asks again rather than reporting the empty tally.
-  for (let tries = 0; tries < 3 && (d === null || d.wrongClose.of === 0); tries++) {
-    const stirring = await page.evaluate(() => window.__creature());
-    if (!stirring) { await page.waitForTimeout(3000); continue; }
-    await go(stirring.x + 3, stirring.z + 3, 6000);
-    await page.evaluate(() => window.__drift);
-    await page.waitForTimeout(8000);
-    d = await page.evaluate(() => window.__drift);
-    beside = `${stirring.kind} ${stirring.away.toFixed(1)} tiles off`;
-  }
   // an empty tally and a good one are different failures, and the run has to say which: nothing
   // measured used to read exactly like a world drawing every creature perfectly
-  const measured = d !== null && d.wrongClose.of > 0;
+  const measured = driftReady && d.wrongClose.of > 0;
   say('creatures within reach are drawn where they are', measured && d.wrongClose.mean < DRIFT,
     measured
-      ? `${d.wrongClose.of} corrections, mean ${d.wrongClose.mean.toFixed(2)}, worst ${d.wrongClose.worst.toFixed(2)} (${d.wrongClose.worstIs}), against ${DRIFT}; stood by ${beside}`
-      : `nothing was measured: ${d ? d.drawn : 0} creatures drawn, went to ${beside} — the check found nothing moving to stand by, which is not the same as a world drawing them right`);
+      ? `${d.wrongClose.of} corrections, mean ${d.wrongClose.mean.toFixed(2)}, worst ${d.wrongClose.worst.toFixed(2)} (${d.wrongClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
+      : `nothing was measured: ${d.drawn} creatures drawn, ${beside} — the check found no close corrections, which is not the same as a world drawing them right`);
 
   // --- and the same wall, at a gallop ---
   /*
@@ -349,7 +411,13 @@ const finish = async () => {
    * `__ride` exists because mounting is only reachable through a stable's dialogue: a person does
    * that in ten seconds and a script cannot do it at all.
    */
-  await go(approach.x, approach.z);
+  // Four tiles was enough for a person but left Dusty unable to move in the played check.
+  // Start the larger mounted body ten tiles out on the same ray.
+  const mountedApproach = {
+    x: house.x + (approach.x - house.x) * 2.5,
+    z: house.z + (approach.z - house.z) * 2.5,
+  };
+  await go(mountedApproach.x, mountedApproach.z);
   /*
    * Mount after `go`: the probe uses the game's teleport command, and teleporting correctly lets
    * go of a horse rather than carrying it across the country. Mounting first made this test walk
@@ -361,11 +429,13 @@ const finish = async () => {
   const under = carried?.under;
   say('the hero can get on a horse', rode && rode.riding === true && carried.horse !== null && typeof under === 'number' && under < 0.1,
     `${JSON.stringify(rode)}, horse ${typeof under === 'number' ? under.toFixed(2) : 'not'} tiles under rider`);
+  const mountedFrom = await at();
   await face(house.x, house.z);
-  await walk('w', 5000);
+  const mountedPress = await observedWalk('w', 5000);
   const rider = await at();
   const horse = await page.evaluate(() => window.__mount());
   const galloped = Math.hypot(rider.x - house.x, rider.z - house.z);
+  const ridden = Math.hypot(rider.x - mountedFrom.x, rider.z - mountedFrom.z);
   const outside = await page.evaluate(() => {
     const mount = window.__mount();
     return {
@@ -373,8 +443,30 @@ const finish = async () => {
       horse: mount.horse !== null && !window.__solid(mount.horse.x, mount.horse.z),
     };
   });
-  say('a house stops a horse at its wall too', galloped > 1.1 && galloped < 3 && outside.rider && outside.horse,
-    `closest ${galloped.toFixed(2)} tiles from its middle, riding; rider outside ${outside.rider}, horse outside ${outside.horse}, separation ${horse.under}`);
+  const crowdOnApproach = await page.evaluate(({ from, to }) => {
+    const dx = to.x - from.x, dz = to.z - from.z, length2 = dx * dx + dz * dz;
+    return window.__entitiesFull().filter((e) => !e.dead && e.role !== 'mount').map((e) => {
+      const t = Math.max(0, Math.min(1, ((e.x - from.x) * dx + (e.z - from.z) * dz) / length2));
+      return { kind: e.kind, role: e.role, x: Number(e.x.toFixed(1)), z: Number(e.z.toFixed(1)),
+        ray: Number(Math.hypot(e.x - from.x - t * dx, e.z - from.z - t * dz).toFixed(1)) };
+    }).filter((e) => e.ray < 2.2).sort((a, b) => a.ray - b.ray).slice(0, 5);
+  }, { from: mountedFrom, to: house });
+  const terrainOnApproach = await page.evaluate(({ from, to }) => {
+    const dx = to.x - from.x, dz = to.z - from.z, length = Math.hypot(dx, dz);
+    const along = dx / length, across = -dz / length;
+    const samples = [];
+    for (let distance = 9.5; distance >= 2.5; distance -= 0.5) {
+      const blocked = [-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2]
+        .filter((side) => window.__solid(to.x - along * distance + across * side,
+          to.z - dz / length * distance - along * side));
+      if (blocked.length) samples.push({ distance: +distance.toFixed(1), blockedOffsets: blocked });
+    }
+    return samples;
+  }, { from: mountedFrom, to: house });
+  // The horse's long body reaches the wall before its centre does; its centre is several tiles
+  // farther out than a person's, so use a bound that includes the horse's length.
+  say('a house stops a horse at its wall too', approach.fullRay && ridden > 0.5 && galloped > 1.1 && galloped < 4.5 && outside.rider && outside.horse,
+    `rode ${ridden.toFixed(2)} tiles from ${Math.hypot(mountedFrom.x - house.x, mountedFrom.z - house.z).toFixed(2)} out; full ray clear ${approach.fullRay}; first press ${JSON.stringify(mountedPress)}; closest ${galloped.toFixed(2)} tiles from its middle; rider outside ${outside.rider}, horse outside ${outside.horse}, separation ${horse.under}; crowd near ray ${JSON.stringify(crowdOnApproach)}; solid nearby ${JSON.stringify(terrainOnApproach)}`);
   await page.evaluate(() => window.__ride(false));
 
   // --- a fight ---
@@ -488,10 +580,22 @@ const finish = async () => {
     say('furniture is solid where it is drawn, not only on its tile',
       furniture !== null && furniture.wide > 0, furniture ? `${furniture.wide} of ${furniture.pieces} reach past their own tile` : 'not indoors');
 
-    await page.waitForTimeout(5500);
+    // The door cooldown advances in game time, not wall time. Wait for the reported state so a
+    // slow/headless browser does not begin the exit attempt while the door is still resting.
+    await page.waitForFunction(() => {
+      const room = window.__room();
+      return !room || room.resting <= 0;
+    }, null, { timeout: 30000, polling: 100 });
     let out = first_in.place;
     let lastAt = await at();
+    const exitStart = lastAt;
+    const doorState = () => page.evaluate(() => {
+      const room = window.__room();
+      return room && { door: room.door, atTheDoor: room.atTheDoor, armed: room.armed, resting: room.resting };
+    });
+    const exitBefore = await doorState();
     let veer = 0;
+    let exitSteps = 0, travelled = 0;
     for (let i = 0; i < 35 && out !== 'surface'; i++) {
       // head for the doorway, and when a step gets nowhere — a table, a barrel, the counter — try
       // a heading either side of it. A room has furniture in it and walking at a door in a straight
@@ -502,12 +606,26 @@ const finish = async () => {
       }, veer);
       await walk('w', 220);
       const now = await at();
-      const moved = Math.hypot(now.x - lastAt.x, now.z - lastAt.z);
+      // Interior and outdoor coordinates are different spaces; the doorway transition itself is
+      // not distance the player walked.
+      const moved = now.place === lastAt.place ? Math.hypot(now.x - lastAt.x, now.z - lastAt.z) : 0;
+      travelled += moved;
+      exitSteps++;
       veer = moved < 0.08 ? (veer === 0 ? 0.9 : -veer) : 0;
       lastAt = now;
       out = now.place;
     }
-    say('and walking into it again takes you out', out === 'surface', out);
+    const exitEnd = await at();
+    const exitAfter = await doorState();
+    say('and walking into it again takes you out', out === 'surface', JSON.stringify({
+      place: out, steps: exitSteps,
+      start: { place: exitStart.place, x: +exitStart.x.toFixed(2), z: +exitStart.z.toFixed(2), door: exitBefore },
+      end: { place: exitEnd.place, x: +exitEnd.x.toFixed(2), z: +exitEnd.z.toFixed(2), door: exitAfter },
+      moved: exitEnd.place === exitStart.place
+        ? +Math.hypot(exitEnd.x - exitStart.x, exitEnd.z - exitStart.z).toFixed(2)
+        : null,
+      travelled: +travelled.toFixed(2),
+    }));
   }
 
   await finish();

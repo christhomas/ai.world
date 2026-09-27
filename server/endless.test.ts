@@ -203,6 +203,6 @@ describe('and the simulation standing one up', () => {
     rowan.say({
       type: 'join', world: 'road', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     } as never);
-    expect(rowan.of('country')[0]).toEqual({ type: 'country', stamp: '' });
+    expect(rowan.of('country')[0]).toEqual({ type: 'country', stamp: '', kind: 'endless' });
   });
 });

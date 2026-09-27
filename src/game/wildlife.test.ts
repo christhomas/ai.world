@@ -112,6 +112,22 @@ describe('the world correcting a predicted fight', () => {
 });
 
 describe('a drawn creature falling behind its snapshots', () => {
+  it('keeps a bounded, read-only trace of snapshot corrections with frame context', () => {
+    vi.useFakeTimers();
+    const wildlife = world();
+    wildlife.apply([snap(12, 'goat', 1, 2)], []);
+    wildlife.update(1 / 60);
+    vi.advanceTimersByTime(120);
+    wildlife.apply([snap(12, 'goat', 2, 4)], []);
+
+    const [entry] = wildlife.correctionTrace();
+    expect(entry).toMatchObject({ id: 12, kind: 'goat', drawn: { x: 1, z: 2 }, snapshot: { x: 2, z: 4 }, frame: 1 });
+    expect(entry.distance).toBeCloseTo(Math.sqrt(5));
+    expect(entry.at).toBeCloseTo(0.12);
+    entry.snapshot.x = 900;
+    expect(wildlife.correctionTrace()[0].snapshot.x).toBe(2);
+  });
+
   it('does not carry a body-width error through a queue of messages between frames', () => {
     vi.useFakeTimers();
     const wildlife = world();
@@ -128,6 +144,52 @@ describe('a drawn creature falling behind its snapshots', () => {
     const drift = wildlife.drift();
     expect(drift.wrongClose.of, 'the queue was empty, so its average proved nothing').toBe(10);
     expect(drift.wrongClose.mean, 'queued corrections left the drawing a sustained body-width behind').toBeLessThanOrEqual(0.35);
+  });
+
+  it('pays off ordinary residual lag faster without snapping a sub-half-tile correction', () => {
+    vi.useFakeTimers();
+    const wildlife = world();
+    wildlife.apply([snap(1, 'woman', 0, 0)], []);
+
+    // One rendered frame per 80 ms snapshot: the old prediction should nearly meet the next
+    // constant-speed position by the time it arrives.
+    vi.advanceTimersByTime(80);
+    wildlife.apply([snap(1, 'woman', 0.08, 0)], []);
+    wildlife.update(0.08);
+    vi.advanceTimersByTime(80);
+    wildlife.apply([snap(1, 'woman', 0.16, 0)], []);
+    expect(wildlife.correctionTrace().at(-1)?.distance,
+      'the page kept a routine correction-sized lag after one frame').toBeLessThan(0.015);
+
+    // A moderate correction still eases over the next frame. The catch-up step is capped below a
+    // full snap even when a slow frame leaves 80 ms to pay off.
+    wildlife.apply([snap(1, 'woman', 0.56, 0)], []);
+    wildlife.update(0.08);
+    expect(wildlife.find(1)!.x).toBeGreaterThan(0.49);
+    expect(wildlife.find(1)!.x).toBeLessThan(0.56);
+  });
+
+  it('shortens prediction for nearby creatures after they stop', () => {
+    vi.useFakeTimers();
+    const nearby = world();
+    const distant = world();
+    nearby.apply([snap(1, 'woman', 0, 0)], [], { x: 3, z: 0 });
+    distant.apply([snap(1, 'woman', 0, 0)], [], { x: 30, z: 0 });
+
+    vi.advanceTimersByTime(100);
+    nearby.apply([snap(1, 'woman', 0.2, 0)], [], { x: 3, z: 0 });
+    distant.apply([snap(1, 'woman', 0.2, 0)], [], { x: 30, z: 0 });
+    vi.advanceTimersByTime(200);
+    nearby.update(0.2);
+    distant.update(0.2);
+    nearby.apply([snap(1, 'woman', 0.2, 0)], [], { x: 3, z: 0 });
+    distant.apply([snap(1, 'woman', 0.2, 0)], [], { x: 30, z: 0 });
+
+    const nearCorrection = nearby.correctionTrace().at(-1)!.distance;
+    const farCorrection = distant.correctionTrace().at(-1)!.distance;
+    expect(nearCorrection).toBeGreaterThan(0.1);
+    expect(nearCorrection).toBeLessThan(0.15);
+    expect(farCorrection).toBeGreaterThan(nearCorrection);
   });
 
   it('eases an ordinary correction and accepts an exceptional one at once', () => {

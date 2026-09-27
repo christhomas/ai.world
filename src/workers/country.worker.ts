@@ -60,6 +60,6 @@ self.onmessage = (e: MessageEvent<CountryRequest>) => {
     return;
   }
   if (msg.type !== 'grow') return;
-  const sampler = growPatch(msg.seed, boundsOf(msg.patch), msg.layers);
+  const sampler = growPatch(msg.seed, boundsOf(msg.patch), msg.layers, msg.terrain);
   post({ type: 'grown', patch: msg.patch, parts: partsOf(sampler), took: Date.now() - started });
 };

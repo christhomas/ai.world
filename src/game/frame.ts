@@ -371,7 +371,7 @@ export function createFrame(ctx: Framing) {
     // fifty units into the air.
     iso.lift = skyline.headroom;
     tickDialogue(dt);
-    rig.water.update(time);
+    rig.updateWater(time);
     if (!talking) { state.tick(dt); magic.tick(dt); }
     // what a blow costs in time, counted before the frame decides where the hero is standing
     blows.cooled(dt);

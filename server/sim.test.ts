@@ -568,6 +568,35 @@ describe('the world alive on the server', () => {
     expect(moved.length, 'some of them went somewhere').toBeGreaterThan(0);
   });
 
+  it('does not turn a delayed server tick into a creature teleport', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    const began = Date.now();
+    sim.tick(began + 100);
+
+    const alive = sim.livesIn(3)!;
+    const beforeBodies = new Set(alive.all());
+    alive.put('goat', 3, 3, 841);
+    const goat = [...alive.all()].find((body) => !beforeBodies.has(body) && body.kind.id === 'goat');
+    expect(goat, 'the test placed a goat in the watched country').toBeDefined();
+    goat!.state = 'flee';
+    goat!.fleeX = 1;
+    goat!.fleeZ = 0;
+    goat!.timer = 30;
+    const x = goat!.x, z = goat!.z;
+    const clock = { ...sim.rooms.get(3)!.world.clock };
+
+    // The room clock must catch up with real elapsed time, but a body gets only its ordinary
+    // 100ms movement step when the event loop finally wakes up.
+    sim.tick(began + 5_100);
+
+    expect(Math.hypot(goat!.x - x, goat!.z - z), 'movement is bounded to one ordinary step')
+      .toBeLessThanOrEqual(Math.max(goat!.kind.speed, goat!.kind.runSpeed) * 0.1 + 0.05);
+    const after = sim.rooms.get(3)!.world.clock;
+    expect(after.day > clock.day || after.time > clock.time, 'the world clock still accounts for the delay').toBe(true);
+  });
+
   /**
    * C2's coarse tier, end to end and through the real objects.
    *

@@ -79,6 +79,11 @@ export function installCreatureProbes(ctx: Probed): void {
   };
 
   Object.defineProperty(debug, '__drift', { configurable: true, get: () => wildlife.drift() });
+  // The browser check waits for a real correction before consuming the tally. Polling `__drift`
+  // would empty it on every attempt and make the measurement itself depend on polling timing.
+  Object.defineProperty(debug, '__peekDrift', { configurable: true, get: () => wildlife.drift(false) });
+  // Snapshot-to-drawing corrections, kept as a bounded non-consuming trace for browser diagnosis.
+  (debug as { __driftTrace?: () => unknown }).__driftTrace = () => wildlife.correctionTrace();
   /*
    * What a drift reading is about, so a run can go and stand next to it.
    *

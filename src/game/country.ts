@@ -14,7 +14,7 @@ import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import type { GrownPatch } from '../world/endless';
 import { PatchCountry } from '../world/patchcountry';
 import { RoadCountry, type Country, type WorldKind } from '../world/countries';
-import { elevationFor, growWorld, islandsFor, stampFor } from '../world/growworld';
+import { elevationFor, growWorld, islandsFor, stampFor, terrainFor } from '../world/growworld';
 import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
@@ -105,7 +105,8 @@ export function growCountry(ctx: Growing) {
    * exactly the answer those worlds want — see `elevationFor`, and #322 for what fills it.
    */
   const layers = elevationFor(manifest);
-  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0, undefined, layers, home) : null;
+  const terrain = terrainFor(manifest);
+  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0, undefined, layers, home, terrain) : null;
   /*
    * And somebody else to grow the rest of it.
    *
@@ -224,7 +225,7 @@ export function growCountry(ctx: Growing) {
      * handed a patch's graph it would compare the square the hero is standing in against the
      * square the server grew first and report a disagreement that is not one.
      */
-    stamp: stampFor(world, seed, graph, layers),
+    stamp: stampFor(world, seed, graph, layers, terrain),
     /*
      * Live, not read once. Anything that keeps one of these past the frame it asked in keeps it
      * across a patch crossing too, which is the fault `patchview.ts` exists to have ended.

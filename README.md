@@ -319,6 +319,7 @@ chore web          # the page alone, or `chore web 3000` on another port
 chore world        # the world server alone
 chore check        # typecheck and the whole test suite
 chore build        # typecheck and a production build into dist/
+pnpm browser:install # install Chromium for chore playtest, shots and shopwalk
 chore worlds       # what the server has kept: day, changes, stalls, parcels, who has visited
 chore forget 1     # forget world 1's shared state; the world itself is still in the seed
 chore ping         # ask a running server how it is
@@ -329,7 +330,8 @@ chore bundle       # roll the server into the single file the image ships
 chore deploy       # publish that server to Fly.io, where it answers over wss://
 ```
 
-`chore` reads `chores.yml`; `chore --list` shows every task and `chore <task> --help` describes
+`pnpm install` installs Playwright with the development dependencies; run `pnpm browser:install`
+once to download its matching Chromium browser. `chore` reads `chores.yml`; `chore --list` shows every task and `chore <task> --help` describes
 one. One Ctrl-C stops both halves of `chore dev`, server included. The underlying scripts are
 still plain pnpm (`pnpm dev`, `pnpm server`, `pnpm test`, `pnpm build`) if you would rather run
 them directly.

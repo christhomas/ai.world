@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { LONGEST_PROMPT, OneAtATime, carriesASecret, whatWasAsked, type Recorded } from './asked';
 import { lastRuns, migrateBook, writeDown } from './book';
@@ -184,6 +184,22 @@ describe('a run somebody is following', () => {
 
     runs.tell(run, { k: 'say', text: 'second' });
     expect(late.written.join(''), 'and keeps telling them').toContain('second');
+  });
+
+  it('keeps a quiet stream alive through ingress with ignorable blank lines', () => {
+    vi.useFakeTimers();
+    try {
+      const runs = new Runs();
+      const run = runs.begin('r1', 'chris', 'wolf');
+      const watching = reader();
+      runs.follow(run, watching.res, 0);
+      vi.advanceTimersByTime(20_000);
+      expect(watching.written).toEqual(['\n']);
+      runs.finish(run, true, 'done', []);
+      const after = watching.written.length;
+      vi.advanceTimersByTime(20_000);
+      expect(watching.written).toHaveLength(after);
+    } finally { vi.useRealTimers(); }
   });
 
   it('picks up where a reloaded page left off', () => {

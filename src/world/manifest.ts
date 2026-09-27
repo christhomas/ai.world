@@ -1,5 +1,6 @@
 import { hash3, hashString } from '../core/rng';
 import { SALT } from '../core/salts';
+import type { TerrainLayer } from './terrainlayers';
 
 /**
  * The seed tree. The root seed makes the mainland; every expansion (an island, a dungeon under
@@ -47,6 +48,8 @@ export interface Anchor {
 export interface ManifestJson {
   rootSeed: number;
   anchors: Anchor[];
+  /** Authored land and sea edits, in application order. Absent in older saves. */
+  terrain?: TerrainLayer[];
 }
 
 const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK, thicket: SALT.FOREST, skyisle: SALT.SKY, eyrie: SALT.EYRIE, highland: SALT.HIGHLAND };
@@ -115,17 +118,20 @@ function isLayer(anchor: Anchor): boolean {
  */
 export function joinedManifest(
   seed: number, saved: ManifestJson | undefined, invited: readonly Anchor[] | undefined,
+  invitedTerrain?: readonly TerrainLayer[],
 ): ManifestJson {
   const mine = (saved?.anchors ?? []).filter((a) => a.kind !== 'island');
-  if (!invited) return { rootSeed: seed, anchors: mine };
-  return { rootSeed: seed, anchors: [...mine.filter((a) => !isLayer(a)), ...invited] };
+  const anchors = invited ? [...mine.filter((a) => !isLayer(a)), ...invited] : mine;
+  return { rootSeed: seed, anchors, terrain: [...(invitedTerrain ?? saved?.terrain ?? [])] };
 }
 
 export class Manifest {
   readonly anchors = new Map<string, Anchor>();
+  readonly terrain: TerrainLayer[];
 
   constructor(readonly rootSeed: number, saved?: ManifestJson) {
     if (saved && saved.rootSeed === rootSeed) for (const a of saved.anchors) this.anchors.set(a.id, a);
+    this.terrain = saved?.rootSeed === rootSeed ? [...(saved.terrain ?? [])] : [];
   }
 
   get(id: string): Anchor | undefined { return this.anchors.get(id); }
@@ -170,6 +176,6 @@ export class Manifest {
   }
 
   toJSON(): ManifestJson {
-    return { rootSeed: this.rootSeed, anchors: [...this.anchors.values()] };
+    return { rootSeed: this.rootSeed, anchors: [...this.anchors.values()], terrain: [...this.terrain] };
   }
 }

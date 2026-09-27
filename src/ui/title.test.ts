@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { kindOf, type SessionSave, type WorldKind } from '../save/store';
 import { SWITCHES } from './switches';
-import { nameOf } from './title';
+import { nameOf, terrainEntry, terrainSave } from './title';
 
 /**
  * The world kind decides the whole terrain: the same seed grows two completely different countries.
@@ -87,5 +87,31 @@ describe('choosing a country before you go into it', () => {
     expect(nameOf('road')).toBe('open country');
     // nothing written on it means endless, for the reason `kindOf` gives
     expect(nameOf(undefined)).toBe('endless country');
+  });
+});
+
+describe('authoring terrain before a new world opens', () => {
+  it('accepts finite land and sea layers and rejects values the generator cannot use', () => {
+    expect(terrainEntry('land', '128', '-64', '75', '', () => 42))
+      .toEqual({ kind: 'land', x: 128, z: -64, reach: 75, seed: 42 });
+    expect(terrainEntry('sea', '0', '0', '2048', '4294967295')?.kind).toBe('sea');
+    expect(terrainEntry('river', '0', '0', '75', '1')).toBeNull();
+    expect(terrainEntry('land', '', '0', '75', '1')).toBeNull();
+    expect(terrainEntry('land', '0', '', '75', '1')).toBeNull();
+    expect(terrainEntry('land', '0', '0', '', '1')).toBeNull();
+    expect(terrainEntry('land', '0.5', '0', '75', '1')).toBeNull();
+    expect(terrainEntry('land', '0', '0', '0', '1')).toBeNull();
+    expect(terrainEntry('land', '0', '0', '75', '4294967296')).toBeNull();
+  });
+
+  it('puts ordered edits in the new slot manifest before opening it', () => {
+    const land = terrainEntry('land', '128', '-64', '75', '42')!;
+    const sea = terrainEntry('sea', '128', '-64', '35', '43')!;
+    const save = terrainSave(9, 'Cove', [land, sea]);
+    expect(save?.manifest).toEqual({ rootSeed: 9, anchors: [], terrain: [land, sea] });
+    expect(terrainSave(9, 'Cove', [])).toBeUndefined();
+    const source = readFileSync('src/ui/title.ts', 'utf8');
+    expect(source).toContain('store.save(choice.key, choice.save)');
+    expect(source).toContain('save: terrainSave(seed, worldName, terrain)');
   });
 });

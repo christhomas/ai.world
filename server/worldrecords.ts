@@ -1,4 +1,5 @@
 import { cleanWorldName, worldKey, type WorldRecord } from './protocol';
+import type { WorldKind } from '../src/world/countries';
 import type { Vault } from './vault';
 
 /** Why a name could not be attached to the country a client presented. */
@@ -65,7 +66,7 @@ export class WorldRecords {
    * authoritative: a client presenting different facts is refused, never silently moved into the
    * country somebody else named.
    */
-  claim(name: unknown, seed: number): WorldRecord {
+  claim(name: unknown, seed: number, kind: WorldKind = 'endless'): WorldRecord {
     const shown = cleanWorldName(name);
     const key = worldKey(name);
     if (!shown || !key) throw new WorldRecordConflict('World names use letters, numbers, spaces, _ or -, and must be 48 characters or fewer.');
@@ -73,7 +74,7 @@ export class WorldRecords {
     const root = seed >>> 0;
     const existing = this.records.get(key);
     if (existing) {
-      if (existing.seed !== root) {
+      if (existing.seed !== root || (existing.kind ?? 'endless') !== kind) {
         throw new WorldRecordConflict(`“${shown}” already names a different world.`);
       }
       return copy(existing);
@@ -92,7 +93,7 @@ export class WorldRecords {
      */
     if (this.unreadable !== null) throw this.cannotWrite();
 
-    const record: WorldRecord = { name: shown, seed: root };
+    const record: WorldRecord = kind === 'road' ? { name: shown, seed: root, kind } : { name: shown, seed: root };
     this.records.set(key, record);
     this.seeds.set(root, key);
     this.save();
@@ -112,7 +113,7 @@ export class WorldRecords {
     if (!name || !key || !Number.isFinite(seed) || this.records.has(key)) return;
     const root = seed >>> 0;
     if (this.seeds.has(root)) return;
-    const record: WorldRecord = { name, seed: root };
+    const record: WorldRecord = raw.kind === 'road' ? { name, seed: root, kind: 'road' } : { name, seed: root };
     this.records.set(key, record);
     this.seeds.set(root, key);
   }

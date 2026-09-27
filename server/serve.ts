@@ -6,12 +6,13 @@ import { FileVault } from './filevault';
 import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
-import { addAccount, migrate as migrateAccounts, sweepSessions } from './tools/accounts';
+import { addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
 import { migrateDomain, openDurable } from './durable/db';
 import { MINDS_SCHEMA } from './durable/minds';
 import { EVENTS_SCHEMA } from './durable/events';
 import { lastRuns, migrateBook, writeDown } from './builder/book';
 import type { BuilderAt } from './builder/proxy';
+import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
@@ -68,14 +69,10 @@ export interface ServerOptions {
   durableDb?: string | null;
   /** Whether an `X-Forwarded-Proto` in front of this server can be believed. See `overHttps`. */
   trustProxy?: boolean;
-  /**
-   * Where the builder's worker is, if this deployment has one behind it.
-   *
-   * A separate process on the machine with the checkout, which this server reaches and nothing else
-   * can — see `builder/worker.ts`. Left out, the two build routes are not there at all: a game
-   * server with no source host behind it should not have a door onto one.
-   */
+  /** Retired shared-worker setting. Rejected at startup to prevent cross-account routing. */
   builder?: BuilderAt;
+  /** This in-process worker registry requires exactly one server replica. */
+  replicas?: number;
 }
 
 export interface RunningServer {
@@ -112,29 +109,29 @@ function wireFor(socket: WebSocket): Wire {
  */
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
-  sim: Simulation, builder?: BuilderAt,
+  sim: Simulation, channel: BuilderChannel,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
   // what came of it. See `builder/book.ts`
-  if (builder) migrateBook(db);
+  migrateBook(db);
   const { made, say } = bootstrapAccount(db, process.env, addAccount);
   if (say && !quiet) (made ? console.log : console.error)(say);
   sweepSessions(db);
   const portal = portalFor({
-    db, secret, trustProxy, builder,
+    db, secret, trustProxy, channel,
     // The portal has already proved the session before calling this. No operator token is made,
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
     // written where the durable database is, from what the answer says as it streams past
-    record: builder ? (run, id) => {
+    record: (run, id) => {
       try { writeDown(db, id, run); } catch (why) {
         // a record that cannot be written safely must not take the run down with it, but it is a
         // bug in whatever built it and has to be said out loud rather than dropped
         console.error(`a builder run was not written down: ${String(why)}`);
       }
-    } : undefined,
-    recorded: builder ? () => lastRuns(db, 8) : undefined,
+    },
+    recorded: (who) => lastRuns(db, 8, who),
   });
   return {
     takes: (req: IncomingMessage, res: ServerResponse): boolean => {
@@ -149,6 +146,8 @@ function openTools(
 }
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
+  if ((options.replicas ?? 1) !== 1) throw new Error('builder worker routing requires exactly one server replica');
+  if (options.builder) throw new Error('BUILDER_HOST routing is retired; pair each worker through /tools/build/pair');
   const dataDir = options.dataDir ?? 'server/data';
   // The simulation is the game. This is the thing that gives it sockets, files and an address; a
   // Web Worker gives the same simulation a MessagePort and a browser's idea of storage instead.
@@ -184,9 +183,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
    * sign with. Opened before the first request rather than on one, because a bootstrap that fails
    * has to fail at boot where somebody is reading the log.
    */
+  const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, options.builder)
+      sim, builderChannel)
     : null;
   const http = createServer((req, res) => {
     if (tools && tools.takes(req, res)) return;
@@ -228,7 +228,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end(`ai.world server\nworlds: ${rooms.worldCount}\nplayers: ${rooms.playerCount}\n`);
   });
-  const sockets = new WebSocketServer({ server: http });
+  const sockets = new WebSocketServer({ noServer: true });
+  const builders = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  http.on('upgrade', (req, socket, head) => {
+    if (req.url?.split('?')[0] === '/tools/build/connect') {
+      const authorization = req.headers.authorization;
+      const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
+      const account = tools && durable ? pairedWorker(durable, token) : null;
+      if (!account) { socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); return; }
+      builders.handleUpgrade(req, socket, head, (ws) => builderChannel.attach(account, ws));
+      return;
+    }
+    sockets.handleUpgrade(req, socket, head, (ws) => sockets.emit('connection', ws, req));
+  });
 
   // every socket is a player attached to the simulation, and nothing here knows what they say
   sockets.on('connection', (socket) => {
@@ -251,6 +263,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     rooms,
     close: async () => {
       sim.stop();
+      builderChannel.close();
+      await new Promise<void>((done) => builders.close(() => done()));
       for (const socket of sockets.clients) socket.terminate();
       await new Promise<void>((done) => sockets.close(() => done()));
       await new Promise<void>((done) => http.close(() => done()));

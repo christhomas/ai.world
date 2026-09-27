@@ -7,12 +7,14 @@ import { Rooms, type Client, type Room, type Wire } from './rooms';
 import { WorldRecordConflict } from './worldrecords';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
-import { GroundWorld, patchedCountry } from '../src/world/groundworld';
+import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { isTold, replayTold } from '../src/world/telling';
+import type { CarrierFact } from '../src/world/carrierbook';
+import { advanceWorldCarriers } from './carrierflow';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
@@ -20,11 +22,13 @@ import { peopleOf } from './people';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Person } from '../src/world/people';
 import type { Highland } from '../src/world/highland';
+import type { TerrainLayer } from '../src/world/terrainlayers';
 import { HeldMinds, forgetMind, keepMinds, mindsOf } from './durable/minds';
 import { eventsOf, keepEvents } from './durable/events';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
-import { elevationFor, endlessStamp, growPatch } from '../src/world/growworld';
+import { countryStamp, elevationFor, endlessStamp, growPatch, growWorld, islandsFor, terrainFor } from '../src/world/growworld';
+import { TerrainSampler } from '../src/world/terrain';
 import { WORLD } from '../src/core/config';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
 import { lidLifted } from './chests';
@@ -61,6 +65,8 @@ export interface SimOptions {
    * players are walking on, which is what owning the creatures in it will need.
    */
   ground?: boolean;
+  /** The private browser worker may accept its page's authored terrain at join. */
+  localAuthoring?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
   reach?: number;
   /**
@@ -85,6 +91,8 @@ export interface Attached {
 
 /** How often presence goes out, in milliseconds. */
 export const TICK = 100;
+/** A late event-loop callback must not turn one creature update into a multi-tile teleport. */
+const MAX_CREATURE_STEP = TICK / 1000;
 /** Drop anyone we have not heard from in this long. */
 export const TIMEOUT = 30_000;
 /**
@@ -165,6 +173,22 @@ export const VIEW = WORLD.VIEW_RADIUS;
  */
 export const CHUNKS_AT_ONCE = 200;
 
+/** The private worker accepts only the small, finite list its title editor can make. */
+function localTerrain(value: unknown): TerrainLayer[] | null {
+  if (!Array.isArray(value) || value.length > 32) return null;
+  const layers: TerrainLayer[] = [];
+  for (const row of value) {
+    if (!row || typeof row !== 'object') return null;
+    const layer = row as Partial<TerrainLayer>;
+    if (layer.kind !== 'land' && layer.kind !== 'sea') return null;
+    if (![layer.x, layer.z, layer.reach, layer.seed].every(Number.isSafeInteger)) return null;
+    const { x, z, reach, seed } = layer as TerrainLayer;
+    if (Math.abs(x) > 1_000_000 || Math.abs(z) > 1_000_000 || reach < 1 || reach > 2048 || seed < 0 || seed > 0xffffffff) return null;
+    layers.push({ x, z, reach, seed, kind: layer.kind });
+  }
+  return layers;
+}
+
 /** The deepest floor anybody may claim to be standing on, so a number is not a way to spend memory. */
 const FLOORS = 40;
 
@@ -172,9 +196,12 @@ export class Simulation {
   readonly rooms: Rooms;
   private readonly timeout: number;
   private readonly growGround: boolean;
+  private readonly localAuthoring: boolean;
   private readonly reach: number;
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
+  /** A survey may grow an unnamed seed before its first player chooses which country it is. */
+  private readonly groundKinds = new Map<number, 'road' | 'endless'>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
   private readonly folk = new Map<number, { catchUp: () => void; register: { living(village: string): readonly Person[]; settled(): readonly string[] } }>();
   /** Where the non-derived half of a villager is kept between one visit and the next. */
@@ -190,6 +217,7 @@ export class Simulation {
    */
   private readonly held = new Map<number, HeldMinds>();
   /** The fingerprint of each of those countries, so a joining page can check it grew the same one. */
+  private readonly countryStamps = new Map<number, string>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
   private readonly wildlife = new Map<number, Wildlife>();
   /** What has happened lately in each world, for anybody watching one. See `chronicle.ts`. */
@@ -217,6 +245,7 @@ export class Simulation {
   private clockTicker: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: SimOptions = {}) {
+    this.localAuthoring = options.localAuthoring ?? false;
     this.minds = options.minds ?? null;
     this.chronicleDb = options.chronicles ?? null;
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
@@ -237,6 +266,10 @@ export class Simulation {
     return elevationFor(this.rooms.manifestOf(seed));
   }
 
+  private terrainOf(seed: number): readonly TerrainLayer[] {
+    return terrainFor(this.rooms.manifestOf(seed));
+  }
+
   /**
    * The ground of a world, grown the first time anybody stands in it.
    *
@@ -250,9 +283,18 @@ export class Simulation {
    */
   groundOf(seed: number): GroundWorld | null {
     if (!this.growGround) return null;
-    const held = this.ground.get(seed);
-    if (held) return held;
     const room = this.rooms.get(seed);
+    const kind = room?.kind ?? this.rooms.worldRecordForSeed(seed)?.kind ?? 'endless';
+    const held = this.ground.get(seed);
+    if (held && this.groundKinds.get(seed) === kind) return held;
+    // A read-only survey can precede the first road join. Replace its provisional endless ground.
+    if (held) {
+      this.ground.delete(seed);
+      this.countryStamps.delete(seed);
+      this.folk.delete(seed);
+      this.wildlife.delete(seed);
+      this.held.delete(seed);
+    }
     /*
      * There is no whole country to grow. `Patchwork` retains the squares somebody has approached,
      * and every one of them is grown from the seed *and the list* — the layers this world was
@@ -267,10 +309,14 @@ export class Simulation {
      * not close from the other side.
      */
     const layers = this.layersOf(seed);
-    const patches = new Patchwork(seed, growPatch, undefined, layers);
-    const country = patchedCountry(patches);
+    const terrain = this.terrainOf(seed);
+    const patches = kind === 'endless' ? new Patchwork(seed, growPatch, undefined, layers, terrain) : null;
+    const roadGraph = patches ? null : growWorld(seed, islandsFor(this.rooms.manifestOf(seed), seed));
+    const country = patches ? patchedCountry(patches) : oneCountry(new TerrainSampler(roadGraph!));
+    this.countryStamps.set(seed, roadGraph ? countryStamp(roadGraph, layers, terrain) : endlessStamp(seed, layers, terrain));
     const grown = new GroundWorld(country, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
+    this.groundKinds.set(seed, kind);
     /*
      * The square the players are in, before anybody is put in a street.
      *
@@ -279,7 +325,7 @@ export class Simulation {
      * where a fresh endless world puts somebody, it costs about half a second, and every other
      * square arrives as it is walked into — which is what `catchUp` below is for.
      */
-    patches.at(0, 0);
+    patches?.at(0, 0);
     // The people too, now. They were held back for a long time on the argument that a village is the
     // seed and the register and every client already agrees about it — which was true until a
     // villager was given something of his own to remember, and then it was two men of the same name
@@ -298,6 +344,8 @@ export class Simulation {
     // a street: deaths and declarations are replayed on their recorded mornings.
     const log = room?.world.log ?? [];
     replayTold(log.filter(isTold), (change) => folk.register.apply(change));
+    for (const fact of log.filter((delta): delta is CarrierFact =>
+      delta.kind === 'cart-loaded' || delta.kind === 'cart-finished')) folk.register.recordCarrier(fact);
     /*
      * And what the people of this world hold, which the seed cannot grow back.
      *
@@ -486,6 +534,11 @@ export class Simulation {
    */
   tick(now = Date.now()): void {
     const seconds = (now - this.lastTick) / 1000;
+    // The world clock accounts for elapsed wall time below, but bodies can only take one ordinary
+    // simulation step when the event loop wakes up. Passing a long stall through to EntityManager
+    // lets a goat move several tiles in one update; the following timer callbacks then arrive in a
+    // burst with near-zero deltas, which clients cannot smooth into ordinary movement.
+    const creatureSeconds = Math.max(0, Math.min(seconds, MAX_CREATURE_STEP));
     // Silence is counted in time the server was awake for, not in wall clock: see `HEARD_AT_MOST`.
     const heard = Math.min(now - this.lastTick, HEARD_AT_MOST);
     this.lastTick = now;
@@ -505,6 +558,8 @@ export class Simulation {
         this.rooms.close(seed);
         this.keepMindsOf(seed);
         this.ground.delete(seed);
+        this.groundKinds.delete(seed);
+        this.countryStamps.delete(seed);
         this.folk.delete(seed);
         this.held.delete(seed);
         this.wildlife.delete(seed);
@@ -532,7 +587,11 @@ export class Simulation {
       // first and the people second, exactly as it is on a client.
       const wildlife = this.wildlife.get(seed);
       const beforeDay = wildlife?.register?.today;
-      const turned = wildlife?.register?.advance(room.world.clock.day);
+      const turned = wildlife?.register && advanceWorldCarriers(
+        wildlife.register, room.world.clock.day, (delta) => {
+          if (room.world.apply(delta)) this.rooms.broadcast(seed, { type: 'delta', delta, from: '' });
+        },
+      );
       if (wildlife?.register?.today !== beforeDay) wildlife?.syncBuildings();
       // and what the day turned up goes into the world's chronicle, which is the only thing in the
       // game that keeps what *changed* rather than what is true. See `chronicle.ts`
@@ -572,7 +631,7 @@ export class Simulation {
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow, () => {
+          this.stepAndTell(alive, 'surface', above, creatureSeconds, room.world.clock.time, tellNow, () => {
             // `alive.step` is what first puts a village's residents on its register. Restore them
             // before `tellAboutCreatures` introduces the people to a client, which is the first
             // moment that client can know an id well enough to change its mind.
@@ -580,7 +639,7 @@ export class Simulation {
           });
         }
       }
-      this.stepFloors(seed, room, seconds, tellNow);
+      this.stepFloors(seed, room, creatureSeconds, tellNow);
       for (const client of room.clients) {
         this.rooms.send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });
       }
@@ -844,12 +903,13 @@ export class Simulation {
       return null;
     }
     const requestedSeed = message.seed >>> 0;
+    const kind = message.kind === 'road' ? 'road' : 'endless';
     let record = message.worldName === undefined
       ? this.rooms.worldRecordForSeed(requestedSeed)
       : undefined;
     if (message.worldName !== undefined) {
       try {
-        record = this.rooms.claimWorld(message.worldName, requestedSeed);
+        record = this.rooms.claimWorld(message.worldName, requestedSeed, kind);
       } catch (error) {
         const reason = error instanceof WorldRecordConflict ? error.message : 'That world name could not be opened.';
         wire.send(JSON.stringify({ type: 'error', reason } satisfies ServerMessage));
@@ -861,11 +921,31 @@ export class Simulation {
     // A named record is the authority. An unnamed join still opens old seed-numbered saves exactly
     // as it did before names existed.
     const seed = record?.seed ?? requestedSeed;
-    const room = this.rooms.open(seed, {
-      day: Math.max(1, Math.floor(message.day) || 1),
-      time: Number(message.time) || 0.3,
-    }, record);
-    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name));
+    let room: Room;
+    try {
+      room = this.rooms.open(seed, {
+        day: Math.max(1, Math.floor(message.day) || 1),
+        time: Number(message.time) || 0.3,
+      }, record, kind);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'That world could not be opened.';
+      wire.send(JSON.stringify({ type: 'error', reason } satisfies ServerMessage));
+      wire.close();
+      return null;
+    }
+    if (this.localAuthoring && message.terrain !== undefined) {
+      const terrain = localTerrain(message.terrain);
+      if (!terrain || ((this.ground.has(seed) || room.clients.size > 0)
+        && JSON.stringify(room.world.manifest.terrain) !== JSON.stringify(terrain))) {
+        wire.send(JSON.stringify({ type: 'error', reason: 'This world could not accept those terrain layers.' } satisfies ServerMessage));
+        wire.close();
+        return null;
+      }
+      if (JSON.stringify(room.world.manifest.terrain) !== JSON.stringify(terrain)) room.world.authorTerrain(terrain);
+    }
+    const x = Number(message.x), z = Number(message.z);
+    const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;
+    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at);
 
     this.rooms.send(joining, {
       type: 'welcome', id: joining.presence.id, seed, world: record,
@@ -920,8 +1000,9 @@ export class Simulation {
     const ground = this.groundOf(client.seed);
     const x = Number(message.x), z = Number(message.z);
     if (ground && Number.isFinite(x) && Number.isFinite(z)) ground.ready(x, z, VIEW);
-    const stamp = ground ? endlessStamp(client.seed, this.layersOf(client.seed)) : '';
-    this.rooms.send(client, { type: 'country', stamp });
+    const kind = this.rooms.get(client.seed)?.kind ?? 'endless';
+    const stamp = ground ? this.countryStamps.get(client.seed) ?? '' : '';
+    this.rooms.send(client, { type: 'country', stamp, kind });
   }
 }
 

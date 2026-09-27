@@ -1,5 +1,6 @@
 import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, type Presence,
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
+import type { WorldKind } from '../world/countries';
 
 /**
  * What the world says, and what this half does about each of it.
@@ -38,7 +39,7 @@ export interface OnlineEvents {
    * the two answers can be compared for the price of eight characters.
    */
   /** @param kind which sort of country the world grew, when it is new enough to say. */
-  onCountryGrown: (stamp: string) => void;
+  onCountryGrown: (stamp: string, kind?: WorldKind) => void;
   onChat: (line: string) => void;
   onSystem: (line: string) => void;
   /** The world's own time, which everyone in it shares. */
@@ -176,7 +177,7 @@ export function heard(o: Listening, message: ServerMessage): void {
       }
       break;
     case 'country':
-      o.events.onCountryGrown(message.stamp);
+      o.events.onCountryGrown(message.stamp, message.kind);
       break;
     case 'youAre':
       o.events.onWhereYouAre(message.seq, message.x, message.z, message.y);

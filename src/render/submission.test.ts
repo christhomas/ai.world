@@ -50,12 +50,20 @@ describe('where a frame is submitted', () => {
     const reaching = outside().filter((f) => /\brig\.renderer\b/.test(readFileSync(f, 'utf8')));
     expect(reaching, 'a renderer reached for outside the render layer is a renderer that cannot be swapped')
       .toEqual([]);
+    const rig = readFileSync(join('src', 'render', 'scene.ts'), 'utf8')
+      .split('export interface SceneRig {')[1]?.split('\n}')[0] ?? '';
+    expect(rig, 'the public rig still exposes the WebGL renderer').not.toMatch(/\brenderer\s*:/);
   });
 
   it('does not reach into the lights from outside, but asks the rig', () => {
     const reaching = outside().filter((f) => /\brig\.(sun|hemi|ambient)\b/.test(readFileSync(f, 'utf8')));
     expect(reaching, 'a light held by name outside the render layer is a light a second rig cannot have')
       .toEqual([]);
+  });
+
+  it('keeps water updates and resource cleanup inside the render layer', () => {
+    const reaching = outside().filter((f) => /\brig\.(?:water\s*\.\s*(?:update|dispose)|coast\s*\.\s*dispose)\s*\(/.test(readFileSync(f, 'utf8')));
+    expect(reaching, 'game code is managing render resources through their concrete objects').toEqual([]);
   });
 
   it('still lets game code build into the scene, which is the half this does not touch', () => {

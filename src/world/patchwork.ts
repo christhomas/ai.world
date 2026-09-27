@@ -2,6 +2,7 @@ import { WORLD } from '../core/config';
 import { growPatch } from './growworld';
 import type { Highland } from './highland';
 import type { TerrainSampler } from './terrain';
+import type { TerrainLayer } from './terrainlayers';
 import type { Within } from './window';
 
 /**
@@ -108,7 +109,7 @@ export class Patchwork {
   constructor(
     private readonly seed: number,
     private readonly grow: (
-      seed: number, within: Within, layers: readonly Highland[],
+      seed: number, within: Within, layers: readonly Highland[], terrain: readonly TerrainLayer[],
     ) => TerrainSampler = growPatch,
     private readonly keeps = KEEPS,
     /**
@@ -121,6 +122,8 @@ export class Patchwork {
      * halves are kept from quietly holding different ones. See `growworld.ts` and #322.
      */
     readonly layers: readonly Highland[] = [],
+    /** Face-kind edits shared by direct growth and the country worker. */
+    readonly terrain: readonly TerrainLayer[] = [],
   ) {}
 
   /** The sampler that answers for this point, growing its patch if this is the first time. */
@@ -140,7 +143,7 @@ export class Patchwork {
       already.touched = ++this.clock;
       return already.sampler;
     }
-    const sampler = this.grow(this.seed, boundsOf(patch), this.layers);
+    const sampler = this.grow(this.seed, boundsOf(patch), this.layers, this.terrain);
     this.grown++;
     this.held.set(patch, { patch, sampler, touched: ++this.clock });
     this.forget();

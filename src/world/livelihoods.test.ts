@@ -156,6 +156,26 @@ describe('what the village paid for its dinner', () => {
     expect(fed.get(ownedBy(people[0]))!).toBeGreaterThan(fed.get(ownedBy(people[1]))!);
   });
 
+  it('counts a healthy hunt but no venison or venison payment while the hunter is laid up', () => {
+    const hunter = person('hunter');
+    const neighbour = person('soldier');
+    const people = [hunter, neighbour];
+    const healthy = aDaysTrade(people, 0, 0);
+    expect(healthy.grown).toBe(FOOD.PER_HEAD * 2 + FOOD.PER_HUNTER);
+    expect(whoFed(people, 0, healthy.shore, 0, healthy.fields).get(ownedBy(hunter)))
+      .toBe(FOOD.PER_HEAD + FOOD.PER_HUNTER);
+
+    hunter.hurt = 2;
+    const laidUp = aDaysTrade(people, 0, 0);
+    expect(laidUp.grown).toBe(FOOD.PER_HEAD * 2);
+    const shares = whoFed(people, 0, laidUp.shore, 0, laidUp.fields);
+    expect(shares.get(ownedBy(hunter))).toBe(FOOD.PER_HEAD);
+    expect([...shares.values()].reduce((sum, food) => sum + food, 0)).toBe(laidUp.grown);
+    const paid = paidForFood(people, laidUp.grown, 0, laidUp.shore, 0, laidUp.fields);
+    expect(paid.get(ownedBy(hunter))).toBe(FOOD.PER_HEAD);
+    expect([...paid.values()].reduce((sum, gold) => sum + gold, 0)).toBe(laidUp.grown);
+  });
+
   /*
    * And the same promise kept for a village that *did* count them, which is the ordinary case
    * rather than the corner: `aDaysTrade` hands back an empty map rather than `null` for a village

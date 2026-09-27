@@ -22,10 +22,10 @@ class Visitor {
     this.connection = sim.attach(wire);
   }
 
-  join(worldName: string, seed: number): void {
+  join(worldName: string, seed: number, x?: number, z?: number): void {
     const message: ClientMessage = {
       type: 'join', worldName, seed, name: 'Rowan',
-      version: PROTOCOL_VERSION, day: 1, time: 0.3,
+      version: PROTOCOL_VERSION, day: 1, time: 0.3, x, z,
     };
     this.connection.receive(JSON.stringify(message));
   }
@@ -50,6 +50,16 @@ describe('named world records', () => {
     expect(() => records.claim('Other', 77)).toThrow('already named “Chris”');
   });
 
+  it('keeps a named road world road across a registry reload and refuses an endless join', () => {
+    const vault = new Forgetful();
+    const records = new WorldRecords('worlds', vault);
+    expect(records.claim('Crossroads', 3, 'road')).toEqual({ name: 'Crossroads', seed: 3, kind: 'road' });
+    const restored = new WorldRecords('worlds', vault);
+    expect(restored.find('crossroads')?.kind).toBe('road');
+    expect(() => restored.claim('Crossroads', 3, 'endless')).toThrow(WorldRecordConflict);
+    expect(new Rooms('worlds', vault).invite('Crossroads')?.kind).toBe('road');
+  });
+
   it('keeps pre-name seed files as the state of a world when it gains a name', () => {
     const vault = new Forgetful();
     vault.write('worlds/77.json', JSON.stringify({
@@ -68,9 +78,11 @@ describe('named world records', () => {
     const first = new Visitor(sim);
     first.join('Chris', 77);
     const second = new Visitor(sim);
-    second.join(' chris ', 77);
+    second.join(' chris ', 77, 32.45, 85.05);
 
-    expect(first.heard.some((message) => message.type === 'joined')).toBe(true);
+    expect(first.heard.find((message) => message.type === 'joined')).toMatchObject({
+      player: { name: 'Rowan', x: 32.45, z: 85.05 },
+    });
     expect(second.heard.find((message) => message.type === 'welcome')).toMatchObject({
       seed: 77,
       world: { name: 'Chris', seed: 77 },

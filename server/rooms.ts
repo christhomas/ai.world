@@ -10,7 +10,7 @@ import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldInvite, Wor
 import { worldKey } from './protocol';
 import { Forgetful, type Vault } from './vault';
 import { SharedWorld, manifestIn, worldPath } from './world';
-import { WorldRecords } from './worldrecords';
+import { WorldRecordConflict, WorldRecords } from './worldrecords';
 
 /**
  * The way to reach one player, whatever they are on the other end of.
@@ -182,6 +182,8 @@ export type Party = Set<Client>;
 export interface Room {
   /** The durable name of this room, absent only for a numeric save that has not been named yet. */
   name?: string;
+  /** The country this room grows for every player. */
+  kind: WorldKind;
   clients: Set<Client>;
   world: SharedWorld;
 }
@@ -195,10 +197,10 @@ export interface Room {
  * page that guessed wrong would grow a completely different country from the same seed.
  *
  * It cannot drift from what the server actually does without something failing: `twohalves.test.ts`
- * asserts on the literal `new Patchwork(seed, growPatch, undefined, layers)` in `sim.ts`, so the
+ * asserts on the literal `new Patchwork(seed, growPatch, undefined, layers, terrain)` in `sim.ts`, so the
  * day this server grows a country of another kind that guard goes red beside this line.
  */
-const SERVED_KIND: WorldKind = 'endless';
+const LEGACY_KIND: WorldKind = 'endless';
 
 export class Rooms {
   private readonly rooms = new Map<string, Room>();
@@ -259,26 +261,30 @@ export class Rooms {
   invite(name: unknown): WorldInvite | undefined {
     const record = this.records.find(name);
     if (!record) return undefined;
-    return { ...record, kind: SERVED_KIND, layers: this.manifestOf(record.seed).layers() };
+    const manifest = this.manifestOf(record.seed);
+    return { ...record, kind: record.kind ?? LEGACY_KIND, layers: manifest.layers(), terrain: [...manifest.terrain] };
   }
 
   worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }
   worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
 
   /** Resolve or create the durable record presented by a named join. */
-  claimWorld(name: unknown, seed: number): WorldRecord {
-    return this.records.claim(name, seed);
+  claimWorld(name: unknown, seed: number, kind: WorldKind = LEGACY_KIND): WorldRecord {
+    const open = this.get(seed);
+    if (open && open.kind !== kind) throw new WorldRecordConflict('That seed is already open as a different kind of world.');
+    return this.records.claim(name, seed, kind);
   }
 
   /** The room for a world, read back from its old seed file the first time anybody asks for it. */
-  open(seed: number, start: { day: number; time: number }, named?: WorldRecord): Room {
+  open(seed: number, start: { day: number; time: number }, named?: WorldRecord, kind: WorldKind = LEGACY_KIND): Room {
     const root = seed >>> 0;
     const already = this.bySeed.get(root);
     const key = already ?? (named ? worldKey(named.name)! : `#${root}`);
     let room = this.rooms.get(key);
+    if (room && room.kind !== kind) throw new WorldRecordConflict('That seed is already open as a different kind of world.');
     if (!room) {
       const world = new SharedWorld(root, worldPath(this.dataDir, root), { ...start }, this.dataDir, this.vault);
-      room = { clients: new Set(), name: named?.name, world };
+      room = { clients: new Set(), name: named?.name, kind, world };
       this.rooms.set(key, room);
       this.bySeed.set(root, key);
     }
@@ -297,13 +303,17 @@ export class Rooms {
   }
 
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
-  admit(wire: Wire, room: Room, seed: number, name: string): Client {
+  admit(wire: Wire, room: Room, seed: number, name: string, at?: { x: number; z: number }): Client {
+    // The join's coordinates already choose the first country grown for this player. Presence
+    // must begin there too, or the first creature snapshot describes the unrelated origin.
+    const x = at && Number.isFinite(at.x) ? at.x : 0;
+    const z = at && Number.isFinite(at.z) ? at.z : 0;
     const client: Client = {
       wire, seed, silent: 0, offers: new Map(), party: null, seeing: new Map(),
-      knows: new Map(), standing: { x: 0, z: 0, gear: [], guilt: 0 }, guilt: 0,
+      knows: new Map(), standing: { x, z, gear: [], guilt: 0 }, guilt: 0,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null, boat: null,
-      presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
+      presence: { id: `p${this.nextId++}`, name, x, z, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
     return client;

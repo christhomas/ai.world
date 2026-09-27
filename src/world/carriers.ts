@@ -153,6 +153,9 @@ export interface Carrying {
   paid: Map<Owner, number>;
 }
 
+/** What happened to a loaded cart before the buyer could receive it. */
+export type CarryingOutcome = 'delivered' | 'robbed';
+
 /** Whether these two places are near enough to walk between, for whoever knows where they are. */
 function withinReach(from: Market, to: Market): boolean {
   if (!from.at || !to.at) return true;
@@ -273,6 +276,17 @@ function marketOf(village: string, here: Settlement, pressure: number, at?: { x:
   };
 }
 
+/** The next cart, before its load leaves either village's books. */
+export function planCarrying(
+  villages: ReadonlyMap<string, Settlement>,
+  where: (village: string) => { x: number; z: number } | undefined,
+  pressureOn: (village: string) => number,
+): Carrying | null {
+  return whatACarrierWouldCarry([...villages].map(
+    ([name, here]) => marketOf(name, here, pressureOn(name), where(name)),
+  ));
+}
+
 /**
  * A carrier walks, once the day's villages have all worked and eaten.
  *
@@ -297,19 +311,73 @@ export function aCarrierWalks(
   pressureOn: (village: string) => number,
   book: Map<string, number>,
 ): Carrying | null {
-  const markets = [...villages].map(
-    ([name, here]) => marketOf(name, here, pressureOn(name), where(name)),
-  );
-  const cart = whatACarrierWouldCarry(markets);
+  const cart = planCarrying(villages, where, pressureOn);
   if (!cart) return null;
 
+  settleCarrying(villages, cart, book, 'delivered');
+  return cart;
+}
+
+function writeCart(book: Map<string, number>, id: string, much: number): void {
+  const next = (book.get(id) ?? 0) + much;
+  if (Math.abs(next) < 1e-8) book.delete(id); else book.set(id, next);
+}
+
+/** Loading removes the food and reserves the buyer's exact payment until the outcome is known. */
+export function loadCarrying(
+  villages: ReadonlyMap<string, Settlement>, cart: Carrying, book: Map<string, number>,
+): void {
   const from = villages.get(cart.from)!;
   const to = villages.get(cart.to)!;
+  const payers = new Map(to.people.map((person) => [ownedBy(person), person.purse]));
+  payers.set(to.hall.id, to.hall.purse);
+  if (from.food + 1e-8 < cart.meals || [...cart.paying].some(
+    ([id, much]) => !payers.has(id) || payers.get(id)! + much < -1e-8,
+  )) throw new Error('A cart cannot load absent food or buyer funds.');
   from.food -= cart.meals;
-  to.food += cart.meals;
-  payAndSweep(from, cart.paid);
   payAndSweep(to, cart.paying);
-  for (const [id, much] of cart.paid) book.set(id, (book.get(id) ?? 0) + much);
-  for (const [id, much] of cart.paying) book.set(id, (book.get(id) ?? 0) + much);
-  return cart;
+  for (const [id, much] of cart.paying) writeCart(book, id, much);
+}
+
+/** Settle held payment at the end of a journey; dead owners' shares go to their village hall. */
+export function finishLoadedCarrying(
+  villages: ReadonlyMap<string, Settlement>, cart: Carrying,
+  book: Map<string, number>, outcome: CarryingOutcome,
+): void {
+  const from = villages.get(cart.from)!;
+  const to = villages.get(cart.to)!;
+  const here = outcome === 'delivered' ? from : to;
+  if (outcome === 'delivered' && to.food + cart.meals > cellarCap(to.people) + 1e-8) {
+    throw new Error('A delivered cart exceeds its buyer\'s cellar.');
+  }
+  const alive = new Set([...here.people.map(ownedBy), here.hall.id]);
+  const credits = new Map<Owner, number>();
+  const quoted = outcome === 'delivered' ? cart.paid
+    : new Map([...cart.paying].map(([id, much]) => [id, -much]));
+  for (const [id, much] of quoted) {
+    const recipient = alive.has(id) ? id : here.hall.id;
+    credits.set(recipient, (credits.get(recipient) ?? 0) + much);
+  }
+  if (outcome === 'delivered') to.food += cart.meals;
+  payAndSweep(here, credits);
+  for (const [id, much] of credits) writeCart(book, id, much);
+}
+
+/**
+ * Settle the two villages after the cart has left the sender.
+ *
+ * A robbed load is gone from the sender's cellar, while the buyer keeps both their money and their
+ * empty cellar. The goods are outside the village economy until whoever took them is recorded in
+ * the world. A delivered load moves exactly the buyers' debits to the sellers' purses. This door
+ * gives a later told interruption one place to apply its village consequences without replaying a
+ * sale that never happened.
+ */
+export function settleCarrying(
+  villages: ReadonlyMap<string, Settlement>,
+  cart: Carrying,
+  book: Map<string, number>,
+  outcome: CarryingOutcome,
+): void {
+  loadCarrying(villages, cart, book);
+  finishLoadedCarrying(villages, cart, book, outcome);
 }

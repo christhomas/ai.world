@@ -71,6 +71,11 @@ function bedrock(seed: number, x: number, z: number): FaceKind {
   return height > MESH.PEAKS ? FaceKind.Mountain : FaceKind.Land;
 }
 
+/** The seed's face kind with the authored terrain list over it, before lakes are made. */
+function baseKind(world: Country, x: number, z: number): FaceKind {
+  return world.terrain.kindAt(x, z) ?? bedrock(world.seed, x, z);
+}
+
 /** Land or mountain: ground you can put your foot on, as opposed to sea or lake. */
 const dry = (kind: FaceKind): boolean => kind === FaceKind.Land || kind === FaceKind.Mountain;
 
@@ -88,10 +93,10 @@ function keyOf(id: string): number {
  * so that a lake is inland water and never a bite taken out of a coast.
  */
 function inland(world: Country, face: Face): boolean {
-  if (bedrock(world.seed, face.x, face.z) !== FaceKind.Land) return false;
+  if (baseKind(world, face.x, face.z) !== FaceKind.Land) return false;
   for (const id of face.neighbours) {
     const site = siteOf(world, id, face);
-    if (!site || !dry(bedrock(world.seed, site.x, site.z))) return false;
+    if (!site || !dry(baseKind(world, site.x, site.z))) return false;
   }
   return true;
 }
@@ -140,6 +145,8 @@ function remembered(world: Country): Map<string, FaceKind> {
 
 /** What one face is made of, worked out from the ground rather than recalled. */
 function worked(world: Country, face: Face): FaceKind {
+  const authored = world.terrain.kindAt(face.x, face.z);
+  if (authored !== null) return authored;
   const bed = bedrock(world.seed, face.x, face.z);
   if (bed !== FaceKind.Land) return bed;
   if (!inland(world, face)) return FaceKind.Land;      // a face on a coast holds no water

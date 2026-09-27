@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { WORLD } from '../src/core/config';
 import { Manifest, joinedManifest, type Anchor, type ManifestJson } from '../src/world/manifest';
 import { Patchwork } from '../src/world/patchwork';
-import { elevationFor, endlessStamp, growPatch, whyCountriesDiffer } from '../src/world/growworld';
+import { elevationFor, endlessStamp, growPatch, terrainFor, whyCountriesDiffer } from '../src/world/growworld';
+import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { Highland } from '../src/world/highland';
 import { mountainAt } from '../src/world/ranges';
 import { TileType } from '../src/world/terrain';
@@ -137,6 +138,20 @@ const rooms = serverHolding(world);
 const invite = asThePageReceivesIt(rooms.invite(NAME));
 
 describe('what a named invite answers with', () => {
+  it('carries authored land and sea edits into the page manifest and country stamp', () => {
+    const terrain: TerrainLayer[] = [{ x: 256, z: 256, reach: 75, seed: 41, kind: 'land' }];
+    const authoredTerrain = authored();
+    authoredTerrain.terrain.push(...terrain);
+    const sent = asThePageReceivesIt(serverHolding(authoredTerrain).invite(NAME));
+    expect(sent?.terrain).toEqual(terrain);
+
+    const page = new Manifest(SEED, joinedManifest(SEED, undefined, sent?.layers, sent?.terrain));
+    expect(terrainFor(page)).toEqual(terrain);
+    const serverStamp = endlessStamp(SEED, elevationFor(authoredTerrain), terrainFor(authoredTerrain));
+    expect(endlessStamp(SEED, elevationFor(page), terrainFor(page))).toBe(serverStamp);
+    expect(endlessStamp(SEED, elevationFor(page))).not.toBe(serverStamp);
+  });
+
   it('carries the world\'s own layer list, and says which country it grows', () => {
     expect(elevationFor(world), 'the world\'s manifest yielded no layer, so nothing below is about anything')
       .toEqual([{ x: CENTRE.x, z: CENTRE.z, reach: LAYER.reach, lift: LAYER.lift }]);
@@ -298,7 +313,7 @@ describe('the page assembles a named world from what it was told', () => {
   it('grows a named join from the invite rather than from its own storage', () => {
     const boot = readFileSync('src/boot.ts', 'utf8');
     expect(boot, 'a named join no longer builds its manifest from what it was handed')
-      .toContain('joinedManifest(seed, saved?.manifest, named.layers)');
+      .toContain('joinedManifest(seed, saved?.manifest, named.layers, named.terrain)');
     expect(boot, 'the page is choosing a country again instead of being told one')
       .toContain('world = kindOf(named.kind)');
     // and the save key is still scoped by server and name, which is what stops a list arriving for

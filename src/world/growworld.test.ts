@@ -202,6 +202,8 @@ describe('why two halves are not in the same country', () => {
 describe('the fingerprint of a country that has no edge', () => {
   const range: Highland[] = [{ x: 200, z: 0, reach: 300, lift: 24 }];
   const far: Highland[] = [{ x: 900, z: 0, reach: 300, lift: 24 }];
+  const land = { x: 200, z: 0, reach: 75, seed: 7, kind: 'land' as const };
+  const sea = { ...land, kind: 'sea' as const };
   /** A country with nothing in it, for the one question below that is about the other stamp. */
   const bounded: RoadGraph = {
     seed: 4242, radius: 100, nodes: [], edges: [], towns: [], islands: [],
@@ -219,6 +221,15 @@ describe('the fingerprint of a country that has no edge', () => {
     expect(endlessStamp(4242, range)).not.toBe(endlessStamp(4242));
     expect(endlessStamp(4242, far)).not.toBe(endlessStamp(4242, range));
     expect(endlessStamp(4242, [...range, ...far])).not.toBe(endlessStamp(4242, range));
+  });
+
+  it('includes authored terrain and its application order', () => {
+    expect(endlessStamp(4242, [], [land])).not.toBe(endlessStamp(4242));
+    expect(endlessStamp(4242, [], [sea])).not.toBe(endlessStamp(4242, [], [land]));
+    expect(endlessStamp(4242, [], [land, sea])).not.toBe(endlessStamp(4242, [], [sea, land]));
+    expect(stampFor('endless', 4242, bounded, [], [land])).toBe(endlessStamp(4242, [], [land]));
+    expect(stampFor('road', 4242, bounded, [], [land])).toBe(countryStamp(bounded, [], [land]));
+    expect(countryStamp(bounded, [], [land])).not.toBe(countryStamp(bounded));
   });
 
   it('says two worlds differ when they are different worlds', () => {

@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { createHash, randomBytes } from 'node:crypto';
 import { migrateDomain } from '../durable/db';
 import { hashPassword, hashPasswordAsync, passwordMatchesAsync, wantsRehashing } from './passwords';
 import { newSessionId, TOKEN_LASTS } from './tokens';
@@ -57,7 +58,40 @@ const SCHEMA: readonly string[] = [
    );
    CREATE INDEX session_by_account ON session(account);
    CREATE INDEX session_by_expiry ON session(expires);`,
+  // 2 — one revocable outbound builder credential per account; the bearer is never stored
+  `CREATE TABLE builder_pair (
+     account TEXT PRIMARY KEY REFERENCES account(id) ON DELETE CASCADE,
+     digest TEXT NOT NULL UNIQUE,
+     made INTEGER NOT NULL
+   );`,
 ];
+
+const digestPair = (token: string): string => createHash('sha256').update(token).digest('hex');
+
+/** Rotate this account's worker credential. The returned bearer is shown once and never stored. */
+export function pairWorker(db: DatabaseSync, account: string, now = Date.now()): string {
+  const token = randomBytes(32).toString('base64url');
+  db.prepare('INSERT INTO builder_pair (account, digest, made) VALUES (?, ?, ?) '
+    + 'ON CONFLICT(account) DO UPDATE SET digest = excluded.digest, made = excluded.made')
+    .run(account, digestPair(token), now);
+  return token;
+}
+
+/** Revoke this account's credential, including any connection authenticated with it. */
+export function unpairWorker(db: DatabaseSync, account: string): void {
+  db.prepare('DELETE FROM builder_pair WHERE account = ?').run(account);
+}
+
+export function hasWorkerPair(db: DatabaseSync, account: string): boolean {
+  return db.prepare('SELECT 1 FROM builder_pair WHERE account = ?').get(account) !== undefined;
+}
+
+/** Resolve a high-entropy bearer to exactly one account. Invalid tokens all have the same answer. */
+export function pairedWorker(db: DatabaseSync, token: string): string | null {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+  const row = db.prepare('SELECT account FROM builder_pair WHERE digest = ?').get(digestPair(token));
+  return row ? String((row as { account: string }).account) : null;
+}
 
 /** Run whatever of this domain's schema the file has not had yet. See `migrateDomain`. */
 export function migrate(db: DatabaseSync): number {

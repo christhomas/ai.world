@@ -8,14 +8,18 @@ import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 import type { WorldKind } from '../src/world/countries';
 import type { Anchor } from '../src/world/manifest';
+import type { TerrainLayer } from '../src/world/terrainlayers';
+import type { CarrierFact } from '../src/world/carrierbook';
 
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
   /** The spelling chosen by the first person through the door. */
   name: string;
   seed: number;
+  /** The generator chosen when the world was first named. Old records grew endless country. */
+  kind?: WorldKind;
 }
 
 /**
@@ -55,6 +59,8 @@ export interface WorldInvite extends WorldRecord {
    * the generator that reads it changes, which a bare centre-and-shape would have thrown away.
    */
   layers?: Anchor[];
+  /** Authored land and sea edits, in the order the world's generator applies them. */
+  terrain?: TerrainLayer[];
 }
 
 /**
@@ -135,6 +141,7 @@ export interface SwornIn {
 }
 
 export type WorldDelta =
+  | CarrierFact
   | { kind: 'chest'; id: string }
   | { kind: 'key'; id: string }
   | { kind: 'sow'; tile: string; crop: string; day: number }
@@ -449,7 +456,7 @@ export type ClientMessage =
    * durable handle whose seed the server has already recorded; no terrain discriminator travels
    * because the endless country is the only country the running game can grow.
    */
-  | { type: 'join'; worldName?: string; seed: number; name: string; version: number; day: number; time: number; x?: number; z?: number }
+  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -819,7 +826,7 @@ export type ServerMessage =
    *
    * Empty on a world that grows no ground at all, which is a test harness rather than a game.
    */
-  | { type: 'country'; stamp: string }
+  | { type: 'country'; stamp: string; kind?: WorldKind }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }
   | { type: 'presence'; players: Presence[] }
@@ -1079,7 +1086,9 @@ export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
  * opening hand something over, and sowing spends a seed to claim a tile. When every way a page can
  * sow is a hero standing in a field (the debug console can sow across the map), it joins them.
  */
-const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted', 'sworn', 'arrived']);
+const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set([
+  'chest', 'key', 'reap', 'voted', 'sworn', 'arrived', 'cart-loaded', 'cart-finished',
+]);
 
 /** Whether a client may report this change itself, or must ask the world for it instead. */
 export function mayReport(delta: WorldDelta): boolean {
@@ -1102,6 +1111,8 @@ export function deltaKey(delta: WorldDelta): string {
     // one entry per person per village: walking out and back in again is not a second arrival, and
     // a name is the identity here exactly as it is for an oath
     case 'arrived': return `arrived:${delta.village}:${delta.who}`;
+    case 'cart-loaded': return `cart-loaded:${delta.day}`;
+    case 'cart-finished': return `cart-finished:${delta.loadedOn}`;
     // one entry per mine, and the newest wins: both of these carry a whole state rather than a
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
@@ -1164,7 +1175,39 @@ export function cleanRecall(sent: unknown): { who: string; what: Memory['what'];
 /** Guard against a client sending something misshapen. */
 export function cleanDelta(delta: WorldDelta): WorldDelta | null {
   const id = (value: unknown) => String(value ?? '').slice(0, LIMITS.THING_ID);
+  const entries = (raw: unknown, sign: 1 | -1): [string, number][] | null => {
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 100) return null;
+    const rows: [string, number][] = [];
+    for (const entry of raw) {
+      if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string'
+        || entry[0].length < 1 || entry[0].length > LIMITS.THING_ID
+        || !Number.isFinite(entry[1]) || entry[1] * sign <= 0) return null;
+      rows.push([entry[0], entry[1]]);
+    }
+    return new Set(rows.map(([owner]) => owner)).size === rows.length ? rows : null;
+  };
   switch (delta?.kind) {
+    case 'cart-loaded': {
+      const paying = entries(delta.paying, -1), paid = entries(delta.paid, 1);
+      if (!Number.isInteger(delta.day) || delta.day < 2
+        || typeof delta.from !== 'string' || typeof delta.to !== 'string'
+        || !delta.from || !delta.to || delta.from === delta.to
+        || !Number.isFinite(delta.meals) || delta.meals <= 0
+        || !Number.isFinite(delta.price) || delta.price <= 0 || !paying || !paid) return null;
+      const owed = -paying.reduce((sum, [, much]) => sum + much, 0);
+      if (Math.abs(owed - paid.reduce((sum, [, much]) => sum + much, 0)) > 1e-6
+        || Math.abs(owed - delta.meals * delta.price) > 1e-6) return null;
+      return { kind: 'cart-loaded', day: delta.day, from: id(delta.from), to: id(delta.to),
+        meals: delta.meals, price: delta.price, paying, paid };
+    }
+    case 'cart-finished': {
+      const receiving = entries(delta.receiving, 1);
+      if (!Number.isInteger(delta.day) || !Number.isInteger(delta.loadedOn)
+        || delta.loadedOn < 2 || delta.day < delta.loadedOn
+        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving) return null;
+      return { kind: 'cart-finished', day: delta.day, loadedOn: delta.loadedOn,
+        outcome: delta.outcome, receiving };
+    }
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };
     case 'found': return { kind: 'found', name: id(delta.name) };

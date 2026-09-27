@@ -15,7 +15,8 @@ import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
 import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
-import { aCarrierWalks } from './carriers';
+import { aCarrierWalks, planCarrying, type CarryingOutcome } from './carriers';
+import { CarrierBook, cartFinished, cartLoaded, type CarrierFact, type CartFinished, type CartLoaded } from './carrierbook';
 import { standPostsIn, theDaysPosts, whoWouldStand, type Post } from './postings';
 import { DayBook } from './daybook';
 import { HoldingBook } from './holdingbook';
@@ -75,6 +76,7 @@ export class Register {
   private readonly magicked = new Map<string, number[]>();
   /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
   private readonly stables = new StableBook();
+  private readonly carrierBook = new CarrierBook();
   /**
    * Which household holds which roof, by village. Item 111.
    *
@@ -94,21 +96,10 @@ export class Register {
     private readonly seed: number,
     day = FOUNDED_ON,
     private readonly onDeparted: (change: Change) => void = () => {},
+    private readonly carrierMode: 'instant' | 'journaled' = 'instant',
   ) {
     this.day = Math.floor(day);
-    /*
-     * What a day in one village is allowed to know about the rest of the world: see `aday.ts`.
-     *
-     * A small boundary, built once and handed down. A day needs a settlement to change, a handful
-     * of numbers and somewhere to write down what the hall took and paid; it never asks who is
-     * alive in the next valley. Every new entry must remain a dated fact about this one place,
-     * rather than quietly letting a Tuesday reach into the whole book.
-     *
-     * `today` is a getter rather than a copy, and that is load-bearing: a village re-lived from
-     * its founding lives day two while the register stands on day four hundred, and what a village
-     * may build is asked against the latter. A number copied in here would have frozen it at the
-     * day the register was made.
-     */
+    // A village's day sees this small boundary, with today's date read live during historical replay.
     const book = this;
     this.theDay = {
       seed: this.seed,
@@ -206,34 +197,18 @@ export class Register {
     this.holdingsBook.forget(village);   // a life thrown away never happened: `holdingbook.ts`
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
-      // and its posts, because this is the *other* way a village lives a day; `relived.test.ts`
-      // holds the two to one answer. See `standPostsIn` for why the carrier cannot come with it.
-      // What the last of these mornings stood is what the village is left standing, or a place
-      // founded late answers `[]` to `postsOn` and a re-lived one keeps the entry of the village
-      // it replaced — a map keyed by name outliving the thing it described
+      // Keep the last morning's posts when a village is founded late or relived.
       this.posted.set(village, standPostsIn(village, settlement, this.pressure.on(village, day), day, this.holdingsBook));
       this.telling.votedOn(village, settlement, day);
+      if (this.carrierMode === 'journaled') this.carrierBook.applyOn(village, settlement, day);
     }
     return settlement.people;
   }
 
   /**
-   * Found a village again — on somebody else's list of trades, or on today's rules.
-   *
-   * The world's word about a village, arriving after this page has already had a go at the same
-   * question. Which trades a place can support is read off the land around it — a shore only where
-   * there is water, heights only where the ground climbs — so the answer depends on how much of the
-   * country the reader has grown, and the founding *rolls off that list*: a village founded on nine
-   * trades and the same village founded on six are the same names doing different jobs.
-   *
-   * Not hypothetical: a page opens its own book the moment it puts anybody in a street, holding a
-   * hundred and twenty-one chunks of country where a world holds seven. In Stonemere the page
-   * founded it on six trades and the world on ten, and the same twenty-five people came out with
-   * different jobs on the two sides of the wire.
-   *
-   * Re-founding rather than patching, because the trades are an input to the founding and not a
-   * field on it. What survives is everything that was told rather than derived, replayed forward by
-   * the same machinery a client uses when it learns late about a killing.
+   * Found a village again when a page's trade list differs from the world's. Founding rolls depend
+   * on that list; patching trades would leave the same people with different jobs on two screens.
+   * Dated facts survive the rebuild and replay on their original mornings.
    */
   foundOn(village: string, houses: number, trades: string[]): void {
     const known = this.villages.get(village);
@@ -354,7 +329,30 @@ export class Register {
   private readonly book = new DayBook();
 
   /** What the next valley paid this person today, or what they paid it. Nought on most days. */
-  carriedBy(id: string): number { return this.book.carriedBy(id); }
+  carriedBy(id: string): number { return this.carrierMode === 'journaled'
+    ? this.carrierBook.carriedBy(this.day, id) : this.book.carriedBy(id); }
+
+  recordCarrier(fact: CarrierFact): boolean {
+    if (this.carrierMode !== 'journaled' || !this.carrierBook.record(fact)) return false;
+    const affected = this.carrierBook.affectedBy(fact, this.day);
+    const canApplyTonight = fact.day === this.day
+      && !(fact.kind === 'cart-loaded' && this.carrierBook.finish(fact.day)?.day === this.day);
+    for (const village of affected) {
+      const here = this.villages.get(village);
+      if (canApplyTonight && here) this.carrierBook.applyFactOn(fact, village, here);
+      else this.relive(village);
+    }
+    return true;
+  }
+
+  carrierFacts(): CarrierFact[] { return this.carrierBook.facts(); }
+  prepareCarrier(): CartLoaded | null { const cart = planCarrying(this.villages,
+    (v) => this.standing.get(v), (v) => this.pressureOn(v));
+    return cart ? cartLoaded(this.day, cart) : null; }
+  finishCarrier(loadedOn: number, outcome: CarryingOutcome): CartFinished | null { const load = this.carrierBook.load(loadedOn);
+    const buyer = load && this.villages.get(load.to);
+    if (!load || !buyer || (outcome === 'delivered' && buyer.food + load.meals > cellarFor(buyer))) return null;
+    return cartFinished(this.day, load, outcome, this.villages); }
 
   /**
    * Every morning any holding paid for a man, kept for the life of the save. See `holdingbook.ts`.
@@ -477,14 +475,15 @@ export class Register {
       for (const [name, village] of this.villages) {
         changes.push(...liveADay(this.theDay, name, village, this.day));
         this.telling.votedOn(name, village, this.day);
+        if (this.carrierMode === 'journaled') this.carrierBook.applyOn(name, village, this.day);
       }
       // the men on the gates and in the yards, paid on the morning they worked rather than on a
       // frame somebody drew, which is #264. `pressure.on` and not `pressureOn`: a pressing is told
       // one day and felt the next. `postings.ts` has both arguments
       this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.holdingsBook);
-      // and one cart goes over the hill, now that every village has worked and eaten. Why it is
-      // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
-      aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);
+      // Instant carts remain the default until the world writes dated road facts.
+      if (this.carrierMode === 'instant') aCarrierWalks(
+        this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);
       changes.push(...this.peopleWalkIn(this.day));
     }
     return changes;
