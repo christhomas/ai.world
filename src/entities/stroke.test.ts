@@ -2,16 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { bodyMotion, cycleTurn, type Moving } from './motion';
 
 /**
- * A swimmer should not be walking on the spot.
+ * A swimmer should read as moving through water.
  *
  * Deep water stopped being a wall on the 12th: `paddles` lets a hero be where there is water and no
- * bottom, he floats at the surface, and his stroke is 0.4 of his walking pace so the far shore is a
- * commitment. Every part of that is arithmetic, and none of it is anything to *look* at — out there
- * he plays the walk cycle, legs striding against nothing, which reads as a bug rather than as
- * swimming.
+ * bottom, and the stroke is 0.4 of his walking pace so the far shore is a commitment. The pose has
+ * to sell that change: he should pitch forward, reach with alternating arms, and flutter his legs,
+ * rather than staying upright with an ordinary walk swing.
  *
- * The state already exists: `afloat(world, e)` is what sets the pace. What was missing is a pose
- * that answers to it.
+ * `afloat(world, e)` already drives the blend. These checks hold the pose to what the game means by
+ * swimming, not just to numbers that happen to differ from walking.
  */
 describe('what a body does out of its depth', () => {
   const moving = (over: Partial<Moving> = {}): Moving => ({
@@ -30,9 +29,21 @@ describe('what a body does out of its depth', () => {
     expect(swimming).toBeLessThan(walking);
   });
 
-  it('lies flatter in the water than it stands on land', () => {
-    // a body upright in deep water is treading, not swimming, and the lean is the whole difference
-    expect(bodyMotion(moving({ afloat: 1 })).lean).toBeGreaterThan(bodyMotion(moving()).lean);
+  it('leans forward into the water instead of tipping backward', () => {
+    // Positive lean tips the upper body backward; swimming needs a strong forward pitch.
+    expect(bodyMotion(moving({ afloat: 1 })).lean).toBeLessThan(bodyMotion(moving()).lean);
+  });
+
+  it('alternates broad arm strokes and a faster leg flutter', () => {
+    const leftArm = cycleTurn('armL', moving({ afloat: 1, phase: Math.PI / 2 }))[2];
+    const rightArm = cycleTurn('armR', moving({ afloat: 1, phase: Math.PI / 2 }))[2];
+    expect(leftArm).toBeGreaterThan(rightArm + 2);
+    const leftRecovering = cycleTurn('armL', moving({ afloat: 1, phase: Math.PI * 1.5 }))[2];
+    const rightPulling = cycleTurn('armR', moving({ afloat: 1, phase: Math.PI * 1.5 }))[2];
+    expect(rightPulling).toBeGreaterThan(leftRecovering + 2);
+
+    const leg = cycleTurn('legL', moving({ afloat: 1, phase: Math.PI / 4 }))[2];
+    expect(leg).toBeCloseTo(0.18, 5);
   });
 
   it('does not bob like a walk, because there is no ground to push off', () => {
