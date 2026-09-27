@@ -604,6 +604,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.102.2 — 2026-09-27
+
+a forward swimming pose with alternating strokes
+
 ### v0.102.1 — 2026-09-27
 
 world routing, terrain and water authoring, carrier replay, wildlife sync, and browser playtesting
@@ -639,10 +643,6 @@ A save remembers which country it is, told facts get their own book, the hero wa
 ### v0.96.0 — 2026-09-16
 
 a country that stopped being a honeycomb, ground that stopped being a checkerboard, rock you can see, and a phone that looks like the design
-
-### v0.95.0 — 2026-09-16
-
-a world generator you can choose again, the hero on the register, villagers who want something, and the phone in pictures
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

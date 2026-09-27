@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.102.2 — 2026-09-27
+
+a forward swimming pose with alternating strokes
+
 ## v0.102.1 — 2026-09-27
 
 world routing, terrain and water authoring, carrier replay, wildlife sync, and browser playtesting
