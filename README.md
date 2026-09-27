@@ -604,6 +604,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.102.3 — 2026-09-27
+
+tools portal access and HTTPS redirect
+
 ### v0.102.2 — 2026-09-27
 
 a forward swimming pose with alternating strokes
@@ -639,10 +643,6 @@ A teleport tells the world where it landed rather than where it was sent, a seed
 ### v0.97.0 — 2026-09-17
 
 A save remembers which country it is, told facts get their own book, the hero walks into a village, and the shot tool can photograph either generator
-
-### v0.96.0 — 2026-09-16
-
-a country that stopped being a honeycomb, ground that stopped being a checkerboard, rock you can see, and a phone that looks like the design
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
