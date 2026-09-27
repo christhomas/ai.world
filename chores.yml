@@ -402,7 +402,7 @@ tasks:
         desc: which ones to take; none means all of them, and `--list` says what there is
     env:
       PORT: '{{.PORT}}'
-    cmds: [node tools/shots.cjs {{.CLI_ARGS}}]
+    cmds: ['node tools/shots.cjs {{.CLI_ARGS}}']
 
   # The phone, which is a different product from the desktop game and was photographed once.
   #
@@ -431,7 +431,7 @@ tasks:
     args:
       - name: against
         desc: the directory of pictures to compare against
-    cmds: [node tools/compare.cjs {{.CLI_ARGS}}]
+    cmds: ['node tools/compare.cjs {{.CLI_ARGS}}']
 
   build:
     desc: Typecheck and build the page into dist/
