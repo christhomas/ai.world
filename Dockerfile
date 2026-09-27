@@ -28,8 +28,8 @@
 ARG NODE_VERSION=24-alpine
 # The version this repository's lockfile was written by.
 ARG PNPM_VERSION=10.30.3
-# The port inside the container. Both compose and fly.toml publish this; the server itself reads
-# PORT, so one number changes all three.
+# The port inside the container. The server itself reads PORT, so local compose files and
+# orchestrators can publish this same value.
 ARG PORT=8787
 # Whether to build the page into the image and serve it from the same origin.
 ARG WITH_PAGE=true
@@ -94,7 +94,7 @@ COPY --from=build /page ./dist
 ENV STATIC_DIR=/app/dist
 
 # One JSON file per seed lives here. Mount something durable over it — compose uses a named
-# volume, fly.toml a volume — or every world forgets itself when the container is replaced.
+# volume, or every world forgets itself when the container is replaced.
 ENV DATA_DIR=/data
 ENV PORT=${PORT}
 RUN mkdir -p ${DATA_DIR} && chown node:node ${DATA_DIR}
