@@ -50,6 +50,19 @@ describe('handing out the game', () => {
     } finally { await server.close(); }
   });
 
+  it('serves pages when a trusted proxy reports the internal HTTP hop', async () => {
+    const server = await startServer({ port: 0, dataDir: dir, staticDir: dir, trustProxy: true, quiet: true });
+    try {
+      const page = await fetch(`http://localhost:${server.port}/`, {
+        redirect: 'manual',
+        headers: { 'x-forwarded-proto': 'http' },
+      });
+      expect(page.status).toBe(200);
+      expect(page.headers.get('location')).toBeNull();
+      expect(await page.text()).toContain('ai.world');
+    } finally { await server.close(); }
+  });
+
   it('still answers with the status page when nothing is being served', async () => {
     const server = await startServer({ port: 0, dataDir: dir, quiet: true });
     try {
