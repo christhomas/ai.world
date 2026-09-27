@@ -529,7 +529,3 @@ tasks:
     desc: Stop that container, keeping every world it has kept
     # the volume is untouched: stopping a server is not the same as forgetting its worlds
     cmds: ['docker rm -f ai-world 2>/dev/null || true']
-
-  deploy:
-    desc: Publish the world server to Fly.io, where it answers over wss://
-    cmds: ['fly deploy']

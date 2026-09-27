@@ -327,7 +327,6 @@ chore ping         # ask a running server how it is
 chore up           # the world server in a container, its worlds on a volume that outlives it
 chore down         # stop that container, keeping every world it kept
 chore bundle       # roll the server into the single file the image ships
-chore deploy       # publish that server to Fly.io, where it answers over wss://
 ```
 
 `pnpm install` installs Playwright with the development dependencies; run `pnpm browser:install`
@@ -397,38 +396,16 @@ The image is two stages. The first installs the toolchain and rolls `server/` in
 module with `pnpm vite build --config server/build.config.ts`; the second is node, that module,
 and `ws` — which is the server's only runtime dependency and has none of its own. Nothing that
 compiles anything survives into the image that faces the internet, and it starts in the time node
-takes to read one file. Two knobs, both set for you by the compose file and by `fly.toml`:
+takes to read one file. Two knobs, both set for you by the compose file:
 `PORT` (8787) and `DATA_DIR` (`/data`, where the one JSON file per seed lives).
 
-**On Fly.io.** `fly.toml` is written; it wants an app name and a region of your own:
-
-```sh
-fly launch --no-deploy --copy-config              # claim a name, keep this config
-fly volumes create ai_world_data --size 1         # the worlds, kept across deploys
-chore deploy                                      # fly deploy
-fly scale count 1                                 # one machine, and only one
-curl https://<app>.fly.dev/                       # worlds: 0, players: 0
-```
-
-Then `wss://<app>.fly.dev` goes in the options, or into an invite link. Note the two things that
-are easy to get wrong:
-
-- **One machine.** A world is one machine's memory — the clock it keeps, who is in it, the file on
-  its volume — so two machines under one name are two different worlds taking turns. `fly.toml`
-  asks for one and turns off the automatic stopping and starting, because suspending a machine
-  drops every socket on it.
-- **`wss://`, not `ws://`.** Fly answers both schemes on the same name. `force_https` sends a
-  browser that asked for http to https, but a websocket that asked for `ws://` is not a browser
-  navigation and will not be redirected: it just fails.
-
-**Behind your own proxy.** Nothing about the server changes. It terminates no TLS, reads no
-`X-Forwarded-For` — it never asks where anybody is dialling from — and reads no
-`X-Forwarded-Proto`, because whether the player's half of the journey was encrypted is not its
-business. All it needs is that the HTTP upgrade is relayed rather than answered, which for nginx
-is `proxy_set_header Upgrade $http_upgrade;` with `Connection "upgrade"`, and a
-`proxy_read_timeout` longer than a quiet moment in a world. `server/proxy.test.ts` puts exactly
-that relay in front of a real server and joins through it, so a change that breaks the upgrade
-fails the suite rather than the deployment.
+**On a public host.** Put the server behind a TLS-terminating reverse proxy or ingress, and point
+the game at its `wss://` address. Keep one server replica: each world and its player sockets live
+in that process. The proxy must pass WebSocket upgrades and forward `X-Forwarded-Proto`; deployments
+using the chart's ingress enable trusted-proxy handling automatically. Ordinary HTTP browser
+requests are redirected to HTTPS, while WebSocket connections continue through the upgrade path.
+`server/proxy.test.ts` puts a generic HTTP relay in front of a real server and joins through it, so
+a change that breaks the upgrade fails the suite rather than the deployment.
 
 ---
 
@@ -584,7 +561,6 @@ tools/         the things that are not the game: the character builder, the Dome
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 Dockerfile     the world server as an image: one bundled module, `ws`, node, and nothing else
                — `chore up` builds and runs it, worlds on the `ai-world-data` volume
-fly.toml       where the server goes to have a name and a certificate
 ```
 
 ### Tunables

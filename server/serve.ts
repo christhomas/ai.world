@@ -15,7 +15,7 @@ import type { BuilderAt } from './builder/proxy';
 import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
+import { bootstrapAccount, portalFor, requestProtocol, whatIsAsked } from './tools/portal';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -193,8 +193,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     // header when this deployment explicitly trusts that ingress. WebSocket upgrades are handled
     // separately below; browsers cannot follow an HTTP redirect during a WebSocket handshake.
     if (options.trustProxy && req.headers.upgrade?.toLowerCase() !== 'websocket') {
-      const forwarded = req.headers['x-forwarded-proto'];
-      const scheme = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+      const scheme = requestProtocol(req, true);
       const host = req.headers.host;
       if (scheme === 'http' && host && !/[\r\n]/.test(host)) {
         res.writeHead(308, { location: `https://${host}${req.url ?? '/'}` });

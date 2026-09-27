@@ -10,7 +10,7 @@ import { startServer, type RunningServer } from './serve';
 import { atTheSamePace } from '../tools/clock';
 
 /**
- * The server is deployed behind something that terminates TLS — Fly's edge, nginx, Caddy — so a
+ * The server is deployed behind something that terminates TLS — an ingress, nginx, Caddy — so a
  * player's `wss://` never reaches it: what reaches it is a plain socket carrying an HTTP upgrade
  * that some other program has already read once and written out again. That relay is the part
  * that can break, and it breaks silently: the status page still answers, so the server looks

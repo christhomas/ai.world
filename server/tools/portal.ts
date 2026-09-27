@@ -149,13 +149,23 @@ export function cookieCleared(opts: { secure: boolean }): string {
  * header anybody can send — so it is believed only when the deployment says there is a proxy in
  * front. A server told it is public without a proxy reads its own socket and nothing else.
  */
-export function overHttps(req: IncomingMessage, trustProxy: boolean): boolean {
+export function requestProtocol(req: IncomingMessage, trustProxy: boolean): 'http' | 'https' | null {
   if (trustProxy) {
     const said = req.headers['x-forwarded-proto'];
     const first = (Array.isArray(said) ? said[0] : said)?.split(',')[0]?.trim();
-    if (first) return first === 'https';
+    // Some ingress chains preserve the external port more accurately than the scheme. Prefer
+    // that signal when present: a TLS-terminating edge in front of an HTTP ingress can otherwise
+    // report X-Forwarded-Proto=http even for a browser's HTTPS request.
+    const portHeader = req.headers['x-forwarded-port'];
+    const port = (Array.isArray(portHeader) ? portHeader[0] : portHeader)?.split(',')[0]?.trim();
+    if (first === 'https' || port === '443') return 'https';
+    if (first === 'http' || port === '80') return 'http';
   }
-  return (req.socket as { encrypted?: boolean }).encrypted === true;
+  return (req.socket as { encrypted?: boolean }).encrypted === true ? 'https' : null;
+}
+
+export function overHttps(req: IncomingMessage, trustProxy: boolean): boolean {
+  return requestProtocol(req, trustProxy) === 'https';
 }
 
 /** Who this request is, or nobody: the signature first, then the session row that can revoke it. */
