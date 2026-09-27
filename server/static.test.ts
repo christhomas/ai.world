@@ -50,6 +50,24 @@ describe('handing out the game', () => {
     } finally { await server.close(); }
   });
 
+  it('serves the page when a trusted proxy reports its internal HTTP hop', async () => {
+    const server = await startServer({ port: 0, dataDir: dir, staticDir: dir, quiet: true, trustProxy: true });
+    try {
+      const response = await fetch(`http://localhost:${server.port}/`, {
+        redirect: 'manual',
+        headers: { 'x-forwarded-proto': 'http', 'x-forwarded-port': '80' },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('location')).toBeNull();
+      expect(await response.text()).toContain('ai.world');
+      const tools = await fetch(`http://localhost:${server.port}/tools/`, {
+        redirect: 'manual', headers: { 'x-forwarded-proto': 'http' },
+      });
+      expect(tools.status).toBe(503);
+      expect(tools.headers.get('location')).toBeNull();
+    } finally { await server.close(); }
+  });
+
   it('still answers with the status page when nothing is being served', async () => {
     const server = await startServer({ port: 0, dataDir: dir, quiet: true });
     try {
