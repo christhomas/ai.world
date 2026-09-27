@@ -206,14 +206,9 @@ describe('a server with no portal configured', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /*
-   * Not a 401. The path is not there at all — the same rule `/operate` runs on, and for the same
-   * reason: on a box reachable from the internet, a door that is not there beats a locked one.
-   */
-  it('has no /tools at all, rather than a locked one', async () => {
+  it('explains that the tools portal needs configuration', async () => {
     const res = await fetch(`http://127.0.0.1:${server!.port}/tools/`, { redirect: 'manual' });
-    expect(res.status).toBe(200);
-    expect(await res.text(), 'the status page, because that route does not exist here')
-      .toContain('ai.world server');
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain('set TOOLS_SECRET and provide durable storage');
   });
 });
