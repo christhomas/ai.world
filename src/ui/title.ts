@@ -7,6 +7,7 @@ import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
 import { cleanWorldName } from '../../server/protocol';
+import type { TerrainLayer } from '../world/terrainlayers';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -67,6 +68,29 @@ export interface SlotChoice {
   home?: GrownPatch;
 }
 
+/** A new world's authored ground is saved before either half grows its first patch. */
+export function terrainSave(seed: number, worldName: string, terrain: readonly TerrainLayer[]): SessionSave | undefined {
+  if (terrain.length === 0) return undefined;
+  return {
+    seed, world: 'endless', worldName, cam: { x: 0, z: 0, rot: 0, zoom: 1 },
+    manifest: { rootSeed: seed, anchors: [], terrain: [...terrain] },
+  };
+}
+
+/** Validate one row before it enters a manifest or a worker message. */
+export function terrainEntry(
+  kind: string, x: string, z: string, reach: string, seed: string,
+  random: () => number = randomSeed,
+): TerrainLayer | null {
+  if (x.trim() === '' || z.trim() === '' || reach.trim() === '') return null;
+  const a = Number(x), b = Number(z), radius = Number(reach);
+  if (kind !== 'land' && kind !== 'sea') return null;
+  if (![a, b, radius].every(Number.isSafeInteger)) return null;
+  if (Math.abs(a) > 1_000_000 || Math.abs(b) > 1_000_000 || radius < 1 || radius > 2048) return null;
+  if (seed !== '' && (!/^\d+$/.test(seed) || Number(seed) > 0xffffffff)) return null;
+  return { kind, x: a, z: b, reach: radius, seed: seed === '' ? random() >>> 0 : Number(seed) >>> 0 };
+}
+
 /**
  * How a saved world describes itself in its slot.
  *
@@ -106,6 +130,35 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
   const worldNameInput = $('worldNameInput') as HTMLInputElement;
   const worldSeedInput = $('worldSeedInput') as HTMLInputElement;
   const worldError = $('titleWorldError');
+  const terrain: TerrainLayer[] = [];
+  const terrainList = $('terrainLayers');
+  const terrainError = $('terrainError');
+  const terrainInput = (id: string) => ($<HTMLInputElement>(id)).value.trim();
+  const showTerrain = () => {
+    terrainList.replaceChildren(...terrain.map((layer, i) => {
+      const row = document.createElement('li');
+      row.textContent = `${layer.kind} at ${layer.x}, ${layer.z} · reach ${layer.reach} · seed ${layer.seed}`;
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.textContent = 'Remove'; remove.dataset.terrain = String(i);
+      row.append(remove);
+      return row;
+    }));
+  };
+  $('terrainAdd').addEventListener('click', () => {
+    if (terrain.length >= 32) { terrainError.textContent = 'A world can hold up to 32 terrain layers.'; return; }
+    const layer = terrainEntry(($<HTMLSelectElement>('terrainKind')).value,
+      terrainInput('terrainX'), terrainInput('terrainZ'), terrainInput('terrainReach'), terrainInput('terrainSeed'));
+    if (!layer) { terrainError.textContent = 'Use whole coordinates, a reach from 1 to 2048, and an optional whole seed.'; return; }
+    terrainError.textContent = '';
+    terrain.push(layer);
+    showTerrain();
+  });
+  terrainList.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-terrain]');
+    if (!button) return;
+    terrain.splice(Number(button.dataset.terrain), 1);
+    showTerrain();
+  });
   offerTheSwitches($('titleExtras'));
   root.classList.add('show');
 
@@ -114,7 +167,8 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       root.classList.remove('show');
       document.removeEventListener('keydown', onKey);
       stopSky();
-      resolve(choice);
+      if (choice.save) void store.save(choice.key, choice.save).then(() => resolve(choice));
+      else resolve(choice);
     };
     /**
      * A slot is a band you press, not a box with buttons in it.
@@ -180,6 +234,13 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       }
       worldError.textContent = '';
       const world = chosenWorld();
+      if (terrain.length > 0 && world !== 'endless') {
+        worldError.textContent = 'Land and sea layers need endless country. Turn on that world first.';
+        return;
+      }
+      const choiceFor = (seed: number, home?: GrownPatch): SlotChoice => ({
+        key, seed, worldName, world, home, save: terrainSave(seed, worldName, terrain),
+      });
       /*
        * A seed somebody typed is theirs, and is handed over untouched.
        *
@@ -189,7 +250,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
        * holding it.
        */
       if (askedSeed) {
-        finish({ key, save: undefined, seed: Number(askedSeed) >>> 0, worldName, world });
+        finish(choiceFor(Number(askedSeed) >>> 0));
         return;
       }
       /*
@@ -201,7 +262,12 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
        * strength of a world the player is not about to open.
        */
       if (world !== 'endless') {
-        finish({ key, save: undefined, seed: randomSeed(), worldName, world });
+        finish(choiceFor(randomSeed()));
+        return;
+      }
+      // Seed quality was measured for the unedited country. Authored terrain changes that answer.
+      if (terrain.length > 0) {
+        finish(choiceFor(randomSeed()));
         return;
       }
       /*
@@ -232,7 +298,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
            */
           const home = reader.grownFor(drawn.seed);
           reader.close();
-          finish({ key, save: undefined, seed: drawn.seed, worldName, world, home });
+          finish(choiceFor(drawn.seed, home));
         })
         .catch(() => {
           /*
@@ -243,7 +309,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
            * unmeasured, rather than a title screen that never opens one.
            */
           reader.close();
-          finish({ key, save: undefined, seed: randomSeed(), worldName, world });
+          finish(choiceFor(randomSeed()));
         });
     };
     list.addEventListener('click', (e) => {

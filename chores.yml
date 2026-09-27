@@ -349,7 +349,7 @@ tasks:
   # so nothing here cats it.
   #
   # Deliberately not part of `chore check`. It costs two minutes against that gate's few seconds,
-  # and it needs a browser and a borrowed playwright, which `check` needs nothing of — a gate too
+  # and it needs a browser, which `check` needs nothing of — a gate too
   # slow to run before a commit stops being run at all. CI gives it a job of its own instead.
   playtest:
     desc: Play the game in a browser, and check the screen and the simulation agree
@@ -362,16 +362,7 @@ tasks:
     env:
       PORT: '{{.PORT}}'
       OUT: '{{.REPORT}}'
-    cmds:
-      # Playwright is not a dependency of this project on purpose; the head of the script says why.
-      # Say so plainly rather than letting node's own "cannot find module" be the explanation.
-      - |
-        node -e 'require.resolve("playwright")' 2>/dev/null || {
-          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
-          echo "  NODE_PATH=<a checkout that has playwright> chore playtest"
-          exit 1
-        }
-        node tools/playtest.cjs
+    cmds: [node tools/playtest.cjs]
 
   # The Domesday Book: what a world server is holding, which is the half of a world nobody is
   # standing in. A window and not a door — `GET /registry` changes nothing — so the read-only
@@ -411,16 +402,7 @@ tasks:
         desc: which ones to take; none means all of them, and `--list` says what there is
     env:
       PORT: '{{.PORT}}'
-    cmds:
-      # Same borrowed playwright as `playtest`, and the same reason: a browser toolchain has no
-      # business in the world-server image, which installs this project's dependencies twice.
-      - |
-        node -e 'require.resolve("playwright")' 2>/dev/null || {
-          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
-          echo "  NODE_PATH=<a checkout that has playwright> chore shots"
-          exit 1
-        }
-        node tools/shots.cjs {{.CLI_ARGS}}
+    cmds: [node tools/shots.cjs {{.CLI_ARGS}}]
 
   # The phone, which is a different product from the desktop game and was photographed once.
   #
@@ -438,14 +420,7 @@ tasks:
       PORT: '{{.WEB_PORT}}'
     env:
       PORT: '{{.PORT}}'
-    cmds:
-      - |
-        node -e 'require.resolve("playwright")' 2>/dev/null || {
-          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
-          echo "  NODE_PATH=<a checkout that has playwright> chore phone"
-          exit 1
-        }
-        node tools/shots.cjs phone phone-title phone-rucksack phone-map phone-night
+    cmds: [node tools/shots.cjs phone phone-title phone-rucksack phone-map phone-night]
 
   # Whether the pictures changed, which nothing in this repository could say until now. `shots`
   # pins the world, the seed and the camera so a shot can be retaken exactly; this reads two sets
@@ -456,14 +431,7 @@ tasks:
     args:
       - name: against
         desc: the directory of pictures to compare against
-    cmds:
-      - |
-        node -e 'require.resolve("playwright")' 2>/dev/null || {
-          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
-          echo "  NODE_PATH=<a checkout that has playwright> chore compare -- <dir>"
-          exit 1
-        }
-        node tools/compare.cjs {{.CLI_ARGS}}
+    cmds: [node tools/compare.cjs {{.CLI_ARGS}}]
 
   build:
     desc: Typecheck and build the page into dist/

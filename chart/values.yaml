@@ -42,6 +42,9 @@ ingress:
   # k3s ships Traefik and a VPS usually has nginx. Left empty, the cluster's default IngressClass
   # is used, which is the right answer on k3s and on anything else that has one configured.
   className: ""
+  # The paired builder uses WebSocket upgrade and pings every 20 seconds. Its HTTP transcript also
+  # emits a blank line every 20 seconds while Claude is quiet. If the controller needs explicit
+  # settings, allow upgrades and set its idle/read timeout above 20 seconds via these annotations.
   annotations: {}
   hosts:
     - host: ai.world.local

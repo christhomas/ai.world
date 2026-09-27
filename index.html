@@ -237,6 +237,20 @@
             <summary>Choose a seed</summary>
             <input id="worldSeedInput" type="text" inputmode="numeric" autocomplete="off" placeholder="random" />
           </details>
+          <details id="terrainEditor">
+            <summary>Shape land and sea</summary>
+            <p>For a new endless world. Layers apply in the order listed.</p>
+            <div class="terrain-fields">
+              <select id="terrainKind" aria-label="Terrain kind"><option value="land">Land</option><option value="sea">Sea</option></select>
+              <input id="terrainX" type="number" step="1" value="0" aria-label="Centre X" />
+              <input id="terrainZ" type="number" step="1" value="0" aria-label="Centre Z" />
+              <input id="terrainReach" type="number" min="1" max="2048" step="1" value="75" aria-label="Reach in tiles" />
+              <input id="terrainSeed" type="number" min="0" max="4294967295" step="1" placeholder="random shape seed" aria-label="Shape seed" />
+              <button id="terrainAdd" type="button">Add layer</button>
+            </div>
+            <ol id="terrainLayers"></ol>
+            <p id="terrainError" role="alert"></p>
+          </details>
           <p id="titleWorldError" role="alert"></p>
         </div>
       </div>

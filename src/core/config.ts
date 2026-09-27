@@ -76,6 +76,11 @@ export const HYDRO = {
    * what the range beside it changes is how likely the water is to come out of the hill just there.
    * At 1 the tallest range in the world takes every source in it; at 0 the mountains have nothing
    * to do with the rivers, which is the state this was written to end.
+   *
+   * A terrace of real height, and for #391 that is now what it is multiplying: `terrain.ts` was
+   * handing the ranking `nearestLift` in world units, which is half a terrace each, so this weighed
+   * half of what it says. It is unchanged at 0.5 and the springs have moved, which is the point —
+   * a range beside a crossroads is now worth 0 to 17.8 against a crossroads' own 3 to 29.
    */
   FOOT_OF_THE_HILLS: 0.5,
   RIVER_STEP: 5,          // polyline segment length

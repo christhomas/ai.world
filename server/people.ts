@@ -57,7 +57,7 @@ export function peopleOf(
   },
 ): Folk & { catchUp: () => void } {
   const country: Country = 'forChunk' in ground ? ground : oneCountry(ground);
-  const register = new Register(seed, day, told.onDeparted);
+  const register = new Register(seed, day, told.onDeparted, 'journaled');
 
   /*
    * Everything the world has walked into so far, and what it is made of.
@@ -94,6 +94,7 @@ export function peopleOf(
       // be the world.
       highPlaces.push(...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs));
       villages.push(...structures.villages);
+      register.theyStandAt(structures.villages);
       for (const village of structures.villages) samplerFor.set(village.name, sampler);
     }
   };

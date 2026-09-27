@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Manifest } from './manifest';
+import { Manifest, joinedManifest } from './manifest';
+import { terrainFor } from './growworld';
+import type { TerrainLayer } from './terrainlayers';
 
 describe('Manifest', () => {
   it('derives the same seeds from the same root, independent of creation order', () => {
@@ -37,5 +39,19 @@ describe('Manifest', () => {
     expect(back.ensure('island:0', 'island', 1, 2).seed).toBe(999);
     // a different root ignores the saved anchors
     expect(new Manifest(10, m.toJSON()).anchors.size).toBe(0);
+  });
+
+  it('keeps terrain edit order through storage and lets the invited world replace a stale list', () => {
+    const land: TerrainLayer = { x: 128, z: 64, reach: 75, seed: 42, kind: 'land' };
+    const sea: TerrainLayer = { ...land, seed: 43, kind: 'sea' };
+    const saved = new Manifest(9);
+    saved.terrain.push(land, sea);
+    const restored = new Manifest(9, JSON.parse(JSON.stringify(saved.toJSON())));
+    expect(terrainFor(restored)).toEqual([land, sea]);
+    expect(new Manifest(10, saved.toJSON()).terrain).toEqual([]);
+
+    expect(joinedManifest(9, saved.toJSON(), undefined, undefined).terrain).toEqual([land, sea]);
+    expect(joinedManifest(9, saved.toJSON(), [], [sea, land]).terrain).toEqual([sea, land]);
+    expect(joinedManifest(9, saved.toJSON(), [], []).terrain).toEqual([]);
   });
 });

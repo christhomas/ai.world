@@ -1,4 +1,5 @@
 import { Elevations } from './elevation';
+import { TerrainLayers, type TerrainLayer } from './terrainlayers';
 import type { Highland } from './highland';
 import { Simplex2D } from './noise';
 import { countryOf, type Country } from './localmesh';
@@ -53,10 +54,11 @@ const LOOKING = 300;
  * on, the sampler asks whether every tile of every chunk is land — and a country with no memory of
  * the cells it has worked out does that arithmetic from the beginning every time.
  */
-export function countryFor(seed: number): Land {
+export function countryFor(seed: number, terrain: readonly TerrainLayer[] = []): Land {
   const grain = new Simplex2D(seed ^ 0x1234);
   const country: Country = countryOf(
     seed, (x, z) => (grain.fbm(x * GRAIN, z * GRAIN, 2) + 1) * 0.5, DIALS,
+    terrain.length ? new TerrainLayers(terrain) : TerrainLayers.none,
   );
   return { ...country, land: landOf(country) };
 }
@@ -89,8 +91,10 @@ export function townsIn(world: Land, within: Within): Founding[] {
  * and nothing else, so two patches side by side hold different things and agree about the ground
  * they share — which is the property everything above this was built to have.
  */
-export function samplerIn(seed: number, within: Within, layers: readonly Highland[] = []): TerrainSampler {
-  const world = countryFor(seed);
+export function samplerIn(
+  seed: number, within: Within, layers: readonly Highland[] = [], terrain: readonly TerrainLayer[] = [],
+): TerrainSampler {
+  const world = countryFor(seed, terrain);
   const graph = graphIn(world, within);
   /*
    * Indexed once for the whole patch rather than per question. The list is data — a few centres
@@ -104,7 +108,7 @@ export function samplerIn(seed: number, within: Within, layers: readonly Highlan
     // million and a half times while one patch is grown, and a wrapper is a second call frame on
     // every one of them for no reason: `landOf` already returns a closure over this world, so the
     // function and the arrow that called it did exactly the same thing.
-    country: { land: world.land, highland: highlandNear(world, within), elevation },
+    country: { land: world.land, highland: highlandNear(world, within), elevation, terrain: world.terrain },
     // the water is planned against the layered ground, not the bare one: see `Slope.layers`
     hydro: waterIn(world, within, elevation),
     settling: {
@@ -149,6 +153,8 @@ export interface PatchParts {
    * world. Carried with the parts, the two cannot come apart: there is nothing to remember.
    */
   layers: readonly Highland[];
+  /** Face-kind layers used before this patch's roads and water were planned. */
+  terrain: readonly TerrainLayer[];
 }
 
 /**
@@ -172,7 +178,7 @@ export interface GrownPatch {
 export function partsOf(sampler: TerrainSampler): PatchParts {
   return {
     graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
-    ranges: sampler.ranges, layers: sampler.elevation.layers,
+    ranges: sampler.ranges, layers: sampler.elevation.layers, terrain: sampler.terrain.layers,
   };
 }
 
@@ -188,7 +194,7 @@ export function partsOf(sampler: TerrainSampler): PatchParts {
  * cut geometry it already is, which is what `rock` being a function rather than a field allows.
  */
 export function rebuildPatch(seed: number, within: Within, parts: PatchParts): TerrainSampler {
-  const world = countryFor(seed);
+  const world = countryFor(seed, parts.terrain ?? []);
   return new TerrainSampler(parts.graph, {
     within,
     // `world.land` is handed over rather than wrapped in an arrow that calls it. It is asked a
@@ -197,6 +203,7 @@ export function rebuildPatch(seed: number, within: Within, parts: PatchParts): T
     // function and the arrow that called it did exactly the same thing.
     country: {
       land: world.land, highland: highlandNear(world, within), elevation: new Elevations(parts.layers),
+      terrain: world.terrain,
     },
     hydro: parts.hydro,
     structures: parts.structures,

@@ -27,6 +27,8 @@ export interface Run {
   done: boolean;
   /** Everyone currently reading it. A reload leaves one behind and adds another. */
   following: Set<ServerResponse>;
+  /** Keeps a quiet transcript alive through ingress while Claude is thinking. */
+  pulse?: ReturnType<typeof setInterval>;
 }
 
 /**
@@ -53,7 +55,10 @@ export class Runs {
 
   /** Begin one. The one before last is dropped, along with anybody still reading it. */
   begin(id: string, who: string, about: string): Run {
-    if (this.previous) for (const res of this.previous.following) res.end();
+    if (this.previous) {
+      clearInterval(this.previous.pulse);
+      for (const res of this.previous.following) res.end();
+    }
     this.previous = this.current;
     this.current = { id, who, about, told: [], done: false, following: new Set() };
     return this.current;
@@ -75,6 +80,7 @@ export class Runs {
   finish(run: Run, ok: boolean, note: string, changed: string[]): void {
     if (run.done) return;
     run.done = true;
+    clearInterval(run.pulse);
     this.tell(run, { k: 'end', ok, note, changed });
     for (const res of run.following) res.end();
     run.following.clear();
@@ -97,6 +103,17 @@ export class Runs {
     for (const told of run.told.slice(Math.max(0, from))) res.write(`${JSON.stringify(told)}\n`);
     if (run.done) { res.end(); return; }
     run.following.add(res);
-    res.on('close', () => { run.following.delete(res); });
+    if (!run.pulse) {
+      // Blank NDJSON lines are ignored by the page. They make an otherwise silent ten-minute
+      // Claude run visible to HTTP ingress before its usual idle timeout closes the stream.
+      run.pulse = setInterval(() => {
+        for (const reader of run.following) reader.write('\n');
+      }, 20_000);
+      run.pulse.unref();
+    }
+    res.on('close', () => {
+      run.following.delete(res);
+      if (run.following.size === 0) { clearInterval(run.pulse); run.pulse = undefined; }
+    });
   }
 }

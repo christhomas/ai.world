@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { GIVE_UP, OneAtATime, whatWasAsked, type Asked, type Recorded } from './asked';
 import { buildBuilderPage, serveBuilderPage } from './page';
 import { Runs, type Told } from './runs';
+import { dialBuilder } from './channel';
 
 /**
  * The thing that actually runs Claude, on the machine with the checkout, and nowhere near the game.
@@ -16,15 +17,14 @@ import { Runs, type Told } from './runs';
  * honest about being acceptable *"here and nowhere else — a development tool, on the owner's own
  * machine"*.
  *
- * So this is not that route moved onto the internet. It is a separate process, on the source host,
- * which the public game server cannot even reach except by being told where it is:
+ * This is a separate process on the account owner's machine. It dials the public portal with a
+ * revocable pairing token, and the portal carries only that account's requests over the socket:
  *
  *   **It listens on loopback by default.** A worker with no `BUILDER_BIND` answers 127.0.0.1 and
  *     nothing else, so "unreachable from the public internet" is the default rather than a firewall
- *     rule somebody has to remember. The portal reaches it over a private address or a tunnel.
- *   **It wants a shared secret.** Loopback is not enough on a host with anything else on it, so
- *     every request carries a secret the portal was given, compared in constant time. The portal
- *     is the only thing that has it; a page never sees it.
+ *     rule somebody has to remember. The outbound connection reaches this loopback listener.
+ *   **It wants a local secret.** Loopback is not enough on a host with anything else on it, so
+ *     every forwarded request carries a secret checked in constant time. A page never sees it.
  *   **It works in a worktree, not the checkout.** `--permission-mode acceptEdits` means edits land
  *     without asking, which is the point, so what they land in must not be the branch anybody
  *     deploys from. A worktree is a checkout of its own that shares the repository, which is
@@ -36,8 +36,8 @@ import { Runs, type Told } from './runs';
  *     wrong and no backtick that means anything at all.
  *
  * What is deliberately *not* here is a login. The worker does not know who anybody is and must not:
- * the portal holds the sessions, and the worker's whole security boundary is "only the portal can
- * reach me". Two things checking a password is two things that can disagree about one.
+ * the portal holds the sessions, and the worker trusts only requests forwarded over its paired
+ * connection. Two things checking a password is two things that can disagree about one.
  */
 
 /** How a run is named. Short, sortable, and not a secret: it appears in a URL the page follows. */
@@ -48,6 +48,9 @@ export interface WorkerOptions {
   worktree: string;
   /** What the portal must present. Without one, the worker refuses to start. */
   secret: string;
+  /** Public portal origin and revocable pairing credential for outbound operation. */
+  portal?: string;
+  pairing?: string;
   /** Where to listen. Loopback unless a deployment deliberately says otherwise. */
   host?: string;
   port?: number;
@@ -143,6 +146,7 @@ export interface RunningWorker {
 
 export async function startWorker(options: WorkerOptions): Promise<RunningWorker> {
   if (!options.secret) throw new Error('the builder worker will not start without a secret to check');
+  if (Boolean(options.portal) !== Boolean(options.pairing)) throw new Error('builder portal and pairing token must be set together');
   const { worktree, secret } = options;
   const runs = new Runs();
   const tree = new OneAtATime();
@@ -322,9 +326,12 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
   if (!options.quiet) {
     console.log(`builder worker on ${options.host ?? '127.0.0.1'}:${port}, working in ${worktree}`);
   }
+  const stopDialing = options.portal && options.pairing
+    ? dialBuilder(options.portal, options.pairing, port, secret) : null;
   return {
     port,
     close: async () => {
+      stopDialing?.();
       await closed(http);
       rmSync(pageStore, { recursive: true, force: true });
     },

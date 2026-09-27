@@ -57,9 +57,10 @@ export function writeDown(db: DatabaseSync, id: string, record: Recorded): void 
 }
 
 /** The last few runs, newest first, for somebody reading the portal rather than the database. */
-export function lastRuns(db: DatabaseSync, many = 20): Recorded[] {
+export function lastRuns(db: DatabaseSync, many = 20, who?: string): Recorded[] {
   return db.prepare('SELECT who, asked, about, length, changed, ok, note FROM builder_run '
-    + 'ORDER BY asked DESC LIMIT ?').all(many).map((row) => {
+    + (who ? 'WHERE who = ? ' : '') + 'ORDER BY asked DESC LIMIT ?')
+    .all(...(who ? [who, many] : [many])).map((row) => {
     const said = row as unknown as {
       who: string; asked: number; about: string; length: number; changed: string; ok: number; note: string;
     };

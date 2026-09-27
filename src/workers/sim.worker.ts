@@ -26,7 +26,7 @@ import { WORLD_PAUSE, WORLD_RESUME } from '../net/link';
  * grows the same terrain the page is drawing, spawns the herds on it, steps them, and tells the
  * page what is near. The page stops inventing its own the moment it is told anything.
  */
-const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault(), ground: true });
+const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault(), ground: true, localAuthoring: true });
 
 /** The page, as the roster sees it: exactly what a websocket looks like from the same angle. */
 const wire: Wire = {

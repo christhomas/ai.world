@@ -90,6 +90,29 @@ describe('bodies taking up room', () => {
     expect(apart, 'two herds still sharing a square').toBeGreaterThan(BEHAVIOUR.ELBOW);
   });
 
+  it('limits a crowded body to one small correction per tick, then separates it over time', () => {
+    const pack = new Herd(KINDS.wolf, 10, 0, 10, 0, 0);
+    const other = new Herd(KINDS.wolf, 10.01, 0, 10.01, 0, 0);
+    const a = new Entity(KINDS.wolf, 10, 0, pack, 'test', mulberry32(3));
+    const b = new Entity(KINDS.wolf, 10.01, 0, other, 'test', mulberry32(4));
+    pack.members.push(a);
+    other.members.push(b);
+
+    const needed = BEHAVIOUR.ELBOW * (a.kind.scale + b.kind.scale);
+    let apart = Math.hypot(a.x - b.x, a.z - b.z);
+    for (let tick = 0; tick < 8; tick++) {
+      if (apart >= needed - 1e-9) break;
+      const before = { x: a.x, z: a.z };
+      keepBodiesApart([[a, b]], [pack, other], 0, 0, 14, 0.1, flat);
+      const moved = Math.hypot(a.x - before.x, a.z - before.z);
+      expect(moved, 'crowd contacts stacked into a large one-tick correction').toBeLessThanOrEqual(0.2 + 1e-9);
+      const nextApart = Math.hypot(a.x - b.x, a.z - b.z);
+      expect(nextApart, 'the bounded correction made no gradual progress').toBeGreaterThan(apart + 1e-9);
+      apart = nextApart;
+    }
+    expect(apart, 'repeated ticks never gave the two bodies room').toBeCloseTo(needed, 6);
+  });
+
   it('will not shove anything that walks through a wall', () => {
     // a bat would go over it, and should: this is about the things that cannot
     const walled: TileWorld = { ...flat, blocked: (x) => x > 0.2 };

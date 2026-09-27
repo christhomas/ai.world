@@ -7,6 +7,7 @@ import {
   KEEP_READY, provinceOf, provincePath, provincesNear, type ProvinceId,
 } from '../src/world/provinces';
 import { Manifest, type ManifestJson } from '../src/world/manifest';
+import type { TerrainLayer } from '../src/world/terrainlayers';
 
 /** One province's leavings, while somebody is near enough for them to matter. */
 interface Province {
@@ -137,6 +138,12 @@ export class SharedWorld {
    * under everything standing on it at the next restart.
    */
   readonly manifest: Manifest;
+
+  /** Write authored terrain when the private page first opens its worker world. */
+  authorTerrain(layers: readonly TerrainLayer[]): void {
+    this.manifest.terrain.splice(0, this.manifest.terrain.length, ...layers);
+    this.scheduleSave();
+  }
 
   constructor(
     readonly seed: number,

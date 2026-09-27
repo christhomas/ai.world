@@ -90,7 +90,7 @@ export async function boot(): Promise<void> {
     saved = {
       ...(saved ?? { seed, cam: { x: 0, z: 0, rot: 0, zoom: 1 } }),
       seed, world, worldName,
-      manifest: joinedManifest(seed, saved?.manifest, named.layers),
+      manifest: joinedManifest(seed, saved?.manifest, named.layers, named.terrain),
     };
   } else if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
     // Old seed links and saves remain valid: a name is an added handle, not a new generator.

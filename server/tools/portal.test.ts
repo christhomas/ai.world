@@ -59,7 +59,15 @@ describe('what the portal is being asked for', () => {
     });
     expect(whatIsAsked('GET', '/tools/build/book')).toEqual({ want: 'book' });
     expect(whatIsAsked('GET', '/tools/build/page/../secrets')).toEqual({ want: 'nothing' });
+    expect(whatIsAsked('GET', '/tools/build/page/assets/%0Aevil.js')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('POST', '/tools/build/page/assets/builder.js')).toEqual({ want: 'nothing' });
+  });
+
+  it('pairs and revokes a worker only through the intended methods', () => {
+    expect(whatIsAsked('GET', '/tools/build/pair')).toEqual({ want: 'pair-form' });
+    expect(whatIsAsked('POST', '/tools/build/pair')).toEqual({ want: 'pair' });
+    expect(whatIsAsked('POST', '/tools/build/unpair')).toEqual({ want: 'unpair' });
+    expect(whatIsAsked('GET', '/tools/build/unpair')).toEqual({ want: 'nothing' });
   });
 });
 

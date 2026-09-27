@@ -162,7 +162,7 @@ export function startGame(
   const roster = new Roster();          // everybody in the world, read live off the register
   const entityRenderer = new EntityRenderer(rig.scene);
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
-  const register = new Register(seed);
+  const register = new Register(seed, 1, () => {}, 'journaled');
   register.theyStandAt(structures.villages);
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
@@ -406,11 +406,11 @@ export function startGame(
      * than left to be discovered as a hero standing in a named village in an empty field.
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
-    onCountryGrown: (stamp) => {
+    onCountryGrown: (stamp, theirKind) => {
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`, and
       // `growCountry` for why the country takes its own rather than this taking one of it
-      const said = whyCountriesDiffer(mine, stamp);
+      const said = whyCountriesDiffer(mine, stamp, world, theirKind);
       if (!said) return;
       // and saying it is not enough: the page draws its own ground instead. See `streaming.ts`.
       growItHere();
@@ -445,8 +445,6 @@ export function startGame(
     cropField.dispose();
     buildingSite.dispose();
     props.dispose();
-    rig.water.dispose();
-    rig.coast.dispose();
     rig.dispose();
   };
 
@@ -545,7 +543,7 @@ export function startGame(
 
   // whose world this is: the one in the next thread until somebody asks for another
   joinAWorld({
-    seed, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
+    seed, kind: world, terrain: manifest.terrain, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),

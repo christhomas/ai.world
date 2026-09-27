@@ -15,6 +15,7 @@ import { compassDir } from '../world/structures';
 import { toldAsChange } from '../world/telling';
 import { $ } from '../ui/dom';
 import type * as THREE from 'three';
+import type { WorldKind } from '../world/countries';
 import { damageEntity, type Entity } from '../entities/entity';
 import type { EntityRenderer } from '../entities/pool';
 import type { Player } from '../entities/player';
@@ -104,7 +105,7 @@ export interface MultiplayerContext {
   onCountryComing: () => void;
   /** The country is grown, and this is the world's fingerprint of it to check our own against. */
   /** @param kind which sort of country the world grew, when it is new enough to say. */
-  onCountryGrown: (stamp: string) => void;
+  onCountryGrown: (stamp: string, kind?: WorldKind) => void;
   /** One of the world's creatures died; `mine` says whether we killed it. */
   onCreatureKilled: (place: string, id: number, mine: boolean) => void;
   /** One of the world's creatures bit us: work out what that costs, the way a bite always did. */
@@ -167,7 +168,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
     onParcel: (bytes) => ctx.onParcel?.(bytes),
     onCountryComing: () => ctx.onCountryComing(),
-    onCountryGrown: (stamp) => ctx.onCountryGrown(stamp),
+    onCountryGrown: (stamp, kind) => ctx.onCountryGrown(stamp, kind),
     onCreatureKilled: (place, id, mine) => ctx.onCreatureKilled(place, id, mine),
     onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
     onArrested: (id) => ctx.onArrested(id),
@@ -457,6 +458,10 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       }
       case 'found':
         discovered.add(delta.name);
+        break;
+      case 'cart-loaded':
+      case 'cart-finished':
+        register.recordCarrier(delta);
         break;
       case 'built':
         // a village is a house bigger, whoever paid for it. What stage the work has reached is

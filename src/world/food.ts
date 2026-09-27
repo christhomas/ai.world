@@ -1,5 +1,6 @@
 import { handOf } from './mastery';
 import { deathless, type Person } from './people';
+import { wellEnough } from './ailments';
 
 /**
  * Eating, and not eating.
@@ -186,6 +187,8 @@ export function broughtIn(person: Person, shore = false, field: number = FOOD.PE
   // the rocks first, because they are the one thing here that everybody gets and nobody works at:
   // a child with a bucket at low water brings back what a soldier would, and so does a master
   const gathered = FOOD.PER_HEAD + (shore ? FOOD.PER_SHORE : 0);
+  // A garden and shore remain available while somebody mends; a field and a hunt require work.
+  if (!wellEnough(person)) return gathered;
   if (person.trade === 'farmer') return gathered + theirField(person, field);
   if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER * handOf(person);
   return gathered;

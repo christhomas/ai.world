@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
-import { beginSession, endSession, howManyAccounts, sessionStands, whoIsThis } from './accounts';
-import { askTheWorker, bodyOf, type BuilderAt } from '../builder/proxy';
+import { beginSession, endSession, hasWorkerPair, howManyAccounts, pairWorker, sessionStands, unpairWorker, whoIsThis } from './accounts';
+import { bodyOf } from '../builder/proxy';
+import type { BuilderChannel } from '../builder/channel';
 import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 import registryPage from '../../tools/registry.html?raw';
@@ -39,6 +40,9 @@ export type Asked =
   /** The full page and only the files emitted beside it by the worker's Vite build. */
   | { want: 'builder-page'; path: string }
   | { want: 'book' }
+  | { want: 'pair-form' }
+  | { want: 'pair' }
+  | { want: 'unpair' }
   | { want: 'nothing' };
 
 /** The tools a signed-in person may open. Named here so the catalogue and the guard cannot differ. */
@@ -75,6 +79,9 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
   if (path === '/tools/build/ask') return method === 'POST' ? { want: 'build' } : { want: 'nothing' };
   if (path === '/tools/build/follow') return method === 'GET' ? { want: 'follow' } : { want: 'nothing' };
   if (path === '/tools/build/book') return method === 'GET' ? { want: 'book' } : { want: 'nothing' };
+  if (path === '/tools/build/pair') return method === 'GET' ? { want: 'pair-form' }
+    : method === 'POST' ? { want: 'pair' } : { want: 'nothing' };
+  if (path === '/tools/build/unpair') return method === 'POST' ? { want: 'unpair' } : { want: 'nothing' };
   if (path === '/tools/character-builder') {
     return method === 'GET'
       ? { want: 'builder-page', path: 'tools/character-builder.html' }
@@ -85,7 +92,7 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
     if (method !== 'GET') return { want: 'nothing' };
     let file: string;
     try { file = decodeURIComponent(path.slice(pagePath.length)); } catch { return { want: 'nothing' }; }
-    if (!file || file.split('/').some((part) => part === '..')) return { want: 'nothing' };
+    if (!file || /[\x00-\x1f\x7f]/.test(file) || file.split('/').some((part) => part === '..')) return { want: 'nothing' };
     return { want: 'builder-page', path: file };
   }
   const id = path.slice('/tools/'.length);
@@ -167,14 +174,8 @@ export interface PortalOptions {
   trustProxy?: boolean;
   /** The read-only Domesday answer, reached only after this portal has established a session. */
   survey?: (req: IncomingMessage, res: ServerResponse) => void;
-  /**
-   * Where the builder's worker is, if this deployment has one.
-   *
-   * Left out, the Character Builder card says it is not wired up and the two build routes are not
-   * there at all — the rule `/operate` and the portal itself already run on. A game server with no
-   * source host behind it should not have a door onto one.
-   */
-  builder?: BuilderAt;
+  /** Account-scoped connections from builders on their owners' machines. */
+  channel: BuilderChannel;
   /** Where a finished run is written down. See `builder/book.ts`. */
   record?: (run: Recorded, id: string) => void;
   /**
@@ -184,7 +185,7 @@ export interface PortalOptions {
    * The builder's page shows the last few runs under the box you type in, so the person asking can
    * see what has been asked before them and what it changed.
    */
-  recorded?: () => readonly Recorded[];
+  recorded?: (who: string) => readonly Recorded[];
 }
 
 const registryThroughPortal = registryPage
@@ -223,6 +224,7 @@ const cataloguePage = (): string => page('ai.world tools', `
   <h1>ai.world tools</h1>
   ${CATALOGUE.map((tool) => `<a class="card" href="/tools/${tool.id}"><strong>${tool.name}</strong>`
     + `<div class="blurb">${tool.blurb}</div></a>`).join('')}
+  <a class="card" href="/tools/build/pair"><strong>Connect your builder</strong><div class="blurb">Pair Claude on your own machine.</div></a>
   <form method="post" action="/tools/logout"><button type="submit">Sign out</button></form>`);
 
 /** Read a form body, with a ceiling on it: a login form is small and a megabyte of it is an attack. */
@@ -320,23 +322,37 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
-    if (asked.want === 'builder-page' || asked.want === 'book') {
-      if (!options.builder) {
-        html(res, asked.want === 'builder-page' && asked.path === 'tools/character-builder.html' ? 200 : 503,
-          page('No builder here', '<h1>There is no builder behind this server.</h1>'
-          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
+    if (asked.want === 'pair-form' || asked.want === 'pair' || asked.want === 'unpair') {
+      if (asked.want === 'unpair') {
+        unpairWorker(db, who);
+        options.channel.disconnect(who);
+        res.writeHead(303, { location: '/tools/build/pair' }); res.end();
         return true;
       }
+      const token = asked.want === 'pair' ? pairWorker(db, who) : null;
+      if (token) options.channel.disconnect(who);
+      html(res, 200, page('Connect your builder', '<h1>Your builder</h1>'
+        + `<p>${options.channel.connected(who) ? 'Your machine is connected.' : 'Your machine is not connected.'}</p>`
+        + (token ? `<p>Copy this token now. It will not be shown again:</p><pre>${token}</pre>` : '')
+        + `<p>Set <code>BUILDER_PORTAL</code> to this site's HTTPS origin, <code>BUILDER_PAIR_TOKEN</code> to your token, and <code>BUILDER_WORKTREE</code> to your local worktree. Then run <code>pnpm tsx server/builder/index.ts</code>.</p>`
+        + `<p>${hasWorkerPair(db, who) ? 'A pairing token has been issued.' : 'No worker is paired yet.'}</p>`
+        + '<form method="post" action="/tools/build/pair"><button type="submit">Issue a new token</button></form>'
+        + '<form method="post" action="/tools/build/unpair"><button type="submit">Revoke pairing</button></form>'
+        + '<a href="/tools/">Back to tools</a>'));
+      return true;
+    }
+
+    if (asked.want === 'builder-page' || asked.want === 'book') {
       if (asked.want === 'book') {
         res.writeHead(200, {
           'content-type': 'application/json; charset=utf-8',
           'cache-control': 'no-store',
           'x-content-type-options': 'nosniff',
         });
-        res.end(JSON.stringify(options.recorded?.() ?? []));
+        res.end(JSON.stringify(options.recorded?.(who) ?? []));
         return true;
       }
-      askTheWorker(options.builder, who, `/page/${asked.path}`, null, res, 'GET');
+      options.channel.route(who, `/page/${asked.path.split('/').map(encodeURIComponent).join('/')}`, null, res, 'GET');
       return true;
     }
 
@@ -345,15 +361,10 @@ export function portalFor(options: PortalOptions) {
      * That account id is what goes to the worker, for its book; the session token stays here.
      */
     if (asked.want === 'build' || asked.want === 'follow') {
-      if (!options.builder) {
-        html(res, 503, page('No builder here', '<h1>There is no builder behind this server.</h1>'
-          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
-        return true;
-      }
       if (asked.want === 'follow') {
         const from = new URL(req.url ?? '/', 'http://portal').searchParams;
         const run = from.get('run');
-        askTheWorker(options.builder, who, `/follow?from=${Number(from.get('from') ?? 0) || 0}`
+        options.channel.route(who, `/follow?from=${Number(from.get('from') ?? 0) || 0}`
           + (run ? `&run=${encodeURIComponent(run)}` : ''), null, res, 'GET');
         return true;
       }
@@ -368,7 +379,7 @@ export function portalFor(options: PortalOptions) {
       const wants = whatWasAsked(JSON.parse(body) as unknown);
       const started = Date.now();
       const id = `${started.toString(36)}-${who.slice(0, 8)}`;
-      askTheWorker(options.builder, who, '/ask', body, res, 'POST', (told) => {
+      options.channel.route(who, '/ask', body, res, 'POST', (told) => {
         if (told.k !== 'end') return;
         options.record?.({
           who, when: started, about: typeof wants === 'string' ? '' : wants.about,

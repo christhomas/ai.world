@@ -136,33 +136,41 @@ interface Unreached {
  */
 function unreachedIn(source: ReadonlyMap<string, string>, tests: ReadonlyMap<string, string>): Unreached {
   const found: Unreached = { orphans: [], never: [] };
+  const offered = new Map<string, string[]>();
+  const names = new Set<string>();
   for (const [path, text] of source) {
-    for (const name of exportsOf(text)) {
-      // a name mentioned in any other source file is reached, whatever it is doing there
-      let seen = false;
-      for (const [other, body] of source) {
-        if (other === path) continue;
-        if (new RegExp(`\\b${name}\\b`).test(body)) { seen = true; break; }
-      }
-      if (seen) continue;
-      /*
-       * Used inside its own file is used.
-       *
-       * The first version missed this and said `untilDawn` was unreached the moment it had been
-       * wired — because what wired it was `warningFor`, two functions down in the same file, and
-       * `warningFor` is what `watch.ts` calls. An internal helper behind a public one is reached;
-       * it is only the *export* that is unnecessary, which is a tidiness question rather than the
-       * one this is asking.
-       *
-       * So: named anywhere in its own file beyond its own declaration counts. What is left is the
-       * thing worth finding — a name nothing anywhere calls.
-       */
-      const here = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
-      if (here > 1) continue;
-      // not reached by the program. Is it reached by a test? That decides which list it lands in,
-      // and until #372 it decided whether it was written down at all
-      const tested = [...tests.values()].some((body) => new RegExp(`\\b${name}\\b`).test(body));
-      (tested ? found.orphans : found.never).push(`${path}: ${name}`);
+    const exports = exportsOf(text);
+    offered.set(path, exports);
+    for (const name of exports) names.add(name);
+  }
+  // A word is exactly what the old \bname\b checks counted. Read each body once instead of
+  // searching every source and test again for every exported name in the repository.
+  const firstSource = new Map<string, string>();
+  const otherSource = new Set<string>();
+  const usedHere = new Set<string>();
+  for (const [path, body] of source) {
+    const declaredHere = new Set(offered.get(path));
+    const localCount = new Map<string, number>();
+    for (const match of body.matchAll(/\w+/g)) {
+      const name = match[0];
+      if (!names.has(name)) continue;
+      const first = firstSource.get(name);
+      if (first === undefined) firstSource.set(name, path);
+      else if (first !== path) otherSource.add(name);
+      if (declaredHere.has(name)) localCount.set(name, (localCount.get(name) ?? 0) + 1);
+    }
+    // A declaration plus one same-file use is reached: public helpers called by siblings still
+    // do work even when nobody outside the file names the helper itself.
+    for (const [name, count] of localCount) if (count > 1) usedHere.add(`${path}: ${name}`);
+  }
+  const inTests = new Set<string>();
+  for (const body of tests.values()) {
+    for (const match of body.matchAll(/\w+/g)) if (names.has(match[0])) inTests.add(match[0]);
+  }
+  for (const [path, exports] of offered) {
+    for (const name of exports) {
+      if (otherSource.has(name) || usedHere.has(`${path}: ${name}`)) continue;
+      (inTests.has(name) ? found.orphans : found.never).push(`${path}: ${name}`);
     }
   }
   found.orphans.sort();
@@ -353,6 +361,21 @@ describe('work that nothing reaches', () => {
     const now = unreachedIn(source, tests);
     expect(now.never, 'a tested orphan must not be counted twice').toEqual([]);
     expect(now.orphans).toEqual(['src/a.ts: ghost']);
+  });
+
+  it('indexes whole names while preserving same-file and prose mentions', () => {
+    const source = new Map([
+      ['src/a.ts', 'export const alone = 1;\nexport const tested = 2;\nexport const local = 3; local;'],
+      ['src/b.ts', '// aloneness is not the name alone; prose names still count'],
+      ['src/c.ts', 'export const shared = 1;'],
+      ['src/d.ts', '// shared'],
+    ]);
+    const tests = new Map([['src/a.test.ts', 'tested;']]);
+    expect(unreachedIn(source, tests)).toEqual({ orphans: ['src/a.ts: tested'], never: [] });
+    source.set('src/b.ts', '// aloneness does not mention the exact export');
+    expect(unreachedIn(source, tests)).toEqual({
+      orphans: ['src/a.ts: tested'], never: ['src/a.ts: alone'],
+    });
   });
 
   it('retires an excuse when the export it excuses is finally wired', () => {

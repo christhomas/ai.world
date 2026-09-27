@@ -12,7 +12,7 @@
  * the sun at 2.6, the ambient at 0.45, the shadow bias. Move one for a second render path and the
  * first changes with it, invisibly, until it is three changes deep.
  *
- *   CHANNEL=chrome                     # which browser; empty means playwright's own chromium
+ *   CHANNEL=chrome                     # use system Chrome instead of installed Chromium
  *
  *   chore shots                        # take the pictures
  *   cp -r docs/screenshots /tmp/before # keep them
@@ -20,18 +20,16 @@
  *   chore shots
  *   chore compare -- /tmp/before       # and what moved
  *
- * It borrows playwright exactly the way `shots.cjs` and `playtest.cjs` do, and for the same reason
- * a browser toolchain has no business in a world-server image. The browser is here to *decode a
- * PNG*, which Node cannot do on its own and which is not worth a dependency: a canvas reads one in
- * three lines and this repository already pays for a browser.
+ * It uses the project's development Playwright install. The browser is here to *decode a PNG*,
+ * which Node cannot do on its own: a canvas reads one in three lines.
  *
  * What counts as a difference, and why the threshold is what it is, is in `pictures.ts` — kept apart
  * from this so the decision can be held to in a test without a browser anywhere near it.
  */
 const { chromium } = require('playwright');
 
-/** Which browser to borrow. `shots.cjs` and `playtest.cjs` both read this and both default the same. */
-const CHANNEL = process.env.CHANNEL ?? 'chrome';
+/** Which browser. `shots.cjs` and `playtest.cjs` both default to installed Chromium. */
+const CHANNEL = process.env.CHANNEL ?? '';
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -63,13 +61,7 @@ async function main() {
   }
 
   /*
-   * The same borrowed browser `shots.cjs` and `playtest.cjs` take, and by the same rule.
-   *
-   * It launched without a channel, which asks for playwright's own chromium — a download this
-   * project deliberately does not make, so the tool that checks #249's acceptance ("the reference
-   * screenshots before and after are identical") could not run on a machine where the tool that
-   * *takes* them runs perfectly well. Two tools meant to be used in the same breath, borrowing
-   * differently.
+   * The same project-installed browser `shots.cjs` and `playtest.cjs` use by default.
    */
   const browser = await chromium.launch({
     headless: true, channel: CHANNEL || undefined, executablePath: process.env.BROWSER || undefined,

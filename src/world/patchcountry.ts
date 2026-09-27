@@ -4,6 +4,7 @@ import { rebuildPatch, type GrownPatch } from './endless';
 import type { Highland } from './highland';
 import { boundsOf, PATCH, Patchwork, patchOf } from './patchwork';
 import type { TerrainSampler } from './terrain';
+import type { TerrainLayer } from './terrainlayers';
 import type { Within } from './window';
 
 /**
@@ -19,12 +20,17 @@ import type { Within } from './window';
  * it is given, so the list that comes back on a patch is sorted and the one off a manifest is
  * whatever it was written in.
  */
-function thisCountrys(already: GrownPatch, seed: number, layers: readonly Highland[]): boolean {
+function thisCountrys(already: GrownPatch, seed: number, layers: readonly Highland[], terrain: readonly TerrainLayer[]): boolean {
   if (already.seed !== seed) return false;
   const mine = inOrder(layers), theirs = inOrder(already.parts.layers);
+  const ownTerrain = already.parts.terrain ?? [];
   return mine.length === theirs.length && mine.every((one, i) => (
     one.x === theirs[i].x && one.z === theirs[i].z
     && one.reach === theirs[i].reach && one.lift === theirs[i].lift
+  )) && terrain.length === ownTerrain.length && terrain.every((one, i) => (
+    one.x === ownTerrain[i].x && one.z === ownTerrain[i].z
+    && one.reach === ownTerrain[i].reach && one.seed === ownTerrain[i].seed
+    && one.kind === ownTerrain[i].kind
   ));
 }
 
@@ -74,7 +80,7 @@ export class PatchCountry implements Country {
     readonly seed: number,
     x: number,
     z: number,
-    grow?: (seed: number, within: Within, layers: readonly Highland[]) => TerrainSampler,
+    grow?: (seed: number, within: Within, layers: readonly Highland[], terrain: readonly TerrainLayer[]) => TerrainSampler,
     /** What this world was authored with, on its way to the store that grows every square. */
     layers: readonly Highland[] = [],
     /**
@@ -90,12 +96,14 @@ export class PatchCountry implements Country {
      * always did, which is also what happens when what it was handed does not fit.
      */
     already?: GrownPatch,
+    /** Face-kind edits applied before the patch's roads and water are planned. */
+    terrain: readonly TerrainLayer[] = [],
   ) {
     this.patches = grow
-      ? new Patchwork(seed, grow, undefined, layers)
-      : new Patchwork(seed, undefined, undefined, layers);
+      ? new Patchwork(seed, grow, undefined, layers, terrain)
+      : new Patchwork(seed, undefined, undefined, layers, terrain);
     // Before the first square is asked for, because after it the square has already been grown.
-    if (already && thisCountrys(already, seed, layers)) {
+    if (already && thisCountrys(already, seed, layers, terrain)) {
       this.patches.put(already.patch, rebuildPatch(seed, boundsOf(already.patch), already.parts));
     }
     this.standing = patchOf(x, z);

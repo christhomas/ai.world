@@ -24,10 +24,8 @@
  *   chore shopwalk              # serves the page, walks it, and stops the server again
  *   chore shopwalk 5174         # or walks against a server you already have up, and leaves it up
  *
- * Playwright is borrowed rather than depended on, exactly as `chore playtest` borrows it and for
- * the same reason: `package.json` is installed by the Pages build and by the server image, and a
- * browser toolchain in a world-server image is the shape of the last thing that nearly killed that
- * container. Point NODE_PATH at a checkout that has one.
+ * Playwright is a development dependency. Install its matching browser once with
+ * `pnpm browser:install`; browser binaries stay outside the repository and production image.
  */
 const { chromium } = require('playwright');
 const { spawn } = require('node:child_process');
@@ -37,7 +35,7 @@ const PORT = process.env.PORT || '5173';
 const WORLD = process.env.WORLD || 'road';
 const SEED = process.env.SEED || '3';
 const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?world=${WORLD}&seed=${SEED}`;
-const CHANNEL = process.env.CHANNEL ?? 'chrome';
+const CHANNEL = process.env.CHANNEL ?? '';
 // kept as a literal because this file is CommonJS and `src/core/reports.ts` is an ES module.
 // The one place that decides this is that file; a second spelling of it here is the cost of the
 // two module systems, and `reports.test.ts` fails if they ever disagree.

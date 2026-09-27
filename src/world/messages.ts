@@ -4,6 +4,7 @@ import type { Hydrology } from './rivers';
 import type { Structures } from './structures';
 import type { Ranges } from './ranges';
 import type { Highland } from './highland';
+import type { TerrainLayer } from './terrainlayers';
 import type { Within } from './window';
 
 /**
@@ -46,6 +47,7 @@ export type WorkerRequest =
      * here that cannot be worked out again from the seed, because nothing derives it.
      */
     layers: readonly Highland[];
+    terrain: readonly TerrainLayer[];
   }
   | { type: 'gen'; id: number; cx: number; cz: number; patch?: string }
   /**

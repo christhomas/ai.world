@@ -55,6 +55,8 @@ interface Told {
    * straight the thing was going.
    */
   turn: number;
+  /** Prediction window chosen for the snapshot's distance from the hero. */
+  carryAhead: number;
   /** When it was said, in seconds. */
   at: number;
 }
@@ -74,8 +76,23 @@ export interface Drift {
   recent: number;
 }
 
+/** One authoritative snapshot correcting a creature already on screen. */
+export interface DriftCorrection {
+  id: number;
+  kind: string;
+  drawn: { x: number; z: number };
+  snapshot: { x: number; z: number };
+  distance: number;
+  /** Monotonic seconds, comparable within this page session. */
+  at: number;
+  /** Number of animation updates observed before this correction. */
+  frame: number;
+}
+
 /** How quickly a drawn creature catches up with where the world says it is, per second. */
-const CATCH_UP = 9;
+const CATCH_UP = 12;
+/** Even after a long frame, leave a little of an ordinary correction to ease on the next one. */
+const MAX_CATCH_UP_STEP = 0.85;
 
 /**
  * The largest positional correction worth easing, in tiles.
@@ -95,6 +112,9 @@ const MAX_EASED_GAP = 0.5;
  * is a deer that slides past its own tree and is yanked back.
  */
 const CARRY_AHEAD = 0.45;
+
+/** Close creatures are refreshed ten times a second, so predict no further than one tick ahead. */
+const CLOSE_CARRY_AHEAD = 0.1;
 
 /**
  * The most of a creature's own pace the guess will credit it with.
@@ -154,7 +174,12 @@ export interface TheBook {
 }
 
 export class Wildlife {
+  private readonly corrections: DriftCorrection[] = [];
+  private frame = 0;
+  private static readonly CORRECTION_TRACE_LIMIT = 64;
   private readonly bodies = new Map<number, Entity>();
+  /** Last time each body was moved toward its prediction, including between rendered frames. */
+  private readonly drawnAt = new Map<number, number>();
   /**
    * Where the world last said each one was, how fast it seemed to be going when it said so, and
    * how long ago that was — which together are where it probably is now.
@@ -213,6 +238,7 @@ export class Wildlife {
 
   /** What the world says is near: new ones appear, known ones are aimed at where they now are. */
   apply(near: CreatureSnap[], gone: number[], hero?: { x: number; z: number }): void {
+    const now = performance.now() / 1000;
     for (const snap of near) {
       let body = this.bodies.get(snap.id);
       const knew = body !== undefined;
@@ -225,6 +251,13 @@ export class Wildlife {
         body.worldId = snap.id;
         if (!this.renderer.add(body)) continue;
         this.bodies.set(snap.id, body);
+        this.drawnAt.set(snap.id, now);
+      } else {
+        // A headless or busy page may go a whole snapshot interval without a rendered frame. Bring
+        // the old prediction up to this message's arrival time before comparing it to the new truth;
+        // otherwise every packet measures the previous frame rather than where the creature would
+        // have been drawn now. The next frame then starts from this caught-up position.
+        this.advance(body, snap.id, now);
       }
       /*
        * How far out the screen was about this creature, before believing the new position.
@@ -238,7 +271,18 @@ export class Wildlife {
        * behind on purpose, and anything too far off to reach, which costs nobody anything.
        */
       if (knew) {
+        const drawn = { x: body.x, z: body.z };
         const out = Math.hypot(body.x - snap.x, body.z - snap.z);
+        this.corrections.push({
+          id: snap.id,
+          kind: body.kind.id,
+          drawn,
+          snapshot: { x: snap.x, z: snap.z },
+          distance: out,
+          at: performance.now() / 1000,
+          frame: this.frame,
+        });
+        if (this.corrections.length > Wildlife.CORRECTION_TRACE_LIMIT) this.corrections.shift();
         this.wrong.n++;
         this.wrong.total += out;
         if (out > this.wrong.worst) this.wrong.worst = out;
@@ -286,7 +330,8 @@ export class Wildlife {
       // screen while everybody else carried on watching it graze.
       if (snap.hp > 0 && body.dead) { body.dead = false; body.dying = 0; }
       if (snap.who) this.thisIsWho(body, snap.who);
-      this.wanted.set(snap.id, this.told(body, snap));
+      const close = hero && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE;
+      this.wanted.set(snap.id, this.told(body, snap, close ? CLOSE_CARRY_AHEAD : CARRY_AHEAD));
     }
     for (const id of gone) {
       const body = this.bodies.get(id);
@@ -294,7 +339,15 @@ export class Wildlife {
       this.renderer.remove(body);
       this.bodies.delete(id);
       this.wanted.delete(id);
+      this.drawnAt.delete(id);
     }
+  }
+
+  /** A copy of the recent correction trace for diagnosis; reading it never consumes samples. */
+  correctionTrace(): DriftCorrection[] {
+    return this.corrections.map((entry) => ({
+      ...entry, drawn: { ...entry.drawn }, snapshot: { ...entry.snapshot },
+    }));
   }
 
   /**
@@ -406,7 +459,7 @@ export class Wildlife {
    * poor trade. It is clamped to a little over the creature's own pace, so a snapshot that arrives
    * late cannot make a deer look like an arrow.
    */
-  private told(body: Entity, snap: CreatureSnap): Told {
+  private told(body: Entity, snap: CreatureSnap, carryAhead: number): Told {
     const now = performance.now() / 1000;
     const was = this.wanted.get(snap.id);
     let vx = 0, vz = 0, turn = 0;
@@ -426,34 +479,41 @@ export class Wildlife {
         }
       }
     }
-    return { x: snap.x, z: snap.z, y: snap.y, yaw: snap.yaw, vx, vz, turn, at: now };
+    return { x: snap.x, z: snap.z, y: snap.y, yaw: snap.yaw, vx, vz, turn, carryAhead, at: now };
   }
 
   /** Walk each drawn creature towards where the world's last word says it is *now*. */
   update(dt: number): void {
-    const k = Math.min(1, dt * CATCH_UP);
+    this.frame++;
     const now = performance.now() / 1000;
     for (const [id, body] of this.bodies) {
-      const held = this.wanted.get(id);
-      if (!held) continue;
-      // carried forward from where it was last seen, for as long as that is still a fair guess.
-      // Nothing that flies is carried at all: a vulture rides a thermal in a ring, so its last
-      // direction is a tangent and a third of a second of one puts it outside the ring — measured
-      // at nearly five tiles out, by far the worst of anything in the world. Nobody fights a bird
-      // at altitude seven, and a bird drawn a moment behind reads as a bird.
-      const straight = body.kind.behaviour === 'fly' ? 0 : CARRY_AHEAD * (1 - held.turn);
-      const ahead = Math.min(now - held.at, straight);
-      const to = { x: held.x + held.vx * ahead, z: held.z + held.vz * ahead, y: held.y, yaw: held.yaw };
-      body.x += (to.x - body.x) * k;
-      body.z += (to.z - body.z) * k;
-      body.y += (to.y - body.y) * k;
-      // the shortest way round the circle, so nothing spins the long way to face the same direction
-      let turn = to.yaw - body.yaw;
-      while (turn > Math.PI) turn -= Math.PI * 2;
-      while (turn < -Math.PI) turn += Math.PI * 2;
-      body.yaw += turn * k;
+      this.advance(body, id, now, dt);
       body.phase += body.walk * dt * 6;
     }
+  }
+
+  /** Move one body toward its last prediction for the time since it was last advanced. */
+  private advance(body: Entity, id: number, now: number, fallback = 0): void {
+    const held = this.wanted.get(id);
+    const last = this.drawnAt.get(id) ?? now;
+    const elapsed = Math.max(0, now - last) || fallback;
+    this.drawnAt.set(id, now);
+    if (!held || elapsed === 0) return;
+    // carried forward from where it was last seen, for as long as that is still a fair guess.
+    // Nothing that flies is carried at all: a vulture rides a thermal in a ring, so its last
+    // direction is a tangent and a third of a second of one puts it outside the ring.
+    const straight = body.kind.behaviour === 'fly' ? 0 : held.carryAhead * (1 - held.turn);
+    const ahead = Math.min(now - held.at, straight);
+    const to = { x: held.x + held.vx * ahead, z: held.z + held.vz * ahead, y: held.y, yaw: held.yaw };
+    const k = Math.min(MAX_CATCH_UP_STEP, elapsed * CATCH_UP);
+    body.x += (to.x - body.x) * k;
+    body.z += (to.z - body.z) * k;
+    body.y += (to.y - body.y) * k;
+    // the shortest way round the circle, so nothing spins the long way to face the same direction
+    let turn = to.yaw - body.yaw;
+    while (turn > Math.PI) turn -= Math.PI * 2;
+    while (turn < -Math.PI) turn += Math.PI * 2;
+    body.yaw += turn * k;
   }
 
   /** Forget everything: the world stopped being ours to draw. */
@@ -461,5 +521,8 @@ export class Wildlife {
     for (const body of this.bodies.values()) this.renderer.remove(body);
     this.bodies.clear();
     this.wanted.clear();
+    this.drawnAt.clear();
+    this.corrections.length = 0;
+    this.frame = 0;
   }
 }

@@ -93,10 +93,11 @@ describe('the tools portal, served', () => {
     expect(said).toContain('Domesday Book');
   });
 
-  it('opens each card through a route that checks the cookie', async () => {
+  it('opens the registry and reports the unpaired builder offline through authenticated routes', async () => {
     const cookie = cookieOut(await signIn('chris', 'a long enough password'));
+    expect((await get('/tools/character-builder', cookie)).status, 'the builder has no paired worker').toBe(503);
+    expect((await get('/tools/registry', cookie)).status, 'the registry is served by the portal').toBe(200);
     for (const id of ['character-builder', 'registry']) {
-      expect((await get(`/tools/${id}`, cookie)).status, `${id} signed in`).toBe(200);
       const out = await get(`/tools/${id}`);
       expect(out.status, `${id} signed out`).toBe(303);
       expect(out.headers.get('location')).toBe('/tools/login');

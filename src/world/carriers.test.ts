@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
-import { CARRY, whatACarrierWouldCarry, type Market } from './carriers';
+import { CARRY, finishLoadedCarrying, loadCarrying, settleCarrying, whatACarrierWouldCarry, type Market } from './carriers';
 import { FOOD, cellarCap } from './food';
 import { coverOf, priceOfAMeal } from './prices';
 import { PROSPER } from './prosperity';
 import type { Person } from './people';
+import type { Settlement } from './settlement';
 
 /**
  * Two valleys, one of which grows food and one of which cannot, and somebody who walks between them.
@@ -147,6 +148,103 @@ function market(village: string, cover: number, purse = 100, souls = 12): Market
 /** What a map of payments comes to, which is most of what these ask. */
 const total = (paid: ReadonlyMap<string, number>): number =>
   [...paid.values()].reduce((sum, much) => sum + much, 0);
+
+/** Only the cellar, purses and hall are read when a carrying settles. */
+function settlement(market: Market): Settlement {
+  return { food: market.food, people: [...market.people], hall: { id: 'hall', purse: 0 } } as Settlement;
+}
+
+describe('a carrying interrupted on the road', () => {
+  it('keeps loaded food off both village ledgers until delivery, and burns it if robbed', () => {
+    const full = market('Full', 1);
+    const bare = market('Bare', 0.1);
+    const cart = whatACarrierWouldCarry([full, bare])!;
+    const villages = new Map([['Full', settlement(full)], ['Bare', settlement(bare)]]);
+    const book = new Map<string, number>();
+    const purses = [...villages.values()].flatMap((place) => place.people.map((p) => p.purse));
+
+    loadCarrying(villages, cart, book);
+    expect(villages.get('Full')!.food).toBeCloseTo(full.food - cart.meals);
+    expect(villages.get('Bare')!.food).toBe(bare.food);
+    expect(total(book)).toBeCloseTo(total(cart.paying));
+
+    finishLoadedCarrying(villages, cart, book, 'robbed');
+    expect(villages.get('Bare')!.food).toBe(bare.food);
+    expect([...villages.values()].flatMap((place) => place.people.map((p) => p.purse))).toEqual(purses);
+    expect(book.size).toBe(0);
+  });
+
+  it('pays only when an already loaded cart reaches its buyer', () => {
+    const full = market('Full', 1);
+    const bare = market('Bare', 0.1);
+    const cart = whatACarrierWouldCarry([full, bare])!;
+    const villages = new Map([['Full', settlement(full)], ['Bare', settlement(bare)]]);
+    const book = new Map<string, number>();
+    loadCarrying(villages, cart, book);
+
+    finishLoadedCarrying(villages, cart, book, 'delivered');
+
+    expect(villages.get('Full')!.food).toBeCloseTo(full.food - cart.meals);
+    expect(villages.get('Bare')!.food).toBeCloseTo(bare.food + cart.meals);
+    expect(total(book)).toBeCloseTo(0, 10);
+    expect(total(book)).toBeCloseTo(total(cart.paying) + total(cart.paid), 10);
+  });
+
+  it('pays a departed seller\'s share to the village hall without charging the buyer twice', () => {
+    const full = market('Full', 1);
+    const bare = market('Bare', 0.1);
+    const cart = whatACarrierWouldCarry([full, bare])!;
+    const villages = new Map([['Full', settlement(full)], ['Bare', settlement(bare)]]);
+    const book = new Map<string, number>();
+    loadCarrying(villages, cart, book);
+    const seller = [...cart.paid.keys()][0];
+    villages.get('Full')!.people = villages.get('Full')!.people.filter((person) => person.id !== seller);
+    const buyerPurses = villages.get('Bare')!.people.map((person) => person.purse);
+
+    finishLoadedCarrying(villages, cart, book, 'delivered');
+    expect(villages.get('Bare')!.food).toBeCloseTo(bare.food + cart.meals);
+    expect(villages.get('Bare')!.people.map((person) => person.purse)).toEqual(buyerPurses);
+    expect(villages.get('Full')!.hall.purse).toBeGreaterThan(0);
+    expect(total(book)).toBeCloseTo(0, 10);
+  });
+
+  it('takes the load from the sender, leaves the buyer unfed and unpaid, and moves no coin', () => {
+    const full = market('Full', 1);
+    const bare = market('Bare', 0.1);
+    const cart = whatACarrierWouldCarry([full, bare])!;
+    const villages = new Map([
+      ['Full', settlement(full)], ['Bare', settlement(bare)],
+    ]);
+    const book = new Map<string, number>();
+    const pursesBefore = [...villages.values()].flatMap((village) => village.people.map((p) => p.purse));
+
+    settleCarrying(villages, cart, book, 'robbed');
+
+    expect(villages.get('Full')!.food).toBeCloseTo(full.food - cart.meals);
+    expect(villages.get('Bare')!.food).toBe(bare.food);
+    expect([...villages.values()].flatMap((village) => village.people.map((p) => p.purse)))
+      .toEqual(pursesBefore);
+    expect(book.size).toBe(0);
+    expect(cart.meals).toBeGreaterThan(0);
+  });
+
+  it('settles an uninterrupted load in both cellars and balances its payments', () => {
+    const full = market('Full', 1);
+    const bare = market('Bare', 0.1);
+    const cart = whatACarrierWouldCarry([full, bare])!;
+    const villages = new Map([
+      ['Full', settlement(full)], ['Bare', settlement(bare)],
+    ]);
+    const book = new Map<string, number>();
+
+    settleCarrying(villages, cart, book, 'delivered');
+
+    expect(villages.get('Full')!.food).toBeCloseTo(full.food - cart.meals);
+    expect(villages.get('Bare')!.food).toBeCloseTo(bare.food + cart.meals);
+    expect(total(book)).toBeCloseTo(0, 10);
+    expect(total(book)).toBeCloseTo(total(cart.paying) + total(cart.paid), 10);
+  });
+});
 
 describe('what a carrier would load', () => {
   it('pays the feeding valley exactly what the fed valley paid, and not a hundredth more', () => {

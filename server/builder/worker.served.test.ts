@@ -3,9 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { once } from 'node:events';
+import WebSocket from 'ws';
 import { startWorker, changedIn, type RunningWorker } from './worker';
 import { startServer, type RunningServer } from '../serve';
 import { COOKIE } from '../tools/portal';
+import { addAccount } from '../tools/accounts';
 import type { Recorded } from './asked';
 
 /**
@@ -47,6 +51,11 @@ const BUILD_PAGE = async (worktree: string, out: string): Promise<void> => {
     `<!doctype html><title>worker character builder</title><p>${revision}</p><script src="/tools/build/page/assets/revision.js"></script>`);
   writeFileSync(join(out, 'assets', 'revision.js'), `window.revision = ${JSON.stringify(revision)}`);
 };
+
+it('rejects a declared second portal replica while worker sockets live in memory', async () => {
+  await expect(startServer({ replicas: 2, durableDb: null, quiet: true }))
+    .rejects.toThrow('exactly one server replica');
+});
 
 describe('the builder worker', () => {
   let dir = '', tree = '';
@@ -198,7 +207,7 @@ describe('the builder worker', () => {
 });
 
 /**
- * And through the portal, which is the only thing allowed to speak to it.
+ * And through the account's outbound connection to the portal.
  */
 describe('the builder behind the portal', () => {
   let dir = '', tree = '';
@@ -212,31 +221,40 @@ describe('the builder behind the portal', () => {
     execFileSync('git', ['init', '-q', tree]);
     process.env.TOOLS_ADMIN_USER = 'chris';
     process.env.TOOLS_ADMIN_PASSWORD = 'a long enough password';
-    worker = await startWorker({
-      worktree: tree, secret, port: 0, quiet: true,
-      command: { run: process.execPath, args: (prompt) => ['-e', PRETEND, prompt] },
-      buildPage: BUILD_PAGE,
-    });
     server = await startServer({
       port: 0, quiet: true, dataDir: join(dir, 'worlds'),
       durableDb: join(dir, 'ai-world.sqlite'), toolsSecret: 'a signing key',
-      builder: { host: '127.0.0.1', port: worker.port, secret },
     });
+    const cookie = await signIn();
+    const pair = await fetch(at('/tools/build/pair'), { method: 'POST', headers: { cookie } });
+    const token = (await pair.text()).match(/<pre>([A-Za-z0-9_-]{43})<\/pre>/)?.[1];
+    if (!token) throw new Error('the portal did not issue a pairing token');
+    worker = await startWorker({
+      worktree: tree, secret, port: 0, quiet: true, portal: at('/'), pairing: token,
+      command: { run: process.execPath, args: (prompt) => ['-e', PRETEND, prompt] },
+      buildPage: BUILD_PAGE,
+    });
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const status = await (await fetch(at('/tools/build/pair'), { headers: { cookie } })).text();
+      if (status.includes('Your machine is connected.')) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('the paired worker did not connect');
   });
   afterEach(async () => {
     delete process.env.TOOLS_ADMIN_USER;
     delete process.env.TOOLS_ADMIN_PASSWORD;
-    await server?.close();
     await worker?.close();
+    await server?.close();
     rmSync(dir, { recursive: true, force: true });
   });
 
   const at = (path: string): string => `http://127.0.0.1:${server!.port}${path}`;
-  const signIn = async (): Promise<string> => {
+  const signIn = async (name = 'chris', password = 'a long enough password'): Promise<string> => {
     const res = await fetch(at('/tools/login'), {
       method: 'POST', redirect: 'manual',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ name: 'chris', password: 'a long enough password' }).toString(),
+      body: new URLSearchParams({ name, password }).toString(),
     });
     return (res.headers.get('set-cookie') ?? '').split(';')[0];
   };
@@ -268,6 +286,93 @@ describe('the builder behind the portal', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('make the wolf bigger');
+  }, PATIENCE);
+
+  it('keeps another account offline instead of lending it this worker', async () => {
+    const owner = await signIn();
+    await (await fetch(at('/tools/build/ask'), {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: owner },
+      body: JSON.stringify({ prompt: 'private work', about: 'wolf' }),
+    })).text();
+    const db = new DatabaseSync(join(dir, 'ai-world.sqlite'));
+    addAccount(db, 'alex', 'another long password');
+    db.close();
+    const cookie = await signIn('alex', 'another long password');
+    const answer = await fetch(at('/tools/build/ask'), {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ prompt: 'hello' }),
+    });
+    expect(answer.status).toBe(503);
+    expect(await answer.text()).toContain('your machine is not connected');
+    const page = await fetch(at('/tools/character-builder'), { headers: { cookie } });
+    expect(page.status).toBe(503);
+    const book = await fetch(at('/tools/build/book'), { headers: { cookie } });
+    expect(await book.json()).toEqual([]);
+  }, PATIENCE);
+
+  it('disconnects a worker as soon as its account revokes the pairing', async () => {
+    const cookie = await signIn();
+    const revoke = await fetch(at('/tools/build/unpair'), {
+      method: 'POST', redirect: 'manual', headers: { cookie },
+    });
+    expect(revoke.status).toBe(303);
+    const answer = await fetch(at('/tools/build/ask'), {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ prompt: 'hello' }),
+    });
+    expect(answer.status).toBe(503);
+    expect(await answer.text()).toContain('your machine is not connected');
+  }, PATIENCE);
+
+  it('resets an active stream when its worker connection is revoked', async () => {
+    const cookie = await signIn();
+    const response = await fetch(at('/tools/build/ask'), {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ prompt: 'work slowly' }),
+    });
+    expect(response.status).toBe(200);
+    const reading = response.text().then(() => 'completed', () => 'reset');
+    await fetch(at('/tools/build/unpair'), { method: 'POST', headers: { cookie } });
+    expect(await reading).toBe('reset');
+  }, PATIENCE);
+
+  it('keeps a run alive when its browser stops reading the stream', async () => {
+    const cookie = await signIn();
+    const response = await fetch(at('/tools/build/ask'), {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ prompt: 'work slowly' }),
+    });
+    const run = response.headers.get('x-builder-run');
+    expect(run).toBeTruthy();
+    const reader = response.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 1_800));
+    const follow = await fetch(at(`/tools/build/follow?run=${run}&from=0`), { headers: { cookie } });
+    expect(await follow.text()).toContain('"k":"end"');
+  }, PATIENCE);
+
+  it('reconnects its paired worker after the portal restarts', async () => {
+    const cookie = await signIn();
+    const port = server!.port;
+    await server!.close();
+    server = await startServer({
+      port, quiet: true, dataDir: join(dir, 'worlds'),
+      durableDb: join(dir, 'ai-world.sqlite'), toolsSecret: 'a signing key',
+    });
+    let connected = false;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const page = await (await fetch(at('/tools/build/pair'), { headers: { cookie } })).text();
+      if (page.includes('Your machine is connected.')) { connected = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    expect(connected).toBe(true);
+    const answer = await fetch(at('/tools/build/ask'), {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ prompt: 'after restart' }),
+    });
+    expect(answer.status).toBe(200);
+    expect(await answer.text()).toContain('after restart');
   }, PATIENCE);
 
   it('serves the worker revision and its assets only through an authenticated portal', async () => {
@@ -368,6 +473,29 @@ describe('a portal with no builder behind it', () => {
       body: '{"prompt":"hello"}',
     });
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain('#103');
+    expect(await res.text()).toContain('your machine is not connected');
   });
+
+  it('closes malformed and oversized paired sockets without taking the portal down', async () => {
+    const base = `http://127.0.0.1:${server!.port}`;
+    const login = await fetch(`${base}/tools/login`, {
+      method: 'POST', redirect: 'manual',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ name: 'chris', password: 'a long enough password' }).toString(),
+    });
+    const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0];
+    const pair = await fetch(`${base}/tools/build/pair`, { method: 'POST', headers: { cookie } });
+    const token = (await pair.text()).match(/<pre>([A-Za-z0-9_-]{43})<\/pre>/)?.[1];
+    expect(token).toBeTruthy();
+    for (const payload of ['null', 'x'.repeat(1024 * 1024 + 1)]) {
+      const socket = new WebSocket(`ws://127.0.0.1:${server!.port}/tools/build/connect`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      await once(socket, 'open');
+      const closed = once(socket, 'close');
+      socket.send(payload);
+      await closed;
+      expect((await (await fetch(`${base}/status`)).text())).toContain('ai.world server');
+    }
+  }, PATIENCE);
 });

@@ -244,7 +244,11 @@ describe('a villager the world owns', () => {
   });
 
   it('turns a constable out when the world is told the law wants somebody', () => {
-    const wanted = { alive: villageAt(3).alive, at: villageAt(3).at };
+    const wanted = villageAt(3);
+    const village = wanted.alive.villages[0];
+    // Whether a small village's founding rolls happen to include a constable is seed-dependent;
+    // give this fixture one so the test exercises calling the law out rather than that roll.
+    wanted.alive.register?.foundOn(village.name, village.houses.length, ['constable']);
     // guilt is the one thing about a hero the world cannot see: it lives in his own save, and a
     // village needs exactly this much of it to decide whether to put a man in a helmet in the street
     for (let n = 0; n < 40; n++) {

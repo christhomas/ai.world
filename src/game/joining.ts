@@ -1,6 +1,8 @@
 import { $ } from '../ui/dom';
 import type { Online } from './online';
 import type { GameState } from './state';
+import type { WorldKind } from '../world/countries';
+import type { TerrainLayer } from '../world/terrainlayers';
 
 /** The world server's own port, which `chore world` also uses. */
 const WORLD_PORT = 8787;
@@ -36,6 +38,10 @@ export function defaultServer(url: URL): string {
  */
 export interface Joining {
   seed: number;
+  /** The country already grown on this page. */
+  kind: WorldKind;
+  /** Authored land and sea edits for the private world worker. */
+  terrain: readonly TerrainLayer[];
   /** The world's durable, sayable key. Old numeric saves have none until the player names them. */
   worldName?: string;
   /**
@@ -104,9 +110,9 @@ export function inviteTo(here: string, seed: number, address: string, worldName?
 }
 
 export function joinAWorld(ctx: Joining): void {
-  const { seed, worldName, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  const { seed, kind, terrain, worldName, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
   /** The acre that must exist before the world puts the hero down. */
-  const here = () => ({ at: where() });
+  const here = () => ({ at: where(), kind, terrain });
 
   const serverInput = $('serverInput') as HTMLInputElement;
   const nameInput = $('nameInput') as HTMLInputElement;

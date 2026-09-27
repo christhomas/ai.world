@@ -1,4 +1,5 @@
 import { Scatter, type CellDials, type Site } from './scattercells';
+import { TerrainLayers } from './terrainlayers';
 
 /**
  * The faces of a country with no edge to it.
@@ -62,6 +63,8 @@ const LOOK_OUT = 3;
  */
 export interface Country {
   seed: number;
+  /** Authored face kinds, consulted before roads and water are planned. */
+  terrain: TerrainLayers;
   /** How fine-grained the ground is here, nought to one, as the world's own noise says. */
   spacing: (x: number, z: number) => number;
   dials: CellDials;
@@ -78,8 +81,11 @@ export interface Country {
 }
 
 /** A country, with its own memory of the cells it has worked out. */
-export function countryOf(seed: number, spacing: (x: number, z: number) => number, dials: CellDials): Country {
-  return { seed, spacing, dials, scatter: new Scatter(seed, spacing, dials), faces: new Map() };
+export function countryOf(
+  seed: number, spacing: (x: number, z: number) => number, dials: CellDials,
+  terrain: TerrainLayers = TerrainLayers.none,
+): Country {
+  return { seed, spacing, dials, terrain, scatter: new Scatter(seed, spacing, dials), faces: new Map() };
 }
 
 /** The sites of a patch, with the ring around it a face needs to be sure of its own borders. */

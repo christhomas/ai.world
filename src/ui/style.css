@@ -620,7 +620,7 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
   position: relative; flex: 0 0 calc(384 * var(--ui-scale));
   background: var(--surface); border-right: var(--ui-scale) solid var(--rule);
   padding: calc(56 * var(--ui-scale)) calc(40 * var(--ui-scale)) calc(36 * var(--ui-scale));
-  display: flex; flex-direction: column; gap: calc(40 * var(--ui-scale));
+  display: flex; flex-direction: column; gap: calc(40 * var(--ui-scale)); overflow-y: auto;
 }
 #titleRail .brand { display: flex; flex-direction: column; gap: calc(14 * var(--ui-scale)); }
 /* the wordmark is a gold bar and a word. The old one had a hard purple drop shadow under it,
@@ -650,6 +650,14 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 .title-world-fields details { display: flex; flex-direction: column; }
 .title-world-fields summary { cursor: pointer; color: color-mix(in srgb, var(--ink) 52%, transparent); }
 .title-world-fields details input { margin-top: calc(8 * var(--ui-scale)); }
+#terrainEditor p, #terrainEditor ol { font-size: calc(11 * var(--ui-scale)); color: var(--dim); line-height: 1.4; }
+#terrainEditor .terrain-fields { display: grid; grid-template-columns: 1fr 1fr; gap: calc(6 * var(--ui-scale)); margin-top: calc(8 * var(--ui-scale)); }
+#terrainEditor .terrain-fields input { margin: 0; min-width: 0; }
+#terrainEditor select, #terrainEditor button { background: var(--surface); border: var(--ui-scale) solid var(--rule); color: var(--ink); font: inherit; padding: calc(8 * var(--ui-scale)); }
+#terrainEditor button { cursor: pointer; }
+#terrainLayers { padding-left: calc(22 * var(--ui-scale)); max-height: calc(130 * var(--ui-scale)); overflow: auto; }
+#terrainLayers li { margin-top: calc(5 * var(--ui-scale)); }
+#terrainLayers li button { margin-left: calc(7 * var(--ui-scale)); padding: calc(2 * var(--ui-scale)) calc(5 * var(--ui-scale)); }
 #titleWorldError { min-height: calc(14 * var(--ui-scale)); color: var(--accent); font-size: calc(11 * var(--ui-scale)); }
 /*
  * The build, at the very bottom of the rail.

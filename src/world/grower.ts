@@ -99,7 +99,7 @@ export class Grower {
     this.busy = true;
     // the layers come off the patchwork rather than from anything this was told: one list per
     // country, held where the country is, so a worker cannot be sent a different one
-    this.send({ type: 'grow', seed: this.seed, patch: next, layers: this.patches.layers });
+    this.send({ type: 'grow', seed: this.seed, patch: next, layers: this.patches.layers, terrain: this.patches.terrain });
   }
 }
 

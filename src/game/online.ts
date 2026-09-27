@@ -12,6 +12,8 @@ export type { OnlineEvents } from './heard';
 import type { GameState } from './state';
 import type { Memory } from '../world/people';
 import { ITEMS } from './items';
+import type { WorldKind } from '../world/countries';
+import type { TerrainLayer } from '../world/terrainlayers';
 
 export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
@@ -52,20 +54,15 @@ const RETRY = { FIRST: 1, GROWTH: 2, LONGEST: 30 };
  */
 const GRACE = 2;
 
-/**
- * The rest of what a world has to be told at the door, beyond a seed and a kind.
- *
- * Both exist because a world told nothing has to guess, and both guesses were wrong in ways nobody
- * could see. Told nothing about the islands it grows the seed's own, which is a different country
- * from a save that has its own written down. Told nothing about where the hero stands it has
- * nowhere to grow, so it waits to be asked and answers too late to be believed. Optional, because a
- * page that says neither still plays: it gets the seed's country grown on demand, as pages used to.
- */
+/** A join carries the page's country kind and position, plus authored terrain for its private worker. */
 export interface CountryHere {
   /** Where the hero is standing, so the world can have that ground ready before it is asked. */
   at?: { x: number; z: number };
+  /** Which generator grew the page's country. */
+  kind?: WorldKind;
+  /** Sent only to the private simulation worker, never to another world's server. */
+  terrain?: readonly TerrainLayer[];
 }
-
 
 /**
  * The multiplayer client. Everything about the world stays local and seed-derived; the only
@@ -181,8 +178,9 @@ export class Online {
 
     const events: LinkEvents = {
       onOpen: () => this.send({
-        type: 'join', worldName, seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
+        type: 'join', worldName, seed, kind: country.kind, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
         x: country.at?.x, z: country.at?.z,
+        terrain: this.local ? country.terrain : undefined,
       }),
       onMessage: (parcel) => {
         this.sinceHeard = 0;

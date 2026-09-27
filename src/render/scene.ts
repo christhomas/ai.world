@@ -199,7 +199,6 @@ export function fogReach(chunks: number = WORLD.VIEW_RADIUS): { near: number; fa
 }
 
 export interface SceneRig {
-  renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
@@ -218,6 +217,8 @@ export interface SceneRig {
    * travelled far enough for the answer to have changed.
    */
   seaAround(x: number, z: number, source: ChunkSource): void;
+  /** Advance the water shader without exposing its uniforms to the game loop. */
+  updateWater(time: number): void;
   /**
    * Fit the shadow slab to where the sun is now. `follow` does this with the sun it can see, which
    * is last frame's when a day cycle is driving it; whatever moves the sun should call this again
@@ -384,7 +385,7 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
 
   return {
-    renderer, scene, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
+    scene, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
     quality: remembered,
     setQuality(level: Quality) {
       const want = QUALITY[level];
@@ -433,6 +434,9 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
         waterMat.setCoast(coast.texture, coast.area(coastArea));
       }
     },
+    updateWater(time) {
+      waterMat.update(time);
+    },
     fitShadow() {
       // nothing has said where the camera is looking yet, so there is no picture to fit to
       if (shadowHalf === 0) return;
@@ -459,6 +463,8 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
     },
     get canvas() { return renderer.domElement; },
     dispose() {
+      waterMat.dispose();
+      coast.dispose();
       second?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
