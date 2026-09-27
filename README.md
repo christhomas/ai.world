@@ -580,6 +580,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.102.4 — 2026-09-27
+
+portable hosting setup and proxy scheme detection
+
 ### v0.102.3 — 2026-09-27
 
 tools portal access and HTTPS redirect
@@ -615,10 +619,6 @@ A teleport is a passage you can watch: the console gets out of the way and the b
 ### v0.98.0 — 2026-09-17
 
 A teleport tells the world where it landed rather than where it was sent, a seed can be measured before it is handed out, and the mountain has a shot of its own
-
-### v0.97.0 — 2026-09-17
-
-A save remembers which country it is, told facts get their own book, the hero walks into a village, and the shot tool can photograph either generator
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
