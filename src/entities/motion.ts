@@ -25,8 +25,9 @@ interface Cycle {
   of?: Driver;
   /** How far it travels at full pace, in radians, in step with the gait. */
   swing?: number;
-  /** A constant sway, with its rate and where in the cycle it starts. */
+  /** A constant sway. */
   wave?: number;
+  /** How quickly the cycle runs, and where in the cycle it starts. */
   rate?: number;
   offset?: number;
   /** Where it sits when nothing is happening, and how far it trails when moving. */
@@ -463,7 +464,9 @@ function cycleValue(cycle: Cycle, e: Moving, stride: number): number {
   const driver = cycle.of === 'walk' ? e.walk : cycle.of === 'flap' ? e.flap : 1;
   let turn = 0;
   // only a swing is a stride, so only a swing opens out into a run
-  if (cycle.swing !== undefined) turn += Math.sin(e.phase) * cycle.swing * e.walk * stride;
+  if (cycle.swing !== undefined) {
+    turn += Math.sin(e.phase * (cycle.rate ?? 1) + (cycle.offset ?? 0)) * cycle.swing * e.walk * stride;
+  }
   if (cycle.wave !== undefined) turn += Math.sin(e.phase * (cycle.rate ?? 1) + (cycle.offset ?? 0)) * cycle.wave * driver;
   if (cycle.rest !== undefined) turn += cycle.rest;
   if (cycle.lean !== undefined) turn += cycle.lean * e.walk;
