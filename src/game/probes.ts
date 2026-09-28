@@ -5,6 +5,8 @@ import { shaftsAround } from '../world/shafts';
 import { openCountry } from './shafts';
 import { CAMERA } from '../core/config';
 import { PropKind } from '../world/biomes';
+import { FURNITURE_BLOCKS } from '../world/footprints';
+import { propFootprints } from '../entities/props';
 import { nameOfProp } from '../world/catalogue';
 import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../world/chunkManager';
@@ -303,12 +305,16 @@ export function installProbes(ctx: Probed): void {
   (debug as { __room?: () => unknown }).__room = () => {
     const room = places.indoors;
     if (!room) return null;
+    const footprints = propFootprints();
     return {
       name: room.world.map.name,
       size: [room.world.map.w, room.world.map.h],
       door: room.world.map.door,
       entry: room.world.map.entry,
-      furniture: room.world.map.furniture.map((f) => ({ kind: f.kind, x: f.x, z: f.z, rot: Math.round(f.rot * 100) / 100 })),
+      furniture: room.world.map.furniture.map((f) => ({
+        kind: f.kind, x: f.x, z: f.z, rot: Math.round(f.rot * 100) / 100,
+        wide: FURNITURE_BLOCKS.has(f.kind) && Math.max(footprints.get(f.kind)?.hw ?? 0, footprints.get(f.kind)?.hd ?? 0) > 0.75,
+      })),
       solid: (x: number, z: number) => room.world.blocked(x, z),
       /** Whether the hero is standing in the doorway, and what the doorstep is waiting for. */
       atTheDoor: room.world.inDoorway(player.x, player.z, 0.68, 0.49),

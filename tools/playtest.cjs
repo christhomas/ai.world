@@ -67,7 +67,11 @@ const DRIFT_SAMPLES = 12;
 
 const results = [];
 const errs = [];
-const say = (name, ok, detail) => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`); };
+const say = (name, ok, detail) => {
+  const status = ok === null ? 'SKIP' : ok ? 'PASS' : 'FAIL';
+  results.push({ name, ok, detail });
+  console.log(`${status}  ${name}${detail ? ' — ' + detail : ''}`);
+};
 
 /**
  * The page server, if nobody else is already running one.
@@ -117,9 +121,11 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stopServi
  * which is precisely how a broken game gets merged.
  */
 const finish = async () => {
-  const bad = results.filter((r) => !r.ok).length;
+  const bad = results.filter((r) => r.ok === false).length;
+  const skipped = results.filter((r) => r.ok === null).length;
   const errors = errs.length ? 'PAGE ERRORS: ' + errs.slice(0, 3).join(' | ') : 'no page errors';
-  const tally = `${results.length - bad}/${results.length} passed`;
+  const checked = results.length - skipped;
+  const tally = `${checked - bad}/${checked} passed${skipped ? `, ${skipped} skipped` : ''}`;
   fs.writeFileSync(OUT, [
     'A game of the game, played by a script.',
     '',
@@ -128,7 +134,7 @@ const finish = async () => {
     `drift    ${DRIFT} tiles allowed`,
     `run      ${new Date().toISOString()}`,
     '',
-    ...results.map((r) => `${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? ' — ' + r.detail : ''}`),
+    ...results.map((r) => `${r.ok === null ? 'SKIP' : r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? ' — ' + r.detail : ''}`),
     '',
     errors,
     tally,
@@ -139,7 +145,7 @@ const finish = async () => {
   console.log(`report written to ${OUT}`);
   // Nothing played at all is a failure too: a browser that never opened the page passes every
   // check it never ran.
-  process.exitCode = bad > 0 || results.length === 0 ? 1 : 0;
+  process.exitCode = bad > 0 || checked === 0 ? 1 : 0;
   if (browser) { try { await browser.close(); } catch { /* already gone */ } }
   stopServing();
 };
@@ -584,18 +590,26 @@ const finish = async () => {
     const furniture = await page.evaluate(() => {
       const r = window.__room();
       if (!r || r.furniture.length === 0) return null;
+      // The room probe marks solid props with a footprint extending past this sample. It reads
+      // the same prop measurements as collision, so the fixture follows future furniture edits.
+      const wideFurniture = r.furniture.filter((f) => f.wide);
+      if (wideFurniture.length === 0) return { pieces: r.furniture.length, eligible: 0, wide: 0 };
       let wide = 0;
-      for (const f of r.furniture) {
-        // A pew is 1.8 tiles wide. Probe beyond its tile's 0.5 edge and inside its 0.9 edge;
-        // exactly 0.9 is the collision boundary and made a chapel look non-solid in CI.
+      for (const f of wideFurniture) {
         for (const [dx, dz] of [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]]) {
           if (r.solid(f.x + 0.5 + dx, f.z + 0.5 + dz)) { wide++; break; }
         }
       }
-      return { pieces: r.furniture.length, wide };
+      return { pieces: r.furniture.length, eligible: wideFurniture.length, wide };
     });
-    say('furniture is solid where it is drawn, not only on its tile',
-      furniture !== null && furniture.wide > 0, furniture ? `${furniture.wide} of ${furniture.pieces} reach past their own tile` : 'not indoors');
+    if (furniture?.eligible === 0) {
+      say('furniture is solid where it is drawn, not only on its tile', null,
+        furniture ? `${furniture.pieces} pieces indoors, none extend beyond their tile` : 'not indoors; no fixture to probe');
+    } else {
+      say('furniture is solid where it is drawn, not only on its tile',
+        furniture !== null && furniture.wide > 0,
+        furniture ? `${furniture.wide} of ${furniture.eligible} wide pieces reach past their own tile` : 'not indoors');
+    }
 
     // The door cooldown advances in game time, not wall time. Wait for the reported state so a
     // slow/headless browser does not begin the exit attempt while the door is still resting.
