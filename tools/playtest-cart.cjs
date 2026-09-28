@@ -2,7 +2,9 @@
 module.exports = async function playCart(page, say, go, face) {
   const phase = (name) => { if (process.env.CART_TRACE) console.log(`cartwalk: ${name}`); };
   const snapshot = () => page.evaluate(() => ({
-    hero: { x: window.__player.x, z: window.__player.z },
+    hero: { x: window.__player.x, z: window.__player.z,
+      mounted: window.__player.entity.mounted?.id ?? null, steering: window.__player.steering,
+      ground: window.__player.ground.heightAt(window.__player.x, window.__player.z) },
     horse: window.__mount(),
     shoulder: window.__state.shouldering,
     bodies: window.__bodies(),
@@ -32,18 +34,29 @@ module.exports = async function playCart(page, say, go, face) {
   let ground = null;
   for (let attempt = 0; attempt < 40 && !ground?.hunt; attempt++) {
     ground = await page.evaluate((crag) => {
-      const candidates = [];
+      const turns = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6];
+      const clear = (x, z, angle, length) => [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+        .filter((d) => d <= length)
+        .every((d) => window.__canStand('horse', x + Math.cos(angle) * d, z + Math.sin(angle) * d));
       for (let r = 18; r <= 70; r += 2) for (let a = 0; a < 6.3; a += 0.4) {
         const x = crag.x + Math.cos(a) * r, z = crag.z + Math.sin(a) * r;
         if (window.__canStand('horse', x, z) && window.__canStand('goat', x + 2, z) &&
-            window.__canStand('goat', x + 3, z + 1) && window.__canStand('goat', x + 1, z - 1)) candidates.push({ x, z });
+            window.__canStand('goat', x + 3, z + 1) && window.__canStand('goat', x + 1, z - 1)) {
+          const toward = Math.atan2(crag.z - z, crag.x - x);
+          const lanes = turns.filter((turn) => clear(x, z, toward + turn, 5)).length;
+          const open = [-3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3]
+            .filter((turn) => clear(x, z, toward + turn, 3)).length;
+          if (lanes >= 2 && open >= 10) return { crag, hunt: { x, z, lanes } };
+        }
       }
-      return { crag, hunt: candidates[0] ?? null };
+      return { crag, hunt: null };
     }, crag);
     if (!ground.hunt) await page.waitForTimeout(500);
   }
   if (!ground?.hunt) { say('a walkable hunt ground lies below a crag', false,
     JSON.stringify({ crag, landed: await snapshot() })); return; }
+  say('the hunt site has clear horse lanes', ground.hunt.lanes >= 2,
+    `${ground.hunt.lanes} clear lanes toward the crag`);
   await go(ground.hunt.x, ground.hunt.z, 2000);
   phase(`hunt ground ${ground.hunt.x},${ground.hunt.z}`);
   await page.evaluate(() => {
@@ -111,6 +124,7 @@ module.exports = async function playCart(page, say, go, face) {
   // The direct line to the ledge may cut across rock too steep for the horse. Pick a clear
   // short lane that makes progress toward it, and try another lane if a creature blocks one.
   let hauled = start;
+  const attempts = [];
   for (let attempt = 0; attempt < 3; attempt++) {
     const lane = await page.evaluate(({ crag, skip }) => {
       const p = window.__player;
@@ -124,15 +138,18 @@ module.exports = async function playCart(page, say, go, face) {
       }).filter(Boolean);
       return clear[skip % clear.length] ?? null;
     }, { crag: ground.crag, skip: attempt });
-    if (!lane) break;
-    await page.evaluate(([x, z]) => window.__walkTo(x, z), [lane.x, lane.z]);
+    if (!lane) { attempts.push({ lane: null }); break; }
+    const walking = await page.evaluate(([x, z]) => window.__walkTo(x, z), [lane.x, lane.z]);
     await page.waitForTimeout(5000);
     hauled = await snapshot();
+    attempts.push({ lane, walking, at: hauled.hero });
     if (Math.hypot(hauled.hero.x - start.hero.x, hauled.hero.z - start.hero.z) > 2) break;
   }
   const moved = Math.hypot(hauled.hero.x - start.hero.x, hauled.hero.z - start.hero.z);
-  say('the loaded horse hauls the body toward the crag', moved > 2 && hauled.horse.cargo?.kind === 'goat',
-    `${moved.toFixed(1)} tiles, cargo ${hauled.horse.cargo?.kind ?? 'none'}`);
+  const hauledBody = moved > 2 && hauled.horse.cargo?.kind === 'goat';
+  say('the loaded horse hauls the body toward the crag', hauledBody,
+    hauledBody ? `${moved.toFixed(1)} tiles, cargo goat`
+      : `${moved.toFixed(1)} tiles, cargo ${hauled.horse.cargo?.kind ?? 'none'}; start ${JSON.stringify(start)}; attempts ${JSON.stringify(attempts)}`);
   await page.evaluate(() => window.__ride(false));
   await page.keyboard.press('Enter');
   await choose('Shoulder the carcass');

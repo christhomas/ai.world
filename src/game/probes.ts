@@ -336,6 +336,10 @@ export function installProbes(ctx: Probed): void {
       armed: doorsteps.ready,
     };
   };
+  (debug as { __doorstep?: () => unknown }).__doorstep = () => ({
+    ready: doorsteps.ready,
+    resting: doorsteps.resting,
+  });
   // where the ground is coming from: the world, or what this page kept
   /**
    * What this page asked the world for, what it had already, and what it grew itself.
