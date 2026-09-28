@@ -402,12 +402,23 @@ export class ChunkManager implements TileWorld, ChunkSource {
     this.pump();
   }
 
-  /** Which chunks this page would like the world to send, of those it is waiting on. */
+  /** Queued chunks and locally grown ground still awaiting the world's answer. */
   wanted(): Array<[number, number]> {
     const out: Array<[number, number]> = [];
+    const seen = new Set<string>();
     for (const job of this.queue) {
-      if (this.sent.has(chunkKey(job.cx, job.cz))) continue;
+      const key = chunkKey(job.cx, job.cz);
+      if (this.sent.has(key) || seen.has(key)) continue;
+      seen.add(key);
       out.push([job.cx, job.cz]);
+    }
+    // A local worker can finish before the world answers. That removes the job from the queue,
+    // but the ground on screen is still a guess and must remain requestable. Do not ask again while
+    // the authoritative bytes are waiting to be drawn or are already being meshed.
+    for (const chunk of this.loaded.values()) {
+      const key = chunkKey(chunk.cx, chunk.cz);
+      if (!chunk.grown || this.sent.has(key) || this.pending.has(key) || seen.has(key)) continue;
+      out.push([chunk.cx, chunk.cz]);
     }
     return out;
   }

@@ -27,13 +27,15 @@ from #221. If a guard really must change, a maintainer can apply the `merge-guar
 after reviewing a PR description line beginning `Merge guard exception:` with a concrete reason.
 The exception and the detected changes remain visible in the check log.
 
-The required `playtest` job captures every scene listed by `tools/shots.cjs` twice on the pinned
-Ubuntu 24.04 runner with the lockfile's Playwright Chromium. It compares both passes with the
-checked-in `docs/screenshots/` references, and the second pass with the first, using the same
-pixel threshold. The `reference-scenes` artifact keeps both sets of PNGs, capture logs, and all
-three reports even when the job fails. A baseline change is deliberate: inspect those images and
-reports, then commit the intended PNGs to `docs/screenshots/`. A capture from another OS may lay out
-fonts differently, so use the hosted runner's images for reference updates.
+The hosted `reference-capture` jobs photograph every scene listed by `tools/shots.cjs` twice, on
+separate pinned Ubuntu 24.04 runners with the lockfile's Playwright Chromium. The required
+`playtest` job waits for both passes, compares each with the checked-in `docs/screenshots/`
+references, and compares the second pass with the first at the same pixel threshold. Artifacts
+`reference-first` and `reference-holdout` retain each pass's PNGs and log; `reference-scenes`
+retains diff PNGs and all three reports even when comparison fails. A baseline change is
+deliberate: inspect those images and reports, then commit the intended PNGs to
+`docs/screenshots/`. A capture from another OS may lay out fonts differently, so use the hosted
+runner's images for reference updates.
 
 **Assume you are not the only thing moving `main`.** Other sessions and the repository's own
 automation land work concurrently. A branch you rebased and pushed ten minutes ago can be behind

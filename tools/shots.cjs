@@ -689,7 +689,7 @@ const SHOTS = [
      * of the fur trade rather than a picture of the sea.
      */
     name: 'sea', title: 'Your own boat, out on the water', settle: 3000,
-    setup: async (p, { ask, wait, key, zoom, stand }) => {
+    setup: async (p, { ask, wait, key, time, zoom, stand }) => {
       const dock = await ask(() => {
         // a mainland jetty, because an island one is reached by the boat this shot is buying
         const pier = (window.__piers || []).find((one) => one.side === 'mainland') || (window.__piers || [])[0];
@@ -698,8 +698,20 @@ const SHOTS = [
       if (!dock) return null;                       // a world whose coast raised no jetty today
       await ask(() => { window.__state.inventory.gold = 400; window.__state.version++; });
       await stand(dock.x, dock.z, 4000);
-      await key('Enter');                           // read the ferry timetable
-      await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'));
+      // The ferry sometimes calls at this pier at noon. When it does, Enter talks to its
+      // ferryman and the first choice would board it instead of asking after our own boat.
+      // Try fixed world times until the ferry is away and the timetable offers the boatwright.
+      let timetable = false;
+      for (const phase of [0.5, 0.515, 0.53, 0.545, 0.56, 0.575, 0.59, 0.605, 0.62, 0.635]) {
+        await time(phase);
+        await key('Enter');
+        await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'));
+        const speaker = await p.locator('.dlg-them .dlg-name').textContent();
+        if (speaker === 'Timetable') { timetable = true; break; }
+        if (speaker !== 'Ferryman') throw new Error(`sea: expected pier timetable or ferryman at ${phase}, got ${speaker}`);
+        await key('Escape');
+      }
+      if (!timetable) throw new Error('sea: ferry remained docked through every fixed timetable phase');
       await key('Enter');                           // ask after a boat of your own
       await p.waitForFunction(() => document.querySelector('.dlg-them .dlg-name')?.textContent === 'Boatwright'
         && document.getElementById('dialogue')?.classList.contains('choosing'));
