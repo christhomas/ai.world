@@ -61,16 +61,20 @@ the server volume backup. The server volume contains multiplayer/shared server s
 accounts. Back up browser saves separately using the browser or device that owns them.
 
 For a consistent server backup, stop the single server process while archiving the volume. Store a
-private copy of `.env` separately; it is not in the volume:
+private copy of `.env` separately; it is not in the volume. Keep the backup directory outside the
+source checkout so a later `git add .` cannot stage the copied credentials. Set
+`AI_WORLD_BACKUP_DIR` if you want a different private location:
 
 ```sh
 docker compose stop world
-mkdir -p backups
+backup_dir="${AI_WORLD_BACKUP_DIR:-$HOME/ai-world-backups}"
+mkdir -p "$backup_dir"
+chmod 700 "$backup_dir"
 backup_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-cp .env "backups/.env-$backup_stamp"
+cp -p .env "$backup_dir/.env-$backup_stamp"
 docker run --rm \
   -v ai-world-data:/data:ro \
-  -v "$PWD/backups:/backup" \
+  -v "$backup_dir:/backup" \
   alpine:3.21 \
   sh -c "tar -czf /backup/ai-world-data-$backup_stamp.tgz -C /data ."
 docker compose start world
@@ -81,14 +85,16 @@ Compose container, recreate the named volume, and restore its contents:
 
 ```sh
 docker compose down
+backup_dir="${AI_WORLD_BACKUP_DIR:-$HOME/ai-world-backups}"
 docker volume rm ai-world-data
 docker volume create ai-world-data
 docker run --rm \
   -v ai-world-data:/data \
-  -v "$PWD/backups:/backup:ro" \
+  -v "$backup_dir:/backup:ro" \
   alpine:3.21 \
   tar -xzf /backup/ai-world-data-YYYYMMDDTHHMMSSZ.tgz -C /data
-cp backups/.env-YYYYMMDDTHHMMSSZ .env
+cp -p "$backup_dir/.env-YYYYMMDDTHHMMSSZ" .env
+chmod 600 .env
 docker compose up -d
 ```
 
