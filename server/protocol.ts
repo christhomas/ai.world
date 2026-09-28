@@ -802,6 +802,8 @@ export type ServerMessage =
    */
   | { type: 'arrested'; id: number }
   | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
+  /** A newly joined country is still being prepared; repeats keep the page's loading state alive. */
+  | { type: 'country-progress'; done: number; total: number }
   /**
    * The country you joined is grown, and this is its fingerprint.
    *

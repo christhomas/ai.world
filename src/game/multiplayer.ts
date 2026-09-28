@@ -104,6 +104,7 @@ export interface MultiplayerContext {
   onParcel?: (bytes: ArrayBuffer) => void;
   /** A world has answered and is standing this country up, so the page may stop guessing at it. */
   onCountryComing: () => void;
+  onCountryProgress?: (done: number, total: number) => void;
   /** The country is grown, and this is the world's fingerprint of it to check our own against. */
   /** @param kind which sort of country the world grew, when it is new enough to say. */
   onCountryGrown: (stamp: string, kind?: WorldKind) => void;
@@ -169,6 +170,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
     onParcel: (bytes) => ctx.onParcel?.(bytes),
     onCountryComing: () => ctx.onCountryComing(),
+    onCountryProgress: (done, total) => ctx.onCountryProgress?.(done, total),
     onCountryGrown: (stamp, kind) => ctx.onCountryGrown(stamp, kind),
     onCreatureKilled: (place, id, mine) => ctx.onCreatureKilled(place, id, mine),
     onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
