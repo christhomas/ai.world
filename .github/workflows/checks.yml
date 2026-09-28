@@ -77,6 +77,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ "${{ github.event_name }}" = 'pull_request' ] && [ "$GITHUB_BASE_REF" != 'main' ]; then
+            # Stacked issue PRs are integrated and reviewed, but the full gate runs on their batch PR to main.
+            echo 'run=no' >> "$GITHUB_OUTPUT"; exit 0
+          fi
           if [ "${{ github.event_name }}" != 'push' ]; then
             echo 'run=yes' >> "$GITHUB_OUTPUT"; exit 0
           fi
