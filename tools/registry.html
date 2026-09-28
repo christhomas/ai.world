@@ -58,7 +58,7 @@
     border-radius: 4px; padding: 5px 8px; font: inherit;
   }
   input { width: 190px; }
-  input.seed { width: 90px; }
+  select { background: #0b0e15; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; font: inherit; min-width: 250px; }
   button { cursor: pointer; }
   button:hover { border-color: #3b4c6e; }
   .note { color: var(--dim); margin-left: auto; }
@@ -101,7 +101,7 @@
 <header>
   <input id="where" placeholder="http://localhost:8080" value="">
   <input id="token" type="password" placeholder="operator or watch token">
-  <input id="seed" class="seed" placeholder="seed">
+  <select id="world" aria-label="World"><option value="">Loading worlds…</option></select>
   <button id="ask">Open the book</button>
   <label><input type="checkbox" id="live" style="width:auto"> live</label>
   <span class="note" id="note">not yet asked</span>
@@ -113,15 +113,13 @@
 
 <script type="module">
 /*
- * Everything is kept in the address bar rather than in storage, so a particular world is a link
- * somebody can send. The token is deliberately not remembered anywhere: it is a password, and a
- * tool that quietly keeps one is a tool that leaks it.
+ * The selected world is kept in the address bar so it can be revisited; the available worlds come
+ * from the server, not browser storage. The token is deliberately not remembered anywhere.
  */
 const $ = (id) => document.getElementById(id);
 const seen = new URLSearchParams(location.search);
 const throughPortal = location.pathname.replace(/\/+$/, '') === '/tools/registry';
 if ($('where')) $('where').value = seen.get('at') ?? location.origin.replace(/\/$/, '');
-$('seed').value = seen.get('seed') ?? '';
 
 /** A bar and a number, the same way the game's own HUD draws health. */
 const hearts = (left, most) => {
@@ -200,13 +198,30 @@ function draw(book) {
     </section>`).join('');
 }
 
+async function loadWorlds() {
+  const at = $('where')?.value.replace(/\/$/, '') ?? '';
+  const token = $('token')?.value.trim() ?? '';
+  const root = throughPortal ? '/tools/registry/data' : `${at}/registry`;
+  const res = await fetch(`${root}?worlds=1`, { headers: token ? { 'x-operator-token': token } : {} });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error ?? res.status);
+  const selected = seen.get('world') ?? seen.get('seed') ?? '';
+  $('world').innerHTML = '<option value="">Choose a world…</option>' + body.worlds.map((world) => {
+    const name = world.name ? `${world.name} — ` : '';
+    return `<option value="${world.seed}">${esc(name)}seed ${world.seed}${world.kind === 'road' ? ' · road' : ''}</option>`;
+  }).join('');
+  $('world').value = body.worlds.some((world) => String(world.seed) === selected) ? selected : '';
+  if (!body.worlds.length) $('world').innerHTML = '<option value="">No saved worlds found</option>';
+}
+
 async function ask() {
   const at = $('where')?.value.replace(/\/$/, '') ?? '';
-  const seed = $('seed').value.trim();
+  const seed = $('world').value;
   const token = $('token')?.value.trim() ?? '';
   const root = throughPortal ? '/tools/registry/data' : `${at}/registry`;
   const url = `${root}${seed ? `?seed=${encodeURIComponent(seed)}` : ''}`;
-  const keep = new URLSearchParams({ at, ...(seed ? { seed } : {}) });
+  if (!seed) { $('note').textContent = 'Choose a world first'; return; }
+  const keep = new URLSearchParams({ at, world: seed });
   history.replaceState(null, '', `?${keep}`);
   try {
     const asking = `${url}${url.includes('?') ? '&' : '?'}since=${latest}`;
@@ -231,9 +246,8 @@ async function ask() {
 }
 
 $('ask').addEventListener('click', ask);
-for (const id of ['where', 'token', 'seed']) {
-  $(id)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
-}
+for (const id of ['where', 'token']) $(id)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadWorlds().then(ask); });
+$('world').addEventListener('change', ask);
 
 /*
  * Live is a poll rather than a socket, and on purpose: the survey is a read of state that already
@@ -246,7 +260,11 @@ $('live').addEventListener('change', (e) => {
   clearInterval(timer);
   if (e.target.checked) { ask(); timer = setInterval(ask, 2000); }
 });
-if (throughPortal || seen.get('at')) ask();
+if (throughPortal || seen.get('at')) {
+  loadWorlds().then(() => { if ($('world').value) ask(); }).catch((e) => {
+    $('note').innerHTML = `<span class="bad">${esc(e.message)}</span>`;
+  });
+}
 </script>
 </body>
 </html>
