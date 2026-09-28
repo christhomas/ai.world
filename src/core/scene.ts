@@ -42,10 +42,10 @@ export interface FrameDescription {
     };
     materials?: NonNullable<FrameDescription['nodes'][number]['material']>[];
     groups?: Array<{ start: number; count: number; materialIndex: number }>;
-    attributes?: Record<string, { size: number; values: number[] }>;
-    indices?: number[];
-    instanceMatrices?: number[];
-    instanceColours?: number[];
+    attributes?: Record<string, { size: number; values: number[] | Float32Array }>;
+    indices?: number[] | Uint16Array | Uint32Array;
+    instanceMatrices?: number[] | Float32Array;
+    instanceColours?: number[] | Float32Array;
     parts?: readonly ScenePropPart[];
     glowParts?: readonly ScenePropPart[];
     placements?: readonly ScenePlacement[];

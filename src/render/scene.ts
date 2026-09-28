@@ -8,7 +8,7 @@ import { WaterMaterial } from './water';
 import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
 import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
-import { MountedThreePipeline, submitGraphFrame } from './pipeline';
+import { MountedThreePipeline, submitGraphFrame, type FramePipeline } from './pipeline';
 
 const SKY = 0x8fc1e6;
 
@@ -504,9 +504,18 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       second?.resize();
     },
     draw(what, camera) {
-      if (second) second.draw(what, camera);
-      else renderer.render(what, camera);
-      recording?.draw(() => describeFrame(what, camera));
+      what.camera = camera.frameCamera();
+      let pipeline = mountedPipelines.get(what);
+      if (!pipeline) {
+        pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
+          if (second) second.draw(mountedScene, mountedCamera);
+          else renderer.render(mountedScene, mountedCamera);
+        });
+        mountedPipelines.set(what, pipeline);
+      }
+      const sinks: FramePipeline[] = [pipeline];
+      if (recording) sinks.push({ draw: (frame) => recording.draw(() => frame) });
+      submitGraphFrame(what, sinks);
     },
     get canvas() { return renderer.domElement; },
     dispose() {
