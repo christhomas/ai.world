@@ -248,4 +248,56 @@ void main() {
     expect((meshes[1]['indices'] as Int32List).length, 6);
     await native.dispose();
   });
+
+  test('cached geometry avoids repeat uploads while style changes and water attributes reach native', () async {
+    const channel = MethodChannel('world.ai/cache-test');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 9 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    final pipeline = FlutterFramePipeline(native);
+    final cache = SceneGeometryCache();
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    Map<String, dynamic> packet({bool includeGeometry = false, bool castShadow = false}) => <String, dynamic>{
+      'frame': <String, dynamic>{
+        'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
+        'nodes': <Map<String, dynamic>>[<String, dynamic>{
+          'kind': 'mesh', 'geometryId': 'water-geometry', 'world': identity,
+          'visible': true, 'castShadow': castShadow, 'receiveShadow': true,
+          'renderOrder': 3,
+          'material': <String, dynamic>{'intent': 'water', 'colour': 0xffffff,
+            'opacity': 0.82, 'transparent': true, 'depthWrite': false, 'side': 'double'},
+        }],
+      },
+      if (includeGeometry) 'geometries': <String, dynamic>{
+        'water-geometry': <String, dynamic>{
+          'attributes': <String, dynamic>{
+            'position': <String, dynamic>{'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 0, 1]},
+            'flow': <String, dynamic>{'size': 1, 'values': <num>[1, 1, 1]},
+            'sea': <String, dynamic>{'size': 1, 'values': <num>[0, 1, 0]},
+          },
+          'indices': <int>[0, 1, 2],
+        },
+      },
+    };
+    await pipeline.draw(SceneFrame.fromJson(packet(includeGeometry: true), geometryCache: cache));
+    await pipeline.draw(SceneFrame.fromJson(packet(), geometryCache: cache));
+    var uploads = calls.where((call) => call.method == 'putMesh').toList();
+    expect(uploads, hasLength(1));
+    final first = uploads.single.arguments as Map;
+    final vertices = first['vertices'] as Float32List;
+    expect(vertices[14], 1);
+    expect(vertices[15], 0);
+    expect(vertices[RenderMesh.floatsPerVertex + 15], 1);
+    expect(first['renderOrder'], 3);
+    expect(first['transparent'], true);
+    await pipeline.draw(SceneFrame.fromJson(packet(castShadow: true), geometryCache: cache));
+    uploads = calls.where((call) => call.method == 'putMesh').toList();
+    expect(uploads, hasLength(2));
+    expect((uploads.last.arguments as Map)['castShadow'], true);
+    await native.dispose();
+  });
 }

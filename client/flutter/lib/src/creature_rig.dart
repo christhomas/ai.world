@@ -228,7 +228,7 @@ final class _RigBuilder {
     final px=q[0]+p.at[0],py=q[1]+p.at[1],pz=q[2]+p.at[2];
     final cy=math.cos(yaw),sy=math.sin(yaw);
     final color=_linear(p.color);
-    vertices.addAll(<double>[x+px*cy-pz*sy,y+py,z+px*sy+pz*cy,n[0]*cy-n[2]*sy,n[1],n[0]*sy+n[2]*cy,...color,0,p.joint.index.toDouble(),x+p.pivot[0]*cy-p.pivot[2]*sy,y+p.pivot[1],z+p.pivot[0]*sy+p.pivot[2]*cy]);
+    vertices.addAll(<double>[x+px*cy-pz*sy,y+py,z+px*sy+pz*cy,n[0]*cy-n[2]*sy,n[1],n[0]*sy+n[2]*cy,...color,0,p.joint.index.toDouble(),x+p.pivot[0]*cy-p.pivot[2]*sy,y+p.pivot[1],z+p.pivot[0]*sy+p.pivot[2]*cy,0,0]);
   }
   static List<double> _rotate(List<double> v,List<double> r) {
     var x=v[0],y=v[1],z=v[2];

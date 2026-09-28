@@ -89,6 +89,8 @@ final class NativeWorldRenderer {
     'depthTest': mesh.depthTest,
     'doubleSided': mesh.doubleSided,
     'backSide': mesh.backSide,
+    'renderOrder': mesh.renderOrder,
+    'transparent': mesh.transparent,
   });
 
   Future<void> removeMesh(String meshId) =>

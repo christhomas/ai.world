@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:convert';
 
 import 'native_world_renderer.dart';
 import 'render_mesh.dart';
@@ -7,21 +8,48 @@ import 'render_mesh.dart';
 /// Dart's consumer of the engine-owned FrameDescription in src/core/scene.ts.
 /// The JSON form uses ordinary arrays for typed geometry buffers.
 final class SceneFrame {
-  SceneFrame.fromJson(Map<String, dynamic> json)
-    : camera = Map<String, dynamic>.from(json['camera'] as Map),
-      background = json['background'] as int?,
-      coast = json['coast'] == null
+  factory SceneFrame.fromJson(
+    Map<String, dynamic> json, {
+    SceneGeometryCache? geometryCache,
+  }) {
+    final packet = json['frame'] is Map
+        ? Map<String, dynamic>.from(json['frame'] as Map)
+        : json;
+    geometryCache?.accept(json['geometries']);
+    final nodes = (packet['nodes'] as List).map((raw) {
+      final node = Map<String, dynamic>.from(raw as Map);
+      final geometryId = node['geometryId'] as String?;
+      if (geometryId == null) return node;
+      final geometry = geometryCache?.lookup(geometryId);
+      if (geometry == null) {
+        throw FormatException('Frame refers to unknown geometry $geometryId');
+      }
+      return <String, dynamic>{...node, ...geometry};
+    }).toList();
+    return SceneFrame._(
+      camera: Map<String, dynamic>.from(packet['camera'] as Map),
+      background: packet['background'] as int?,
+      coast: packet['coast'] == null
           ? null
-          : Map<String, dynamic>.from(json['coast'] as Map),
-      cutaway = json['cutaway'] == null
+          : Map<String, dynamic>.from(packet['coast'] as Map),
+      cutaway: packet['cutaway'] == null
           ? null
-          : Map<String, dynamic>.from(json['cutaway'] as Map),
-      fog = json['fog'] == null
+          : Map<String, dynamic>.from(packet['cutaway'] as Map),
+      fog: packet['fog'] == null
           ? null
-          : Map<String, dynamic>.from(json['fog'] as Map),
-      nodes = (json['nodes'] as List)
-          .map((node) => Map<String, dynamic>.from(node as Map))
-          .toList();
+          : Map<String, dynamic>.from(packet['fog'] as Map),
+      nodes: nodes,
+    );
+  }
+
+  const SceneFrame._({
+    required this.camera,
+    required this.background,
+    required this.coast,
+    required this.cutaway,
+    required this.fog,
+    required this.nodes,
+  });
 
   final Map<String, dynamic> camera;
   final int? background;
@@ -31,12 +59,30 @@ final class SceneFrame {
   final List<Map<String, dynamic>> nodes;
 }
 
+/// Keeps immutable mesh data once per WebSocket connection. The server sends
+/// each geometry the first time it appears, then subsequent frames only carry
+/// its digest plus changing transforms and materials.
+final class SceneGeometryCache {
+  final Map<String, Map<String, dynamic>> _geometries = {};
+
+  void accept(Object? raw) {
+    if (raw == null) return;
+    final geometries = Map<String, dynamic>.from(raw as Map);
+    for (final entry in geometries.entries) {
+      _geometries[entry.key] = Map<String, dynamic>.from(entry.value as Map);
+    }
+  }
+
+  Map<String, dynamic>? lookup(String id) => _geometries[id];
+}
+
 /// Maps the same neutral frame submitted to WebGL and recording onto native buffers.
 final class FlutterFramePipeline {
   FlutterFramePipeline(this.renderer);
 
   final NativeWorldRenderer renderer;
   final Set<String> _mounted = <String>{};
+  final Map<String, String> _fingerprints = <String, String>{};
 
   Future<void> draw(SceneFrame frame) async {
     final camera = frame.camera;
@@ -104,13 +150,36 @@ final class FlutterFramePipeline {
         throw UnsupportedError('Unknown scene node kind: $kind');
       }
       final id = 'scene:$at';
-      final mesh = _mesh(kind == 'points' ? _expandPoints(node) : node, id);
-      if (mesh == null) continue;
+      final fingerprint = jsonEncode(<String, Object?>{
+        'geometryId': node['geometryId'],
+        // Older/local test fixtures can still supply raw geometry directly.
+        if (node['geometryId'] == null) ...{
+          'attributes': node['attributes'],
+          'indices': node['indices'],
+        },
+        'world': node['world'],
+        'instanceMatrices': node['instanceMatrices'],
+        'instanceColours': node['instanceColours'],
+        'material': node['material'],
+        'visible': node['visible'],
+        'kind': kind,
+        'castShadow': node['castShadow'],
+        'receiveShadow': node['receiveShadow'],
+        'renderOrder': node['renderOrder'],
+      });
       next.add(id);
+      if (_fingerprints[id] == fingerprint) continue;
+      final mesh = _mesh(kind == 'points' ? _expandPoints(node) : node, id);
+      if (mesh == null) {
+        next.remove(id);
+        continue;
+      }
       await renderer.putMesh(mesh);
+      _fingerprints[id] = fingerprint;
     }
     for (final old in _mounted.difference(next)) {
       await renderer.removeMesh(old);
+      _fingerprints.remove(old);
     }
     _mounted
       ..clear()
@@ -135,9 +204,13 @@ final class FlutterFramePipeline {
     }
     final normals = attribute('normal', 3);
     final colours = attribute('color', 3);
+    final flow = attribute('flow', 1);
+    final sea = attribute('sea', 1);
     if (positions.length % 3 != 0 ||
         (normals != null && normals.length != positions.length) ||
-        (colours != null && colours.length != positions.length)) {
+        (colours != null && colours.length != positions.length) ||
+        (flow != null && flow.length != positions.length ~/ 3) ||
+        (sea != null && sea.length != positions.length ~/ 3)) {
       throw const FormatException(
         'Scene mesh attributes have different vertex counts',
       );
@@ -254,6 +327,8 @@ final class FlutterFramePipeline {
               shade[channel];
         }
         vertices[target + 9] = material;
+        vertices[target + 14] = flow?[vertex] ?? 0;
+        vertices[target + 15] = sea?[vertex] ?? 0;
       }
       for (var index = 0; index < rawIndices.length; index++) {
         indices[instance * rawIndices.length + index] =
@@ -277,6 +352,8 @@ final class FlutterFramePipeline {
       depthTest: paint['depthTest'] != false,
       doubleSided: paint['side'] == 'double',
       backSide: paint['side'] == 'back',
+      renderOrder: (node['renderOrder'] as num?)?.toInt() ?? 0,
+      transparent: paint['transparent'] == true,
     );
   }
 

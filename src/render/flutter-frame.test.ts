@@ -27,4 +27,21 @@ describe('Flutter frame adapter', () => {
     expect(frame.cutaway).toEqual({ enabled: true, hero: [4, 5, 6] });
     disposeFlutterFrameGeometry();
   });
+  it('records the WebGL water defaults and flow/sea vertex channels for native renderers', () => {
+    const graph = new SceneGraph(0x204060);
+    graph.camera = { orthographic: true,
+      projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] };
+    graph.add({ kind: 'mesh', material: 'water', geometry: {
+      positions: Float32Array.of(0, 0, 0, 1, 0, 0, 0, 0, 1),
+      normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
+      indices: Uint32Array.of(0, 1, 2),
+      flow: Float32Array.of(1, 1, 1), sea: Float32Array.of(0, 1, 0),
+    }, receiveShadow: true });
+    const water = graph.frame().nodes[0];
+    expect(water.material).toMatchObject({ intent: 'water', transparent: true,
+      opacity: 0.82, depthWrite: false, side: 'double' });
+    expect(water.attributes?.flow?.values).toEqual(Float32Array.of(1, 1, 1));
+    expect(water.attributes?.sea?.values).toEqual(Float32Array.of(0, 1, 0));
+  });
 });
