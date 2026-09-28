@@ -105,6 +105,23 @@ describe('which way the keys move you', () => {
   }
 });
 
+describe('neutral frame camera', () => {
+  for (const rotation of [0, Math.PI / 4, Math.PI, -Math.PI / 3]) {
+    it(`matches the interaction camera at ${rotation.toFixed(2)} radians`, () => atWindow(1280, 720, () => {
+      const iso = new IsoCamera();
+      iso.rotation = rotation;
+      iso.target.set(14, 2, -8);
+      iso.lift = 5;
+      iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
+      iso.camera.updateMatrixWorld(true);
+      const frame = iso.frameCamera();
+      expect(frame.orthographic).toBe(true);
+      frame.world.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.matrixWorld.elements[at], 10));
+      frame.projection.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.projectionMatrix.elements[at], 10));
+    }));
+  }
+});
+
 /**
  * The default zoom on a phone was a view from five hundred metres up.
  *

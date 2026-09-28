@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CAMERA } from '../core/config';
 import type { Input } from '../core/input';
+import { orthographicFrame } from '../core/camera-frame';
+import type { FrameDescription } from '../core/scene';
 
 /**
  * How much of a standing thing's height the picture actually gets, as a share of it.
@@ -97,6 +99,20 @@ export class IsoCamera {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
     this.applyFrustum(aspect);
     this.applyPosition();
+  }
+
+  /** Engine-owned frame camera. The Three camera below is only its interaction adapter. */
+  frameCamera(): FrameDescription['camera'] {
+    const at = this.target.y + this.lift;
+    const aspect = window.innerWidth / window.innerHeight;
+    return orthographicFrame({
+      x: this.target.x + Math.cos(this.rotation) * CAMERA.DIST,
+      y: at + CAMERA.HEIGHT,
+      z: this.target.z + Math.sin(this.rotation) * CAMERA.DIST,
+      targetX: this.target.x, targetY: at, targetZ: this.target.z,
+      width: this.zoom * aspect, height: this.zoom,
+      near: 0.1, far: 1000,
+    });
   }
 
   /**
