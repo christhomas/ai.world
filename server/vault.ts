@@ -14,6 +14,8 @@ export interface Vault {
   /** What was kept under this name, or null if nothing was. */
   read(name: string): string | null;
   write(name: string, text: string): void;
+  /** Names kept beneath a prefix, when this vault can enumerate durable storage. */
+  list?(prefix: string): string[];
 }
 
 /**
@@ -32,5 +34,9 @@ export class Forgetful implements Vault {
 
   write(name: string, text: string): void {
     this.kept.set(name, text);
+  }
+
+  list(prefix: string): string[] {
+    return [...this.kept.keys()].filter((name) => name.startsWith(prefix));
   }
 }

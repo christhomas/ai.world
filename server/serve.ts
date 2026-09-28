@@ -379,6 +379,11 @@ function registry(sim: Simulation, options: ServerOptions | null, req: IncomingM
   }
 
   const query = new URL(req.url ?? '/', 'http://x').searchParams;
+  if (query.has('worlds')) {
+    const worlds = sim.rooms.knownWorlds();
+    say(200, { worlds });
+    return;
+  }
   const asked = query.get('seed');
   if (asked !== null) {
     const seed = Number(asked);
