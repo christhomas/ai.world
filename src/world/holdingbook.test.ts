@@ -111,6 +111,40 @@ describe('the book a village keeps of its holdings', () => {
     expect(book.on('y1').map((one) => one.day), 'both mornings are facts about the yard').toEqual([5, 6]);
   });
 
+  it('restores facts and daily nets without paying or duplicating a morning', () => {
+    const book = new HoldingBook();
+    const fact: HoldingDay = { day: 5, holding: 'yard-1', kind: 'crew', who: 'bob',
+      funder: ownerFromSave('rich'), wage: 12, paid: 12 };
+    book.stood('Ashford', 5, [fact], new Map([
+      [ownerFromSave('rich'), -12], [ownerFromSave('bob'), 12],
+    ]));
+    const rows = book.records();
+    expect(rows).toHaveLength(1);
+    const replay = new HoldingBook();
+    replay.restore(rows);
+    replay.restore(rows);
+    expect(replay.records()).toEqual(rows);
+    expect(replay.paidTo('rich', 5)).toBe(-12);
+    expect(replay.paidTo('bob', 5)).toBe(12);
+    expect(replay.paidTo('bob', 6)).toBe(0);
+    replay.forget('Ashford');
+    expect(replay.records()).toEqual([]);
+  });
+
+  it('re-lives a restored village without changing a purse or multiplying its facts', () => {
+    const first = relived(SEED, DAYS);
+    const restarted = relived(SEED, DAYS);
+    const records = first.holdingsBook.records();
+    expect(records.length).toBeGreaterThan(0);
+    const purses = first.living('Ashford').map((person) => [person.id, person.purse]);
+    restarted.holdingsBook.restore(records);
+    restarted.foundOn('Ashford', 6, [...TRADES, 'fisherman']);
+    restarted.foundOn('Ashford', 6, TRADES);
+    expect(restarted.holdingsBook.records()).toEqual(records);
+    expect(restarted.living('Ashford').map((person) => [person.id, person.purse]))
+      .toEqual(purses);
+  });
+
   /*
    * Why the book may not keep a total, which is the part of #264 that is an argument rather than a
    * feature. Written as a test because it is a claim about `deeds.ts` and claims about other files

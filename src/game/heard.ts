@@ -1,6 +1,7 @@
 import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, type Presence,
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
+import type { HoldingRecord } from '../world/holdingbook';
 
 /**
  * What the world says, and what this half does about each of it.
@@ -73,6 +74,8 @@ export interface OnlineEvents {
   onChestOpened: (seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
+  /** Recorded holding mornings from the authoritative shared world. */
+  onHoldingDays: (rows: HoldingRecord[]) => void;
   /** The market as the server sees it: who holds which pitch and what is on it. */
   onStalls: (stalls: Stall[]) => void;
   /** A purchase from somebody's stall went through: the goods are yours, so pay for them. */
@@ -174,6 +177,7 @@ export function heard(o: Listening, message: ServerMessage): void {
       o.events.onClock(message.clock);
       // catch up on everything that happened here before we arrived
       for (const delta of message.deltas) o.events.onDelta(delta, true);
+      if (message.holdingDays) o.events.onHoldingDays(message.holdingDays);
       if (!o.local) {
         o.events.onSystem(`Joined world ${message.seed} as ${o.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
       }
