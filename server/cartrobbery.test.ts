@@ -6,7 +6,7 @@ import type { GroundWorld } from '../src/world/groundworld';
 import type { Village } from '../src/world/structures';
 import { ownedBy } from '../src/world/holdings';
 import { priceOfAMeal } from '../src/world/prices';
-import { cartGuarded, robLoadedCart } from './cartrobbery';
+import { cartActionPosition, cartGuarded, robLoadedCart } from './cartrobbery';
 import { carrierOnRoad } from './carrieractor';
 
 const FROM = 'Barrowgate';
@@ -47,6 +47,19 @@ function purseTotal(register: Register): number {
 }
 
 describe('a player robbing an in-flight cart', () => {
+  it('uses only a current server-walked surface position on foot', () => {
+    const ground = { heightAt: () => 2 };
+    const player = {
+      standingIn: 'surface', presence: { riding: 'foot' }, hero: { x: 10, z: 0 },
+      serverFootAt: { x: 10, z: 0 },
+    };
+    expect(cartActionPosition(player, ground)).toEqual({ x: 10, z: 0 });
+    expect(cartActionPosition({ ...player, serverFootAt: null }, ground)).toBeNull();
+    expect(cartActionPosition({ ...player, presence: { riding: 'horse' } }, ground)).toBeNull();
+    expect(cartActionPosition({ ...player, hero: { x: 20, z: 0 } }, ground)).toBeNull();
+    expect(cartActionPosition(player, { heightAt: () => null })).toBeNull();
+  });
+
   it('is stopped by another escort only while that escort stays beside this cart', () => {
     const robber = { escortingCart: null, standingIn: 'surface', hero: { x: 10, z: 0 } };
     const guard = { escortingCart: 3, standingIn: 'surface', hero: { x: 11, z: 0 } };
@@ -67,9 +80,11 @@ describe('a player robbing an in-flight cart', () => {
     before.advance(3);
     const written: CartFinished[] = [];
     const robbed = robLoadedCart(forward, 3, 0.5, { x: 10, z: 0 }, places, loaded.day,
-      (fact) => { written.push(fact); return true; }, undefined, 'Rowan');
+      (fact) => { written.push(fact); return true; }, undefined, 'Rowan',
+      '11111111-1111-4111-8111-111111111111');
     expect(robbed?.outcome).toBe('robbed');
     expect(robbed?.robber).toBe('Rowan');
+    expect(robbed?.robberId).toBe('11111111-1111-4111-8111-111111111111');
     expect(written).toEqual([robbed]);
     expect(forward.larderOf(FROM)).toBeCloseTo(before.larderOf(FROM) - loaded.meals);
     expect(state(forward, TO)).toEqual(state(before, TO));
@@ -83,6 +98,7 @@ describe('a player robbing an in-flight cart', () => {
     for (const fact of JSON.parse(JSON.stringify(forward.carrierFacts()))) {
       expect(replay.recordCarrier(fact)).toBe(true);
     }
+    expect(replay.carrierFacts()).toEqual(forward.carrierFacts());
     replay.advance(3);
     expect(state(replay, FROM)).toEqual(state(forward, FROM));
     expect(state(replay, TO)).toEqual(state(forward, TO));

@@ -950,7 +950,7 @@ export class Simulation {
     }
     const x = Number(message.x), z = Number(message.z);
     const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;
-    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at);
+    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at, message.playerId);
 
     this.rooms.send(joining, {
       type: 'welcome', id: joining.presence.id, seed, world: record,
