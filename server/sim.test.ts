@@ -404,6 +404,20 @@ describe('the simulation holding the ground itself', () => {
     expect(after.z).toBeCloseTo(CLEAR_RUN.z, 5);
   });
 
+  it('does not let horse coordinates become a verified foot position', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walkedX = rowan.of('youAre').at(-1)!.x;
+    rowan.say({ type: 'move', x: 1000, z: 1000, yaw: 0, walk: 0, place: 'surface', riding: 'horse', gear: [] });
+    rowan.say({ type: 'move', x: 1000, z: 1000, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 200);
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
+    expect(rowan.of('youAre').at(-1)!.x).toBeCloseTo(walkedX, 1);
+  });
+
   it('keeps the hero at the door while he is somewhere it does not own', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
