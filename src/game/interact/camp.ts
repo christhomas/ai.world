@@ -5,7 +5,7 @@ import { BIOMES } from '../../world/biomes';
 import { CAMP, heartsFrom, huntersOf, nightAt, tilesToVillage, wakes, type Country } from '../camp';
 import { Carcasses, paidFor, type Carcass } from '../furs';
 import { ITEMS } from '../items';
-import type { Surroundings } from './context';
+import type { DialogueNode, Surroundings } from './context';
 
 /**
  * What Enter does over a body and at the end of a day's walk: take the hide off something you
@@ -93,6 +93,47 @@ export function campInteractions(ctx: Surroundings) {
    * Enter over a body: take the hide. A knife makes it certain, and bare hands are worth trying
    * once, which is the closest this game comes to telling you to go and buy the knife.
    */
+  const bodyNode = (body: Carcass): DialogueNode => {
+    const kind = KINDS[body.kind];
+    const knife = state.can('skin');
+    return {
+      speaker: `The dead ${kind?.label.toLowerCase() ?? body.kind}`,
+      emoji: kind?.emoji ?? '🐺',
+      pages: [(knife
+        ? 'The fur is still good. Work the knife in along the belly and it will come away whole.'
+        : 'The fur is still good, and you have nothing on you to cut it with. Pull at it and hope?') +
+        (state.has('cart') && mount.owned
+          ? ' A horse can haul one whole carcass in your cart. Dismount beside the body to load it.'
+          : ' A horse and a cart from the village wright could haul the whole carcass.')],
+      choices: [
+        { label: knife ? 'Skin it' : 'Pull at it', next: () => {
+          const hide = carcasses.take(body, knife, mulberry32(seed ^ Math.floor(body.x * 131 + body.z * 977)));
+          if (!hide) {
+            sound.thud();
+            hud.flash('The hide comes away in strips. Worth nothing now.');
+            return null;
+          }
+          const item = ITEMS[hide];
+          state.give(hide, 1);
+          state.version++;
+          sound.chime();
+          const here = paidFor(hide, sampler.biomeOf(player.x, player.z));
+          hud.flash(`Skinned it: ${item.emoji} ${item.name}. Traders in this country pay about ${here}g.`);
+          persist();
+          return null;
+        } },
+        ...(mount.canLoad(body, state.has('cart'), player.x, player.z) ? [{ label: 'Load into the cart', next: () => {
+          if (mount.load(body, state.has('cart'), player.x, player.z)) {
+            carcasses.leaveIt(body); sound.select(); persist(); hud.flash('The carcass is in the cart. One load fills it.');
+          }
+          return null;
+        } }] : []),
+        { label: 'Leave it for the eagles', next: () => layItOut(body.x, body.z, () => carcasses.leaveIt(body)) },
+        { label: 'Leave it', next: () => null },
+      ],
+    };
+  };
+
   const trySkin = (preview = false): boolean => {
     if (state.shouldering) {
       if (preview) return true;
@@ -120,7 +161,7 @@ export function campInteractions(ctx: Surroundings) {
       return true;
     }
     const body = carcasses.nearest(player.x, player.z);
-    if (!body && mount.cargo && mount.near(player.x, player.z) && !mount.riding) {
+    if (mount.cargo && mount.near(player.x, player.z) && !mount.riding) {
       if (preview) return true;
       dialogue.start({
         speaker: 'The cart', emoji: '🛒',
@@ -135,6 +176,7 @@ export function campInteractions(ctx: Surroundings) {
             mount.mount(player); sound.chime(); hud.flash(`You swing up onto ${mount.name}.`);
             return null;
           } },
+          ...(body ? [{ label: 'Work on a nearby carcass', next: () => bodyNode(body) }] : []),
           { label: 'Leave it in the cart', next: () => null },
         ],
       });
@@ -142,45 +184,7 @@ export function campInteractions(ctx: Surroundings) {
     }
     if (!body) return false;
     if (preview) return true;
-    const kind = KINDS[body.kind];
-    const knife = state.can('skin');
-    dialogue.start({
-      speaker: `The dead ${kind?.label.toLowerCase() ?? body.kind}`,
-      emoji: kind?.emoji ?? '🐺',
-      pages: [(knife
-        ? 'The fur is still good. Work the knife in along the belly and it will come away whole.'
-        : 'The fur is still good, and you have nothing on you to cut it with. Pull at it and hope?') +
-        (state.has('cart') && mount.owned
-          ? ' A horse can haul one whole carcass in your cart. Dismount beside the body to load it.'
-          : ' A horse and a cart from the village wright could haul the whole carcass.')],
-      choices: [
-        { label: knife ? 'Skin it' : 'Pull at it', next: () => {
-          // seeded from where it fell, so a torn hide is torn for whoever gets there first
-          const hide = carcasses.take(body, knife, mulberry32(seed ^ Math.floor(body.x * 131 + body.z * 977)));
-          if (!hide) {
-            sound.thud();
-            hud.flash('The hide comes away in strips. Worth nothing now.');
-            return null;
-          }
-          const item = ITEMS[hide];
-          state.give(hide, 1);
-          state.version++;
-          sound.chime();
-          const here = paidFor(hide, sampler.biomeOf(player.x, player.z));
-          hud.flash(`Skinned it: ${item.emoji} ${item.name}. Traders in this country pay about ${here}g.`);
-          persist();
-          return null;
-        } },
-        ...(mount.canLoad(body, state.has('cart'), player.x, player.z) ? [{ label: 'Load into the cart', next: () => {
-          if (mount.load(body, state.has('cart'), player.x, player.z)) {
-            carcasses.leaveIt(body); sound.select(); persist(); hud.flash('The carcass is in the cart. One load fills it.');
-          }
-          return null;
-        } }] : []),
-        { label: 'Leave it for the eagles', next: () => layItOut(body.x, body.z, () => carcasses.leaveIt(body)) },
-        { label: 'Leave it', next: () => null },
-      ],
-    });
+    dialogue.start(bodyNode(body));
     return true;
   };
 
@@ -249,8 +253,8 @@ export function campInteractions(ctx: Surroundings) {
   };
 
   const carcassLabel = () => state.shouldering ? 'Carry the carcass' :
-    carcasses.nearest(player.x, player.z) ? 'Work on the carcass' :
-    mount.cargo && mount.near(player.x, player.z) && !mount.riding ? 'Use the loaded cart' : 'Skin the carcass';
+    mount.cargo && mount.near(player.x, player.z) && !mount.riding ? 'Use the loaded cart' :
+    carcasses.nearest(player.x, player.z) ? 'Work on the carcass' : 'Skin the carcass';
 
   return { trySkin, carcassLabel, tryCamp, fell, onVisitor, age, bodies };
 }
