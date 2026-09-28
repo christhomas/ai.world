@@ -17,6 +17,10 @@ const playCart = require('./playtest-cart.cjs');
         throw error;
       });
     console.log('cartwalk world ready');
+    // Match the main playtest, which has already bought and parked a horse at the village wall.
+    await page.evaluate(() => window.__ride(true));
+    await page.waitForFunction(() => window.__mount().under < 0.2, null, { timeout: 5000 });
+    await page.evaluate(() => window.__ride(false));
     const results = [];
     const say = (name, ok, detail) => {
       results.push({ name, ok });
