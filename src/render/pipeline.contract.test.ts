@@ -7,6 +7,9 @@ import { EntityRenderer } from './entities';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { mulberry32 } from '../core/rng';
+import { addPropInstances, disposeInstances } from './instancing';
+import { PropLibrary } from './props';
+import { PropKind } from '../world/biomes';
 
 describe('engine-owned frame submission', () => {
   const camera = {
@@ -94,5 +97,19 @@ describe('engine-owned frame submission', () => {
     expect(render).toHaveBeenCalledOnce();
     renderer.dispose();
     webgl.dispose();
+  });
+
+  it('registers and retires constructed prop batches with their neutral owner', () => {
+    const graph = new SceneGraph(0x102030);
+    const group = new THREE.Group();
+    const props = new PropLibrary();
+    const glow = new THREE.MeshBasicMaterial();
+    addPropInstances(group, props, [{ kind: PropKind.CropRipe, x: 1, y: 0, z: 2, rot: 0 }], glow, true, graph);
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0]).toMatchObject({ kind: 'prop-batch', placements: [{ x: 1, z: 2 }] });
+    disposeInstances(group);
+    expect(graph.nodes).toHaveLength(0);
+    props.dispose();
+    glow.dispose();
   });
 });

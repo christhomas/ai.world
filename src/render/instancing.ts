@@ -105,12 +105,19 @@ export function addPropInstances(
   instances: Iterable<PropInstance>,
   glowMaterial: THREE.Material,
   shadows = true,
+  graph?: SceneGraph,
 ): void {
   for (const [kind, list] of byKindOf(instances)) {
     const geometry = props.geometries.get(kind);
     if (!geometry) continue;
     const mesh = new THREE.InstancedMesh(geometry, props.material, list.length);
-    list.forEach((inst, i) => {
+    const model = PROPS.get(kind);
+    const node = graph && model ? graph.add({
+      kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+      placements: list, castShadow: shadows && worthAShadow(geometry), receiveShadow: shadows,
+    }) : null;
+    if (node) { mesh.userData.graphNode = node; mesh.userData.graph = graph; }
+    (node?.kind === 'prop-batch' ? node.placements : list).forEach((inst, i) => {
       mesh.setMatrixAt(i, composeInstance(inst, matrix));
       mesh.setColorAt(i, shadeOf(inst.tint ?? 0.5));
     });
@@ -387,7 +394,13 @@ function uploaded(attribute: THREE.InstancedBufferAttribute, count: number): voi
 
 /** Free the geometries and instance buffers of everything `addPropInstances` put in a group. */
 export function disposeInstances(parent: THREE.Object3D): void {
-  parent.traverse((o) => { if (o instanceof THREE.InstancedMesh) o.dispose(); });
+  parent.traverse((o) => {
+    if (!(o instanceof THREE.InstancedMesh)) return;
+    const graph = o.userData.graph as SceneGraph | undefined;
+    const node = o.userData.graphNode as SceneNode | undefined;
+    if (graph && node) graph.remove(node);
+    o.dispose();
+  });
 }
 
 /** A three.js mesh from the flat arrays the mesher and workers produce. */

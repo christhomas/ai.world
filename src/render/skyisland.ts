@@ -7,6 +7,7 @@ import { MeshBuilder, hexToLinear } from '../world/mesher';
 import { SKY, type SkyIsland } from '../world/skyisland';
 import { addPropInstances, disposeInstances, meshFromData } from './instancing';
 import type { PropLibrary } from './props';
+import type { SceneGraph } from '../core/scenegraph';
 
 /**
  * Drawing a village in the clouds.
@@ -93,6 +94,7 @@ export class SkyIslands {
     private readonly props: PropLibrary,
     private readonly waterMaterial: THREE.Material,
     private readonly glowMaterial: THREE.Material,
+    private readonly graph?: SceneGraph,
   ) {}
 
   /**
@@ -117,7 +119,7 @@ export class SkyIslands {
     }
     addPropInstances(group, this.props, isle.props.map((p) => ({
       kind: p.kind, x: p.x, y: p.y, z: p.z, rot: p.rot, scale: p.scale,
-    })), this.glowMaterial);
+    })), this.glowMaterial, true, this.graph);
     this.scene.add(group);
 
     const clouds = buildClouds(isle, this.cloudMaterial);
