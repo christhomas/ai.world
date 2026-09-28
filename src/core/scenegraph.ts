@@ -109,8 +109,10 @@ export class SceneGraph {
           material: {
             intent: node.material === 'water' ? 'water' as const : 'lit' as const,
             colour: node.colour ?? 0xffffff, emissive: 0, vertexColours: node.material !== 'lit-solid',
-            transparent: node.material === 'water', opacity: 1, depthWrite: node.material !== 'water',
-            side: 'front' as const, effects: node.effects ?? [], ...node.materialState,
+            transparent: node.material === 'water', opacity: node.material === 'water' ? 0.82 : 1,
+            depthWrite: node.material !== 'water',
+            side: node.material === 'water' ? 'double' as const : 'front' as const,
+            effects: node.effects ?? [], ...node.materialState,
           },
           attributes: {
             position: { size: 3, values: node.geometry.positions },

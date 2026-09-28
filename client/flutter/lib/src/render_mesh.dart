@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'chunk_parcel.dart';
 
 /// Interleaved native vertex: position, normal, linear colour, material,
-/// animation joint and animation pivot.
+/// animation joint, animation pivot, waterfall flow and open-sea mask.
 final class RenderMesh {
   const RenderMesh({
     required this.id,
@@ -19,9 +19,11 @@ final class RenderMesh {
     this.depthTest = true,
     this.doubleSided = false,
     this.backSide = false,
+    this.renderOrder = 0,
+    this.transparent = false,
   });
 
-  static const int floatsPerVertex = 14;
+  static const int floatsPerVertex = 16;
   static const double terrainMaterial = 0;
   static const double cuttableMaterial = 1;
   static const double waterMaterial = 2;
@@ -36,6 +38,8 @@ final class RenderMesh {
       depthTest,
       doubleSided,
       backSide;
+  final int renderOrder;
+  final bool transparent;
   final double opacity;
   final int emissive;
   final String blend;
@@ -81,7 +85,10 @@ final class _MeshBuilder {
     List<double> d,
     List<double> normal,
     List<double> color,
-    double material,
+    double material, {
+    double flow = 0,
+    double sea = 0,
+  }
   ) {
     final ax = b[0] - a[0], ay = b[1] - a[1], az = b[2] - a[2];
     final bx = c[0] - a[0], by = c[1] - a[1], bz = c[2] - a[2];
@@ -99,6 +106,8 @@ final class _MeshBuilder {
         material,
         0, // no rig joint
         0, 0, 0, // no pivot
+        flow,
+        sea,
       ]);
     }
     indices.addAll(
@@ -217,6 +226,7 @@ final class ChunkMesher {
             const <double>[0, 1, 0],
             _linear(0x3fa3da),
             RenderMesh.waterMaterial,
+            sea: chunk.type[i] == TileType.water.index ? 1 : 0,
           );
         }
         for (final side in _sides) {
@@ -233,6 +243,7 @@ final class ChunkMesher {
             <double>[side.nx, 0, side.nz],
             _linear(0xd9f0fb),
             RenderMesh.waterMaterial,
+            sea: chunk.type[i] == TileType.water.index ? 1 : 0,
           );
         }
       }

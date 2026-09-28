@@ -6,7 +6,8 @@
  * The bridge expands prop geometry into the existing neutral instances primitive.
  */
 import { chromium } from 'playwright';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, type WebSocket } from 'ws';
+import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import type { FrameDescription } from '../src/core/scene';
 import { expandForFlutter, disposeFlutterFrameGeometry } from '../src/render/flutter-frame';
@@ -16,6 +17,8 @@ const port = Number(process.env.SCENE_FEED_PORT ?? '8788');
 const url = new URL(address);
 url.searchParams.set('record-only', '1');
 const server = new WebSocketServer({ host: '0.0.0.0', port });
+const sentGeometry = new WeakMap<WebSocket, Set<string>>();
+server.on('connection', (client) => sentGeometry.set(client, new Set()));
 const browser = await chromium.launch({ headless: true, channel: process.env.CHANNEL || undefined,
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
@@ -56,10 +59,32 @@ while (!closing) {
       return JSON.stringify(recording.last, (_key, value: unknown) =>
         ArrayBuffer.isView(value) ? Array.from(value as Float32Array) : value);
     });
-    const payload = JSON.stringify(expandForFlutter(JSON.parse(raw) as FrameDescription), (_key, value: unknown) =>
+    const frame = expandForFlutter(JSON.parse(raw) as FrameDescription);
+    const allGeometries: Record<string, unknown> = {};
+    const nodes = frame.nodes.map((node) => {
+      if (node.kind !== 'mesh' && node.kind !== 'instances' && node.kind !== 'points') return node;
+      const geometry = { attributes: node.attributes, indices: node.indices };
+      const id = createHash('sha256').update(JSON.stringify(geometry)).digest('hex');
+      allGeometries[id] = geometry;
+      const rest = { ...node };
+      delete rest.attributes;
+      delete rest.indices;
+      return { ...rest, geometryId: id };
+    });
+    for (const client of server.clients) {
+      if (client.readyState !== 1) continue;
+      const known = sentGeometry.get(client) ?? new Set<string>();
+      sentGeometry.set(client, known);
+      const geometries: Record<string, unknown> = {};
+      for (const [id, geometry] of Object.entries(allGeometries)) {
+        if (known.has(id)) continue;
+        geometries[id] = geometry;
+        known.add(id);
+      }
+      const payload = JSON.stringify({ frame: { ...frame, nodes }, geometries }, (_key, value: unknown) =>
       ArrayBuffer.isView(value) ? Array.from(value as Float32Array) : value);
-    const compressed = gzipSync(payload, { level: 1 });
-    for (const client of server.clients) if (client.readyState === 1) client.send(compressed);
+      client.send(gzipSync(payload, { level: 1 }));
+    }
   } catch (error) {
     console.error('scene feed:', error);
     await new Promise((resolve) => setTimeout(resolve, 1000));
