@@ -236,7 +236,7 @@ export function startGame(
   const updraughts = new Updraughts(rig.scene, seed, rig.graph);   // the warm air, drawn where a glider finds it
   const seaEyes = new Swallows(rig.scene, seed, rig.graph);        // and the water that goes down, drawn where it turns
   const holes = new Shafts(rig.scene, seed, rig.graph);            // and the shafts, drawn so they can be walked to
-  const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
+  const beam = new Beam(rig.scene, entityRenderer, heroGear.group, rig.graph);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const chat = new Chat();
