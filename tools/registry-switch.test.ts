@@ -10,12 +10,15 @@ const book = (seed: number, name: string, latest: number): Answer => ({
   happened: [{ kind: 'born', name, village: `Village ${seed}`, day: 2 }],
 });
 
-function openPage(reply: (seed: number, since: number) => Promise<Answer>) {
+function openPage(
+  reply: (seed: number, since: number, server: string) => Promise<Answer>,
+  options: { pathname?: string; origin?: string; search?: string } = {},
+) {
   const html = readFileSync(new URL('./registry.html', import.meta.url), 'utf8');
   const script = /<script type="module">([\s\S]*?)<\/script>/.exec(html)?.[1];
   if (!script) throw new Error('the Domesday page has no script to test');
   const listeners = new Map<string, () => Promise<void>>();
-  const elements = new Map(['world', 'ask', 'live', 'note', 'happened', 'out'].map((id) => [id, {
+  const elements = new Map(['where', 'token', 'world', 'ask', 'live', 'note', 'happened', 'out'].map((id) => [id, {
     value: '', innerHTML: '', textContent: '', hidden: false, checked: false,
     addEventListener: (event: string, callback: () => Promise<void>) => listeners.set(`${id}:${event}`, callback),
   }]));
@@ -27,12 +30,14 @@ function openPage(reply: (seed: number, since: number) => Promise<Answer>) {
     if (params.has('worlds')) return { ok: true, json: async () => ({
       worlds: [{ seed: 1, name: 'Ashford' }, { seed: 2, name: 'Briar' }],
     }) };
-    const answer = await reply(Number(params.get('seed')), Number(params.get('since')));
+    const answer = await reply(Number(params.get('seed')), Number(params.get('since')),
+      new URL(url, 'http://portal.test').origin);
     return { ok: true, json: async () => structuredClone(answer) };
   });
   runInNewContext(script, {
     document: { getElementById: (id: string) => elements.get(id) ?? null },
-    location: { pathname: '/tools/registry', search: '', origin: 'http://portal.test' },
+    location: { pathname: options.pathname ?? '/tools/registry', search: options.search ?? '',
+      origin: options.origin ?? 'http://portal.test' },
     history: { replaceState: (_state: unknown, _title: string, url: string) => { address = url; } },
     URLSearchParams, fetch, setInterval, clearInterval,
   });
@@ -41,7 +46,8 @@ function openPage(reply: (seed: number, since: number) => Promise<Answer>) {
     element('world').value = String(seed);
     await listeners.get('world:change')!();
   };
-  return { element, choose, urls, get address() { return address; } };
+  const open = async () => { await listeners.get('ask:click')!(); };
+  return { element, choose, open, urls, get address() { return address; } };
 }
 
 describe('Domesday world selection', () => {
@@ -70,6 +76,39 @@ describe('Domesday world selection', () => {
     finishOld(book(1, 'Ari', 90));
     await first;
     expect(page.element('note').textContent).toContain('world 2');
+    expect(page.element('happened').innerHTML).toContain('Bea');
+    expect(page.element('happened').innerHTML).not.toContain('Ari');
+  });
+
+  it('loads worlds on a standalone page and opens a changed server from the button', async () => {
+    const page = openPage(async (seed, _since, server) => book(seed, server, 4),
+      { pathname: '/registry.html', origin: 'http://page.test' });
+    await vi.waitFor(() => expect(page.urls).toContain('http://page.test/registry?worlds=1'));
+    await vi.waitFor(() => expect(page.element('world').innerHTML).toContain('Ashford'));
+
+    page.element('where').value = 'http://world.test';
+    await page.open();
+    expect(page.urls).toContain('http://world.test/registry?worlds=1');
+    expect(page.element('note').textContent).toBe('Choose a world first');
+    await page.choose(1);
+    expect(page.element('happened').innerHTML).toContain('http://world.test');
+    expect(page.address).toContain('world=1');
+  });
+
+  it('starts a new history when another server has the same seed', async () => {
+    const page = openPage(async (seed, since, server) => {
+      if (server === 'http://second.test') expect(since, 'B must not inherit A\'s cursor').toBe(0);
+      return book(seed, server === 'http://first.test' ? 'Ari' : 'Bea',
+        server === 'http://first.test' ? 90 : 4);
+    }, { pathname: '/registry.html', origin: 'http://first.test' });
+    await vi.waitFor(() => expect(page.element('world').innerHTML).toContain('Ashford'));
+    await page.choose(1);
+    expect(page.element('happened').innerHTML).toContain('Ari');
+
+    page.element('where').value = 'http://second.test';
+    await page.open();
+    expect(page.urls).toContain('http://second.test/registry?worlds=1');
+    expect(page.urls).toContain('http://second.test/registry?seed=1&since=0');
     expect(page.element('happened').innerHTML).toContain('Bea');
     expect(page.element('happened').innerHTML).not.toContain('Ari');
   });
