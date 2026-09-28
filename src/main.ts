@@ -77,6 +77,7 @@ import { Shafts } from './render/shafts';
 import { createWaysIn } from './game/waysin';
 import { openCountry } from './game/shafts';
 import { putFerriesOut } from './render/ferries';
+import { makeFerryLines } from './game/ferry';
 import { WhaleSchool } from './render/whales';
 import { CampField } from './render/wildcamps';
 import { RecordingPipeline } from './render/recording';
@@ -280,8 +281,7 @@ export function startGame(
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
-  // the boats that run between the islands, each with a hull in the scene to sail it
-  const ferries = putFerriesOut(structures, graph.islands, rig.scene);
+  const ferries = putFerriesOut(makeFerryLines(structures, structures.villages, graph.islands), rig.scene);
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
