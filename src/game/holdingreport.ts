@@ -8,13 +8,18 @@ export function holdingReport(
 ): string[] {
   const mine = holdings.filter((holding) => holding.owner === owner);
   if (mine.length === 0) return [`The hall of ${village} has no holdings in your name.`];
-  const pages = [`${mine.length} holding${mine.length === 1 ? '' : 's'} in your name in ${village}. The clerk reads the recorded work from day ${after + 1} through day ${through}.`];
+  const noNewMornings = after >= through;
+  const interval = noNewMornings ? `No new mornings have passed since day ${through}.`
+    : `The clerk reads the recorded work from day ${after + 1} through day ${through}.`;
+  const pages = [`${mine.length} holding${mine.length === 1 ? '' : 's'} in your name in ${village}. ${interval}`];
   const gold = (amount: number) => `${Math.round(amount * 100) / 100} gold`;
   for (const holding of mine) {
     const from = Math.max(holding.founded - 1, after);
     const facts = book.on(holding.id).filter((fact) => fact.day > from && fact.day <= through);
     if (facts.length === 0) {
-      pages.push(`${holding.kind} ${holding.id}: no work was recorded from day ${from + 1} through day ${through}. No wages were earned or paid on this holding.`);
+      pages.push(noNewMornings
+        ? `${holding.kind} ${holding.id}: no new mornings of work. No wages were earned or paid on this holding.`
+        : `${holding.kind} ${holding.id}: no work was recorded from day ${from + 1} through day ${through}. No wages were earned or paid on this holding.`);
       continue;
     }
     const valued = facts.reduce((sum, fact) => sum + fact.wage, 0);
