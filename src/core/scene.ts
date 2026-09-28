@@ -10,6 +10,8 @@ export interface FrameDescription {
     visible: boolean;
     colour?: number;
     intensity?: number;
+    /** World-space point a directional light shines toward. */
+    lightTarget?: [number, number, number];
     groundColour?: number;
     distance?: number;
     decay?: number;
@@ -20,6 +22,8 @@ export interface FrameDescription {
       vertexColours: boolean; transparent: boolean; opacity: number;
       depthWrite: boolean; side: 'front' | 'back' | 'double'; effects: string[];
     };
+    materials?: NonNullable<FrameDescription['nodes'][number]['material']>[];
+    groups?: Array<{ start: number; count: number; materialIndex: number }>;
     attributes?: Record<string, { size: number; values: number[] }>;
     indices?: number[];
     instanceMatrices?: number[];

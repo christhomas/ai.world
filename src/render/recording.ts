@@ -42,10 +42,15 @@ export function describeFrame(scene: THREE.Scene, camera: THREE.Camera): FrameDe
       node.intensity = object.intensity;
       if (object instanceof THREE.HemisphereLight) node.groundColour = object.groundColor.getHex();
       if (object instanceof THREE.PointLight) { node.distance = object.distance; node.decay = object.decay; }
+      if (object instanceof THREE.DirectionalLight) {
+        object.target.updateMatrixWorld(true);
+        node.lightTarget = object.target.getWorldPosition(new THREE.Vector3()).toArray() as [number, number, number];
+      }
     }
     if (object instanceof THREE.Mesh || object instanceof THREE.Points) {
-      const material = Array.isArray(object.material) ? object.material[0] : object.material;
-      node.material = describeMaterial(material);
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      node.material = describeMaterial(materials[0]);
+      if (materials.length > 1) node.materials = materials.map(describeMaterial);
       const attributes = (object.geometry as THREE.BufferGeometry).attributes;
       node.attributes = Object.fromEntries(Object.entries(attributes).map(([name, attribute]) => {
         const values: number[] = [];
@@ -57,6 +62,9 @@ export function describeFrame(scene: THREE.Scene, camera: THREE.Camera): FrameDe
         return [name, { size: attribute.itemSize, values }];
       }));
       if (object.geometry.index) node.indices = Array.from(object.geometry.index.array);
+      if (object.geometry.groups.length) node.groups = object.geometry.groups.map((group: THREE.BufferGeometry['groups'][number]) => ({
+        start: group.start, count: group.count, materialIndex: group.materialIndex,
+      }));
       if (object instanceof THREE.InstancedMesh) {
         node.instanceMatrices = Array.from(object.instanceMatrix.array.slice(0, object.count * 16));
         if (object.instanceColor) node.instanceColours = Array.from(object.instanceColor.array.slice(0, object.count * 3));
