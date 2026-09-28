@@ -296,6 +296,9 @@ export class Rooms {
       }
     };
     const room = this.get(seed);
+    for (const anchor of this.manifestOf(seed).byKind('eyrie').filter((a) => a.version === 2))
+      pins.push({ x: anchor.x, z: anchor.z,
+        label: `The skyward eyrie at ${Math.round(anchor.x)}, ${Math.round(anchor.z)}`, footing: 'land' });
     for (const delta of room?.world.log ?? []) collect(delta);
     const worldFile = this.vault.read(worldPath(this.dataDir, seed));
     if (worldFile) {

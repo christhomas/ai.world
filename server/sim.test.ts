@@ -115,6 +115,9 @@ describe('authoring an existing named world', () => {
     const anchor = skyEyrieAnchor(sim.rooms.manifestOf(322), site.id, 300, 256,
       'eyrie:edit:00000000-0000-4000-8000-000000000322')!;
     sim.authorNamedSkyEyrie('Old Vale', sim.namedWorldRevision('Old Vale')!, anchor);
+    expect(sim.namedWorldReminders('Old Vale', anchor.x, anchor.z, 20).pins)
+      .toContainEqual({ x: anchor.x, z: anchor.z,
+        label: `The skyward eyrie at ${Math.round(anchor.x)}, ${Math.round(anchor.z)}`, footing: 'land' });
     const again = new Simulation({ vault, dataDir: 'worlds' });
     expect(again.rooms.invite('Old Vale')).toMatchObject({
       sites: [site], skyEyries: [anchor],

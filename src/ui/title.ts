@@ -8,6 +8,7 @@ import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
 import { cleanWorldName } from '../../server/protocol';
 import type { TerrainLayer } from '../world/terrainlayers';
+import { terrainEditFootprint } from '../world/terrainlayers';
 import { PREVIEW_SIZE, PREVIEW_SPAN, terrainPreview } from './terrainpreview';
 import { elevationFor } from '../world/growworld';
 import { Manifest, type Anchor } from '../world/manifest';
@@ -269,7 +270,8 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       if (!before.anchors.some((a) => a.id === anchor.id)) changed.push({ x: anchor.x, z: anchor.z, reach: anchor.layer!.reach });
     }
     for (const anchor of skyEyries) if (!manifest.get(anchor.id)) manifest.anchors.set(anchor.id, anchor);
-    changed.push(...terrain.slice(pinnedTerrain).map(({ x, z, reach }) => ({ x, z, reach })));
+    changed.push(...terrain.slice(pinnedTerrain).map(({ x, z, reach }) =>
+      ({ x, z, reach: terrainEditFootprint(reach) })));
     manifest.terrain.splice(0, manifest.terrain.length, ...terrain);
     terrainError.textContent = 'Checking saved places against the new ground…';
     let assessment: SavedEditAssessment;
