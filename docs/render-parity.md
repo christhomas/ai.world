@@ -19,3 +19,10 @@ different completion time in each browser run. Exclude the same rectangle from
 both images; the strict 0.50% difference limit still applies to every other
 pixel. The minimap has separate content assertions in `src/ui/minimap.test.ts`
 and `src/ui/mapbase.test.ts`. Capture interiors normally, without this exclusion.
+
+For a pull request, the `render-parity` label runs the comparison on a pinned
+Ubuntu 24.04 runner. It checks out the PR base and GitHub's proposed merge result,
+captures town and mountain with `STATIC_SCENE=1`, captures the interior normally,
+then applies the 0.50% pixel limit. The artifact keeps both sets of PNGs and
+separate outdoor and interior reports. Apply the label after the final render
+commit so the report describes that exact head.
