@@ -56,10 +56,10 @@ export interface HoldingDay {
    * And what actually left a purse for it, which is not the same number and cannot be derived.
    *
    * Nought where a man stands his own yard — the two ends of the hand-over are one purse, so the
-   * wage is real work at a real price and no coin moves — and nought where either end is not on
-   * the village's roll. A reader wanting *what this holding cost its owner* wants this; a reader
-   * wanting *what a day on it was worth* wants `wage`. Keeping only one of them would have made
-   * the other unanswerable, which is the whole argument of this file in one field.
+   * wage is real work at a real price and no coin moves. A hall-owned holding instead transfers
+   * from the hall treasury to the worker's purse. A reader wanting *what this holding cost its
+   * owner* wants this; a reader wanting *what a day on it was worth* wants `wage`. Keeping only one
+   * of them would have made the other unanswerable, the argument of this file in one field.
    */
   paid: number;
 }
