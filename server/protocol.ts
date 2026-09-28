@@ -11,7 +11,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
 
-export const PROTOCOL_VERSION = 23;
+export const PROTOCOL_VERSION = 24;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
