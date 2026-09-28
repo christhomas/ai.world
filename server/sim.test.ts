@@ -139,6 +139,26 @@ describe('the simulation, hosted by nothing at all', () => {
     expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'cleared', mine: 'Barrow', many: 4 }]);
   });
 
+  it('broadcasts a baited nest and replays its latest state to a joining player', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    const wren = new Pretend(sim).join(7, 'Wren');
+    const anchor = new Manifest(7).ensure('eyrie:0,0', 'eyrie', 0, 0);
+    const added = { kind: 'eyrie', anchor, present: true } as const;
+    const removed = { kind: 'eyrie', anchor, present: false } as const;
+
+    rowan.say({ type: 'delta', delta: added });
+    expect(wren.of('delta').map((m) => m.delta)).toEqual([added]);
+    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toContainEqual(added);
+    rowan.say({ type: 'delta', delta: added });
+    expect(wren.of('delta')).toHaveLength(1);
+
+    rowan.say({ type: 'delta', delta: removed });
+    expect(wren.of('delta').at(-1)?.delta).toEqual(removed);
+    expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
+      .toContainEqual(removed);
+  });
+
   it('moves the clock and tells everybody where everybody is', () => {
     // a patient world, because stepping a minute forward would otherwise drop both of them for
     // having said nothing in thirty seconds — which is the next test, not this one
