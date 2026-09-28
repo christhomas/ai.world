@@ -119,6 +119,8 @@ export const DUNGEON_MONSTERS: readonly SpawnWeight[] = dungeonMonsters(1);
 
 /** What lives above the treeline, on and around a massif. */
 export const HIGHLAND_ANIMALS: readonly SpawnWeight[] = weights(file.group('highland').group('kinds'));
+/** A prayed-for mountain brings both its new habitat and its promised monsters. */
+export const PRAYED_HIGHLAND_ANIMALS: readonly SpawnWeight[] = weights(file.group('prayedHighland').group('kinds'));
 
 /** What a pack in open water turns out to be: nothing else spawns out there at all. */
 export const DEEP_ANIMALS: readonly SpawnWeight[] = weights(file.group('deep').group('kinds'));

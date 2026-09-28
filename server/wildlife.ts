@@ -84,6 +84,7 @@ export class Wildlife {
       folk ? () => this.following?.guilt ?? 0 : undefined,
       folk ? (by) => { if (this.following) folk.onArrest(this.numberOf(by), this.following); } : undefined,
       folk?.highland,
+      folk?.prayedHighland,
     );
   }
 
@@ -424,6 +425,7 @@ export interface Folk {
   priceOf: (id: string) => number;
   /** Whether this point is high country, which decides what lives on it. */
   highland: (x: number, z: number) => boolean;
+  prayedHighland?: (x: number, z: number) => boolean;
   /**
    * Somebody who lives here has been killed.
    *

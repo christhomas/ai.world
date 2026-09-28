@@ -14,6 +14,7 @@ import { hideOf, type CarriedCarcass } from './furs';
 import type { PlotJson } from './farming';
 import type { HouseJson } from './building';
 import type { BoatSave } from './sailing';
+import { PRAYER_WAIT, type HighlandPrayer } from './prayers';
 
 /**
  * Everything about the player that is not position: health, gold and items, time of day,
@@ -123,6 +124,8 @@ export interface GameStateJson {
   houses?: HouseJson;
   /** The boat you bought, and where it is moored. */
   boat?: BoatSave | null;
+  /** Shrine requests survive leaving the game while the world's calendar advances. */
+  prayers?: HighlandPrayer[];
 }
 
 /**
@@ -170,6 +173,7 @@ export class GameState {
   readonly discovered = new Set<string>();
   readonly opened = new Set<string>();
   readonly keys = new Set<string>();
+  readonly prayers: HighlandPrayer[] = [];
   /**
    * Where the hero stands between good and evil. Kept here as a plain number rather than as the
    * Standing object that interprets it, because a save is a picture of the game's state and has
@@ -478,6 +482,7 @@ export class GameState {
       standing: this.standing,
       practice: this.practice,
       shouldering: this.shouldering,
+      prayers: this.prayers.map((prayer) => ({ ...prayer })),
     };
   }
 
@@ -532,6 +537,18 @@ export class GameState {
     for (const k of json.discovered ?? []) g.discovered.add(k);
     for (const k of json.opened ?? []) g.opened.add(k);
     for (const k of json.keys ?? []) g.keys.add(k);
+    for (const prayer of json.prayers ?? []) {
+      if (prayer && typeof prayer.id === 'string' && prayer.id.startsWith('highland:prayer:')
+        && typeof prayer.name === 'string' && typeof prayer.shrine === 'string'
+        && Number.isSafeInteger(prayer.x) && Number.isSafeInteger(prayer.z)
+        && Math.abs(prayer.x) <= 1_000_000 && Math.abs(prayer.z) <= 1_000_000
+        && Number.isSafeInteger(prayer.asked) && Number.isSafeInteger(prayer.due)
+        && prayer.due === prayer.asked + PRAYER_WAIT && Number.isSafeInteger(prayer.seed)
+        && prayer.seed >= 0 && prayer.seed <= 0xffffffff
+        && typeof prayer.answered === 'boolean') {
+        g.prayers.push({ ...prayer });
+      }
+    }
     g.hp = Math.min(g.hp, g.maxHpTotal);
     return g;
   }

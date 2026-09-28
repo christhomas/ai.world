@@ -173,7 +173,7 @@ export function createInteractions(ctx: Surroundings) {
     hireMenu: hire.hireMenu,
     // deliberately not in the Enter chain: giving would swallow every press meant for a hello
     tryGive: gifts.tryGive,
-    runClock: nettle.runClock,
+    runClock: (dt: number) => { nettle.runClock(dt); wild.prayerTick(); },
     heWentDown: nettle.heWentDown,
     wordOfHim: nettle.wordOfHim,
     troubleKilled: rescue.onKill,

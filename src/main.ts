@@ -118,6 +118,7 @@ export function startGame(
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains, stamp: mine,
   } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  const prayedHighlands = manifest.layers().filter((a) => a.id.startsWith('highland:prayer:'));
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
@@ -179,6 +180,7 @@ export function startGame(
     // high country: on a mountain or against its flank, where the goats and the things that climb
     // are. Whichever kind of mountain this world grew — a massif, or a polygon range.
     (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
+    (x, z) => prayedHighlands.some((a) => Math.hypot(x - a.x, z - a.z) < a.layer!.reach),
   );
   // and whoever is standing about, so the roster can say what each of them is presently doing
   roster.reads(() => register, () => structures.villages.length, entities, () => player);
@@ -241,7 +243,7 @@ export function startGame(
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist,
+    plots, houses, sailing, mount, persist, persistAsync,
   } = openTheSave({
     store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
@@ -521,7 +523,7 @@ export function startGame(
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
-    raining: () => frames.raining(), discover, persist, startTalk, questLine,
+    raining: () => frames.raining(), discover, persist, persistAsync, startTalk, questLine,
     told: (delta) => online.report(delta),
     // built further down this file, and only ever asked for on a key press: see `waysin.ts`
     craft: () => craft,
@@ -541,7 +543,7 @@ export function startGame(
   // Give old saves their stable multiplayer identity before they can receive replayable player facts.
   if (saved?.state?.playerId !== state.playerId) persist();
   joinAWorld({
-    seed, kind: world, terrain: manifest.terrain, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
+    seed, kind: world, terrain: manifest.terrain, highlands: manifest.layers(), worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),

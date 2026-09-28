@@ -169,12 +169,12 @@ export class EntityManager {
     private readonly onArrest: (by: Entity) => void = () => {},
     /**
      * Whether this point is high country — on or against a massif.
-     *
      * Asked rather than worked out, because what counts as a mountain belongs to the world's
      * generator and this layer only wants to know which list to spawn from. False everywhere in a
      * world with no mountains in it, which is the old one.
      */
     private readonly highland: (x: number, z: number) => boolean = () => false,
+    private readonly prayedHighland: (x: number, z: number) => boolean = () => false,
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -620,6 +620,7 @@ export class EntityManager {
     }, ctx);
     spawnWildlife({
       world: this.world, night: this.night, highland: this.highland,
+      prayedHighland: this.prayedHighland,
       awayFromVillages: (x, z) => {
         let nearest = Infinity;
         for (const v of this.villages) nearest = Math.min(nearest, Math.hypot(v.x - x, v.z - z));

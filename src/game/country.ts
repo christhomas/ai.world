@@ -20,6 +20,7 @@ import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
 import { HighCountry } from './highcountry';
 import { Skyline } from './skyline';
+import { anchoredHighlands } from '../world/anchoredhighlands';
 
 /**
  * The ground this game is played on, and everything standing on it that was settled before
@@ -149,7 +150,10 @@ export function growCountry(ctx: Growing) {
    * polygon world's ranges described in the same terms. Everything that stands something on a
    * mountain — the eagles, the villages in the clouds, the goats — reads this rather than either.
    */
-  const highPlaces = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
+  const highPlaces = [
+    ...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs),
+    ...anchoredHighlands(manifest, sampler.within),
+  ];
   const structures = sampler.structures;
   /*
    * What is near wherever anybody is standing, which is what the game has always meant by asking

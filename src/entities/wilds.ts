@@ -1,6 +1,6 @@
 import { tileCentre, type SortedTiles } from './chunkspots';
 import {
-  BIOME_ANIMALS, BIOME_HUNTERS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS,
+  BIOME_ANIMALS, BIOME_HUNTERS, DEEP_ANIMALS, HIGHLAND_ANIMALS, PRAYED_HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS,
   openGround, pickKind,
 } from './spawns';
 import { SPAWN } from './spawning';
@@ -36,6 +36,8 @@ export interface Wilds {
    * generator and this only wants to know which list to spawn from.
    */
   highland: (x: number, z: number) => boolean;
+  /** A mountain raised by a shrine, with a more dangerous habitat than old high country. */
+  prayedHighland?: (x: number, z: number) => boolean;
   /**
    * How far the nearest village middle is from a point, in tiles.
    *
@@ -110,7 +112,8 @@ export function spawnWildlife(o: Wilds, ctx: SpawnCtx, sorted: SortedTiles): voi
       // and in daylight the same country keeps more of what bites, which is what a bad province is:
       // the wood is the same wood, and there are more wolves in it
       const teeth = rng() < danger * TEMPER.TEETH && BIOME_HUNTERS[sorted.biome].length > 0;
-      const table = o.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS
+      const table = o.prayedHighland?.(spot[0], spot[1]) ? PRAYED_HIGHLAND_ANIMALS
+        : o.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS
         : teeth ? BIOME_HUNTERS[sorted.biome] : BIOME_ANIMALS[sorted.biome];
       const kindId = pickKind(table, rng());
       if (!kindId) break;

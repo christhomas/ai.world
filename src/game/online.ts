@@ -14,6 +14,7 @@ import type { Memory } from '../world/people';
 import { ITEMS } from './items';
 import type { WorldKind } from '../world/countries';
 import type { TerrainLayer } from '../world/terrainlayers';
+import type { Anchor } from '../world/manifest';
 
 export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
@@ -62,6 +63,8 @@ export interface CountryHere {
   kind?: WorldKind;
   /** Sent only to the private simulation worker, never to another world's server. */
   terrain?: readonly TerrainLayer[];
+  /** Added highland anchors for the private world worker; never offered to a shared server. */
+  highlands?: readonly Anchor[];
 }
 
 /**
@@ -183,6 +186,7 @@ export class Online {
         type: 'join', worldName, seed, kind: country.kind, name: this.name, playerId, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
         x: country.at?.x, z: country.at?.z,
         terrain: this.local ? country.terrain : undefined,
+        highlands: this.local ? country.highlands : undefined,
       }),
       onMessage: (parcel) => {
         this.sinceHeard = 0;
