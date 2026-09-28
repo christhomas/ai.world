@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { composerFor, worthAComposer } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
+import { SceneGraph } from '../core/scenegraph';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
 import { describeFrame, type RecordingPipeline } from './recording';
@@ -201,6 +202,7 @@ export function fogReach(chunks: number = WORLD.VIEW_RADIUS): { near: number; fa
 
 export interface SceneRig {
   scene: THREE.Scene;
+  graph: SceneGraph;
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
   ambient: THREE.AmbientLight;
@@ -313,6 +315,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY);
+  const graph = new SceneGraph(SKY);
   // and the same colour again as fog, so far country recedes towards the sky instead of standing at
   // the contrast of the ground underfoot. A `DayCycle` re-tints both together every frame; a rig
   // with no day cycle keeps this pair, which is the sky it was already drawing
@@ -386,7 +389,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
 
   return {
-    scene, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
+    scene, graph, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
     quality: remembered,
     setQuality(level: Quality) {
       const want = QUALITY[level];
