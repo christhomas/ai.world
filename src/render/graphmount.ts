@@ -51,7 +51,10 @@ export function applyMeshFrame(mesh: THREE.Mesh, frame: FrameNode): void {
   material.toneMapped = paint.toneMapped ?? true;
   material.side = paint.side === 'double' ? THREE.DoubleSide : paint.side === 'back' ? THREE.BackSide : THREE.FrontSide;
   material.blending = paint.effects.includes('additive-blending') ? THREE.AdditiveBlending : THREE.NormalBlending;
-  if (material instanceof THREE.MeshLambertMaterial) material.flatShading = paint.effects.includes('flat-shading');
+  if (material instanceof THREE.MeshLambertMaterial) {
+    material.flatShading = paint.effects.includes('flat-shading');
+    material.emissive.setHex(paint.emissive);
+  }
 }
 
 export function applyInstanceFrame(mesh: THREE.InstancedMesh, frame: FrameNode): void {
