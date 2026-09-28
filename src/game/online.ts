@@ -21,14 +21,7 @@ export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
 
-/**
- * How long a world may say nothing at all before it is taken to have gone, in seconds.
- *
- * Presence goes out ten times a second and the creatures three, so a world with anybody in it is
- * never quiet for long. Six seconds is far past any hiccup and well short of a player deciding the
- * game is broken — which is what the alternative looks like, because a frozen world is
- * indistinguishable from a simulation that has stopped.
- */
+/** Six silent seconds means a world is gone: presence and creatures normally arrive much faster. */
 const QUIET = 6;
 
 /**
@@ -510,7 +503,6 @@ export class Online {
 
   /** Ask the world to settle a nearby in-flight cart as robbed. */
   cartAction(type: 'rob-cart' | 'escort-cart', loadedOn: number): void { if (this.connected) this.send({ type, loadedOn }); }
-
   /** Stand on the roll of the village the hero has walked into. Asked, like an oath. */
   arrive(village: string): void {
     if (this.connected) this.send({ type: 'arrive', village });

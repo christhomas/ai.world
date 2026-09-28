@@ -116,12 +116,7 @@ export function startGame(
       prayersResolvedAtBoot = true;
     }
   }
-  /**
-   * Whether the player has ever picked a quality themselves — asked before anything else, because
-   * the rig writes the level down every time it is set and the very next line sets it. Ask any
-   * later and the game's own start-up looks exactly like somebody making a choice, so nothing
-   * would ever be adjusted for anybody.
-   */
+  // Read the preference before setQuality writes one, so automatic setup cannot look like a choice.
   const qualityWasChosen = everChoseQuality();
   const recording = new URLSearchParams(location.search).has('record-scene') ? new RecordingPipeline() : undefined;
   if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
@@ -145,13 +140,7 @@ export function startGame(
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
   });
-  /*
-   * The hole in front of the hero, off unless he has asked for it.
-   *
-   * Attached to the props once, here, so that the shader is compiled with it whether it is on or
-   * not: the switch is a uniform and a uniform costs nothing, where recompiling a material as
-   * somebody ticks a box is a stutter they would blame on the game.
-   */
+  // Attach cutaway before shader compilation; its uniform toggles without recompiling materials.
   const cutaway = new Cutaway();
   chunks.seeThrough(cutaway);
   cutaway.show(wantsCutaway());
@@ -206,21 +195,9 @@ export function startGame(
   );
   // and whoever is standing about, so the roster can say what each of them is presently doing
   roster.reads(() => register, () => structures.villages.length, entities, () => player);
-  /**
-   * The creatures the world says are there.
-   *
-   * When the simulation owns the wildlife — which it does the moment this client is connected to
-   * one, whether that is a server or the thread next door — the game stops inventing its own and
-   * draws what it is told. Two players in one field then see the same deer, which is the whole of
-   * what phase three of docs/server-authority.md is for.
-   */
+  // A connected simulation owns wildlife, so every player draws the same creatures.
   const wildlife = new Wildlife(entityRenderer, entities, bookOf(register, structures.villages));
-  /**
-   * And the world's creatures on whatever floor the hero is standing on, when he is standing on one.
-   *
-   * A floor is a world of its own with its own monsters and its own numbering, so it gets its own
-   * telling rather than sharing the country's. Null above ground, which is most of the time.
-   */
+  // Dungeon floors have separate creature numbering; null on the surface.
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   const sound = new Sound();
@@ -245,13 +222,7 @@ export function startGame(
     ? `${places.underground.poi.name}:${places.underground.floor}`
     : places.indoors ? places.indoors.title : 'surface';
 
-  /**
-   * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
-   * swinging spends it, holding a guard drains it, and it only comes back when you are doing
-   * neither — so there is now a reason to stop pressing the button.
-   *
-   * Not saved: it refills in seconds, so a save that remembered it would be remembering nothing.
-   */
+  // Combat breath refills within seconds, so it is not saved.
   const breath = new Breath();
   const ownBoat = putBoatIn(rig.scene);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
