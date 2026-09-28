@@ -13,6 +13,35 @@ export function submitGraphFrame(graph: SceneGraph, sinks: FramePipeline[]): Fra
   return frame;
 }
 
+/** Retained WebGL mount for the live game while its renderer-owned effects are being migrated. */
+export class MountedThreePipeline implements FramePipeline {
+  private readonly camera = new THREE.OrthographicCamera();
+
+  constructor(private readonly scene: THREE.Scene,
+    private readonly submit: (scene: THREE.Scene, camera: THREE.Camera) => void) {
+    this.camera.matrixAutoUpdate = false;
+  }
+
+  draw(frame: FrameDescription): void {
+    if (!frame.camera.orthographic) throw new Error('the live world needs an orthographic camera');
+    this.camera.projectionMatrix.fromArray(frame.camera.projection);
+    this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+    this.camera.matrix.fromArray(frame.camera.world);
+    this.camera.updateMatrixWorld(true);
+    if (frame.background !== null) {
+      if (!(this.scene.background instanceof THREE.Color)) this.scene.background = new THREE.Color();
+      this.scene.background.setHex(frame.background);
+    }
+    if (frame.fog) {
+      if (!(this.scene.fog instanceof THREE.Fog)) this.scene.fog = new THREE.Fog(frame.fog.colour, frame.fog.near, frame.fog.far);
+      this.scene.fog.color.setHex(frame.fog.colour);
+      this.scene.fog.near = frame.fog.near;
+      this.scene.fog.far = frame.fog.far;
+    }
+    this.submit(this.scene, this.camera);
+  }
+}
+
 /** Three's first consumer of the neutral frame contract. */
 export class ThreeFramePipeline implements FramePipeline {
   private resources: Array<THREE.BufferGeometry | THREE.Material> = [];
@@ -73,7 +102,7 @@ export class ThreeFramePipeline implements FramePipeline {
         for (const [name, attribute] of Object.entries(node.attributes ?? {})) {
           geometry.setAttribute(name, new THREE.Float32BufferAttribute(attribute.values, attribute.size));
         }
-        if (node.indices) geometry.setIndex(node.indices);
+        if (node.indices) geometry.setIndex(Array.from(node.indices));
         geometry.computeBoundingSphere();
         const paint = node.material;
         const material = paint?.intent === 'points'

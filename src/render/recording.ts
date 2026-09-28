@@ -97,7 +97,9 @@ export class RecordingPipeline {
   draw(frame: FrameDescription | (() => FrameDescription)): void {
     this.frames++;
     if (!this.armed) return;
-    this.last = typeof frame === 'function' ? frame() : frame;
+    // Geometry and instance arrays are shared with the running graph to keep normal frames cheap.
+    // A captured frame must hold its own values after the next animation tick rewrites them.
+    this.last = structuredClone(typeof frame === 'function' ? frame() : frame);
     this.armed = false;
   }
 }

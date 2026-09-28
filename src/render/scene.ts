@@ -5,9 +5,10 @@ import type { ChunkSource } from '../world/tiles';
 import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
-import { describeFrame, type RecordingPipeline } from './recording';
+import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
 import { attachSceneGraph, sceneForGraph } from './scenegraph';
+import { MountedThreePipeline, submitGraphFrame } from './pipeline';
 
 const SKY = 0x8fc1e6;
 
@@ -405,6 +406,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
 
   // the second path, or nothing at all. Built after the quality is known, because `low` refuses it
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
+  const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
 
   return {
     scene, graph, lighting, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
