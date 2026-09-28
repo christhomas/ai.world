@@ -29,7 +29,7 @@ export type SceneNode =
   | { kind: 'points'; positions: Float32Array; colour: number; size: number; opacity: number; visible: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'lit-solid' | 'water'; colour?: number;
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[];
-      frustumCulled?: boolean; effects?: string[];
+      frustumCulled?: boolean; visible?: boolean; effects?: string[];
       materialState?: Partial<NonNullable<FrameDescription['nodes'][number]['material']>> };
 
 /** The engine owns these values; a renderer decides how to display them. */
@@ -98,7 +98,7 @@ export class SceneGraph {
           attributes: { position: { size: 3, values: node.positions } },
         };
         return {
-          ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,
+          ...base, kind: 'mesh' as const, visible: node.visible ?? true, castShadow: node.castShadow ?? false,
           receiveShadow: node.receiveShadow,
           world: node.world ?? IDENTITY,
           renderOrder: node.renderOrder,

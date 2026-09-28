@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
 import { Entity, Herd } from '../entities/entity';
 import type { EntityRenderer } from './entities';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
 
 /**
  * Teleporting, made into something you can watch.
@@ -160,6 +161,10 @@ interface Column {
   group: THREE.Group;
   shaft: THREE.Mesh;
   core: THREE.Mesh;
+  shaftNode?: Extract<SceneNode, { kind: 'mesh' }>;
+  coreNode?: Extract<SceneNode, { kind: 'mesh' }>;
+  x: number; y: number; z: number; turn: number; grown: number;
+  shaftAlpha: number; coreAlpha: number; shown: boolean;
   /** Seconds of light left. Nought means this one is free to be used again. */
   left: number;
   /**
@@ -218,6 +223,7 @@ export class Beam {
     private readonly scene: THREE.Object3D,
     private readonly renderer: EntityRenderer,
     private readonly carried: THREE.Object3D,
+    private readonly graph?: SceneGraph,
   ) {
     for (let i = 0; i < AT_ONCE; i++) {
       const group = new THREE.Group();
@@ -226,7 +232,50 @@ export class Beam {
       group.add(shaft, core);
       group.visible = false;
       scene.add(group);
-      this.columns.push({ group, shaft, core, left: 0, life: 1, over: null });
+      const shaftNode = graph && this.describe(SHAFT, SHAFT_COLOUR, SHAFT_OPACITY);
+      const coreNode = graph && this.describe(CORE, CORE_COLOUR, CORE_OPACITY);
+      this.columns.push({ group, shaft, core, shaftNode, coreNode,
+        x: 0, y: 0, z: 0, turn: 0, grown: 1,
+        shaftAlpha: SHAFT_OPACITY, coreAlpha: CORE_OPACITY, shown: false,
+        left: 0, life: 1, over: null });
+    }
+  }
+
+  private describe(half: number, colour: number, opacity: number): Extract<SceneNode, { kind: 'mesh' }> {
+    const position = this.shape.getAttribute('position');
+    const normal = this.shape.getAttribute('normal');
+    return this.graph!.add({
+      kind: 'mesh', material: 'lit-solid', colour, visible: false, receiveShadow: false,
+      geometry: {
+        positions: position.array as Float32Array, normals: normal.array as Float32Array,
+        indices: this.shape.index?.array as Uint16Array | Uint32Array | undefined,
+      },
+      world: new THREE.Matrix4().makeScale(half * 2, HEIGHT, half * 2).toArray(),
+      materialState: { intent: 'unlit', transparent: true, opacity, depthWrite: false,
+        effects: ['additive-blending'] },
+    }) as Extract<SceneNode, { kind: 'mesh' }>;
+  }
+
+  /** Numeric column state is the source for the neutral record and its retained WebGL adapters. */
+  private sync(column: Column): void {
+    column.group.position.set(column.x, column.y, column.z);
+    column.group.rotation.y = column.turn;
+    column.group.visible = column.shown;
+    for (const [mesh, node, half, opacity] of [
+      [column.shaft, column.shaftNode, SHAFT, column.shaftAlpha],
+      [column.core, column.coreNode, CORE, column.coreAlpha],
+    ] as const) {
+      mesh.scale.set(half * 2, HEIGHT * column.grown, half * 2);
+      mesh.position.y = mesh.scale.y / 2;
+      (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+      if (!node) continue;
+      node.visible = column.shown;
+      node.materialState!.opacity = opacity;
+      const matrix = new THREE.Matrix4().makeTranslation(column.x, column.y, column.z)
+        .multiply(new THREE.Matrix4().makeRotationY(column.turn))
+        .multiply(new THREE.Matrix4().makeTranslation(0, mesh.position.y, 0))
+        .multiply(new THREE.Matrix4().makeScale(half * 2, HEIGHT * column.grown, half * 2));
+      node.world = matrix.toArray(node.world);
     }
   }
 
@@ -315,9 +364,9 @@ export class Beam {
     column.left = life;
     column.life = life;
     column.over = over;
-    column.group.position.set(x, y, z);
-    column.group.rotation.y = 0;
-    column.group.visible = true;
+    Object.assign(column, { x, y, z, turn: 0, grown: 1,
+      shaftAlpha: SHAFT_OPACITY, coreAlpha: CORE_OPACITY, shown: true });
+    this.sync(column);
   }
 
   private fade(dt: number): void {
@@ -325,24 +374,22 @@ export class Beam {
       if (column.left <= 0) continue;
       column.left -= dt;
       if (column.left <= 0) {
-        column.group.visible = false;
+        column.shown = false;
         column.over = null;
+        this.sync(column);
         continue;
       }
       const lived = column.life - column.left;
-      if (column.over) column.group.position.set(column.over.x, column.over.y, column.over.z);
-      const grown = Math.min(1, lived / STANDS_UP_IN);
-      for (const mesh of [column.shaft, column.core]) {
-        mesh.scale.y = HEIGHT * grown;
-        mesh.position.y = mesh.scale.y / 2;
-      }
-      column.group.rotation.y = (lived / column.life) * TURN;
+      if (column.over) Object.assign(column, { x: column.over.x, y: column.over.y, z: column.over.z });
+      column.grown = Math.min(1, lived / STANDS_UP_IN);
+      column.turn = (lived / column.life) * TURN;
       // it holds its brightness while the blocks are moving and goes out at the end, rather than
       // dimming the whole way down — a column that is fading for five seconds is a column nobody
       // believes is lit
       const gone = Math.max(0, 1 - column.left / FADES_IN);
-      (column.shaft.material as THREE.MeshBasicMaterial).opacity = SHAFT_OPACITY * (1 - gone);
-      (column.core.material as THREE.MeshBasicMaterial).opacity = CORE_OPACITY * (1 - gone);
+      column.shaftAlpha = SHAFT_OPACITY * (1 - gone);
+      column.coreAlpha = CORE_OPACITY * (1 - gone);
+      this.sync(column);
     }
   }
 
@@ -396,6 +443,8 @@ export class Beam {
     this.clearGhost();
     this.settle();
     for (const column of this.columns) {
+      if (column.shaftNode) this.graph?.remove(column.shaftNode);
+      if (column.coreNode) this.graph?.remove(column.coreNode);
       this.scene.remove(column.group);
       (column.shaft.material as THREE.Material).dispose();
       (column.core.material as THREE.Material).dispose();
