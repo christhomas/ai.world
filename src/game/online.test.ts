@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WORLD_PAUSE, WORLD_RESUME, type Link, type LinkEvents } from '../net/link';
 import { PROTOCOL_VERSION, type ServerMessage } from '../../server/protocol';
 import { Online, type OnlineEvents } from './online';
+import { ownerFromSave } from '../world/holdings';
 
 /**
  * A world that stops answering.
@@ -59,6 +60,20 @@ const standing = {
 };
 
 describe('a world that goes quiet', () => {
+  it('hands the daybook snapshot in a welcome to the game', () => {
+    const world = deadWorld();
+    const received: unknown[] = [];
+    const events = new Proxy({}, { get: (_target, key) => key === 'onHoldingDays'
+      ? (rows: unknown) => received.push(rows) : () => {} }) as OnlineEvents;
+    const online = new Online(events, world.linkFor);
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 });
+    const holdingDays = [{ village: 'Ashford', day: 5, holding: 'yard-1', kind: 'crew',
+      who: 'Bob', funder: ownerFromSave('Rich'), wage: 12, paid: 12 }];
+    world.say({ type: 'welcome', id: 'p1', seed: 3, players: [],
+      clock: { day: 5, time: 0.4 }, deltas: [], holdingDays });
+    expect(received).toEqual([holdingDays]);
+  });
+
   it('is noticed, said out loud, and joined again', () => {
     const world = deadWorld();
     const game = watching();
