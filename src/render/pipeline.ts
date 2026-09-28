@@ -42,7 +42,10 @@ export class ThreeFramePipeline implements FramePipeline {
       } else if (node.kind === 'point') {
         object = new THREE.PointLight(node.colour, node.intensity, node.distance, node.decay);
       } else if (node.kind === 'directional') {
-        object = new THREE.DirectionalLight(node.colour, node.intensity);
+        const directional = new THREE.DirectionalLight(node.colour, node.intensity);
+        directional.target.position.set(...(node.target ?? [0, 0, 0]));
+        scene.add(directional.target);
+        object = directional;
       } else if (node.kind === 'prop-batch') {
         const geometry = build(node.parts ?? []);
         const material = new THREE.MeshLambertMaterial({ vertexColors: true });

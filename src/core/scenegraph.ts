@@ -15,6 +15,7 @@ export type SceneNode =
   | { kind: 'ambient'; colour: number; intensity: number }
   | { kind: 'hemisphere'; sky: number; ground: number; intensity: number }
   | { kind: 'point'; colour: number; intensity: number; distance: number; decay: number; position: [number, number, number] }
+  | { kind: 'directional'; colour: number; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
   | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
       placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'water';
@@ -25,6 +26,7 @@ export class SceneGraph {
   readonly nodes: SceneNode[] = [];
   /** The camera chosen by the engine for the next submitted frame. */
   camera: FrameDescription['camera'] | null = null;
+  fog: FrameDescription['fog'] = null;
 
   constructor(public background: number) {}
 
@@ -41,7 +43,7 @@ export class SceneGraph {
     return {
       camera: this.camera,
       background: this.background,
-      fog: null,
+      fog: this.fog,
       nodes: this.nodes.map((node) => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
         if (node.kind === 'ambient') return { ...base, kind: 'ambient' as const, colour: node.colour, intensity: node.intensity };
@@ -51,6 +53,11 @@ export class SceneGraph {
         if (node.kind === 'point') return {
           ...base, kind: 'point' as const, colour: node.colour, intensity: node.intensity,
           distance: node.distance, decay: node.decay,
+          world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ...node.position, 1],
+        };
+        if (node.kind === 'directional') return {
+          ...base, kind: 'directional' as const, colour: node.colour, intensity: node.intensity,
+          castShadow: node.castShadow, target: node.target,
           world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ...node.position, 1],
         };
         if (node.kind === 'prop-batch') return {

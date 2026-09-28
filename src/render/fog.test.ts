@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { DayCycle } from './daycycle';
 import { fogReach, type SceneRig } from './scene';
 import { CAMERA, WORLD } from '../core/config';
+import { SceneGraph } from '../core/scenegraph';
 
 /**
  * Distance reads as distance, which in a terraced country it did not.
@@ -64,9 +65,17 @@ describe('how far the fog reaches', () => {
 const rig = (): SceneRig => {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x8fc1e6);
+  const graph = new SceneGraph(0x8fc1e6);
+  const lighting = {
+    sun: graph.add({ kind: 'directional', colour: 0xffffff, intensity: 1, position: [0, 1, 0], target: [0, 0, 0], castShadow: true }),
+    hemi: graph.add({ kind: 'hemisphere', sky: 0xffffff, ground: 0x000000, intensity: 1 }),
+    ambient: graph.add({ kind: 'ambient', colour: 0xffffff, intensity: 1 }),
+    lantern: graph.add({ kind: 'point', colour: 0xffb060, intensity: 0, distance: 9, decay: 1.6, position: [0, 0, 0] }),
+  };
   return {
     renderer: {} as THREE.WebGLRenderer,
     scene,
+    graph, lighting,
     sun: new THREE.DirectionalLight(),
     hemi: new THREE.HemisphereLight(),
     ambient: new THREE.AmbientLight(),
@@ -94,6 +103,11 @@ describe('the colour of the fog', () => {
       const sky = one.scene.background as THREE.Color;
       expect(one.scene.fog, 'there is no fog at all').toBeTruthy();
       expect((one.scene.fog as THREE.Fog).color.getHex()).toBe(sky.getHex());
+      expect(one.graph.background).toBe(sky.getHex());
+      expect(one.graph.fog?.colour).toBe((one.scene.fog as THREE.Fog).color.getHex());
+      expect(one.lighting.sun.intensity).toBe(one.sun.intensity);
+      expect(one.lighting.hemi.intensity).toBe(one.hemi.intensity);
+      expect(one.lighting.ambient.intensity).toBe(one.ambient.intensity);
     });
   }
 
