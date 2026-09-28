@@ -45,6 +45,10 @@ function roadRoute(graph: RoadGraph, from: { x: number; z: number }, to: { x: nu
     Math.hypot(node.x - point.x, node.z - point.z) < Math.hypot(graph.nodes[best].x - point.x, graph.nodes[best].z - point.z) ? i : best, 0);
   if (graph.nodes.length === 0) return null;
   const start = nearest(from), end = nearest(to);
+  // An endless world's other village may belong to another patch's graph. A distant nearest
+  // node would invent a road across that seam, so only use this graph for both of its own towns.
+  if (Math.hypot(graph.nodes[start].x - from.x, graph.nodes[start].z - from.z) > 20
+    || Math.hypot(graph.nodes[end].x - to.x, graph.nodes[end].z - to.z) > 20) return null;
   const neighbours: Array<Array<[number, number]>> = graph.nodes.map(() => []);
   for (const edge of graph.edges) {
     const a = graph.nodes[edge.a], b = graph.nodes[edge.b];
