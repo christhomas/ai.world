@@ -8,6 +8,7 @@ import {
 } from '../src/world/provinces';
 import { Manifest, type ManifestJson } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
+import type { HoldingBook, HoldingRecord } from '../src/world/holdingbook';
 
 /** One province's leavings, while somebody is near enough for them to matter. */
 interface Province {
@@ -85,6 +86,8 @@ export interface WorldFile {
    * in the registry and it was not there; the seed file is the one thing every world has.
    */
   manifest?: ManifestJson;
+  /** Recorded holding mornings, with village keys for replay after a restart. */
+  holdingDays?: HoldingRecord[];
 }
 
 /** What a stall did with what it was asked, and what the asker should be told. */
@@ -166,7 +169,7 @@ export class SharedWorld {
      * them is. So the simulation hands one over afterwards, and a test that only wants to watch the
      * compaction happen can pass one in.
      */
-    private register: { compact(day: number): void } | null = null,
+    private register: { compact(day: number): void; holdingsBook?: HoldingBook } | null = null,
   ) {
     const loaded = this.load();
     this.manifest = new Manifest(seed, loaded?.manifest);
@@ -179,6 +182,14 @@ export class SharedWorld {
     for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
     this.letters = loaded?.letters ?? [];
     for (const name of loaded?.folk ?? []) this.seen.add(name);
+    this.savedHoldingDays = loaded?.holdingDays;
+  }
+
+  private readonly savedHoldingDays: HoldingRecord[] | undefined;
+
+  /** The server's daybook, or the saved copy before its register has been grown. */
+  get holdingDays(): HoldingRecord[] {
+    return this.register?.holdingsBook?.records() ?? this.savedHoldingDays ?? [];
   }
 
   /** Everyone this world has ever seen. */
@@ -194,8 +205,9 @@ export class SharedWorld {
    * wants a register *for* is the one moment it is the only thing that knows about — a province
    * being written out with nobody near it, which is when ten slights become one opinion.
    */
-  keepsTheRegister(register: { compact(day: number): void }): void {
+  keepsTheRegister(register: { compact(day: number): void; holdingsBook?: HoldingBook }): void {
     this.register = register;
+    if (this.savedHoldingDays) register.holdingsBook?.restore(this.savedHoldingDays);
   }
 
   /**
@@ -520,6 +532,7 @@ export class SharedWorld {
       // written back rather than merely read: this rewrites the whole file, and a manifest left
       // out of it would be a world whose authored ground quietly vanished on the next save
       manifest: this.manifest.toJSON(),
+      holdingDays: this.holdingDays,
     };
     try {
       this.vault.write(this.path, JSON.stringify(file, null, 2));
