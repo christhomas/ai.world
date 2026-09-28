@@ -470,7 +470,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
             if (load?.kind === 'cart-loaded') chat.line(
               `The carrier from ${load.from} to ${load.to} was robbed. The food is gone and the buyers pay nothing.`, 'sys');
           }
-          const meals = claimCartCargo(state, online.id, register.carrierFacts());
+          const meals = claimCartCargo(state, online.name, register.carrierFacts());
           if (meals > 0) {
             hud.flash(`Took ${meals} meals from the cart`);
             persist();
