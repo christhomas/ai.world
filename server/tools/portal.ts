@@ -20,7 +20,7 @@ import registryPage from '../../tools/registry.html?raw';
  *
  * ## What is here and what is not
  *
- * This is the door and the catalogue. Running the Character Builder's Claude half through it is
+ * This is the door and the catalogue. Running the Character Builder's agent half through it is
  * #103 and is deliberately a separate thing, because it wants a worker on another machine with
  * different privileges; putting a command runner behind the same `if` as a login form is how a
  * portal becomes the most dangerous thing in a deployment.
@@ -234,7 +234,7 @@ const cataloguePage = (): string => page('ai.world tools', `
   <h1>ai.world tools</h1>
   ${CATALOGUE.map((tool) => `<a class="card" href="/tools/${tool.id}"><strong>${tool.name}</strong>`
     + `<div class="blurb">${tool.blurb}</div></a>`).join('')}
-  <a class="card" href="/tools/build/pair"><strong>Connect your builder</strong><div class="blurb">Pair Claude on your own machine.</div></a>
+  <a class="card" href="/tools/build/pair"><strong>Connect your builder</strong><div class="blurb">Pair the GPT-6 Sol worker on your own machine.</div></a>
   <form method="post" action="/tools/logout"><button type="submit">Sign out</button></form>`);
 
 /** Read a form body, with a ceiling on it: a login form is small and a megabyte of it is an attack. */
