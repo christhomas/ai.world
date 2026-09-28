@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bodyOf, share } from '../world/health';
 import type { AnimalKind, PartDef } from '../entities/animals';
 import type { Entity } from '../entities/entity';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
 
 /**
  * What a creature has left, shown over its head while it is being hit.
@@ -84,6 +85,8 @@ export function heightOf(kind: AnimalKind): number {
 export class HealthBars {
   private readonly back: THREE.InstancedMesh;
   private readonly fill: THREE.InstancedMesh;
+  private readonly backNode?: Extract<SceneNode, { kind: 'instances' }>;
+  private readonly fillNode?: Extract<SceneNode, { kind: 'instances' }>;
   private readonly m = new THREE.Matrix4();
   private readonly pos = new THREE.Vector3();
   private readonly scl = new THREE.Vector3();
@@ -98,12 +101,41 @@ export class HealthBars {
    */
   private span = 1;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, private readonly graph?: SceneGraph) {
     this.back = this.mesh(scene, BACK, false, 2);
     // white, because what is written per instance *multiplies* the material's own colour: a green
     // material under a half-spent olive instance comes out very nearly black, which is how the
     // first bar in the game managed to be two colours of dark
     this.fill = this.mesh(scene, new THREE.Color(0xffffff), true, 3);
+    this.backNode = graph && this.describe(graph, this.back, 0x101418, 2);
+    this.fillNode = graph && this.describe(graph, this.fill, 0xffffff, 3);
+  }
+
+  /** Publish the exact instance buffers to the neutral owner alongside their live Three adapter. */
+  private describe(
+    graph: SceneGraph, mesh: THREE.InstancedMesh, colour: number, order: number,
+  ): Extract<SceneNode, { kind: 'instances' }> {
+    const position = mesh.geometry.getAttribute('position');
+    const normal = mesh.geometry.getAttribute('normal');
+    const indices = mesh.geometry.index?.array;
+    const node: Extract<SceneNode, { kind: 'instances' }> = {
+      kind: 'instances', colour, count: 0,
+      geometry: {
+        positions: position.array as Float32Array,
+        normals: normal.array as Float32Array,
+        indices: indices as Uint16Array | Uint32Array | undefined,
+      },
+      matrices: mesh.instanceMatrix.array as Float32Array,
+      colours: mesh.instanceColor?.array as Float32Array | undefined,
+      castShadow: false, receiveShadow: false, renderOrder: order,
+      material: {
+        intent: 'unlit', colour, vertexColours: false,
+        transparent: false, opacity: 1, depthWrite: false, depthTest: false,
+        toneMapped: false, side: 'front', effects: [],
+      },
+    };
+    graph.add(node);
+    return node;
   }
 
   private mesh(scene: THREE.Scene, colour: THREE.Color, coloured: boolean, order: number): THREE.InstancedMesh {
@@ -210,6 +242,8 @@ export class HealthBars {
         mesh.instanceColor.needsUpdate = true;
       }
     }
+    if (this.backNode) this.backNode.count = this.count;
+    if (this.fillNode) this.fillNode.count = this.count;
   }
 
   /** How many are up, which is what a test asks and what the debug line can say. */
@@ -221,5 +255,9 @@ export class HealthBars {
       (mesh.material as THREE.Material).dispose();
       mesh.removeFromParent();
     }
+    // Retire the neutral records with the adapters, so a later capture cannot see disposed bars.
+    // SceneGraph ownership is available only when this renderer was given a graph.
+    if (this.backNode) this.graph?.remove(this.backNode);
+    if (this.fillNode) this.graph?.remove(this.fillNode);
   }
 }

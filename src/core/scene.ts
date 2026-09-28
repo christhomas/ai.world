@@ -40,6 +40,10 @@ export interface FrameDescription {
       vertexColours: boolean; transparent: boolean; opacity: number;
       depthWrite: boolean; side: 'front' | 'back' | 'double'; effects: string[];
       size?: number;
+      /** Optional depth-buffer behavior for interface-like instances. */
+      depthTest?: boolean;
+      /** Whether display transforms should affect this material. */
+      toneMapped?: boolean;
     };
     materials?: NonNullable<FrameDescription['nodes'][number]['material']>[];
     groups?: Array<{ start: number; count: number; materialIndex: number }>;
