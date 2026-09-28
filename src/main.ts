@@ -4,8 +4,8 @@ import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
 import { QUALITY, createSceneRig } from './render/scene';
+import { surfaceRenderers } from './render/surface';
 import { isOn } from './ui/switches';
-import { DropField } from './render/drops';
 import { Remains } from './game/remains';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
@@ -13,14 +13,12 @@ import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
 import { bookOf, tellingTheWorld, wordOfARobbery } from './game/folk';
 import { Skies } from './game/skies';
-import { putBoatIn } from './render/boat';
 import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
 import { Places } from './game/places';
-import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
 import { Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
@@ -29,11 +27,7 @@ import { Compass } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
-import { CropField } from './render/crops';
-import { BuildingSite } from './render/site';
 import { whatTheVillagesRaised } from './game/villageroofs';
-import { Beam } from './render/beam';
-import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
@@ -51,7 +45,6 @@ import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
-import { EntityRenderer } from './render/entities';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
@@ -71,15 +64,9 @@ import { installProbes } from './game/probes';
 import { openConsole } from './game/console';
 import { createDoorsteps, gatesOf } from './game/doorways';
 import { createBlows } from './game/blows';
-import { Updraughts } from './render/updraughts';
-import { Swallows } from './render/swallows';
-import { Shafts } from './render/shafts';
 import { createWaysIn } from './game/waysin';
 import { openCountry } from './game/shafts';
-import { putFerriesOut } from './render/ferries';
 import { makeFerryLines } from './game/ferry';
-import { WhaleSchool } from './render/whales';
-import { CampField } from './render/wildcamps';
 import { RecordingPipeline } from './render/recording';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
@@ -183,7 +170,8 @@ export function startGame(
   // screens, so this is the one place the two are introduced
   const kinPanel = new KinPanel();
   const roster = new Roster();          // everybody in the world, read live off the register
-  const entityRenderer = new EntityRenderer(rig.scene, rig.graph);
+  const surface = surfaceRenderers(rig.graph, props, daycycle, seed);
+  const entityRenderer = surface.entities();
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
   const register = new Register(seed, 1, () => {}, 'journaled');
   register.theyStandAt(structures.villages);
@@ -212,19 +200,19 @@ export function startGame(
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   const sound = new Sound();
-  const weather = new Weather(rig.scene, rig.graph);
+  const weather = surface.weather();
   const fishing = new Fishing();
   const journal = new Journal();
   const clock = new Clock();
   const compass = new Compass();
   const photo = new PhotoMode();
-  const heroGear = new HeroGear(rig.scene, rig.graph);
+  const heroGear = surface.gear();
   // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
-  const updraughts = new Updraughts(rig.scene, seed, rig.graph);   // the warm air, drawn where a glider finds it
-  const seaEyes = new Swallows(rig.scene, seed, rig.graph);        // and the water that goes down, drawn where it turns
-  const holes = new Shafts(rig.scene, seed, rig.graph);            // and the shafts, drawn so they can be walked to
-  const beam = new Beam(rig.scene, entityRenderer, heroGear.group, rig.graph);
+  const updraughts = surface.updraughts();   // the warm air, drawn where a glider finds it
+  const seaEyes = surface.swallows();        // and the water that goes down, drawn where it turns
+  const holes = surface.shafts();            // and the shafts, drawn so they can be walked to
+  const beam = surface.beam(entityRenderer, heroGear);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const chat = new Chat();
@@ -235,9 +223,9 @@ export function startGame(
 
   // Combat breath refills quickly, so it is not saved.
   const breath = new Breath();
-  const ownBoat = putBoatIn(rig.scene, rig.graph);
-  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
-  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial, rig.graph);
+  const ownBoat = surface.boat();
+  const cropField = surface.crops();
+  const buildingSite = surface.buildingSite();
   // and on the same sites, the houses the villages built themselves — and, out of the same book and
   // on the same day, the acres they cleared to fields: `game/villageroofs.ts` owns both, because
   // this file is assembly and a feature that needs six lines of it is wired in the wrong place
@@ -282,7 +270,7 @@ export function startGame(
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
-  const ferries = putFerriesOut(makeFerryLines(structures, structures.villages, graph.islands), rig.scene, rig.graph);
+  const ferries = surface.ferries(makeFerryLines(structures, structures.villages, graph.islands));
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
@@ -492,7 +480,7 @@ export function startGame(
 
   // packs left where people fell, and the bundles that show them
   const remains = new Remains();
-  const packField = new DropField(rig.scene, rig.graph);
+  const packField = surface.drops();
 
   // every memory made on this page goes through one door, and the world is on the far side of it
   const recall = tellingTheWorld((who, what, about) => online.recall(who, what, about));
@@ -586,7 +574,7 @@ export function startGame(
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
-    school: new WhaleSchool(rig.scene, rig.graph), campField: new CampField(rig.scene, rig.graph),
+    school: surface.whales(), campField: surface.camps(),
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     knockOut,

@@ -6,8 +6,15 @@ import type { DungeonWorld } from '../dungeon/world';
 import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { mountSceneGraph } from './scenegraph';
 import { bindGraphMount } from './graphmount';
+import { nativeRig, type SceneRig } from './scene';
 
 const MAX_TORCH_LIGHTS = 10;
+
+/** Construct the dungeon adapter without handing its WebGL water material to game code. */
+export function dungeonSceneFor(rig: SceneRig, world: DungeonWorld, props: PropLibrary,
+  seed: number, opened: Set<string>): DungeonScene {
+  return new DungeonScene(world, props, nativeRig(rig).water.material, seed, opened);
+}
 
 /**
  * What the walls of each sort of place are made of.
