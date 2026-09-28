@@ -77,6 +77,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A feature-based review branch is validated with the final batch PR to main.
+          # Do not spend a full hosted playtest on every intermediate branch push.
+          if [ "${{ github.event_name }}" = 'pull_request' ] && [ "$GITHUB_BASE_REF" != 'main' ]; then
+            echo "pull request targets $GITHUB_BASE_REF — final batch will run checks"
+            echo 'run=no' >> "$GITHUB_OUTPUT"; exit 0
+          fi
           if [ "${{ github.event_name }}" != 'push' ]; then
             echo 'run=yes' >> "$GITHUB_OUTPUT"; exit 0
           fi
