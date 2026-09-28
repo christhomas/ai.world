@@ -6,6 +6,7 @@ import { EntityRenderer } from './entities';
 import { mulberry32 } from '../core/rng';
 import { BEHAVIOUR } from '../entities/properties';
 import { BAR, HealthBars, heightOf } from './healthbars';
+import { SceneGraph } from '../core/scenegraph';
 
 /**
  * What a creature has left, over its head.
@@ -138,7 +139,9 @@ describe('a health bar', () => {
 
   it('is drawn by the renderer for the creatures it draws, and only when there is a camera', () => {
     const scene = new THREE.Scene();
-    const renderer = new EntityRenderer(scene);
+    const graph = new SceneGraph(0x102030);
+    graph.camera = { projection: [], world: [], orthographic: true };
+    const renderer = new EntityRenderer(scene, graph);
     const wolf = creature('wolf', 2, 2);
     renderer.add(wolf);
     damageEntity(wolf, 1, 9, 2, FIELD);
@@ -147,10 +150,37 @@ describe('a health bar', () => {
     expect(renderer.barsShowing, 'bars were written with nobody looking').toBe(0);
     renderer.update(new THREE.OrthographicCamera());
     expect(renderer.barsShowing, 'a hurt wolf in shot has nothing over its head').toBe(1);
+    const bars = graph.nodes.filter((node) => node.kind === 'instances' && node.renderOrder !== undefined);
+    expect(bars).toHaveLength(2);
+    expect(bars.map((node) => node.kind === 'instances' ? [node.count, node.renderOrder] : null))
+      .toEqual([[1, 2], [1, 3]]);
+    const [back, fill] = graph.frame().nodes.filter((node) => node.kind === 'instances' && node.renderOrder !== undefined);
+    expect(back).toMatchObject({
+      renderOrder: 2,
+      material: { intent: 'unlit', depthWrite: false, depthTest: false, toneMapped: false, colour: 0x101418 },
+      instanceMatrices: expect.any(Float32Array),
+    });
+    expect(fill).toMatchObject({
+      renderOrder: 3,
+      material: { intent: 'unlit', depthWrite: false, depthTest: false, toneMapped: false, colour: 0xffffff },
+      instanceColours: expect.any(Float32Array),
+    });
+    expect(back?.instanceMatrices).toHaveLength(16);
+    expect(fill?.instanceColours).toHaveLength(3);
 
     // a body is not a patient: nothing over a dead thing
     wolf.dead = true;
     renderer.update(new THREE.OrthographicCamera());
     expect(renderer.barsShowing, 'a bar over a corpse').toBe(0);
+    expect(graph.nodes.filter((node) => node.kind === 'instances' && node.renderOrder !== undefined)
+      .every((node) => node.kind === 'instances' && node.count === 0)).toBe(true);
+  });
+
+  it('retires graph-owned bar instances when disposed', () => {
+    const graph = new SceneGraph(0x102030);
+    const bars = new HealthBars(new THREE.Scene(), graph);
+    expect(graph.nodes.filter((node) => node.kind === 'instances')).toHaveLength(2);
+    bars.dispose();
+    expect(graph.nodes).toHaveLength(0);
   });
 });

@@ -284,7 +284,7 @@ export class EntityRenderer {
   private readonly bars: HealthBars;
 
   constructor(private readonly scene: THREE.Scene, private readonly graph?: SceneGraph) {
-    this.bars = new HealthBars(scene);
+    this.bars = new HealthBars(scene, graph);
   }
 
   private pool(kind: AnimalKind): KindPool {

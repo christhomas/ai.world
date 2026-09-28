@@ -20,7 +20,12 @@ export type SceneNode =
   | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
       placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
-      matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean }
+      matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean;
+      renderOrder?: number; material?: {
+        intent?: 'lit' | 'unlit'; colour?: number; emissive?: number; vertexColours?: boolean;
+        transparent?: boolean; opacity?: number; depthWrite?: boolean; depthTest?: boolean;
+        toneMapped?: boolean; side?: 'front' | 'back' | 'double'; effects?: string[];
+      } }
   | { kind: 'points'; positions: Float32Array; colour: number; size: number; opacity: number; visible: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'lit-solid' | 'water'; colour?: number;
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[];
@@ -72,10 +77,10 @@ export class SceneGraph {
         };
         if (node.kind === 'instances') return {
           ...base, kind: 'instances' as const, castShadow: node.castShadow,
-          receiveShadow: node.receiveShadow,
+          receiveShadow: node.receiveShadow, renderOrder: node.renderOrder,
           material: { intent: 'lit' as const, colour: node.colour, emissive: 0,
             vertexColours: false, transparent: false, opacity: 1, depthWrite: true,
-            side: 'front' as const, effects: [] },
+            side: 'front' as const, effects: [], ...node.material },
           attributes: {
             position: { size: 3, values: node.geometry.positions },
             normal: { size: 3, values: node.geometry.normals },
