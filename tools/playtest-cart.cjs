@@ -85,6 +85,12 @@ module.exports = async function playCart(page, say, go, face) {
 
   await go(body.x, body.z, 800);
   await page.evaluate(() => window.__ride(true));
+  // The earlier wall check may already own a horse parked in the village. Give the mounted update
+  // a frame to bring that horse under its rider before dismounting at this distant carcass.
+  await page.waitForFunction(() => {
+    const mount = window.__mount();
+    return mount.horse && mount.under < 0.2;
+  }, null, { timeout: 5000 });
   await page.evaluate(() => window.__ride(false));
   phase(`at carcass ${JSON.stringify(await snapshot())}`);
   await page.keyboard.press('Enter');
