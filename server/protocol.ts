@@ -456,7 +456,7 @@ export type ClientMessage =
    * durable handle whose seed the server has already recorded; no terrain discriminator travels
    * because the endless country is the only country the running game can grow.
    */
-  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
+  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -1213,9 +1213,13 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
         || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving
         || (delta.robber !== undefined && (delta.outcome !== 'robbed'
           || typeof delta.robber !== 'string' || delta.robber.length < 1
-          || delta.robber.length > LIMITS.NAME))) return null;
+          || delta.robber.length > LIMITS.NAME))
+        || (delta.robberId !== undefined && (delta.outcome !== 'robbed'
+          || typeof delta.robberId !== 'string' || !/^[0-9a-f-]{36}$/i.test(delta.robberId)))) return null;
       return { kind: 'cart-finished', day: delta.day, loadedOn: delta.loadedOn,
-        outcome: delta.outcome, receiving, ...(delta.robber === undefined ? {} : { robber: delta.robber }) };
+        outcome: delta.outcome, receiving,
+        ...(delta.robber === undefined ? {} : { robber: delta.robber }),
+        ...(delta.robberId === undefined ? {} : { robberId: delta.robberId }) };
     }
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };
