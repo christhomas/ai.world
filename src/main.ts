@@ -374,6 +374,7 @@ export function startGame(
   /** What a village you saved does for you, filled in once the interactions exist. */
   let villageWelcome: (village: string) => Kindness | null = () => null;
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
+  let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
     register, hires,
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso.camera,
@@ -407,10 +408,12 @@ export function startGame(
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
     onCountryProgress: (done, total) => {
+      preparingRemoteCountry = true;
       chunks.aWorldIsGrowingIt();
       hud.setLoading(`Preparing world — ${done} of ${total} pieces ready`);
     },
     onCountryGrown: (stamp, theirKind) => {
+      if (preparingRemoteCountry) { hud.hideLoading(); preparingRemoteCountry = false; }
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`, and
       // `growCountry` for why the country takes its own rather than this taking one of it
