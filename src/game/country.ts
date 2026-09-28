@@ -195,7 +195,7 @@ export function growCountry(ctx: Growing) {
    * leaves the scene, its geometry is disposed, the new one is built — and handed the same ranges
    * twice it does nothing, so the endless world can call it on every crossing without asking first.
    */
-  const mountains = new Mountains(rig.scene, rock.material);
+  const mountains = new Mountains(rig.scene, rock.material, rig.graph);
   mountains.show(sampler.ranges);
   // and the camera's own answer to them: it stands further back near a range, because a peak is
   // taller than the picture is and would otherwise be cut off by the top of its own frustum

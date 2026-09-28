@@ -45,6 +45,7 @@ export class ThreeGraphBridge {
     mesh.castShadow = node.castShadow ?? false;
     mesh.receiveShadow = node.receiveShadow;
     mesh.renderOrder = node.renderOrder ?? 0;
+    mesh.frustumCulled = node.frustumCulled ?? true;
     mesh.matrixAutoUpdate = false;
     if (node.world) mesh.matrix.fromArray(node.world);
     mesh.updateMatrixWorld(true);
@@ -112,6 +113,7 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
       mesh.castShadow = node.castShadow ?? false;
       mesh.receiveShadow = node.receiveShadow;
       mesh.renderOrder = node.renderOrder ?? 0;
+      mesh.frustumCulled = node.frustumCulled ?? true;
       if (node.world) { mesh.matrixAutoUpdate = false; mesh.matrix.fromArray(node.world); mesh.updateMatrixWorld(true); }
       scene.add(mesh);
       resources.push(geometry);

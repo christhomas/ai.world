@@ -22,7 +22,8 @@ export type SceneNode =
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
       matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'lit-solid' | 'water'; colour?: number;
-      castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[] };
+      castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[];
+      frustumCulled?: boolean; effects?: string[] };
 
 /** The engine owns these values; a renderer decides how to display them. */
 export class SceneGraph {
@@ -91,7 +92,7 @@ export class SceneGraph {
             intent: node.material === 'water' ? 'water' as const : 'lit' as const,
             colour: node.colour ?? 0xffffff, emissive: 0, vertexColours: node.material !== 'lit-solid',
             transparent: node.material === 'water', opacity: 1, depthWrite: node.material !== 'water',
-            side: 'front' as const, effects: [],
+            side: 'front' as const, effects: node.effects ?? [],
           },
           attributes: {
             position: { size: 3, values: node.geometry.positions },
