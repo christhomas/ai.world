@@ -167,6 +167,8 @@ describe('the simulation, hosted by nothing at all', () => {
     const book = new HoldingBook();
     book.stood('Ashford', 5, [{ day: 5, holding: 'yard-1', kind: 'crew', who: 'Bob',
       funder: ownerFromSave('Rich'), wage: 12, paid: 12 }], new Map());
+    book.earned('Ashford', [{ type: 'income', day: 5, holding: 'farm-1',
+      owner: ownerFromSave('Rich'), cattle: 2.16, crop: 1.24 }]);
     sim.rooms.get(7)!.world.keepsTheRegister({ compact: () => {}, holdingsBook: book });
     const wren = new Pretend(sim).join(7, 'Wren');
     expect(wren.of('welcome')[0].holdingDays).toEqual(book.records());

@@ -7,6 +7,7 @@ import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { wellEnough } from './ailments';
 import { fieldCrop } from './fields';
+import type { HoldingIncomeSource } from './holdingincome';
 import { priceOfAMeal } from './prices';
 
 /**
@@ -34,7 +35,6 @@ import { priceOfAMeal } from './prices';
  *   the village buys it. Exactly what the trade's behaviour tree already does in front of a
  *   player — `goTo woods`, `stalkQuarry`, `take`, `goTo market`, `sell` — and this is the same day
  *   for the hunters nobody happens to be watching.
- *
  * ## The rule the whole file is held to
  *
  * **A coin leaving one purse arrives in another.** Every function here that takes money from
@@ -44,7 +44,6 @@ import { priceOfAMeal } from './prices';
  * village with nobody to buy from spends its keep on a passing pedlar and never sees it again.
  * Anything else would be the old invisible hand under a new name.
  */
-
 export const LIVELIHOOD = {
   /**
    * The share of what a villager has spare that the hall takes each day.
@@ -188,7 +187,6 @@ export function pitchFor(person: Person): number {
   return Math.min(LIVELIHOOD.SELLING, Math.max(0, person.purse - PROSPER.KEEPS_BACK));
 }
 
-
 /**
  * Hand a pool of money out in proportion to a set of shares.
  *
@@ -304,6 +302,7 @@ export function paidForService(people: readonly Person[], upkeep: number): Map<O
 
 /** What one day of one village's working life did to every purse in it. */
 export interface Trading {
+  holdingIncome: HoldingIncomeSource;
   /** The herd this evening. */
   herd: number;
   /** Meals into the larder: the gardens, the fields, the woods and the butcher. */
@@ -401,7 +400,8 @@ export function aDaysTrade(
     keep();
     // an empty map rather than none: the fields *were* counted and a raided village grew nothing,
     // which is the number the larder took and so the number the dinner money has to agree with
-    return { herd, grown: 0, fields: new Map(), meat: 0, fish: 0, shore: coast.shore, toTheHall: 0, paid };
+    return { herd, grown: 0, fields: new Map(), meat: 0, fish: 0, shore: coast.shore, toTheHall: 0, paid,
+      holdingIncome: { fields: [], cattle: [] } };
   }
 
   // a man who is laid up does not work, and his trade earns the village nothing while he is: see
@@ -452,7 +452,8 @@ export function aDaysTrade(
   // moves anywhere it did not move before. See `shareTheTake`
   const take = farms
     ? shareTheTake(farms, cattle.gold, people)
-    : { purses: shareOut(cattle.gold, new Map(farmers.map((p) => [ownedBy(p), 1]))), toTheHall: 0 };
+    : { purses: shareOut(cattle.gold, new Map(farmers.map((p) => [ownedBy(p), 1]))), toTheHall: 0,
+      byHolding: [] };
   for (const [id, much] of take.purses) add(id, much);
   /*
    * And the fish, the same way, which is the fourth — and the first one a village can *build*.
@@ -491,6 +492,7 @@ export function aDaysTrade(
     grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore, 0), 0)
       + crop.meals + cattle.meals + caught.meals,
     fields: crop.fields,
+    holdingIncome: { fields: crop.byHolding, cattle: take.byHolding },
     meat: cattle.meals,
     fish: caught.meals,
     shore: coast.shore,
