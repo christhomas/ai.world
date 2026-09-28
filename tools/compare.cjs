@@ -81,39 +81,45 @@ async function main() {
 
   for (const name of mine.sort()) {
     if (!theirs.has(name)) { lines.push(`  NEW    ${name}`); told++; continue; }
-    const read = async (file) => {
-      const png = fs.readFileSync(file).toString('base64');
-      return page.evaluate(async (b64) => {
+    // Decode and count inside Chromium. Sending two full RGBA arrays over Playwright's protocol
+    // made a single wide picture take minutes; this job now compares every scripted scene.
+    const [reference, capture] = [path.join(THERE, name), path.join(HERE, name)]
+      .map((file) => fs.readFileSync(file).toString('base64'));
+    const result = await page.evaluate(async ({ reference, capture, shade }) => {
+      const read = async (b64) => {
         const img = new Image();
         img.src = `data:image/png;base64,${b64}`;
         await img.decode();
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        const { data, width, height } = canvas.getContext('2d')
-          .getImageData(0, 0, canvas.width, canvas.height);
-        return { width, height, data: Array.from(data) };
-      }, png);
-    };
-    const before = await read(path.join(THERE, name));
-    const after = await read(path.join(HERE, name));
-    if (before.width !== after.width || before.height !== after.height) {
-      lines.push(`  SIZE   ${name}: ${before.width}x${before.height} against ${after.width}x${after.height}`);
+        const context = canvas.getContext('2d');
+        context.drawImage(img, 0, 0);
+        return context.getImageData(0, 0, canvas.width, canvas.height);
+      };
+      const before = await read(reference);
+      const after = await read(capture);
+      if (before.width !== after.width || before.height !== after.height) {
+        return { before: [before.width, before.height], after: [after.width, after.height] };
+      }
+      let moved = 0;
+      const of = before.width * before.height;
+      for (let at = 0; at < of; at++) {
+        const px = at * 4;
+        const apart = Math.max(
+          Math.abs(before.data[px] - after.data[px]),
+          Math.abs(before.data[px + 1] - after.data[px + 1]),
+          Math.abs(before.data[px + 2] - after.data[px + 2]),
+        );
+        if (apart >= shade) moved++;
+      }
+      return { moved, of };
+    }, { reference, capture, shade });
+    if (result.before) {
+      lines.push(`  SIZE   ${name}: ${result.before.join('x')} against ${result.after.join('x')}`);
       told++;
       continue;
     }
-    let moved = 0;
-    const of = before.width * before.height;
-    for (let at = 0; at < of; at++) {
-      const px = at * 4;
-      const apart = Math.max(
-        Math.abs(before.data[px] - after.data[px]),
-        Math.abs(before.data[px + 1] - after.data[px + 1]),
-        Math.abs(before.data[px + 2] - after.data[px + 2]),
-      );
-      if (apart >= shade) moved++;
-    }
-    const share = of === 0 ? 0 : moved / of;
+    const share = result.of === 0 ? 0 : result.moved / result.of;
     worst = Math.max(worst, share);
     if (share > much) { told++; lines.push(`  MOVED  ${name}: ${(share * 100).toFixed(2)}% of it`); }
   }
