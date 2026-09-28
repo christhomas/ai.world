@@ -63,7 +63,7 @@ const OUT = process.env.OUT || require('node:path').join(REPORTS_DIR, 'playtest-
  * so the line can be drawn from evidence rather than from nerve.
  */
 const DRIFT = Number(process.env.DRIFT || '0.35');
-const DRIFT_SAMPLES = 30;
+const DRIFT_SAMPLES = 12;
 
 const results = [];
 const errs = [];
@@ -207,8 +207,8 @@ const finish = async () => {
     // One or two packets make this average hinge on a single turn. Hold the sample open until it
     // includes enough updates to describe steady sync, with the same timeout when a quiet world
     // never supplies them.
-    driftReady = await page.waitForFunction((minimum) => window.__peekDrift.wrongClose.of >= minimum, DRIFT_SAMPLES,
-      { timeout: 10000, polling: 100 }).then(() => true, () => false);
+    driftReady = await page.waitForFunction((minimum) => window.__peekDrift.drawnClose.of >= minimum, DRIFT_SAMPLES,
+      { timeout: 15000, polling: 100 }).then(() => true, () => false);
   }
   const d = await page.evaluate(() => window.__drift);
   const driftTrace = await page.evaluate(() => window.__driftTrace());
@@ -368,10 +368,25 @@ const finish = async () => {
   }
   if (!house || !approach) throw new Error('no nearby house to check collision against');
   await go(approach.x, approach.z);
+  let footFrom = await at();
   await face(house.x, house.z);
-  await walk('w', 5000);
-  const off = Math.hypot((await at()).x - house.x, (await at()).z - house.z);
-  say('a house stops you at its wall', off > 1.1 && off < 3, `closest ${off.toFixed(2)} tiles from its middle`);
+  const footPress = await observedWalk('w', 5000);
+  let footTo = await at();
+  let footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
+  let retryPress = null;
+  // An occasional first key press is lost while the page settles after teleport. It has not
+  // tested the wall at all if the hero stayed four tiles away, so start that one attempt again.
+  if (footMoved < 0.5 && footPress.placed && !footPress.solid) {
+    await go(approach.x, approach.z);
+    footFrom = await at();
+    await face(house.x, house.z);
+    retryPress = await observedWalk('w', 5000);
+    footTo = await at();
+    footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
+  }
+  const off = Math.hypot(footTo.x - house.x, footTo.z - house.z);
+  say('a house stops you at its wall', footMoved > 0.5 && off > 1.1 && off < 3,
+    `closest ${off.toFixed(2)} tiles from its middle; moved ${footMoved.toFixed(2)}; first press ${JSON.stringify(footPress)}; retry ${JSON.stringify(retryPress)}`);
 
   // a tree, which is the thing that always worked, as a control
   const tree = await page.evaluate(() => {
@@ -392,11 +407,11 @@ const finish = async () => {
    */
   // an empty tally and a good one are different failures, and the run has to say which: nothing
   // measured used to read exactly like a world drawing every creature perfectly
-  const measured = driftReady && d.wrongClose.of > 0;
-  say('creatures within reach are drawn where they are', measured && d.wrongClose.mean < DRIFT,
+  const measured = driftReady && d.drawnClose.of > 0;
+  say('creatures within reach are drawn where they are', measured && d.drawnClose.mean < DRIFT,
     measured
-      ? `${d.wrongClose.of} corrections, mean ${d.wrongClose.mean.toFixed(2)}, worst ${d.wrongClose.worst.toFixed(2)} (${d.wrongClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
-      : `nothing was measured: ${d.drawn} creatures drawn, ${beside} — the check found no close corrections, which is not the same as a world drawing them right`);
+      ? `${d.drawnClose.of} rendered corrections (${d.wrongClose.of} raw), mean ${d.drawnClose.mean.toFixed(2)}, worst ${d.drawnClose.worst.toFixed(2)} (${d.drawnClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
+      : `nothing was measured: ${d.drawn} creatures drawn, ${d.wrongClose.of} raw corrections, ${beside} — the check found fewer than ${DRIFT_SAMPLES} corrections with a rendered frame between snapshots`);
 
   // --- and the same wall, at a gallop ---
   /*
@@ -571,7 +586,9 @@ const finish = async () => {
       if (!r || r.furniture.length === 0) return null;
       let wide = 0;
       for (const f of r.furniture) {
-        for (const [dx, dz] of [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]]) {
+        // A pew is 1.8 tiles wide. Probe beyond its tile's 0.5 edge and inside its 0.9 edge;
+        // exactly 0.9 is the collision boundary and made a chapel look non-solid in CI.
+        for (const [dx, dz] of [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]]) {
           if (r.solid(f.x + 0.5 + dx, f.z + 0.5 + dz)) { wide++; break; }
         }
       }

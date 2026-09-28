@@ -112,6 +112,28 @@ describe('the world correcting a predicted fight', () => {
 });
 
 describe('a drawn creature falling behind its snapshots', () => {
+  it('counts a correction as drawn only after a rendered frame', () => {
+    vi.useFakeTimers();
+    const wildlife = world();
+    const hero = { x: 0, z: 0 };
+    wildlife.apply([snap(1, 'goat', 1, 0)], [], hero);
+    vi.advanceTimersByTime(100);
+    wildlife.apply([snap(1, 'goat', 1.4, 0)], [], hero);
+    vi.advanceTimersByTime(100);
+    wildlife.apply([snap(1, 'goat', 1.8, 0)], [], hero);
+
+    const queued = wildlife.drift();
+    expect(queued.wrongClose.of, 'the raw diagnostic still records queued corrections').toBe(2);
+    expect(queued.drawnClose.of, 'no image was drawn between these messages').toBe(0);
+
+    wildlife.update(1 / 60);
+    vi.advanceTimersByTime(100);
+    wildlife.apply([snap(1, 'goat', 2, 0)], [], hero);
+    const drawn = wildlife.drift();
+    expect(drawn.drawnClose.of).toBe(1);
+    expect(drawn.drawnClose.mean).toBeGreaterThanOrEqual(0);
+  });
+
   it('keeps a bounded, read-only trace of snapshot corrections with frame context', () => {
     vi.useFakeTimers();
     const wildlife = world();
