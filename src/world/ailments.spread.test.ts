@@ -19,19 +19,19 @@ describe('contact transmission', () => {
   it('spreads from a sick neighbour above the spontaneous rate, without changing the two-roll budget', () => {
     const people = [person('sick', 4), person('contact')];
     let used = 0;
-    const rng = () => { used++; return used === 3 ? 0.1 : 0.99; };
+    const rng = () => { used++; return used === 3 ? 0.05 : 0.99; };
     fallIll(people, rng, { baths: false, day: 2 });
     expect(people[1].ill).toBeGreaterThan(0);
     expect(used).toBe(4);
 
     const isolated = [person('sick', 4), person('contact')];
-    fallIll(isolated, rolls(0.99, 0.99, 0.1, 0.99), { baths: false, day: 2, contacts: false });
+    fallIll(isolated, rolls(0.99, 0.99, 0.05, 0.99), { baths: false, day: 2, contacts: false });
     expect(isolated[1].ill).toBeUndefined();
   });
 
   it('uses yesterday’s sick snapshot, so a new case cannot infect another person in the same pass', () => {
     const people = [person('sick', 4), person('first'), person('second')];
-    fallIll(people, rolls(0.99, 0.99, 0.05, 0.99, 0.2, 0.99), { baths: false, day: 2 });
+    fallIll(people, rolls(0.99, 0.99, 0.02, 0.99, 0.07, 0.99), { baths: false, day: 2 });
     expect(people[1].ill).toBeGreaterThan(0);
     expect(people[2].ill).toBeUndefined();
   });
@@ -39,8 +39,8 @@ describe('contact transmission', () => {
   it('bathhouse hygiene suppresses both spontaneous and contact infections', () => {
     const plain = [person('sick', 4), person('contact')];
     const bathed = [person('sick', 4), person('contact')];
-    fallIll(plain, rolls(0.99, 0.99, 0.14, 0.99), { baths: false, day: 2 });
-    fallIll(bathed, rolls(0.99, 0.99, 0.14, 0.99), { baths: true, day: 2 });
+    fallIll(plain, rolls(0.99, 0.99, 0.055, 0.99), { baths: false, day: 2 });
+    fallIll(bathed, rolls(0.99, 0.99, 0.055, 0.99), { baths: true, day: 2 });
     expect(plain[1].ill).toBeGreaterThan(0);
     expect(bathed[1].ill).toBeUndefined();
   });
@@ -53,7 +53,7 @@ describe('contact transmission', () => {
     expect(moved).toHaveLength(2);
     expect(destination.people[0].ill).toBe(4);
     expect(destination.people[0].village).toBe('Pine');
-    fallIll(destination.people, rolls(0.99, 0.99, 0.1, 0.99), { baths: false, day: 21 });
+    fallIll(destination.people, rolls(0.99, 0.99, 0.05, 0.99), { baths: false, day: 21 });
     expect(destination.people[1].ill).toBeGreaterThan(0);
   });
 
