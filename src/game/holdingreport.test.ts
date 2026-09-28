@@ -47,6 +47,16 @@ describe('the hall report for returning holding owners', () => {
       .toEqual(['The hall of Ashford has no holdings in your name.']);
   });
 
+  it('reports a same-day repeat as no new mornings', () => {
+    const held = book();
+    const firstVisit = holdingReport('Ashford', owner, holdings, held, 5, 6, (id) => id).join(' ');
+    expect(firstVisit).toContain('1 morning of work');
+    const secondVisit = holdingReport('Ashford', owner, holdings, held, 6, 6, (id) => id).join(' ');
+    expect(secondVisit).toContain('No new mornings have passed since day 6.');
+    expect(secondVisit).toContain('yard-1: no new mornings of work');
+    expect(secondVisit).not.toContain('from day 7 through day 6');
+  });
+
   it('persists the read day without changing any economic state', () => {
     const state = GameState.fresh();
     state.holdingReadAt.set('Ashford', 7);
