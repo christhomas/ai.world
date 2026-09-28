@@ -41,10 +41,20 @@ class _WorldFeedState extends State<_WorldFeed> {
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   List<int>? _latest;
+  SceneGeometryCache? _geometryCache;
+  FlutterFramePipeline? _pipeline;
   bool _applying = false;
+  bool _connecting = false;
   String _status = 'Connecting to scene feed';
 
   Future<void> _ready(NativeWorldRenderer renderer) async {
+    _pipeline = FlutterFramePipeline(renderer);
+    await _connect(renderer, retry: true);
+  }
+
+  Future<void> _connect(NativeWorldRenderer renderer, {required bool retry}) async {
+    if (_connecting || _socket != null) return;
+    _connecting = true;
     try {
       final socket = await WebSocket.connect(address);
       if (!mounted) {
@@ -52,18 +62,30 @@ class _WorldFeedState extends State<_WorldFeed> {
         return;
       }
       _socket = socket;
-      final pipeline = FlutterFramePipeline(renderer);
+      final geometryCache = SceneGeometryCache();
+      _geometryCache = geometryCache;
       setState(() => _status = 'Waiting for scene');
       _subscription = socket.listen(
         (message) {
           if (message is! List<int>) return;
           _latest = message;
-          if (!_applying) unawaited(_consume(pipeline));
+          if (!_applying) unawaited(_consume());
         },
         onDone: () {
+          if (!identical(_socket, socket)) return;
+          _socket = null;
+          _geometryCache = null;
+          _latest = null;
+          _scheduleReconnect(renderer);
           if (mounted) setState(() => _status = 'Scene feed disconnected');
         },
         onError: (Object error) {
+          if (!identical(_socket, socket)) return;
+          _socket = null;
+          _geometryCache = null;
+          _latest = null;
+          unawaited(socket.close());
+          _scheduleReconnect(renderer);
           if (mounted) setState(() => _status = 'Scene feed error: $error');
         },
       );
@@ -71,10 +93,28 @@ class _WorldFeedState extends State<_WorldFeed> {
       if (mounted) {
         setState(() => _status = 'Scene feed unavailable at $address: $error');
       }
+      if (retry) _scheduleReconnect(renderer);
+    } finally {
+      _connecting = false;
     }
   }
 
-  Future<void> _consume(FlutterFramePipeline pipeline) async {
+  Timer? _reconnectTimer;
+  var _retryDelay = const Duration(seconds: 1);
+
+  void _scheduleReconnect(NativeWorldRenderer renderer) {
+    if (!mounted || _reconnectTimer?.isActive == true) return;
+    final delay = _retryDelay;
+    _retryDelay = Duration(
+      milliseconds: (_retryDelay.inMilliseconds * 2).clamp(1000, 30000).toInt(),
+    );
+    _reconnectTimer = Timer(delay, () {
+      _reconnectTimer = null;
+      if (mounted) unawaited(_connect(renderer, retry: true));
+    });
+  }
+
+  Future<void> _consume() async {
     _applying = true;
     try {
       while (mounted && _latest != null) {
@@ -84,20 +124,24 @@ class _WorldFeedState extends State<_WorldFeed> {
           final frame = SceneFrame.fromJson(
             jsonDecode(utf8.decode(gzip.decode(message)))
                 as Map<String, dynamic>,
+            geometryCache: _geometryCache,
           );
-          await pipeline.draw(frame);
+          await _pipeline!.draw(frame);
           if (mounted && _status.isNotEmpty) setState(() => _status = '');
+          _retryDelay = const Duration(seconds: 1);
         } catch (error) {
           if (mounted) setState(() => _status = 'Scene error: $error');
         }
       }
     } finally {
       _applying = false;
+      if (mounted && _latest != null) unawaited(_consume());
     }
   }
 
   @override
   void dispose() {
+    _reconnectTimer?.cancel();
     _latest = null;
     _subscription?.cancel();
     _socket?.close();

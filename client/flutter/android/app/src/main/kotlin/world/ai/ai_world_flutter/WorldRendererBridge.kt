@@ -60,7 +60,9 @@ class WorldRendererBridge(
                         call.argument<Boolean>("depthWrite") ?: true,
                         call.argument<Boolean>("depthTest") ?: true,
                         call.argument<Boolean>("doubleSided") ?: false,
-                        call.argument<Boolean>("backSide") ?: false)
+                        call.argument<Boolean>("backSide") ?: false,
+                        call.argument<Int>("renderOrder") ?: 0,
+                        call.argument<Boolean>("transparent") ?: false)
                     result.success(null)
                 }
                 "removeMesh" -> renderer(call).removeMesh(call.argument<String>("meshId")!!).also { result.success(null) }
@@ -107,10 +109,12 @@ private fun MethodCall.number(name: String): Float = (argument<Number>(name) ?: 
 
 private data class Mesh(val vertices: FloatArray, val indices: IntArray,
     val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: Int,
-    val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean)
+    val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
+    val renderOrder: Int, val transparent: Boolean)
 private data class GpuMesh(val vertex: Int, val index: Int, val count: Int,
     val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: Int,
-    val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean)
+    val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
+    val renderOrder: Int, val transparent: Boolean, val center: FloatArray)
 
 private class GLWorldRenderer(
     private val entry: TextureRegistry.SurfaceTextureEntry,
@@ -144,9 +148,8 @@ private class GLWorldRenderer(
     private var skyLight = floatArrayOf(0f, 0f, 0f)
     private var groundLight = floatArrayOf(0f, 0f, 0f)
     private var sunLight = floatArrayOf(.65f, .65f, .65f)
-    private var pointPosition = floatArrayOf(0f, 0f, 0f)
-    private var pointLight = floatArrayOf(0f, 0f, 0f)
-    private var pointRange = 0f
+    private val pointPositions = FloatArray(16 * 4)
+    private val pointColours = FloatArray(16 * 4)
     private var fogColour = floatArrayOf(0f, 0f, 0f)
     private var fogRange = floatArrayOf(0f, 0f)
     private var sunCastsShadow = true
@@ -200,8 +203,9 @@ private class GLWorldRenderer(
     }
     fun putMesh(id: String, vertices: FloatArray, indices: IntArray,
         castShadow: Boolean, receiveShadow: Boolean, opacity: Float, blend: String, emissive: Int,
-        depthWrite: Boolean, depthTest: Boolean, doubleSided: Boolean, backSide: Boolean) = post {
-        pending[id] = Mesh(vertices, indices, castShadow, receiveShadow, opacity, emissive, blend, depthWrite, depthTest, doubleSided, backSide)
+        depthWrite: Boolean, depthTest: Boolean, doubleSided: Boolean, backSide: Boolean,
+        renderOrder: Int, transparent: Boolean) = post {
+        pending[id] = Mesh(vertices, indices, castShadow, receiveShadow, opacity, emissive, blend, depthWrite, depthTest, doubleSided, backSide, renderOrder, transparent)
     }
     fun removeMesh(id: String) = post {
         pending.remove(id)
@@ -224,24 +228,34 @@ private class GLWorldRenderer(
         val ambient = lights.firstOrNull { it["kind"] == "ambient" && it["visible"] != false }
         val hemisphere = lights.firstOrNull { it["kind"] == "hemisphere" && it["visible"] != false }
         val sun = lights.firstOrNull { it["kind"] == "directional" && it["visible"] != false }
-        val point = lights.firstOrNull { it["kind"] == "point" && it["visible"] != false }
+        val points = lights.filter { it["kind"] == "point" && it["visible"] != false }.take(16)
         ambientLight = colour(ambient)
         skyLight = colour(hemisphere)
         groundLight = colour(hemisphere, "groundColour")
         sunLight = colour(sun)
         sunCastsShadow = sun?.get("castShadow") == true
-        pointLight = colour(point)
-        pointRange = (point?.get("distance") as? Number)?.toFloat() ?: 0f
+        pointPositions.fill(0f)
+        pointColours.fill(0f)
+        points.forEachIndexed { index, point ->
+            val matrix = point["world"] as? List<*>
+            if (matrix?.size == 16) {
+                val offset = index * 4
+                pointPositions[offset] = (matrix[12] as Number).toFloat()
+                pointPositions[offset + 1] = (matrix[13] as Number).toFloat()
+                pointPositions[offset + 2] = (matrix[14] as Number).toFloat()
+                pointPositions[offset + 3] = (point["distance"] as? Number)?.toFloat() ?: 0f
+                val rgb = colour(point)
+                pointColours[offset] = rgb[0]
+                pointColours[offset + 1] = rgb[1]
+                pointColours[offset + 2] = rgb[2]
+            }
+        }
         if (fog != null) {
             val rgb = (fog["colour"] as Number).toInt()
             fogColour = floatArrayOf(((rgb shr 16) and 255) / 255f,
                 ((rgb shr 8) and 255) / 255f, (rgb and 255) / 255f)
             fogRange = floatArrayOf((fog["near"] as Number).toFloat(), (fog["far"] as Number).toFloat())
         } else fogRange = floatArrayOf(0f, 0f)
-        (point?.get("world") as? List<*>)?.let { matrix ->
-            if (matrix.size == 16) pointPosition = floatArrayOf(
-                (matrix[12] as Number).toFloat(), (matrix[13] as Number).toFloat(), (matrix[14] as Number).toFloat())
-        }
         if (sun != null) {
             val matrix = (sun["world"] as? List<*>)?.map { (it as Number).toFloat() }
             val point = (sun["target"] as? List<*>)?.map { (it as Number).toFloat() }
@@ -323,8 +337,14 @@ private class GLWorldRenderer(
             GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, mesh.vertices.size * 4, mesh.vertices.buffer(), GLES30.GL_STATIC_DRAW)
             GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, names[1])
             GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size * 4, mesh.indices.buffer(), GLES30.GL_STATIC_DRAW)
+            val stride = 16
+            val count = mesh.vertices.size / stride
+            val center = FloatArray(3)
+            for (vertex in 0 until count) for (axis in 0..2) center[axis] += mesh.vertices[vertex * stride + axis]
+            if (count > 0) for (axis in 0..2) center[axis] /= count
             gpu[id] = GpuMesh(names[0], names[1], mesh.indices.size,
-                mesh.castShadow, mesh.receiveShadow, mesh.opacity, mesh.emissive, mesh.blend, mesh.depthWrite, mesh.depthTest, mesh.doubleSided, mesh.backSide)
+                mesh.castShadow, mesh.receiveShadow, mesh.opacity, mesh.emissive, mesh.blend, mesh.depthWrite, mesh.depthTest, mesh.doubleSided, mesh.backSide,
+                mesh.renderOrder, mesh.transparent, center)
         }
         pending.clear()
     }
@@ -351,9 +371,8 @@ private class GLWorldRenderer(
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uSky"), 1, skyLight, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uGround"), 1, groundLight, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uSun"), 1, sunLight, 0)
-        GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uPointPos"), 1, pointPosition, 0)
-        GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uPoint"), 1, pointLight, 0)
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(program, "uPointRange"), pointRange)
+        GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uPointPositions[0]"), 16, pointPositions, 0)
+        GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uPointColours[0]"), 16, pointColours, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uCameraPos"), 1, sceneWorld?.copyOfRange(12, 15) ?: floatArrayOf(0f, 0f, 0f), 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uFogColour"), 1, fogColour, 0)
         GLES30.glUniform2fv(GLES30.glGetUniformLocation(program, "uFogRange"), 1, fogRange, 0)
@@ -380,7 +399,15 @@ private class GLWorldRenderer(
     }
 
     private fun drawMeshes(activeProgram: Int, shadow: Boolean) {
-        gpu.values.forEach { mesh ->
+        val camera = sceneWorld?.copyOfRange(12, 15) ?: target
+        val ordered = gpu.values.sortedWith(compareBy<GpuMesh> { it.renderOrder }
+            .thenBy { if (it.transparent) 1 else 0 }
+            .thenBy { mesh ->
+                val dx = mesh.center[0] - camera[0]; val dy = mesh.center[1] - camera[1]; val dz = mesh.center[2] - camera[2]
+                val distance = dx * dx + dy * dy + dz * dz
+                if (mesh.transparent) -distance else distance
+            })
+        ordered.forEach { mesh ->
             if (shadow && !mesh.castShadow) return@forEach
             if (shadow) {
                 if (mesh.doubleSided) GLES30.glDisable(GLES30.GL_CULL_FACE) else {
@@ -409,13 +436,15 @@ private class GLWorldRenderer(
             }
             GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, mesh.vertex)
             GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.index)
-            val stride = 14 * 4
+            val stride = 16 * 4
             attribute(activeProgram, "aPosition", 3, stride, 0)
             attribute(activeProgram, "aNormal", 3, stride, 3 * 4)
             attribute(activeProgram, "aColor", 3, stride, 6 * 4)
             attribute(activeProgram, "aMaterial", 1, stride, 9 * 4)
             attribute(activeProgram, "aJoint", 1, stride, 10 * 4)
             attribute(activeProgram, "aPivot", 3, stride, 11 * 4)
+            attribute(activeProgram, "aFlow", 1, stride, 14 * 4)
+            attribute(activeProgram, "aSea", 1, stride, 15 * 4)
             GLES30.glDrawElements(GLES30.GL_TRIANGLES, mesh.count, GLES30.GL_UNSIGNED_INT, 0)
         }
         if (!shadow) { GLES30.glDepthMask(true); GLES30.glDisable(GLES30.GL_BLEND); GLES30.glEnable(GLES30.GL_DEPTH_TEST) }
@@ -547,24 +576,25 @@ vec3 animate(vec3 p, float joint, vec3 pivot, float time) {
 """
 private const val VERTEX_SHADER = """#version 300 es
 precision highp float;
-in vec3 aPosition; in vec3 aNormal; in vec3 aColor; in float aMaterial; in float aJoint; in vec3 aPivot;
+in vec3 aPosition; in vec3 aNormal; in vec3 aColor; in float aMaterial; in float aJoint; in vec3 aPivot; in float aFlow; in float aSea;
 uniform mat4 uMvp; uniform mat4 uLightMvp; uniform float uTime;
-out vec3 vWorld; out vec3 vNormal; out vec3 vColor; out vec4 vShadow; out float vMaterial;
+out vec3 vWorld; out vec3 vNormal; out vec3 vColor; out vec4 vShadow; out float vMaterial; out float vFlow; out float vSea;
 $ANIMATION
-void main(){ vec3 p=animate(aPosition,aJoint,aPivot,uTime); vWorld=p; vNormal=aNormal; vColor=aColor; vMaterial=aMaterial; vShadow=uLightMvp*vec4(p,1); gl_Position=uMvp*vec4(p,1); }
+void main(){ vec3 p=animate(aPosition,aJoint,aPivot,uTime); vWorld=p; vNormal=aNormal; vColor=aColor; vMaterial=aMaterial; vFlow=aFlow; vSea=aSea; vShadow=uLightMvp*vec4(p,1); gl_Position=uMvp*vec4(p,1); }
 """
 private const val FRAGMENT_SHADER = """#version 300 es
 precision highp float;
-in vec3 vWorld; in vec3 vNormal; in vec3 vColor; in vec4 vShadow; in float vMaterial;
+in vec3 vWorld; in vec3 vNormal; in vec3 vColor; in vec4 vShadow; in float vMaterial; in float vFlow; in float vSea;
 uniform sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform vec3 uLightDir; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow;
-uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uSun; uniform vec3 uPointPos; uniform vec3 uPoint; uniform float uPointRange;
+uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uSun; uniform vec4 uPointPositions[16]; uniform vec4 uPointColours[16];
 uniform vec3 uCameraPos; uniform vec3 uFogColour; uniform vec2 uFogRange;
 uniform vec3 uEmissive;
 uniform sampler2D uCoast; uniform vec3 uCoastArea;
 out vec4 color;
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
+float ripple(vec2 w){return sin(dot(w,vec2(.77,.64))*1.9+uTime*1.3)*.5+sin(dot(w,vec2(-.6,.8))*2.7-uTime*.9)*.3;}
 float shadow(){vec3 q=vShadow.xyz/vShadow.w*.5+.5;if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.0;float s=0.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)s+=texture(uShadow,vec3(q.xy+vec2(x,y)/1024.0,q.z-.002));return s/9.0;}
-void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);vec3 toPoint=uPointPos-vWorld;float distance=length(toPoint);if(uPointRange>0.0&&distance<uPointRange)lit+=uPoint*max(0.0,dot(n,normalize(toPoint)))*pow(1.0-distance/uPointRange,2.0);vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;c*=.86+.14*sin(uTime*1.6+coast*15.0+vWorld.x*.7+vWorld.z*.6);}if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,clamp((length(vWorld-uCameraPos)-uFogRange.x)/(uFogRange.y-uFogRange.x),0.0,1.0));color=vec4(c,uOpacity);}
+void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){vec4 p=uPointPositions[i];float distance=length(p.xyz-vWorld);if(p.w>0.0&&distance<p.w)lit+=uPointColours[i].rgb*max(0.0,dot(n,normalize(p.xyz-vWorld)))*pow(1.0-distance/p.w,2.0);}vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,clamp((length(vWorld-uCameraPos)-uFogRange.x)/(uFogRange.y-uFogRange.x),0.0,1.0));color=vec4(c,uOpacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es
 precision highp float; in vec3 aPosition; in float aJoint; in vec3 aPivot; uniform mat4 uMvp; uniform float uTime;

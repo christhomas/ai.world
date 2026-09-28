@@ -47,7 +47,9 @@ final class WorldRendererBridge: NSObject, FlutterPlugin {
           depthWrite: arguments["depthWrite"] as? Bool ?? true,
           depthTest: arguments["depthTest"] as? Bool ?? true,
           doubleSided: arguments["doubleSided"] as? Bool ?? false,
-          backSide: arguments["backSide"] as? Bool ?? false)
+          backSide: arguments["backSide"] as? Bool ?? false,
+          renderOrder: (arguments["renderOrder"] as? NSNumber)?.intValue ?? 0,
+          transparent: arguments["transparent"] as? Bool ?? false)
       case "removeMesh": renderer.removeMesh(id: arguments.string("meshId"))
       case "camera": renderer.setCamera(
         x: arguments.float("targetX"), y: arguments.float("targetY"), z: arguments.float("targetZ"),
@@ -115,9 +117,10 @@ private struct Uniforms {
 private struct MeshStyle {
   let castShadow: Bool; let receiveShadow: Bool; let opacity: Float; let emissive: Int
   let blend: String; let depthWrite: Bool; let depthTest: Bool; let doubleSided: Bool; let backSide: Bool
+  let renderOrder: Int; let transparent: Bool
 }
 private struct CpuMesh { let vertices: Data; let indices: Data; let style: MeshStyle }
-private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle }
+private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle; let center: SIMD3<Float> }
 
 private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private let textures: FlutterTextureRegistry
@@ -154,9 +157,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private var skyLight = SIMD3<Float>(repeating: 0)
   private var groundLight = SIMD3<Float>(repeating: 0)
   private var sunLight = SIMD3<Float>(repeating: 0.65)
-  private var pointPosition = SIMD3<Float>(repeating: 0)
-  private var pointLight = SIMD3<Float>(repeating: 0)
-  private var pointRange: Float = 0
+  private var pointPositions = [SIMD4<Float>](repeating: .zero, count: 16)
+  private var pointColours = [SIMD4<Float>](repeating: .zero, count: 16)
   private var fogColour = SIMD3<Float>(repeating: 0)
   private var fogNear: Float = 0
   private var fogFar: Float = 0
@@ -243,10 +245,12 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
 
   func putMesh(id: String, vertices: Data, indices: Data,
                castShadow: Bool, receiveShadow: Bool, opacity: Float, blend: String, emissive: Int,
-               depthWrite: Bool, depthTest: Bool, doubleSided: Bool, backSide: Bool) {
+               depthWrite: Bool, depthTest: Bool, doubleSided: Bool, backSide: Bool,
+               renderOrder: Int, transparent: Bool) {
     pending[id] = CpuMesh(vertices: vertices, indices: indices,
       style: MeshStyle(castShadow: castShadow, receiveShadow: receiveShadow,
-        opacity: opacity, emissive: emissive, blend: blend, depthWrite: depthWrite, depthTest: depthTest, doubleSided: doubleSided, backSide: backSide))
+        opacity: opacity, emissive: emissive, blend: blend, depthWrite: depthWrite, depthTest: depthTest,
+        doubleSided: doubleSided, backSide: backSide, renderOrder: renderOrder, transparent: transparent))
   }
   func removeMesh(id: String) { pending.removeValue(forKey: id); meshes.removeValue(forKey: id) }
   func setCamera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) {
@@ -267,16 +271,19 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     let visible: ([String: Any]) -> Bool = { $0["visible"] as? Bool != false }
     let ambient = lights.first(where: { $0["kind"] as? String == "ambient" && visible($0) })
     let hemisphere = lights.first(where: { $0["kind"] as? String == "hemisphere" && visible($0) })
-    let point = lights.first(where: { $0["kind"] as? String == "point" && visible($0) })
     ambientLight = colour(ambient)
     skyLight = colour(hemisphere)
     groundLight = colour(hemisphere, key: "groundColour")
     sunLight = colour(lights.first(where: { $0["kind"] as? String == "directional" && visible($0) }))
     sunCastsShadow = lights.first(where: { $0["kind"] as? String == "directional" && visible($0) })?["castShadow"] as? Bool == true
-    pointLight = colour(point)
-    pointRange = (point?["distance"] as? NSNumber)?.floatValue ?? 0
-    if let matrix = point?["world"] as? [NSNumber], matrix.count == 16 {
-      pointPosition = SIMD3(matrix[12].floatValue, matrix[13].floatValue, matrix[14].floatValue)
+    pointPositions = [SIMD4<Float>](repeating: .zero, count: 16)
+    pointColours = [SIMD4<Float>](repeating: .zero, count: 16)
+    for (index, point) in lights.filter({ $0["kind"] as? String == "point" && visible($0) }).prefix(16).enumerated() {
+      guard let matrix = point["world"] as? [NSNumber], matrix.count == 16 else { continue }
+      let tint = colour(point)
+      pointPositions[index] = SIMD4(matrix[12].floatValue, matrix[13].floatValue,
+        matrix[14].floatValue, (point["distance"] as? NSNumber)?.floatValue ?? 0)
+      pointColours[index] = SIMD4(tint.x, tint.y, tint.z, 0)
     }
     if let fog {
       let rgb = (fog["colour"] as? NSNumber)?.intValue ?? 0
@@ -364,6 +371,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       encoder.setCullMode(.back)
       encoder.setVertexBytes([uniforms], length: MemoryLayout<Uniforms>.stride, index: 1)
       encoder.setFragmentBytes([uniforms], length: MemoryLayout<Uniforms>.stride, index: 1)
+      encoder.setFragmentBytes(pointPositions, length: MemoryLayout<SIMD4<Float>>.stride * pointPositions.count, index: 2)
+      encoder.setFragmentBytes(pointColours, length: MemoryLayout<SIMD4<Float>>.stride * pointColours.count, index: 3)
       encoder.setFragmentTexture(shadowTexture, index: 0)
       encoder.setFragmentTexture(coastTexture, index: 1)
       draw(encoder, uniforms: uniforms, shadow: false)
@@ -380,13 +389,29 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     for (id, mesh) in pending {
       guard let vertices = device.makeBuffer(bytes: [UInt8](mesh.vertices), length: mesh.vertices.count),
             let indices = device.makeBuffer(bytes: [UInt8](mesh.indices), length: mesh.indices.count) else { continue }
-      meshes[id] = GpuMesh(vertices: vertices, indices: indices, count: mesh.indices.count / 4, style: mesh.style)
+      var center = SIMD3<Float>(repeating: 0)
+      let count = mesh.vertices.count / (16 * MemoryLayout<Float>.size)
+      var values = [Float](repeating: 0, count: count * 16)
+      _ = values.withUnsafeMutableBytes { mesh.vertices.copyBytes(to: $0) }
+      for vertex in 0..<count {
+        center += SIMD3(values[vertex * 16], values[vertex * 16 + 1], values[vertex * 16 + 2])
+      }
+      if count > 0 { center /= Float(count) }
+      meshes[id] = GpuMesh(vertices: vertices, indices: indices, count: mesh.indices.count / 4, style: mesh.style, center: center)
     }
     pending.removeAll(keepingCapacity: true)
   }
 
   private func draw(_ encoder: MTLRenderCommandEncoder, uniforms: Uniforms, shadow: Bool) {
-    for mesh in meshes.values {
+    let camera = sceneWorld.map { SIMD3($0.columns.3.x, $0.columns.3.y, $0.columns.3.z) } ?? target
+    let ordered = meshes.values.sorted { left, right in
+      if left.style.renderOrder != right.style.renderOrder { return left.style.renderOrder < right.style.renderOrder }
+      if left.style.transparent != right.style.transparent { return !left.style.transparent }
+      let lhs = simd_length_squared(left.center - camera)
+      let rhs = simd_length_squared(right.center - camera)
+      return left.style.transparent ? lhs > rhs : lhs < rhs
+    }
+    for mesh in ordered {
       if shadow && !mesh.style.castShadow { continue }
       encoder.setCullMode(mesh.style.doubleSided ? .none : mesh.style.backSide ? .front : .back)
       if !shadow {
@@ -433,8 +458,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       sky: SIMD4(skyLight.x,skyLight.y,skyLight.z,0),
       ground: SIMD4(groundLight.x,groundLight.y,groundLight.z,0),
       sun: SIMD4(sunLight.x,sunLight.y,sunLight.z,0),
-      pointPosition: SIMD4(pointPosition.x,pointPosition.y,pointPosition.z,pointRange),
-      pointColour: SIMD4(pointLight.x,pointLight.y,pointLight.z,0),
+      pointPosition: .zero,
+      pointColour: .zero,
       coastArea: coastArea,
       fogColour: SIMD4(fogColour.x,fogColour.y,fogColour.z,0),
       fogRange: SIMD4(fogNear,fogFar,0,0),
@@ -481,7 +506,9 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     descriptor.attributes[3].format = .float; descriptor.attributes[3].offset = 36; descriptor.attributes[3].bufferIndex = 0
     descriptor.attributes[4].format = .float; descriptor.attributes[4].offset = 40; descriptor.attributes[4].bufferIndex = 0
     descriptor.attributes[5].format = .float3; descriptor.attributes[5].offset = 44; descriptor.attributes[5].bufferIndex = 0
-    descriptor.layouts[0].stride = 56
+    descriptor.attributes[6].format = .float; descriptor.attributes[6].offset = 56; descriptor.attributes[6].bufferIndex = 0
+    descriptor.attributes[7].format = .float; descriptor.attributes[7].offset = 60; descriptor.attributes[7].bufferIndex = 0
+    descriptor.layouts[0].stride = 64
     return descriptor
   }
 }
@@ -503,12 +530,12 @@ private func orthographic(left:Float,right:Float,bottom:Float,top:Float,near:Flo
 private let metalSource = """
 #include <metal_stdlib>
 using namespace metal;
-struct VIn { float3 position [[attribute(0)]]; float3 normal [[attribute(1)]]; float3 color [[attribute(2)]]; float material [[attribute(3)]]; float joint [[attribute(4)]]; float3 pivot [[attribute(5)]]; };
+struct VIn { float3 position [[attribute(0)]]; float3 normal [[attribute(1)]]; float3 color [[attribute(2)]]; float material [[attribute(3)]]; float joint [[attribute(4)]]; float3 pivot [[attribute(5)]]; float flow [[attribute(6)]]; float sea [[attribute(7)]]; };
 struct Uniforms { float4x4 mvp; float4x4 lightMvp; float4 heroAndCut; float4 lookAndTime; float4 lightDirection; float4 renderFlags; float4 ambient; float4 sky; float4 ground; float4 sun; float4 pointPosition; float4 pointColour; float4 coastArea; float4 fogColour; float4 fogRange; float4 cameraPosition; float4 emissive; };
-struct VOut { float4 position [[position]]; float3 world; float3 normal; float3 color; float4 shadow; float material; };
+struct VOut { float4 position [[position]]; float3 world; float3 normal; float3 color; float4 shadow; float material; float flow; float sea; };
 float3 animate(float3 p,float joint,float3 pivot,float time){if(joint<.5)return p;float side=(joint==1||joint==3||joint==7)?1:-1;float angle=sin(time*5)*.48*side;if(joint==6)angle=sin(time*.7)*.1;if(joint==7||joint==8)angle=sin(time*7)*.35*side;float3 q=p-pivot;float c=cos(angle),s=sin(angle);if(joint==7||joint==8)q.yz=float2(c*q.y-s*q.z,s*q.y+c*q.z);else q.xy=float2(c*q.x-s*q.y,s*q.x+c*q.y);return q+pivot;}
-vertex VOut worldVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){VOut o;o.world=animate(in.position,in.joint,in.pivot,u.lookAndTime.w);o.position=u.mvp*float4(o.world,1);o.normal=in.normal;o.color=in.color;o.material=in.material;o.shadow=u.lightMvp*float4(o.world,1);return o;}
+vertex VOut worldVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){VOut o;o.world=animate(in.position,in.joint,in.pivot,u.lookAndTime.w);o.position=u.mvp*float4(o.world,1);o.normal=in.normal;o.color=in.color;o.material=in.material;o.flow=in.flow;o.sea=in.sea;o.shadow=u.lightMvp*float4(o.world,1);return o;}
 vertex float4 shadowVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){return u.lightMvp*float4(animate(in.position,in.joint,in.pivot,u.lookAndTime.w),1);}
 float hash(float2 p){return fract(sin(dot(floor(p),float2(12.9898,78.233)))*43758.5453);}
-fragment float4 worldFragment(VOut in [[stage_in]],constant Uniforms& u [[buffer(1)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}float3 q=in.shadow.xyz/in.shadow.w*.5+.5;constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}float3 n=normalize(in.normal);float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5)+u.sun.xyz*max(0.0,dot(n,normalize(u.lightDirection.xyz)))*mix(.45,1.0,shade);float3 toPoint=u.pointPosition.xyz-in.world;float distance=length(toPoint);if(u.pointPosition.w>0&&distance<u.pointPosition.w)lit+=u.pointColour.xyz*max(0.0,dot(n,normalize(toPoint)))*pow(1-distance/u.pointPosition.w,2);float3 c=in.color*(in.material>2.5?float3(1):lit)+u.emissive.xyz;if(in.material>1.5&&in.material<2.5){float coast=1;if(u.coastArea.z>0){constexpr sampler cs(coord::normalized,address::clamp_to_edge,filter::linear);coast=coastMap.sample(cs,(in.world.xz-u.coastArea.xy)*u.coastArea.z).r;}c*=.86+.14*sin(u.lookAndTime.w*1.6+coast*15+in.world.x*.7+in.world.z*.6);}if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,clamp((length(in.world-u.cameraPosition.xyz)-u.fogRange.x)/(u.fogRange.y-u.fogRange.x),0.0,1.0));return float4(c,u.renderFlags.x);}
+fragment float4 worldFragment(VOut in [[stage_in]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}float3 q=in.shadow.xyz/in.shadow.w*.5+.5;constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}float3 n=normalize(in.normal);float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5)+u.sun.xyz*max(0.0,dot(n,normalize(u.lightDirection.xyz)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){float4 p=pointPositions[i];float3 toPoint=p.xyz-in.world;float distance=length(toPoint);if(p.w>0&&distance<p.w)lit+=pointColours[i].xyz*max(0.0,dot(n,normalize(toPoint)))*pow(1-distance/p.w,2);}float3 c=in.color*(in.material>2.5?float3(1):lit)+u.emissive.xyz;if(in.material>1.5&&in.material<2.5){float coast=1;if(u.coastArea.z>0){constexpr sampler cs(coord::normalized,address::clamp_to_edge,filter::linear);coast=coastMap.sample(cs,(in.world.xz-u.coastArea.xy)*u.coastArea.z).r;}float shore=mix(64.0,coast*64.0,in.sea);float wave=mix(sin(dot(in.world.xz,float2(.77,.64))*1.9+u.lookAndTime.w*1.3)*.5+sin(dot(in.world.xz,float2(-.6,.8))*2.7-u.lookAndTime.w*.9)*.3,sin(shore*2.2+u.lookAndTime.w*.9),in.sea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=in.sea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(in.world.y*1.6-u.lookAndTime.w*1.8+sin((in.world.x+in.world.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,float3(.95,.98,1.0),mix(foam,.35+streak*.6,in.flow));}if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,clamp((length(in.world-u.cameraPosition.xyz)-u.fogRange.x)/(u.fogRange.y-u.fogRange.x),0.0,1.0));return float4(c,u.renderFlags.x);}
 """
