@@ -323,7 +323,7 @@ export class Places {
     const renderer = new EntityRenderer(scene.scene, scene.graph);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
-    this.ctx.heroGear.attachTo(scene.scene);
+    this.ctx.heroGear.attachTo(scene.scene, scene.graph);
     player.setWorld(world);
 
     const [ex, ez] = world.map.entrance;
@@ -414,7 +414,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     overworldRenderer.add(player.entity);
-    this.ctx.heroGear.attachTo(this.ctx.rig.scene);
+    this.ctx.heroGear.attachTo(this.ctx.rig.scene, this.ctx.rig.graph);
     player.setWorld(overworld);
     const [outX, outZ] = visit.poi.out ?? [visit.poi.x + OUT_OF_THE_HOLE, visit.poi.z + 0.5];
     player.teleport(outX, outZ);
@@ -569,7 +569,7 @@ export class Places {
     const renderer = new EntityRenderer(scene.scene, scene.graph);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
-    this.ctx.heroGear.attachTo(scene.scene);
+    this.ctx.heroGear.attachTo(scene.scene, scene.graph);
     player.setWorld(world);
     player.teleport(map.entry[0] + 0.5, map.entry[1] + 0.5);
 
@@ -675,7 +675,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     overworldRenderer.add(player.entity);
-    this.ctx.heroGear.attachTo(this.ctx.rig.scene);
+    this.ctx.heroGear.attachTo(this.ctx.rig.scene, this.ctx.rig.graph);
     player.setWorld(overworld);
     player.teleport(visit.exit[0], visit.exit[1] + 1);
     iso.limitZoom(CAMERA.MAX_ZOOM);
