@@ -10,6 +10,7 @@ import type { WorldKind } from '../src/world/countries';
 import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
+import type { HoldingRecord } from '../src/world/holdingbook';
 
 export const PROTOCOL_VERSION = 24;
 
@@ -803,7 +804,7 @@ export type ServerMessage =
    * client is already drawing, so it has a name to put on the message.
    */
   | { type: 'arrested'; id: number }
-  | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
+  | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[]; holdingDays?: HoldingRecord[] }
   /** A newly joined country is still being prepared; repeats keep the page's loading state alive. */
   | { type: 'country-progress'; done: number; total: number }
   /**
