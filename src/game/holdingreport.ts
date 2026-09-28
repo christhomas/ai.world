@@ -22,7 +22,12 @@ export function holdingReport(
       pages.push(noNewMornings
         ? `${holding.kind} ${holding.id}: no new mornings of work. No wages were earned or paid on this holding.`
         : `${holding.kind} ${holding.id}: no work was recorded from day ${from + 1} through day ${through}. No wages were earned or paid on this holding.`);
-      continue;
+    } else {
+      const valued = facts.reduce((sum, fact) => sum + fact.wage, 0);
+      const paid = facts.reduce((sum, fact) => sum + fact.paid, 0);
+      pages.push(`${holding.kind} ${holding.id}: ${facts.length} morning${facts.length === 1 ? '' : 's'} of work. Workers earned ${gold(valued)} in wages; ${gold(paid)} changed hands. The daybook records work and wages, not crop or shop takings.`);
+      const lines = facts.map((fact) => `Day ${fact.day}: ${fact.kind} — ${nameOf(fact.who)}, ${gold(fact.wage)} earned${fact.paid > 0 ? `, ${gold(fact.paid)} paid` : ', no coin moved'}.`);
+      for (let i = 0; i < lines.length; i += 5) pages.push(lines.slice(i, i + 5).join('\n'));
     }
     const cattle = income.reduce((sum, fact) => sum + fact.cattle, 0);
     const crop = income.reduce((sum, fact) => sum + fact.crop, 0);
