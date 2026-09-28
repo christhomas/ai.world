@@ -547,7 +547,10 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
       const standing = walked !== null && ground !== null && ground.heightAt(walked.x, walked.z) !== null;
       const theirs = !outside || !standing;
       if (theirs) me.serverFootAt = null;
-      if (theirs && walked) { walked.x = message.x; walked.z = message.z; }
+      // A horse is client-moved, but its coordinates are not a server-verified foot position.
+      // Keep the last walked hero pose so mounting and dismounting cannot teleport a later robbery.
+      const surfaceRide = p.place === 'surface' && String(message.place) === 'surface';
+      if (theirs && walked && !surfaceRide) { walked.x = message.x; walked.z = message.z; }
       if (theirs) { p.x = message.x; p.z = message.z; }
       p.yaw = message.yaw; p.walk = message.walk;
       p.place = String(message.place).slice(0, LIMITS.PLACE);
