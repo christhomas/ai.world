@@ -532,12 +532,16 @@ const SHOTS = [
   },
   {
     name: 'map', title: 'The full-screen map',
-    setup: async (p, { village, time, key, wait }) => {
+    setup: async (p, { village, time, key, wait, ask }) => {
       await time(NOON);
       await village();
+      // The revealed-cell fog depends on which tile the hero crossed while the browser booted.
+      // Equip the real Grand Survey so this reference judges the road map itself, whose pixels
+      // are stable, instead of a race-dependent exploration mask around the player.
+      await ask(() => { window.__state.give('map'); window.__state.equip('map'); });
       await key('m');
       await wait(1500);
-      return 'open';
+      return 'open with the Grand Survey';
     },
   },
   {
