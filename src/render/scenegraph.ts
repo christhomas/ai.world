@@ -61,7 +61,7 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
       const light = new THREE.PointLight(node.colour, node.intensity, node.distance, node.decay);
       light.position.set(...node.position);
       scene.add(light);
-    } else {
+    } else if (node.kind === 'mesh') {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));
       geometry.setAttribute('normal', new THREE.BufferAttribute(node.geometry.normals, 3));

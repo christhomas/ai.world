@@ -214,7 +214,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     private readonly wantPatch?: (patch: string) => void,
   ) {
     this.terrainBridge = new ThreeGraphBridge(graph, scene, this.terrainMaterial, waterMaterial);
-    this.propBatch = new PropBatch(scene, props, glowMaterial);
+    this.propBatch = new PropBatch(scene, props, glowMaterial, graph);
     this.stops = blocking(props.footprints, BLOCKS_WALKING);
     this.ranges = sampler.ranges;
     const R = WORLD.VIEW_RADIUS;

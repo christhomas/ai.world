@@ -1,3 +1,18 @@
+/** Plain prop catalogue and placement data; a renderer chooses its own mesh implementation. */
+export interface ScenePropPart {
+  shape: 'box' | 'cyl' | 'cone' | 'ico' | 'dodec' | 'prism';
+  size: number[];
+  offset: [number, number, number];
+  color: number;
+  scale?: [number, number, number];
+  rot?: [number, number, number];
+}
+
+export interface ScenePlacement {
+  x: number; y: number; z: number; rot: number;
+  scale?: number; stretch?: number; lean?: number; tint?: number;
+}
+
 /** A scene description independent of the graphics API that displays it. */
 export interface FrameDescription {
   camera: { projection: number[]; world: number[]; orthographic: boolean; layers?: number };
@@ -5,7 +20,7 @@ export interface FrameDescription {
   fog: { colour: number; near: number; far: number } | null;
   nodes: Array<{
     parent: number;
-    kind: 'group' | 'mesh' | 'instances' | 'points' | 'directional' | 'hemisphere' | 'ambient' | 'point';
+    kind: 'group' | 'mesh' | 'instances' | 'prop-batch' | 'points' | 'directional' | 'hemisphere' | 'ambient' | 'point';
     world: number[];
     visible: boolean;
     layers?: number;
@@ -29,5 +44,8 @@ export interface FrameDescription {
     indices?: number[];
     instanceMatrices?: number[];
     instanceColours?: number[];
+    parts?: readonly ScenePropPart[];
+    glowParts?: readonly ScenePropPart[];
+    placements?: readonly ScenePlacement[];
   }>;
 }

@@ -1,4 +1,4 @@
-import type { FrameDescription } from './scene';
+import type { FrameDescription, ScenePlacement, ScenePropPart } from './scene';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -15,6 +15,8 @@ export type SceneNode =
   | { kind: 'ambient'; colour: number; intensity: number }
   | { kind: 'hemisphere'; sky: number; ground: number; intensity: number }
   | { kind: 'point'; colour: number; intensity: number; distance: number; decay: number; position: [number, number, number] }
+  | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
+      placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'water';
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number };
 
@@ -50,6 +52,11 @@ export class SceneGraph {
           ...base, kind: 'point' as const, colour: node.colour, intensity: node.intensity,
           distance: node.distance, decay: node.decay,
           world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ...node.position, 1],
+        };
+        if (node.kind === 'prop-batch') return {
+          ...base, kind: 'prop-batch' as const, castShadow: node.castShadow,
+          receiveShadow: node.receiveShadow, parts: node.parts,
+          glowParts: node.glowParts, placements: node.placements,
         };
         return {
           ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,

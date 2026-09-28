@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { FrameDescription } from '../core/scene';
 import type { SceneGraph } from '../core/scenegraph';
+import { build } from './geometry';
+import { composeInstance, shadeOf } from './instancing';
 
 export interface FramePipeline { draw(frame: FrameDescription): void }
 
@@ -41,6 +43,28 @@ export class ThreeFramePipeline implements FramePipeline {
         object = new THREE.PointLight(node.colour, node.intensity, node.distance, node.decay);
       } else if (node.kind === 'directional') {
         object = new THREE.DirectionalLight(node.colour, node.intensity);
+      } else if (node.kind === 'prop-batch') {
+        const geometry = build(node.parts ?? []);
+        const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        const placements = node.placements ?? [];
+        const batch = new THREE.InstancedMesh(geometry, material, placements.length);
+        const matrix = new THREE.Matrix4();
+        placements.forEach((placement, at) => {
+          batch.setMatrixAt(at, composeInstance(placement, matrix));
+          batch.setColorAt(at, shadeOf(placement.tint ?? 0.5));
+        });
+        batch.castShadow = node.castShadow;
+        batch.receiveShadow = node.receiveShadow;
+        this.resources.push(geometry, material);
+        if (node.glowParts?.length) {
+          const glowGeometry = build(node.glowParts);
+          const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, placements.length);
+          glow.instanceMatrix.copy(batch.instanceMatrix);
+          batch.add(glow);
+          this.resources.push(glowGeometry, glowMaterial);
+        }
+        object = batch;
       } else if (node.kind === 'mesh' || node.kind === 'instances' || node.kind === 'points') {
         const geometry = new THREE.BufferGeometry();
         for (const [name, attribute] of Object.entries(node.attributes ?? {})) {

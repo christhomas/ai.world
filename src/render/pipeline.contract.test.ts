@@ -5,14 +5,16 @@ import { RecordingPipeline } from './recording';
 import { ThreeFramePipeline, submitGraphFrame } from './pipeline';
 
 describe('engine-owned frame submission', () => {
+  const camera = {
+    projection: [0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, -0.002, 0, 0, 0, -1, 1],
+    world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3, 4, 5, 1],
+    orthographic: true,
+  };
+
   it('feeds one neutral frame to recording and the WebGL adapter', () => {
     const graph = new SceneGraph(0x102030);
     graph.add({ kind: 'ambient', colour: 0xaabbcc, intensity: 0.75 });
-    graph.camera = {
-      projection: [0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, -0.002, 0, 0, 0, -1, 1],
-      world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3, 4, 5, 1],
-      orthographic: true,
-    };
+    graph.camera = camera;
     const recording = new RecordingPipeline();
     recording.captureNext();
     const render = vi.fn();
@@ -22,12 +24,39 @@ describe('engine-owned frame submission', () => {
 
     expect(recording.last).toBe(frame);
     expect(render).toHaveBeenCalledOnce();
-    const [scene, camera] = render.mock.calls[0] as [THREE.Scene, THREE.Camera];
+    const [scene, drawnCamera] = render.mock.calls[0] as [THREE.Scene, THREE.Camera];
     expect(scene.background).toBeInstanceOf(THREE.Color);
     expect((scene.background as THREE.Color).getHex()).toBe(0x102030);
     expect(scene.children[0]).toBeInstanceOf(THREE.AmbientLight);
     expect((scene.children[0] as THREE.AmbientLight).intensity).toBe(0.75);
-    expect(camera.projectionMatrix.toArray()).toEqual(frame.camera.projection);
-    expect(camera.matrixWorld.toArray()).toEqual(frame.camera.world);
+    expect(drawnCamera.projectionMatrix.toArray()).toEqual(frame.camera.projection);
+    expect(drawnCamera.matrixWorld.toArray()).toEqual(frame.camera.world);
+  });
+
+  it('records and draws the same instanced prop description', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const parts = [{ shape: 'box' as const, size: [1, 2, 1], offset: [0, 1, 0] as [number, number, number], color: 0x996633 }];
+    const placements = [
+      { x: 4, y: 0, z: 6, rot: 0, tint: 0.5 },
+      { x: 8, y: 0, z: 9, rot: 1, tint: 0.8 },
+    ];
+    graph.add({ kind: 'prop-batch', parts, placements, castShadow: true, receiveShadow: true });
+    const recorder = new RecordingPipeline();
+    recorder.captureNext();
+    const render = vi.fn();
+    const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
+    const frame = submitGraphFrame(graph, [recorder, webgl]);
+    expect(recorder.last).toBe(frame);
+    expect(frame.nodes[0].parts).toBe(parts);
+    expect(frame.nodes[0].placements).toBe(placements);
+    const [scene] = render.mock.calls[0] as [THREE.Scene, THREE.Camera];
+    const mesh = scene.children[0] as THREE.InstancedMesh;
+    expect(mesh.count).toBe(2);
+    expect(mesh.castShadow).toBe(true);
+    const first = new THREE.Matrix4();
+    mesh.getMatrixAt(0, first);
+    expect(new THREE.Vector3().setFromMatrixPosition(first).toArray()).toEqual([4, 0, 6]);
+    webgl.dispose();
   });
 });
