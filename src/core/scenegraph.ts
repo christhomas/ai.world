@@ -21,6 +21,7 @@ export type SceneNode =
       placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
       matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean }
+  | { kind: 'points'; positions: Float32Array; colour: number; size: number; opacity: number; visible: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'lit-solid' | 'water'; colour?: number;
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[];
       frustumCulled?: boolean; effects?: string[] };
@@ -48,7 +49,7 @@ export class SceneGraph {
       camera: this.camera,
       background: this.background,
       fog: this.fog,
-      nodes: this.nodes.map((node) => {
+      nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
         if (node.kind === 'ambient') return { ...base, kind: 'ambient' as const, colour: node.colour, intensity: node.intensity };
         if (node.kind === 'hemisphere') return {
@@ -82,6 +83,13 @@ export class SceneGraph {
           indices: node.geometry.indices,
           instanceMatrices: node.matrices.subarray(0, node.count * 16),
           instanceColours: node.colours?.subarray(0, node.count * 3),
+        };
+        if (node.kind === 'points') return {
+          ...base, kind: 'points' as const, visible: node.visible,
+          material: { intent: 'points' as const, colour: node.colour, emissive: 0,
+            vertexColours: false, transparent: true, opacity: node.opacity,
+            depthWrite: true, side: 'front' as const, effects: [], size: node.size },
+          attributes: { position: { size: 3, values: node.positions } },
         };
         return {
           ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,
