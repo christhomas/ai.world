@@ -510,7 +510,7 @@ export function startGame(
 
   // packs left where people fell, and the bundles that show them
   const remains = new Remains();
-  const packField = new DropField(rig.scene);
+  const packField = new DropField(rig.scene, rig.graph);
 
   // every memory made on this page goes through one door, and the world is on the far side of it
   const recall = tellingTheWorld((who, what, about) => online.recall(who, what, about));
@@ -604,7 +604,7 @@ export function startGame(
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
-    school: new WhaleSchool(rig.scene, rig.graph), campField: new CampField(rig.scene),
+    school: new WhaleSchool(rig.scene, rig.graph), campField: new CampField(rig.scene, rig.graph),
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     knockOut,
