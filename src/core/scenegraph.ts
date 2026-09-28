@@ -26,7 +26,12 @@ export class SceneGraph {
 
   constructor(public background: number) {}
 
-  add(node: SceneNode): void { this.nodes.push(node); }
+  add(node: SceneNode): SceneNode { this.nodes.push(node); return node; }
+
+  remove(node: SceneNode): void {
+    const at = this.nodes.indexOf(node);
+    if (at >= 0) this.nodes.splice(at, 1);
+  }
 
   /** Capture exactly what both the drawing and recording pipelines will receive. */
   frame(): FrameDescription {

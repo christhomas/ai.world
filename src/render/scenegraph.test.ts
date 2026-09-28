@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { SceneGraph } from '../core/scenegraph';
-import { mountSceneGraph } from './scenegraph';
+import { mountSceneGraph, ThreeGraphBridge } from './scenegraph';
 
 describe('neutral scene graph adapter', () => {
   it('mounts plain mesh and light descriptions without giving the graph Three objects', () => {
@@ -56,5 +56,32 @@ describe('neutral scene graph adapter', () => {
     expect(meshes[2].geometry.getAttribute('flow').array).toEqual(geometry.flow);
     mounted.dispose();
     waterMaterial.dispose();
+  });
+
+  it('streams terrain through graph ownership and retires both representations together', () => {
+    const graph = new SceneGraph(0x102030);
+    const scene = new THREE.Scene();
+    const lit = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const water = new THREE.MeshBasicMaterial();
+    const bridge = new ThreeGraphBridge(graph, scene, lit, water);
+    const node = {
+      kind: 'mesh' as const, material: 'lit-vertex-colours' as const,
+      castShadow: true, receiveShadow: true,
+      geometry: {
+        positions: Float32Array.of(0, 0, 0, 1, 0, 0, 0, 0, 1),
+        normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
+        colors: Float32Array.of(1, 0, 0, 1, 0, 0, 1, 0, 0),
+        indices: Uint32Array.of(0, 1, 2),
+      },
+    };
+    bridge.add(node);
+    expect(graph.nodes).toEqual([node]);
+    expect(scene.children).toHaveLength(1);
+    expect((scene.children[0] as THREE.Mesh).castShadow).toBe(true);
+    bridge.remove(node);
+    expect(graph.nodes).toHaveLength(0);
+    expect(scene.children).toHaveLength(0);
+    lit.dispose();
+    water.dispose();
   });
 });

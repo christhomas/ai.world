@@ -176,7 +176,7 @@ export function growCountry(ctx: Growing) {
   rig.sunDriven = true;
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
   const chunks = new ChunkManager(
-    rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, country.store ?? undefined,
+    rig.scene, rig.graph, sampler, props, rig.water.material, daycycle.glowMaterial, country.store ?? undefined,
     grower ? (patch) => grower.want(patch) : undefined,
   );
   chunks.useSeasonTint(seasonTintMaterials);
