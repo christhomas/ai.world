@@ -35,6 +35,7 @@ const path = require('node:path');
 
 const HERE = process.env.SHOTS || 'docs/screenshots';
 const THERE = process.argv[2];
+const ONLY = new Set(process.argv.slice(3));
 
 /** The comparison's own rules, read out of the module the tests hold. */
 const rules = () => {
@@ -45,7 +46,9 @@ const rules = () => {
   return { shade: Number(shade[1]), much: Number(much[1]) };
 };
 
-const pngsIn = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.png')) : []);
+const pngsIn = (dir) => (fs.existsSync(dir)
+  ? fs.readdirSync(dir).filter((f) => f.endsWith('.png') && (ONLY.size === 0 || ONLY.has(f)))
+  : []);
 
 async function main() {
   if (!THERE) {
@@ -55,6 +58,11 @@ async function main() {
   const { shade, much } = rules();
   const mine = pngsIn(HERE);
   const theirs = new Set(pngsIn(THERE));
+  const absent = [...ONLY].filter((name) => !mine.includes(name) && !theirs.has(name));
+  if (absent.length > 0) {
+    console.error(`missing requested picture${absent.length === 1 ? '' : 's'} in both sets: ${absent.join(', ')}`);
+    process.exit(2);
+  }
   if (mine.length === 0) {
     console.error(`nothing to compare: no pictures in ${HERE}. Take some with \`chore shots\`.`);
     process.exit(2);
@@ -72,7 +80,7 @@ async function main() {
   let told = 0;
 
   for (const name of mine.sort()) {
-    if (!theirs.has(name)) { lines.push(`  NEW    ${name}`); continue; }
+    if (!theirs.has(name)) { lines.push(`  NEW    ${name}`); told++; continue; }
     const read = async (file) => {
       const png = fs.readFileSync(file).toString('base64');
       return page.evaluate(async (b64) => {
@@ -109,7 +117,7 @@ async function main() {
     worst = Math.max(worst, share);
     if (share > much) { told++; lines.push(`  MOVED  ${name}: ${(share * 100).toFixed(2)}% of it`); }
   }
-  for (const name of [...theirs].sort()) if (!mine.includes(name)) lines.push(`  GONE   ${name}`);
+  for (const name of [...theirs].sort()) if (!mine.includes(name)) { lines.push(`  GONE   ${name}`); told++; }
 
   await browser.close();
 
