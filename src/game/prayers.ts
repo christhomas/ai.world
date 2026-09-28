@@ -77,3 +77,13 @@ export function answerHighland(manifest: Manifest, prayer: HighlandPrayer, day: 
   prayer.answered = true;
   return anchor;
 }
+
+/** Resolve due promises before the manifest is used to grow country on the next boot. */
+export function answerDueHighlands(manifest: Manifest, prayers: HighlandPrayer[], day: number): number {
+  let answered = 0;
+  for (const prayer of prayers) {
+    if (prayer.answered || day < prayer.due) continue;
+    if (answerHighland(manifest, prayer, day)) answered++;
+  }
+  return answered;
+}

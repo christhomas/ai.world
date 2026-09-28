@@ -93,6 +93,9 @@ import { growCountry, type GrownPatch } from './game/country';
 import { whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
+import { GameState } from './game/state';
+import { Manifest } from './world/manifest';
+import { answerDueHighlands } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
@@ -100,6 +103,19 @@ export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
 ): void {
+  // A due prayer changes the land itself, so resolve it before the generator sees the manifest.
+  // Advance the same saved clock the normal boot path will use, and persist the updated cursor with
+  // the anchor so a reload cannot apply offline days twice.
+  let prayersResolvedAtBoot = false;
+  if (saved) {
+    const bootState = GameState.from(saved.state);
+    bootState.day += daysToLive(bootState.awayFor, url.searchParams.has('server'));
+    const bootManifest = new Manifest(seed, saved.manifest);
+    if (answerDueHighlands(bootManifest, bootState.prayers, bootState.day) > 0) {
+      saved = { ...saved, state: bootState.toJSON(), manifest: bootManifest.toJSON() };
+      prayersResolvedAtBoot = true;
+    }
+  }
   /**
    * Whether the player has ever picked a quality themselves — asked before anything else, because
    * the rig writes the level down every time it is set and the very next line sets it. Ask any
@@ -255,6 +271,9 @@ export function startGame(
     at: () => ({ x: player.x, z: player.z }),
     sky: () => skies.save(),
   });
+  if (prayersResolvedAtBoot) {
+    void persistAsync().catch(() => hud.flash('The answered prayer will be saved when storage is available.'));
+  }
   register.rememberStablePurchases(houses.stablePurchases());
   // the days that passed while the game was shut, which only a world of one has to invent. Asked of
   // the link rather than of `online.connected`, and `daysToLive` says why both of those are so
