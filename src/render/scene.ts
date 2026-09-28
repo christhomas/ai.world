@@ -459,9 +459,9 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       second?.resize();
     },
     draw(what, camera) {
-      if (recording) recording.draw(() => describeFrame(what, camera));
-      else if (second) second.draw(what, camera);
+      if (second) second.draw(what, camera);
       else renderer.render(what, camera);
+      recording?.draw(() => describeFrame(what, camera));
     },
     get canvas() { return renderer.domElement; },
     dispose() {
