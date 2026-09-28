@@ -12,9 +12,8 @@ export type { OnlineEvents } from './heard';
 import type { GameState } from './state';
 import type { Memory } from '../world/people';
 import { ITEMS } from './items';
-import type { WorldKind } from '../world/countries';
-import type { TerrainLayer } from '../world/terrainlayers';
-import type { Anchor } from '../world/manifest';
+import type { CountryHere } from './joining';
+export type { CountryHere } from './joining';
 
 export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
@@ -54,18 +53,6 @@ const RETRY = { FIRST: 1, GROWTH: 2, LONGEST: 30 };
  * look like a broken one.
  */
 const GRACE = 2;
-
-/** A join carries the page's country kind and position, plus authored terrain for its private worker. */
-export interface CountryHere {
-  /** Where the hero is standing, so the world can have that ground ready before it is asked. */
-  at?: { x: number; z: number };
-  /** Which generator grew the page's country. */
-  kind?: WorldKind;
-  /** Sent only to the private simulation worker, never to another world's server. */
-  terrain?: readonly TerrainLayer[];
-  /** Added highland anchors for the private world worker; never offered to a shared server. */
-  highlands?: readonly Anchor[];
-}
 
 /**
  * The multiplayer client. Everything about the world stays local and seed-derived; the only

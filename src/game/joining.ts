@@ -8,6 +8,14 @@ import type { Anchor } from '../world/manifest';
 /** The world server's own port, which `chore world` also uses. */
 const WORLD_PORT = 8787;
 
+/** The page's country and position, with authoring data sent only to its private worker. */
+export interface CountryHere {
+  at?: { x: number; z: number };
+  kind?: WorldKind;
+  terrain?: readonly TerrainLayer[];
+  highlands?: readonly Anchor[];
+}
+
 /**
  * Where to look for a world server, in the order somebody would expect: the address in the link,
  * then the one they used last, then the machine that served the page. Nobody should have to type

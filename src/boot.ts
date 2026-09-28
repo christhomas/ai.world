@@ -5,7 +5,7 @@ import type { WorldInvite } from '../server/protocol';
 import { joinedManifest, Manifest } from './world/manifest';
 import { GameState } from './game/state';
 import { daysToLive } from './world/awaytime';
-import { answerHighland } from './game/prayers';
+import { answerDueHighlands } from './game/prayers';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { startGame } from './main';
@@ -117,11 +117,7 @@ export async function boot(): Promise<void> {
     const prayerState = GameState.from(saved.state);
     const today = prayerState.day + daysToLive(prayerState.awayFor, false);
     const manifest = new Manifest(seed, saved.manifest);
-    let answered = false;
-    for (const prayer of prayerState.prayers) {
-      if (!prayer.answered && answerHighland(manifest, prayer, today)) answered = true;
-    }
-    if (answered) {
+    if (answerDueHighlands(manifest, prayerState.prayers, today) > 0) {
       saved = { ...saved, manifest: manifest.toJSON(),
         state: { ...saved.state, prayers: prayerState.prayers } };
       await store.save(slotKey, saved);

@@ -170,8 +170,7 @@ export class EntityManager {
     /**
      * Whether this point is high country — on or against a massif.
      * Asked rather than worked out, because what counts as a mountain belongs to the world's
-     * generator and this layer only wants to know which list to spawn from. False everywhere in a
-     * world with no mountains in it, which is the old one.
+     * generator and this layer only wants to know which list to spawn from.
      */
     private readonly highland: (x: number, z: number) => boolean = () => false,
     private readonly prayedHighland: (x: number, z: number) => boolean = () => false,
@@ -697,4 +696,3 @@ export class EntityManager {
 }
 
 export interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[]; seed: number }
-
