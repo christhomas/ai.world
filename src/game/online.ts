@@ -497,7 +497,6 @@ export class Online {
 
   /** Ask the world to settle a nearby in-flight cart as robbed. */
   cartAction(type: 'rob-cart' | 'escort-cart', loadedOn: number): void { if (this.connected) this.send({ type, loadedOn }); }
-
   /** Stand on the roll of the village the hero has walked into. Asked, like an oath. */
   arrive(village: string): void {
     if (this.connected) this.send({ type: 'arrive', village });
