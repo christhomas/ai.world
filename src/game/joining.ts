@@ -131,12 +131,12 @@ export function joinAWorld(ctx: Joining): void {
    */
   const playAlone = (): void => {
     if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
   };
   // An invite already says whose server this is. Following it is the join; it must not quietly put
   // the guest into a private worker with the right-looking world underneath them.
   if (url.searchParams.has('server')) {
-    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
     showChat();
   } else {
     playAlone();
@@ -159,7 +159,7 @@ export function joinAWorld(ctx: Joining): void {
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
     showChat();
   });
 
@@ -193,7 +193,7 @@ export function joinAWorld(ctx: Joining): void {
      * nothing.
      */
     if (worldName && address && !online.away) {
-      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
       showChat();
       flash(`Claiming “${worldName}” on that server…`);
       if (!await claimed(() => online.away)) {

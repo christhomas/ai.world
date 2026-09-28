@@ -78,6 +78,8 @@ export interface CreatureOwner {
 export interface Client {
   wire: Wire;
   presence: Presence;
+  /** Stable save identity used for replayed player-owned outcomes. Not an authentication credential. */
+  playerId: string;
   seed: number;
   /**
    * How much silence the server has actually *heard* out of them, in milliseconds.
@@ -171,6 +173,8 @@ export interface Client {
    * which is the rule the whole server rests on.
    */
   hero: Entity | null;
+  /** Last surface position established by server-processed walking while on foot. */
+  serverFootAt: { x: number; z: number } | null;
   /** The last steer of theirs the world has run, so an answer can name where it has caught up to. */
   steered: number;
   /** Today's cart this player has committed to guard while physically near it. */
@@ -305,7 +309,7 @@ export class Rooms {
   }
 
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
-  admit(wire: Wire, room: Room, seed: number, name: string, at?: { x: number; z: number }): Client {
+  admit(wire: Wire, room: Room, seed: number, name: string, at?: { x: number; z: number }, playerId?: string): Client {
     // The join's coordinates already choose the first country grown for this player. Presence
     // must begin there too, or the first creature snapshot describes the unrelated origin.
     const x = at && Number.isFinite(at.x) ? at.x : 0;
@@ -314,7 +318,8 @@ export class Rooms {
       wire, seed, silent: 0, offers: new Map(), party: null, seeing: new Map(),
       knows: new Map(), standing: { x, z, gear: [], guilt: 0 }, guilt: 0,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
-      hero: null, steered: 0, escortingCart: null, standingIn: 'surface', leftSurfaceAt: null, boat: null,
+      hero: null, serverFootAt: null, playerId: playerId && /^[0-9a-f-]{36}$/i.test(playerId) ? playerId : `legacy-${this.nextId}`,
+      steered: 0, escortingCart: null, standingIn: 'surface', leftSurfaceAt: null, boat: null,
       presence: { id: `p${this.nextId++}`, name, x, z, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);

@@ -27,6 +27,8 @@ export interface CartFinished {
   receiving: [string, number][];
   /** A robbed load's taker; the loaded fact carries the exact meals lost. */
   robber?: string;
+  /** The taker's save identity, stable across reconnects and distinct from their display name. */
+  robberId?: string;
 }
 
 export type CarrierFact = CartLoaded | CartFinished;
@@ -183,6 +185,8 @@ export class CarrierBook {
       || (fact.outcome !== 'delivered' && fact.outcome !== 'robbed')
       || (fact.robber !== undefined && (fact.outcome !== 'robbed'
         || typeof fact.robber !== 'string' || fact.robber.length === 0 || fact.robber.length > 64))
+      || (fact.robberId !== undefined && (fact.outcome !== 'robbed'
+        || typeof fact.robberId !== 'string' || !/^[0-9a-f-]{36}$/i.test(fact.robberId)))
       || this.finishes.has(fact.loadedOn)
       || !this.validFinish(fact, this.loads.get(fact.loadedOn))) return false;
     this.finishes.set(fact.loadedOn, {
