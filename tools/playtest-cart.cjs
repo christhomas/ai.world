@@ -144,26 +144,36 @@ module.exports = async function playCart(page, say, go, face) {
   const foot = await page.evaluate(() => {
     const p = window.__player;
     for (let r = 3; r <= 20; r += 1) for (let a = 0; a < 6.3; a += 0.45) {
-      const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
-      if (window.__canStand('hero', x, z) && window.__baitChance(x, z) > 0) return { x, z };
+      const x = Math.round(p.x + Math.cos(a) * r);
+      const z = Math.round(p.z + Math.sin(a) * r);
+      if (window.__canStand('hero', x, z) && window.__baitWouldNest(x, z)) return { x, z };
     }
     return null;
   });
-  if (!foot) { say('an eligible crag is reachable from the parked horse', false,
+  if (!foot) { say('a winning crag is reachable from the parked horse', false,
     JSON.stringify({ lifted, crag: ground.crag })); return; }
   const footStart = lifted.hero;
-  await page.evaluate(([x, z]) => window.__walkTo(x, z), [foot.x, foot.z]);
-  await page.waitForTimeout(7000);
+  // The roll keys off the rounded tile, so arrive inside that tile before spending the body.
+  await page.evaluate(([x, z]) => window.__walkTo(x, z, 0.2), [foot.x, foot.z]);
+  await page.waitForFunction(() => !window.__player.steering, null, { timeout: 30000 });
   const reached = await snapshot();
   const gap = Math.hypot(reached.hero.x - foot.x, reached.hero.z - foot.z);
   const footMoved = Math.hypot(reached.hero.x - footStart.x, reached.hero.z - footStart.z);
-  say('the carcass reaches a standable crag on foot', gap < 3 && footMoved > 1 && reached.shoulder?.kind === 'goat',
+  say('the carcass reaches a standable crag on foot', gap < 0.5 && footMoved > 1 && reached.shoulder?.kind === 'goat',
     `${gap.toFixed(1)} tiles from the ledge; walked ${footMoved.toFixed(1)} tiles`);
+  const beforeAnchors = await page.evaluate(() => window.__baitedEyries());
+  const wouldNest = await page.evaluate(() => window.__baitWouldNest(window.__player.x, window.__player.z));
   await page.keyboard.press('Enter');
   await choose('Leave it for the eagles here');
   await page.locator('#dialogue .dlg-panel').click();
   const after = await snapshot();
   const answer = await page.locator('#dialogue .dlg-text').textContent();
-  say('bait consumes the hauled body and the high country answers', after.shoulder === null && /eagle|bird|ledge|mountain|crag/i.test(answer ?? ''),
-    (answer ?? '').slice(0, 110));
+  const afterAnchors = await page.evaluate(() => window.__baitedEyries());
+  const anchorId = `eyrie:${Math.round(after.hero.x)},${Math.round(after.hero.z)}`;
+  const anchor = afterAnchors.find((one) => one.id === anchorId);
+  say('bait consumes the hauled body and creates an eyrie anchor',
+    after.shoulder === null && wouldNest && !beforeAnchors.some((one) => one.id === anchorId)
+      && anchor?.kind === 'eyrie' && anchor.x === Math.round(after.hero.x)
+      && anchor.z === Math.round(after.hero.z) && /came down, and it stayed/i.test(answer ?? ''),
+    `${anchorId}: ${anchor ? 'recorded' : 'missing'}; ${(answer ?? '').slice(0, 90)}`);
 };

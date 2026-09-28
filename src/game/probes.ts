@@ -68,6 +68,7 @@ import { whaleAt, type Pod } from './whales';
  */
 export interface Probed {
   seed: number;
+  manifest: Manifest;
   state: GameState;
   player: Player;
   rig: SceneRig;
@@ -197,7 +198,7 @@ export function leaveShop(
 
 export function installProbes(ctx: Probed): void {
   const {
-    seed, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
+    seed, manifest, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
     commandWorld, callOut, placeName, carcasses, markers, walking, wildlife, bites, doorsteps, streamTally, wing, leaveOne,
@@ -216,10 +217,16 @@ export function installProbes(ctx: Probed): void {
   (debug as { __canStand?: (kind: string, x: number, z: number) => boolean }).__canStand =
     (kind, x, z) => !!KINDS[kind] && canStand(chunks, KINDS[kind], x, z);
   const baitHigh = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
-  (debug as { __baitChance?: (x: number, z: number) => number }).__baitChance = (x, z) =>
+  const previewBait = (x: number, z: number) =>
     layTheCarcass(new Manifest(seed), seed, state.day, baitHigh,
       (tx, tz) => sampler.probe(tx, tz).land,
-      tilesToVillage(structures.villages, x, z), x, z).chance;
+      tilesToVillage(structures.villages, x, z), x, z);
+  (debug as { __baitChance?: (x: number, z: number) => number }).__baitChance = (x, z) => previewBait(x, z).chance;
+  // A dry run on an empty manifest lets the cart playtest choose a winning tile without
+  // changing the game's probabilistic roll or writing an anchor ahead of the real bait.
+  (debug as { __baitWouldNest?: (x: number, z: number) => boolean }).__baitWouldNest = (x, z) =>
+    previewBait(x, z).nest !== null;
+  (debug as { __baitedEyries?: () => unknown }).__baitedEyries = () => manifest.byKind('eyrie');
   (debug as { __pods?: () => unknown }).__pods = () => pods();
   (debug as { __sailing?: unknown }).__sailing = sailing;
   (debug as { __whaleY?: () => number[] }).__whaleY = () => {
@@ -378,8 +385,8 @@ export function installProbes(ctx: Probed): void {
    * finishing meant arriving: he gives up on a place he cannot reach rather than leaning on the
    * thing in the way of it, so a script never waits on him for ever.
    */
-  (debug as { __walkTo?: (x?: number, z?: number) => unknown }).__walkTo = (x, z) => {
-    player.walkTo(x, z);
+  (debug as { __walkTo?: (x?: number, z?: number, within?: number) => unknown }).__walkTo = (x, z, within) => {
+    player.walkTo(x, z, within);
     return { steering: player.steering, at: [Math.round(player.x), Math.round(player.z)] };
   };
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
