@@ -201,7 +201,7 @@ your own and let you go wherever you like.
 
 | An island town | Under sail |
 |---|---|
-| ![Island](docs/screenshots/island.png) | ![Sailing](docs/screenshots/sailing.png) |
+| ![Island](docs/screenshots/island.png) | ![Sailing](docs/screenshots/sea.png) |
 
 ### Under the shrines
 
@@ -260,7 +260,7 @@ anybody who deliberately chooses one. If the page is on https and the address in
 plain `ws://`, the button says so instead of handing out a link that a browser will refuse to open
 — see [a server other people can reach](#a-server-other-people-can-reach).
 
-![Two travellers in one world](docs/screenshots/multiplayer.png)
+![Two travellers in one world](docs/screenshots/shared.png)
 
 Everyone in a world keeps the same clock, so dawn breaks for all of you at once, and the few
 things players change about the world are shared: a chest opened stays opened, a vault unlocked
