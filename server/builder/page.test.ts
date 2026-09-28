@@ -14,6 +14,8 @@ describe('the page built for the source-host worker', () => {
 
     const page = join(out, 'tools', 'character-builder.html');
     expect(existsSync(page), 'the portal has one stable document path to ask the worker for').toBe(true);
+    expect(readFileSync(page, 'utf8')).toContain('Back to tools');
+    expect(readFileSync(page, 'utf8')).toContain('Character Builder');
     expect(readFileSync(page, 'utf8'), 'every emitted dependency points back through the guarded route')
       .toContain(BUILDER_PAGE_BASE);
     expect(readdirSync(join(out, 'assets')).some((file) => file.endsWith('.js')),

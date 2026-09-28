@@ -1,15 +1,15 @@
 <!doctype html>
 <!--
-  The character builder: every creature in the world, one of them stood in front of you, and Claude
-  on hand to change it.
+  The character builder: every creature in the world, one of them stood in front of you, and an
+  assistant on hand to change it. The paired worker runs GPT-6 Sol; the local Vite door uses Claude.
 
   `turnaround.html` next door answers "is this rig right?" — four fixed angles, every figure at
   once, made to be screenshotted. This answers the question after it: "make it right". One creature
   at a time, turned with the mouse, walking if you want it to, and a box to ask for the change in.
-  Ask for shorter legs and Claude edits `models/creatures/<name>.json`; Vite sees the file change
+  Ask for shorter legs and the assistant edits `models/creatures/<name>.json`; Vite sees the file change
   and reloads this page; the creature in the middle of the screen has shorter legs. That loop is the
   whole tool, and everything here exists to keep it tight — which is most of why the bodies are one
-  file each: what gets sent can name the file rather than tell Claude to go and find it.
+  file each: what gets sent can name the file rather than tell the assistant to go and find it.
 
   It was built to catch the things a static sheet cannot show. A rig that reads well from four
   chosen angles and badly from the four between them. A part that only comes apart when the legs
@@ -33,19 +33,24 @@
   panel because a page already has three.js, orbit controls and a mouse, and because it opens
   inside the editor as happily as in a browser.
 -->
-<html><head><meta charset="utf-8"><title>character builder</title><style>
+<html><head><meta charset="utf-8"><title>Character Builder — ai.world</title><style>
 :root{
   --ink:#dfe5ff; --dim:#8f9ac4; --panel:#252d44; --edge:#39425f; --deep:#1a2032; --lit:#7fd4a0;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--deep);color:var(--ink);font:13px/1.5 'Courier New',monospace;
   height:100vh;overflow:hidden;
-  display:grid;grid-template-columns:190px 1fr 340px;grid-template-rows:100vh}
+  display:grid;grid-template-columns:190px 1fr 340px;grid-template-rows:38px minmax(0,1fr)}
+.tool-title{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;
+  padding:0 12px;background:#121622;border-bottom:1px solid var(--edge);font-weight:bold}
+.tool-title a{color:var(--lit);text-decoration:none;font-weight:normal}
+.tool-title a:hover{text-decoration:underline}
+#list,#view,#ask{grid-row:2}
 /* narrow enough to be an editor panel: the prompt goes under the view rather than beside it */
 @media (max-width:1080px){
-  body{grid-template-columns:150px 1fr;grid-template-rows:1fr 260px}
-  #list{grid-row:1/3}
-  #ask{grid-column:2;border-left:none;border-top:1px solid var(--edge)}
+  body{grid-template-columns:150px 1fr;grid-template-rows:38px minmax(0,1fr) 260px}
+  #list{grid-row:2/4}
+  #ask{grid-column:2;grid-row:3;border-left:none;border-top:1px solid var(--edge)}
 }
 
 /* ---- the list ---- */
@@ -132,6 +137,7 @@ details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
   another port, use that port instead.</p>
 </div></div>
 
+<div class="tool-title"><span>Character Builder</span><a href="/tools/">Back to tools</a></div>
 <nav id="list"></nav>
 
 <main id="view">
@@ -150,7 +156,7 @@ details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
   <div id="log"></div>
   <div id="compose">
     <textarea id="prompt" placeholder="shorter legs, and give it a longer tail"></textarea>
-    <button id="send">ask Claude to change this rig</button>
+    <button id="send">ask GPT-6 Sol to change this rig</button>
     <details><summary>what gets sent</summary><pre id="framing"></pre></details>
   </div>
   <details id="book" hidden><summary>what has been asked</summary><div id="runs"></div></details>
@@ -162,6 +168,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { KINDS } from '/src/entities/animals.ts';
 import { modelFile } from '/src/entities/models.ts';
 import { bodyMotion, cycleTurn } from '/src/entities/motion.ts';
+import { previewMotion } from '/tools/builder-preview.ts';
 import { HeroGear } from '/src/render/herogear.ts';
 import { GameState } from '/src/game/state.ts';
 import beasts from '/properties/beasts.json';
@@ -221,6 +228,7 @@ const FOLLOW_ROUTE = IN_PORTAL ? '/tools/build/follow' : '/__ask';
 const TOOLS = new Set(['pick', 'shovel', 'saw', 'rod', 'firerocks']);
 
 const el = (id) => document.getElementById(id);
+if (!IN_PORTAL) el('send').textContent = 'ask Claude to change this rig';
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 
 // what is being looked at, and how. The creature is in the URL so that a reload — which is how a
@@ -349,7 +357,7 @@ function dress(kind, wearing) {
   for (const id of wearing) { if (!TOOLS.has(id)) { state.give(id, 1); state.equip(id); } }
   const hero = {
     x: 0, y: 0, z: 0, yaw: 0, bobY: 0, kind, hiddenTags: new Set(),
-    walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0,
+    ...previewMotion(),
     basePalette: kind.palettes[0], tints: [...kind.palettes[0]],
   };
   // version 0 on a fresh state matches the gear's own -1 only after one update, so ask twice
@@ -380,7 +388,7 @@ function show(id) {
   const dressed = kind.id === 'hero' ? dress(kind, KITS[kit][1]) : null;
   const mover = dressed?.hero ?? {
     x: 0, y: 0, z: 0, yaw: 0, bobY: 0, kind, hiddenTags: new Set(),
-    walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0,
+    ...previewMotion(),
     basePalette: kind.palettes[0], tints,
   };
   const { group, moving } = buildRig(kind, mover.hiddenTags, mover.tints);
@@ -671,14 +679,14 @@ function resize() {
 new ResizeObserver(resize).observe(view);
 resize();
 
-/* --------------------------------------------------------------- asking Claude */
+/* --------------------------------------------------------------- asking for edits */
 
 /**
  * What is wrapped round the words you type, for a prop.
  *
  * A different framing from a creature's, because they are different jobs done in different files:
  * a creature is a rig with a walk and a palette, and a prop is one shape planted in the ground.
- * Telling Claude which of the two it is looking at, and where that thing lives, is most of the
+ * Telling the assistant which of the two it is looking at, and where that thing lives, is most of the
  * difference between a change that lands and a change that goes hunting.
  */
 function framingProp(kind) {
@@ -708,7 +716,7 @@ When you are done, say in two or three sentences what you changed and what it sh
 /**
  * What is wrapped round the words you type, for a creature.
  *
- * It used to say the rig was somewhere in `src/entities/` and that Claude should search rather than
+ * It used to say the rig was somewhere in `src/entities/` and that the assistant should search rather than
  * guess, because the page could not reliably tell which of three source files a given creature was
  * drawn in. There is nothing left to guess: every body is a file of its own, `modelFile` says which
  * one, and the sentence below is a path something can open without looking for it first.
@@ -778,7 +786,7 @@ function told(ev) {
 /**
  * Read a run, whether it was just started here or was already going when the page loaded.
  *
- * The second case is the one that matters. Claude edits a rig, Vite reloads this page, and the
+ * The second case is the one that matters. The assistant edits a rig, Vite reloads this page, and the
  * reply being typed into it dies with the page — so the run lives on the server and this follows
  * it. A reload therefore costs the transcript nothing: it is fetched again from the start, which
  * is also why opening the builder shows you what you last asked.
@@ -902,6 +910,7 @@ window.__builder = {
     id: standing?.kind.id,
     parts: standing?.figure.children[0].children.length,
     lift: standing?.lift,
+    positionY: standing?.figure.position.y,
     away: camera.position.distanceTo(controls.target),
     target: controls.target.toArray().map((n) => Number(n.toFixed(3))),
   }),

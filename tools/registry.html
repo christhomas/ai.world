@@ -37,8 +37,13 @@
     margin: 0; background: var(--bg); color: var(--ink);
     font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+  .tool-title { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+    min-height: 38px; padding: 0 14px; background: #121622; border-bottom: 1px solid var(--line);
+    font-weight: 600; }
+  .tool-title a { color: #7fd4a0; text-decoration: none; font-weight: 400; }
+  .tool-title a:hover { text-decoration: underline; }
   header {
-    position: sticky; top: 0; z-index: 2; background: #121622; border-bottom: 1px solid var(--line);
+    position: sticky; top: 38px; z-index: 2; background: #121622; border-bottom: 1px solid var(--line);
     padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
   }
   h1 { font-size: 14px; margin: 0 12px 0 0; font-weight: 600; letter-spacing: .04em; }
@@ -83,6 +88,7 @@
 </style>
 </head>
 <body>
+<div class="tool-title"><span>Domesday Book</span><a href="/tools/">Back to tools</a></div>
 <header>
   <h1>DOMESDAY BOOK</h1>
   <input id="where" placeholder="http://localhost:8080" value="">

@@ -16,12 +16,12 @@ import type { Recorded } from './asked';
  * The builder, end to end: a portal that knows who you are, a worker that does not, and a shared
  * secret between them.
  *
- * Claude is stood in for. What is being tested is the arrangement — who may ask, what the worker
+ * Codex is stood in for. What is being tested is the arrangement — who may ask, what the worker
  * refuses, what is written down, and that a page can follow a run and pick it up again after a
  * reload — and standing in for the thing that edits files makes all of that testable without a
  * login, an API key, or twenty minutes.
  *
- * The stand-in is a real child process speaking real `stream-json`, so the parsing, the streaming,
+ * The stand-in is a real child process speaking Codex JSONL, so the parsing, the streaming,
  * the argv and the exit codes are all the ones production uses. The only thing it does not do is
  * think.
  */
@@ -32,13 +32,12 @@ const PRETEND = `
 const say = (o) => process.stdout.write(JSON.stringify(o) + '\\n');
 const prompt = process.argv[process.argv.length - 1] ?? '';
 if (prompt.includes('fail')) { process.stderr.write('it did not work\\n'); process.exit(2); }
-say({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'working on ' } } });
-say({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: prompt } } });
+say({ type: 'item.completed', item: { type: 'agent_message', text: 'working on ' + prompt } });
 // a run long enough to still be in hand when a second one arrives, for the one test that needs it
 if (prompt.includes('slowly')) { const until = Date.now() + 1500; while (Date.now() < until); }
-say({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: 'src/entities/animals.ts' } }] } });
+say({ type: 'item.started', item: { type: 'command_execution', command: 'edit src/entities/animals.ts' } });
 require('node:fs').writeFileSync('changed.txt', prompt);
-say({ type: 'result', is_error: false, duration_ms: 1200, result: 'done' });
+say({ type: 'turn.completed', usage: {} });
 `;
 
 /** A build small enough for this test, but still made from the worker's actual worktree. */
@@ -131,7 +130,7 @@ describe('the builder worker', () => {
     const said = await res.text();
     expect(said).toContain('working on ');
     expect(said).toContain('make the wolf bigger');
-    expect(said, 'the tool line is what makes watching it happen literally true').toContain('"name":"Edit"');
+    expect(said, 'the tool line is what makes watching it happen literally true').toContain('"name":"command"');
     expect(said).toContain('"k":"end"');
   }, PATIENCE);
 

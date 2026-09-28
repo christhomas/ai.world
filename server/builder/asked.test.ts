@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { LONGEST_PROMPT, OneAtATime, carriesASecret, whatWasAsked, type Recorded } from './asked';
 import { lastRuns, migrateBook, writeDown } from './book';
-import { readEvent } from './worker';
+import { codexCommand, readEvent } from './worker';
 import { Runs } from './runs';
 import type { ServerResponse } from 'node:http';
 
@@ -266,22 +266,28 @@ describe('a run somebody is following', () => {
  * And reading the CLI's own stream, where anything unrecognised is dropped rather than guessed at.
  */
 describe('what the builder is heard saying', () => {
-  it('hears text as it is typed', () => {
+  it('uses GPT-6 Sol in an isolated worktree without a shell', () => {
+    expect(codexCommand('change the wolf')).toEqual({
+      run: 'codex',
+      args: ['exec', '--json', '--ephemeral', '-m', 'gpt-6-sol', '-s', 'workspace-write',
+        '-c', 'approval_policy="never"', 'change the wolf'],
+    });
+  });
+
+  it('hears a completed agent message', () => {
     expect(readEvent({
-      type: 'stream_event',
-      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'hello' } },
+      type: 'item.completed', item: { type: 'agent_message', text: 'hello' },
     }, '/tree')).toEqual([{ k: 'say', text: 'hello' }]);
   });
 
-  it('hears a tool, and says what it was used on', () => {
+  it('hears a command and says what it was used on', () => {
     expect(readEvent({
-      type: 'assistant',
-      message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/tree/src/a.ts' } }] },
-    }, '/tree')).toEqual([{ k: 'tool', name: 'Edit', on: 'src/a.ts' }]);
+      type: 'item.started', item: { type: 'command_execution', command: 'cat /tree/src/a.ts' },
+    }, '/tree')).toEqual([{ k: 'tool', name: 'command', on: 'cat src/a.ts' }]);
   });
 
   it('drops what it does not recognise, because the CLI is free to change its shapes', () => {
-    for (const msg of [{ type: 'system' }, { type: 'stream_event', event: { type: 'ping' } }, {}]) {
+    for (const msg of [{ type: 'thread.started' }, { type: 'item.updated', item: {} }, {}]) {
       expect(readEvent(msg, '/tree')).toEqual([]);
     }
   });

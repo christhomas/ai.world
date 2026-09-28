@@ -109,6 +109,7 @@ describe('the tools portal, served', () => {
     const page = await get('/tools/registry', cookie);
     const shown = await page.text();
     expect(shown, 'the card must not end at a placeholder').toContain('DOMESDAY BOOK');
+    expect(shown).toContain('Back to tools');
     expect(shown, 'an authenticated page must not ask the operator to paste another secret')
       .not.toContain('operator or watch token');
 
