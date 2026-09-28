@@ -1,6 +1,6 @@
 # Illness transmission
 
-An ill villager can pass a fever to another person in the same village. The model uses three shared contacts per person per day. Each contact reaches a sick person with probability `sick / population`; a contact with a sick person passes illness with probability 0.13. This gives the contact risk `1 - (1 - 0.13 × sick / population)^3`. The existing spontaneous risk is 0.012 per person per day. The two independent risks combine as `1 - (1 - spontaneous) × (1 - contact)`. A bathhouse reduces both risks by 40%; it does not cure somebody already sick. A doctor shortens a caught fever and is paid under the existing rule.
+An ill villager can pass a fever to another person in the same village. The model uses three shared contacts per person per day. Each contact reaches a sick person with probability `sick / population`; a contact with a sick person passes illness with probability 0.04. This gives the contact risk `1 - (1 - 0.04 × sick / population)^3`. The existing spontaneous risk is 0.012 per person per day. The two independent risks combine as `1 - (1 - spontaneous) × (1 - contact)`. A bathhouse reduces both risks by 40%; it does not cure somebody already sick. A doctor shortens a caught fever and is paid under the existing rule.
 
 The sick count is frozen before any person's roll. A case caught tonight can infect someone tomorrow, never the next row merely because the register lists them second. Every person still spends exactly two draws from the village's named daily illness stream, whether already sick, wounded, or well. The first decides infection; the second decides severity. This preserves the stream's draw budget and makes replay independent of the number of cases found earlier in a pass. The village's other daily streams are unchanged.
 
@@ -19,10 +19,10 @@ Run `pnpm exec tsx tools/illness-benchmark.ts`. It compares the live contact rul
 | Days | Mode | Cases | Sick person-days | Days per case | Healthy workdays | Final population |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: |
 | 30 | isolated | 111 | 267 | 2.41 | 6,558 | 320 |
-| 30 | contact | 229 | 572 | 2.50 | 6,340 | 320 |
+| 30 | contact | 132 | 315 | 2.39 | 6,529 | 320 |
 | 90 | isolated | 296 | 745 | 2.52 | 21,090 | 324 |
-| 90 | contact | 619 | 1,567 | 2.53 | 20,427 | 324 |
+| 90 | contact | 360 | 903 | 2.51 | 20,970 | 326 |
 | 180 | isolated | 727 | 1,823 | 2.51 | 47,272 | 578 |
-| 180 | contact | 1,459 | 3,693 | 2.53 | 45,913 | 547 |
+| 180 | contact | 862 | 2,172 | 2.52 | 46,861 | 572 |
 
-These are measurements from one run of the fixed seeds; the elapsed-time column printed by the script is host-dependent. Transmission roughly doubles cases without lengthening treatment per case. Over 180 days the villages supplied 1,359 fewer healthy workdays and ended with 31 fewer people in this cohort. The 30- and 90-day population totals match; the population effect takes longer than the first work loss to show.
+These are measurements from one run of the fixed seeds; the elapsed-time column printed by the script is host-dependent. Transmission adds 135 cases over 180 days without lengthening treatment per case. The villages supplied 411 fewer healthy workdays and ended with six fewer people in this cohort. Population is two higher in the contact arm at day 90; the net long-run effect depends on births and hunger as well as illness.

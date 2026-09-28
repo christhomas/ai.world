@@ -56,7 +56,7 @@ export const AILMENT = {
   /** Three shared contacts per person each day, sampled from the village's current illness share. */
   CONTACTS: 3,
   /** Chance that one contact with a sick person passes the fever. */
-  PASSES: 0.13,
+  PASSES: 0.04,
 } as const;
 
 /**
