@@ -5,7 +5,7 @@ import { buildSkyIsland, planSkyIslands, type SkyIsland } from '../world/skyisla
 import { skyGroundsIn } from '../world/skygrounds';
 import { planEyries, type Eyrie } from './eyries';
 import { layTheCarcass, nestsOn, type Bait } from './baiting';
-import type { Manifest } from '../world/manifest';
+import type { Anchor, Manifest } from '../world/manifest';
 import type { Massif } from '../world/mountains';
 import type { Within } from '../world/window';
 import type { SkyIslands } from '../render/skyisland';
@@ -137,6 +137,13 @@ export class HighCountry {
     // has watched a bird settle should be able to turn round and see it there
     if (laid.nest) this.perchesBaited();
     return laid;
+  }
+
+  /** Apply the shared world's accepted nest state without rolling bait again. */
+  applyBaited(anchor: Anchor, present: boolean): void {
+    if (present) this.manifest.anchors.set(anchor.id, anchor);
+    else this.manifest.anchors.delete(anchor.id);
+    this.perchesBaited();
   }
 
   /** Rebuild the baited tail of the list, leaving the pairs the world planned exactly where they are. */
