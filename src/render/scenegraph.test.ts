@@ -14,7 +14,7 @@ describe('neutral scene graph adapter', () => {
       geometry: {
         positions: Float32Array.of(0, 0, 0, 1, 0, 0, 0, 0, 1),
         normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
-        colours: Float32Array.of(1, 0, 0, 0, 1, 0, 0, 0, 1),
+        colors: Float32Array.of(1, 0, 0, 0, 1, 0, 0, 0, 1),
       },
     });
     const mounted = mountSceneGraph(graph);
@@ -31,5 +31,30 @@ describe('neutral scene graph adapter', () => {
     expect(mesh.material).toBeInstanceOf(THREE.MeshLambertMaterial);
     expect(graph.nodes.every((node) => !('isObject3D' in node))).toBe(true);
     mounted.dispose();
+  });
+
+  it('preserves indexed flowing water and shares the fixed terrain material', () => {
+    const graph = new SceneGraph(0x102030);
+    const geometry = {
+      positions: Float32Array.of(0, 0, 0, 1, 0, 0, 0, 0, 1),
+      normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
+      colors: Float32Array.of(1, 0, 0, 1, 0, 0, 1, 0, 0),
+      indices: Uint32Array.of(0, 1, 2),
+      flow: Float32Array.of(0, 0.5, 1),
+    };
+    graph.add({ kind: 'mesh', geometry, material: 'lit-vertex-colours', castShadow: true, receiveShadow: true });
+    graph.add({ kind: 'mesh', geometry, material: 'lit-vertex-colours', receiveShadow: false });
+    graph.add({ kind: 'mesh', geometry, material: 'water', receiveShadow: false, renderOrder: 2 });
+    const waterMaterial = new THREE.MeshBasicMaterial();
+    const mounted = mountSceneGraph(graph, waterMaterial);
+    const meshes = mounted.scene.children as THREE.Mesh[];
+    expect(meshes[0].material).toBe(meshes[1].material);
+    expect(meshes[0].castShadow).toBe(true);
+    expect(meshes[2].material).toBe(waterMaterial);
+    expect(meshes[2].renderOrder).toBe(2);
+    expect(meshes[2].geometry.index?.array).toEqual(geometry.indices);
+    expect(meshes[2].geometry.getAttribute('flow').array).toEqual(geometry.flow);
+    mounted.dispose();
+    waterMaterial.dispose();
   });
 });

@@ -115,6 +115,6 @@ function buildRoom(map: InteriorMap, pal: Palette): SceneGeometry {
   return {
     positions: Float32Array.from(positions),
     normals: Float32Array.from(normals),
-    colours: Float32Array.from(colors),
+    colors: Float32Array.from(colors),
   };
 }
