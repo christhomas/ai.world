@@ -53,6 +53,7 @@ export interface FrameDescription {
     instanceColours?: number[] | Float32Array;
     parts?: readonly ScenePropPart[];
     glowParts?: readonly ScenePropPart[];
+    glowColour?: number;
     placements?: readonly ScenePlacement[];
   }>;
 }

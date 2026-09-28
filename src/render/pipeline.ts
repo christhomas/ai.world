@@ -93,7 +93,7 @@ export class ThreeFramePipeline implements FramePipeline {
         this.resources.push(geometry, material);
         if (node.glowParts?.length) {
           const glowGeometry = build(node.glowParts);
-          const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const glowMaterial = new THREE.MeshBasicMaterial({ color: node.glowColour ?? 0xffffff });
           const glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, placements.length);
           glow.instanceMatrix.copy(batch.instanceMatrix);
           batch.add(glow);

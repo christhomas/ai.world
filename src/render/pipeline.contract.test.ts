@@ -127,7 +127,8 @@ describe('engine-owned frame submission', () => {
       { x: 4, y: 0, z: 6, rot: 0, tint: 0.5 },
       { x: 8, y: 0, z: 9, rot: 1, tint: 0.8 },
     ];
-    graph.add({ kind: 'prop-batch', parts, placements, castShadow: true, receiveShadow: true });
+    graph.add({ kind: 'prop-batch', parts, glowParts: parts, glowColour: 0xffaabb,
+      placements, castShadow: true, receiveShadow: true });
     const recorder = new RecordingPipeline();
     recorder.captureNext();
     const render = vi.fn();
@@ -140,6 +141,9 @@ describe('engine-owned frame submission', () => {
     const mesh = scene.children[0] as THREE.InstancedMesh;
     expect(mesh.count).toBe(2);
     expect(mesh.castShadow).toBe(true);
+    expect((mesh.children[0] as THREE.InstancedMesh).material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(((mesh.children[0] as THREE.InstancedMesh).material as THREE.MeshBasicMaterial).color.getHex())
+      .toBe(0xffaabb);
     const first = new THREE.Matrix4();
     mesh.getMatrixAt(0, first);
     expect(new THREE.Vector3().setFromMatrixPosition(first).toArray()).toEqual([4, 0, 6]);
@@ -216,6 +220,25 @@ describe('engine-owned frame submission', () => {
     mesh!.getMatrixAt(0, matrix);
     expect(new THREE.Vector3().setFromMatrixPosition(matrix).toArray()).toEqual([8, 0, 9]);
     batch.dispose();
+    props.dispose();
+    glow.dispose();
+  });
+
+  it('lets the neutral frame recolour retained prop glows', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const props = new PropLibrary();
+    const glow = new THREE.MeshBasicMaterial({ color: 0x335577 });
+    addPropInstances(scene, props,
+      [{ kind: PropKind.GreatHearth, x: 1, y: 0, z: 2, rot: 0 }], glow, true, graph);
+    const node = graph.nodes[0];
+    if (node.kind !== 'prop-batch') throw new Error('missing glowing prop node');
+    expect(node.glowColour).toBe(0x335577);
+    node.glowColour = 0xffaa44;
+    new MountedThreePipeline(scene, () => {}, graph).draw(graph.frame());
+    expect(glow.color.getHex()).toBe(0xffaa44);
+    disposeInstances(scene);
     props.dispose();
     glow.dispose();
   });

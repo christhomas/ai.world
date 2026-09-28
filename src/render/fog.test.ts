@@ -100,6 +100,17 @@ const at = (time: number) => ({
 });
 
 describe('the colour of the fog', () => {
+  it('publishes window glow colour through the neutral prop description', () => {
+    const one = rig();
+    const windows = one.graph.add({ kind: 'prop-batch', parts: [], glowParts: [
+      { shape: 'box', size: [1, 1, 1], offset: [0, 0, 0], color: 0xffffff },
+    ], placements: [], castShadow: false, receiveShadow: false });
+    new DayCycle(one).apply(at(0.5) as never);
+    if (windows.kind !== 'prop-batch') throw new Error('missing window batch');
+    expect(windows.glowColour).toBeDefined();
+    expect(one.graph.frame().nodes.at(-1)?.glowColour).toBe(windows.glowColour);
+  });
+
   for (const [hour, when] of [[0.5, 'noon'], [0.78, 'dusk'], [0.0, 'night']] as const) {
     it(`is the colour of the sky at ${when}`, () => {
       const one = rig();
