@@ -1,5 +1,4 @@
 import type { Pier } from '../../world/structures';
-import * as THREE from 'three';
 import { WORLD } from '../../core/config';
 import { FERRY, fareFor, ferryStateAt, formatCountdown, worldSeconds, type FerryLine } from '../ferry';
 import { BOAT } from '../sailing';
@@ -246,11 +245,9 @@ export function travelInteractions(ctx: Surroundings) {
    * time. A rider is carried along with the boat and put ashore when it ties up.
    */
   const sailFerries = (now: number, time: number): void => {
-    for (const { line, mesh } of ferries) {
+    for (const { line, visual } of ferries) {
       const st = ferryStateAt(line, now);
-      mesh.position.x = st.x; mesh.position.z = st.z;
-      mesh.position.y = WORLD.WATER_Y - 0.12 + Math.sin(time * 1.3 + st.x) * 0.03;
-      mesh.rotation.y = st.yaw;
+      visual.setPose(st.x, WORLD.WATER_Y - 0.12 + Math.sin(time * 1.3 + st.x) * 0.03, st.z, st.yaw);
       if (!riding || riding.line !== line) continue;
 
       player.entity.x = st.x + 0.2; player.entity.z = st.z; player.entity.y = WORLD.WATER_Y + FERRY.DECK_HEIGHT;

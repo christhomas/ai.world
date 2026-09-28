@@ -6,7 +6,7 @@ import type { Blow } from '../entities/motion';
 import { canBeCut } from '../entities/monsters';
 import type { Player } from '../entities/player';
 import { PEOPLE as PEOPLE_KINDS } from '../entities/quarry';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { Structures } from '../world/structures';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './archery';
 import { GUN, fire } from './gun';

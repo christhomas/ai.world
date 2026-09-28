@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import type { IsoCamera } from '../render/camera';
 import { WORLD } from '../core/config';
 import { hash3, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
@@ -520,13 +520,8 @@ export class EntityManager {
     return within(this.spawned.values(), this.guests, x, z, r);
   }
 
-  pick(raycaster: THREE.Raycaster): Entity | null {
-    const hits = raycaster.intersectObjects(this.renderer.pickables(), false);
-    for (const h of hits) {
-      const e = this.renderer.entityAt(h);
-      if (e) return e;
-    }
-    return null;
+  pick(x: number, y: number, camera: IsoCamera): Entity | null {
+    return this.renderer.pick(x, y, camera);
   }
 
   private despawn(key: string, list: Entity[]): void {
@@ -696,4 +691,3 @@ export class EntityManager {
 }
 
 export interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[]; seed: number }
-

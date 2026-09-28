@@ -1,24 +1,24 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
-import type { PropLibrary } from '../render/props';
-import { Solids, boxesFrom, type Body } from './solids';
-import { blocking, type Footprints } from './footprints';
-import { BLOCKS_WALKING } from './biomes';
-import type { PropKind } from './biomes';
-import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from './messages';
-import { partsOf } from './endless';
-import { Tellings, boundsOf, patchOfChunk, type Patchwork } from './patchwork';
-import { Standing } from './standing';
-import { TileType } from './terrain';
-import { mountainAt, type Ranges } from './ranges';
-import { WAIT_FOR_THE_WORLD } from './chunkparcel';
+import type { PropLibrary } from './props';
+import { Solids, boxesFrom, type Body } from '../world/solids';
+import { blocking, type Footprints } from '../world/footprints';
+import { BLOCKS_WALKING } from '../world/biomes';
+import type { PropKind } from '../world/biomes';
+import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from '../world/messages';
+import { partsOf } from '../world/endless';
+import { Tellings, boundsOf, patchOfChunk, type Patchwork } from '../world/patchwork';
+import { Standing } from '../world/standing';
+import { TileType } from '../world/terrain';
+import { mountainAt, type Ranges } from '../world/ranges';
+import { WAIT_FOR_THE_WORLD } from '../world/chunkparcel';
 
-import type { ChunkSource, ChunkTiles, TileWorld } from './tiles';
-import type { TerrainSampler } from './terrain';
-import { chunkKey } from './spatial';
-import { PropBatch, disposeInstances, meshFromData, type PropInstance } from '../render/instancing';
-import type { SeasonTintMaterials } from '../render/seasontint';
-import { withoutClearedTrees } from './fields';
+import type { ChunkSource, ChunkTiles, TileWorld } from '../world/tiles';
+import type { TerrainSampler } from '../world/terrain';
+import { chunkKey } from '../world/spatial';
+import { PropBatch, disposeInstances, meshFromData, type PropInstance } from './instancing';
+import type { SeasonTintMaterials } from './seasontint';
+import { withoutClearedTrees } from '../world/fields';
 
 interface LoadedChunk {
   cx: number;

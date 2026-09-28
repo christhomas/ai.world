@@ -4,7 +4,7 @@ import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, type TileWorld } from './entity';
 import { EntityManager } from './manager';
-import { EntityRenderer } from './pool';
+import { EntityRenderer } from '../render/entities';
 import { DYING_LASTS, bodyMotion, dyingAt } from './motion';
 import { buryTheFallen, startDying } from './dying';
 

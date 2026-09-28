@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import type { CreatureSnap } from '../../server/protocol';
 import { Wildlife } from './wildlife';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import type { TileWorld } from '../entities/entity';
 import { Wildlife } from './wildlife';
 import { GameState } from './state';

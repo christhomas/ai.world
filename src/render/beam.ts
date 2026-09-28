@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
 import { Entity, Herd } from '../entities/entity';
-import type { EntityRenderer } from '../entities/pool';
+import type { EntityRenderer } from './entities';
 
 /**
  * Teleporting, made into something you can watch.

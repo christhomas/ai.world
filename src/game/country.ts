@@ -6,7 +6,7 @@ import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import { SkyIslands } from '../render/skyisland';
 import { aroundOf, aroundPatches } from '../world/around';
-import { ChunkManager } from '../world/chunkManager';
+import { ChunkManager } from '../render/chunkManager';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { viewOf } from '../world/patchview';
@@ -19,7 +19,7 @@ import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
 import { HighCountry } from './highcountry';
-import { Skyline } from './skyline';
+import { Skyline } from '../render/skyline';
 
 /**
  * The ground this game is played on, and everything standing on it that was settled before

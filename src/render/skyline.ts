@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { IsoCamera } from '../render/camera';
+import type { IsoCamera } from './camera';
 import type { Ranges } from '../world/ranges';
 
 /**

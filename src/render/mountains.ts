@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { IsoCamera } from './camera';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
 import { hexToLinear } from '../world/mesher';
@@ -260,6 +261,7 @@ export class MountainMaterial {
   };
 
   constructor() {
+    this.material.userData.effects = ['mountain-cutaway'];
     this.material.customProgramCacheKey = () => 'ai-world-mountain';
     this.material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.uniforms);
@@ -303,6 +305,10 @@ float rockDither(vec2 p) {
   look(hero: THREE.Vector3, camera: THREE.Camera, target: THREE.Vector3): void {
     this.uniforms.uHero.value.copy(hero);
     this.uniforms.uLook.value.copy(target).sub(camera.position).normalize();
+  }
+
+  lookAt(hero: { x: number; y: number; z: number }, camera: IsoCamera): void {
+    this.look(new THREE.Vector3(hero.x, hero.y, hero.z), camera.camera, camera.target);
   }
 
   dispose(): void {

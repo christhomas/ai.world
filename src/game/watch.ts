@@ -1,4 +1,3 @@
-import type * as THREE from 'three';
 import { HEALTH } from '../world/health';
 import { WORLD } from '../core/config';
 import { hashString } from '../core/rng';
@@ -9,7 +8,7 @@ import type { Player } from '../entities/player';
 import { CampField } from '../render/wildcamps';
 import { WhaleSchool } from '../render/whales';
 import { compassDir, type Structures } from '../world/structures';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { TerrainSampler } from '../world/terrain';
 import type { Sound } from './audio';
 import type { Director } from './director';
@@ -33,7 +32,8 @@ import type { WildCamp } from './wildcamps';
  */
 export interface Watched {
   seed: number;
-  scene: THREE.Scene;
+  school: WhaleSchool;
+  campField: CampField;
   player: Player;
   state: GameState;
   structures: Structures;
@@ -63,12 +63,11 @@ const NETTLE_RING = 8;
 
 export function createWatch(ctx: Watched) {
   const {
-    seed, scene, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
+    seed, school, campField, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, flash, hurt, knockOut, persist, campsAround, campEmptied,
   } = ctx;
 
   const seaHunt = new SeaHunt(seed);
-  const school = new WhaleSchool(scene);
   /**
    * The families in the sea round the hero, gathered when he crosses into a new chunk — the same
    * arrangement the camps have, and for the same reason: the answer only changes when he moves,
@@ -82,7 +81,6 @@ export function createWatch(ctx: Watched) {
   /** The hour we last announced each family in, so one word is one display. */
   const announced = new Map<string, number>();
 
-  const campField = new CampField(scene);
   /** Camps in the country round the hero, worked out when they cross into a new chunk. */
   let campChunk = '';
   let campsNear: WildCamp[] = [];

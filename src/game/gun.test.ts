@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { Entity, TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import { BOW, markFor } from './archery';
 import { CRAFT } from './craft';
 import { GUN, fire } from './gun';

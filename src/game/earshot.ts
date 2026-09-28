@@ -1,4 +1,4 @@
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 
 /** How far a river carries. Beyond this the world is quiet whatever is running through it. */
 const WATER_EARSHOT = 22;

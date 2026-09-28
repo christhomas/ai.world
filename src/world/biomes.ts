@@ -164,7 +164,7 @@ export const enum PropKind {
    *
    * Four rather than three, because the others each leave a finished thing behind that the world
    * already knew how to draw — a cottage, a pool, a fountain — and a boat leaves nothing at all:
-   * the moment she is paid for she is off the stocks and floating, and what floats is a `THREE`
+   * the moment she is paid for she is off the stocks and floating, and what floats is a renderer
    * object in `render/boat.ts` rather than a prop on a tile. So the fourth here is her finished and
    * still out of the water, which is a real morning and the only one anybody would call waiting.
    */

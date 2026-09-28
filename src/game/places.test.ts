@@ -5,7 +5,7 @@ import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import { PropLibrary } from '../render/props';
 import { Register } from '../world/register';
 import type { Doorway } from '../world/structures';
