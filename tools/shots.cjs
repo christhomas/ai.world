@@ -716,10 +716,18 @@ const SHOTS = [
       // `grown` counts local chunks still on screen, not a historical total: wait for both views
       // to settle on the server's ground before judging the shared country.
       const settled = () => window.__stream?.arrived > 0 && window.__stream.grown === 0;
-      await Promise.all([
-        p.waitForFunction(settled, null, { timeout: 90_000 }),
-        playing.waitForFunction(settled, null, { timeout: 90_000 }),
-      ]);
+      try {
+        await Promise.all([
+          p.waitForFunction(settled, null, { timeout: 90_000 }),
+          playing.waitForFunction(settled, null, { timeout: 90_000 }),
+        ]);
+      } catch (error) {
+        const [mine, theirs] = await Promise.all([
+          p.evaluate(() => window.__stream ?? null),
+          playing.evaluate(() => window.__stream ?? null),
+        ]);
+        throw new Error(`shared stream did not settle: mine=${JSON.stringify(mine)} other=${JSON.stringify(theirs)}; ${error.message}`);
+      }
       const sample = () => ({
         stream: window.__stream,
         mismatch: document.body.textContent.includes('This world grew differently')
