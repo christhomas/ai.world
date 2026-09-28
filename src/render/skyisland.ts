@@ -71,9 +71,12 @@ const DRAW = {
 interface Placed {
   isle: SkyIsland;
   group: THREE.Group;
-  clouds: THREE.Group;
+  clouds: THREE.Group | null;
+  cloudNodes: Array<{ node: Extract<SceneNode, { kind: 'mesh' }>; spec: CloudSpec }>;
   nodes: SceneNode[];
 }
+
+interface CloudSpec { x: number; y: number; z: number; size: number; yaw: number }
 
 /** The four sides of a tile: which way, and the corners of the edge shared with that neighbour. */
 const SIDES = [
@@ -99,7 +102,7 @@ export class SkyIslands {
     private readonly glowMaterial: THREE.Material,
     private readonly graph?: SceneGraph,
   ) {
-    this.bridge = graph ? new ThreeGraphBridge(graph, scene, this.landMaterial, waterMaterial) : null;
+    this.bridge = graph ? new ThreeGraphBridge(graph, scene, this.landMaterial, waterMaterial, this.cloudMaterial) : null;
   }
 
   /**
@@ -146,9 +149,33 @@ export class SkyIslands {
     })), this.glowMaterial, true, this.graph);
     this.scene.add(group);
 
-    const clouds = buildClouds(isle, this.cloudMaterial);
-    this.scene.add(clouds);
-    this.placed.push({ isle, group, clouds, nodes });
+    const specs = cloudSpecs(isle);
+    const cloudNodes: Placed['cloudNodes'] = [];
+    let clouds: THREE.Group | null = null;
+    if (this.bridge) {
+      // Unit geometry and a world transform per puff keep the cloud raft in the submitted frame.
+      const unit = new THREE.IcosahedronGeometry(1, 0);
+      const geometry = {
+        positions: unit.getAttribute('position').array as Float32Array,
+        normals: unit.getAttribute('normal').array as Float32Array,
+        indices: unit.index?.array as Uint16Array | Uint32Array | undefined,
+      };
+      for (const spec of specs) {
+        const node: Extract<SceneNode, { kind: 'mesh' }> = {
+          kind: 'mesh', geometry, material: 'lit-solid', colour: 0xf4f8ff,
+          receiveShadow: false, world: cloudWorld(isle, spec, this.turned),
+          materialState: { transparent: true, opacity: 0.5, depthWrite: false },
+        };
+        this.bridge.add(node);
+        nodes.push(node);
+        cloudNodes.push({ node, spec });
+      }
+      unit.dispose();
+    } else {
+      clouds = buildClouds(isle, this.cloudMaterial, specs);
+      this.scene.add(clouds);
+    }
+    this.placed.push({ isle, group, clouds, cloudNodes, nodes });
   }
 
   /**
@@ -164,7 +191,13 @@ export class SkyIslands {
   /** The clouds go round, slowly, because a still cloud is a rock. */
   update(dt: number): void {
     this.turned += (dt / DRAW.CLOUD_TURN) * Math.PI * 2;
-    for (const p of this.placed) p.clouds.rotation.y = this.turned;
+    for (const p of this.placed) {
+      if (p.clouds) p.clouds.rotation.y = this.turned;
+      for (const { node, spec } of p.cloudNodes) {
+        node.world = cloudWorld(p.isle, spec, this.turned, node.world);
+        this.bridge?.sync(node);
+      }
+    }
   }
 
   /**
@@ -179,12 +212,12 @@ export class SkyIslands {
     for (const p of this.placed) {
       for (const node of p.nodes) this.bridge?.remove(node);
       this.scene.remove(p.group);
-      this.scene.remove(p.clouds);
+      if (p.clouds) this.scene.remove(p.clouds);
       p.group.traverse((o) => {
         if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) o.geometry.dispose();
       });
       disposeInstances(p.group);
-      p.clouds.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+      p.clouds?.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
     }
     this.placed.length = 0;
   }
@@ -350,23 +383,40 @@ function pourOver(b: MeshBuilder, isle: SkyIsland, landsAt: number, foam: [numbe
 }
 
 /** The raft of cloud the island appears to be resting on. */
-function buildClouds(isle: SkyIsland, material: THREE.Material): THREE.Group {
-  const group = new THREE.Group();
-  group.position.set(isle.site.x, 0, isle.site.z);
+function cloudSpecs(isle: SkyIsland): CloudSpec[] {
+  const specs: CloudSpec[] = [];
   const R = isle.site.radius;
   for (let k = 0; k < DRAW.CLOUDS; k++) {
-    // spread from the seed's own arithmetic rather than Math.random, so two machines agree
     const a = (k / DRAW.CLOUDS) * Math.PI * 2 + rand2(isle.x0, k, isle.z0, 3) * 0.6;
     const d = R * (0.45 + rand2(isle.x0, k, isle.z0, 5) * DRAW.CLOUD_OUT);
-    const size = R * (DRAW.CLOUD_SIZE + rand2(isle.x0, k, isle.z0, 7) * DRAW.CLOUD_GROW);
-    const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0), material);
+    specs.push({
+      x: Math.cos(a) * d,
+      y: isle.site.y - DRAW.CLOUD_UNDER - rand2(isle.x0, k, isle.z0, 11) * 3.5,
+      z: Math.sin(a) * d,
+      size: R * (DRAW.CLOUD_SIZE + rand2(isle.x0, k, isle.z0, 7) * DRAW.CLOUD_GROW),
+      yaw: rand2(isle.x0, k, isle.z0, 13) * Math.PI,
+    });
+  }
+  return specs;
+}
+
+function cloudWorld(isle: SkyIsland, puff: CloudSpec, turn: number, out: number[] = new Array<number>(16)): number[] {
+  const c = Math.cos(turn), s = Math.sin(turn);
+  const matrix = new THREE.Matrix4().makeRotationY(turn + puff.yaw);
+  matrix.scale(new THREE.Vector3(puff.size, puff.size * DRAW.CLOUD_FLAT, puff.size));
+  matrix.setPosition(isle.site.x + c * puff.x + s * puff.z, puff.y,
+    isle.site.z - s * puff.x + c * puff.z);
+  return matrix.toArray(out);
+}
+
+function buildClouds(isle: SkyIsland, material: THREE.Material, specs: CloudSpec[]): THREE.Group {
+  const group = new THREE.Group();
+  group.position.set(isle.site.x, 0, isle.site.z);
+  for (const spec of specs) {
+    const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(spec.size, 0), material);
     puff.scale.set(1, DRAW.CLOUD_FLAT, 1);
-    puff.position.set(
-      Math.cos(a) * d,
-      isle.site.y - DRAW.CLOUD_UNDER - rand2(isle.x0, k, isle.z0, 11) * 3.5,
-      Math.sin(a) * d,
-    );
-    puff.rotation.y = rand2(isle.x0, k, isle.z0, 13) * Math.PI;
+    puff.position.set(spec.x, spec.y, spec.z);
+    puff.rotation.y = spec.yaw;
     group.add(puff);
   }
   return group;

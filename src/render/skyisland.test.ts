@@ -19,10 +19,19 @@ describe('sky island frame ownership', () => {
 
     renderer.add(isle, () => 0);
     const meshes = graph.nodes.filter((node) => node.kind === 'mesh');
-    expect(meshes.map((node) => node.material)).toEqual(['lit-vertex-colours', 'water']);
-    expect(scene.children.filter((child) => child instanceof THREE.Mesh)).toHaveLength(2);
+    expect(meshes.slice(0, 2).map((node) => node.material)).toEqual(['lit-vertex-colours', 'water']);
+    expect(meshes).toHaveLength(48); // land, waterfall, and 46 cloud puffs
+    expect(scene.children.filter((child) => child instanceof THREE.Mesh)).toHaveLength(48);
     expect(meshes[0]).toMatchObject({ castShadow: true, receiveShadow: true });
     expect(meshes[1]).toMatchObject({ renderOrder: 2 });
+    expect(meshes[2]).toMatchObject({ material: 'lit-solid',
+      materialState: { transparent: true, opacity: 0.5, depthWrite: false } });
+    const cloud = meshes[2];
+    const before = cloud.world?.slice();
+    renderer.update(60);
+    expect(cloud.world).not.toEqual(before);
+    const nativeCloud = scene.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh)[2];
+    expect(nativeCloud.matrix.toArray()).toEqual(cloud.world);
 
     renderer.clear();
     expect(graph.nodes).toHaveLength(0);
