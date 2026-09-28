@@ -4,7 +4,7 @@ import { Elevations } from '../world/elevation';
 import { elevationFor } from '../world/growworld';
 import { HIGHLAND_ANIMALS, PRAYED_HIGHLAND_ANIMALS } from '../entities/spawns';
 import { GameState } from './state';
-import { affectedPlaces, answerHighland, askForHighland, mayPray, prayerSite, PRAYER_WAIT } from './prayers';
+import { affectedPlaces, answerDueHighlands, answerHighland, askForHighland, mayPray, prayerSite, PRAYER_WAIT } from './prayers';
 
 const shrine = { name: 'Shrine of Echoes', x: 100, z: 100 };
 
@@ -34,6 +34,17 @@ describe('the shrine supplicant', () => {
     expect(new Elevations(elevationFor(saved)).liftAt(prayer.x, prayer.z)).toBeGreaterThan(0);
     expect(PRAYED_HIGHLAND_ANIMALS.map((one) => one.kind)).toEqual(expect.arrayContaining(['yeti', 'ogre']));
     expect(HIGHLAND_ANIMALS.some((one) => one.kind === 'ogre')).toBe(false);
+  });
+
+  it('answers due prayers once before the next country is grown', () => {
+    const manifest = new Manifest(3);
+    const prayers = [askForHighland(shrine, 'west', 10, 1234)];
+    expect(answerDueHighlands(manifest, prayers, 69)).toBe(0);
+    expect(answerDueHighlands(manifest, prayers, 70)).toBe(1);
+    const layer = manifest.get(prayers[0].id);
+    expect(layer?.layer).toBeDefined();
+    expect(answerDueHighlands(manifest, prayers, 80)).toBe(0);
+    expect(manifest.get(prayers[0].id)).toEqual(layer);
   });
 
   it('refuses repeat sites and requests made during the waiting period', () => {

@@ -195,8 +195,9 @@ function localTerrain(value: unknown): TerrainLayer[] | null {
 }
 
 /** A private worker accepts only complete, bounded highland anchors. */
-function localHighlands(value: unknown): Anchor[] | null {
-  if (!Array.isArray(value) || value.length > 32) return null;
+const MAX_LOCAL_HIGHLANDS = 16_384;
+export function localHighlands(value: unknown): Anchor[] | null {
+  if (!Array.isArray(value) || value.length > MAX_LOCAL_HIGHLANDS) return null;
   const layers: Anchor[] = [];
   const ids = new Set<string>();
   for (const row of value) {

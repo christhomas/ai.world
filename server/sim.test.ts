@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
 import { WAIT_FOR_THE_WORLD, unpackChunk } from '../src/world/chunkparcel';
-import { CHUNKS_AT_ONCE, Simulation, VIEW } from './sim';
+import { CHUNKS_AT_ONCE, localHighlands, Simulation, VIEW } from './sim';
 import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
 import { DAY_LENGTH } from './protocol';
@@ -19,6 +19,16 @@ import { MINDS_SCHEMA, keepMinds, mindsOf } from './durable/minds';
 import type { Person } from '../src/world/people';
 import { HoldingBook } from '../src/world/holdingbook';
 import { ownerFromSave } from '../src/world/holdings';
+
+describe('private prayer manifests', () => {
+  it('keeps long-lived worlds with more than 32 answered prayers joinable', () => {
+    const anchors = Array.from({ length: 40 }, (_, i) => ({
+      id: `highland:prayer:${i}`, kind: 'highland', x: i, z: 0, seed: i,
+      parent: null, version: 1, layer: { reach: 80, lift: 5 },
+    }));
+    expect(localHighlands(anchors)).toHaveLength(40);
+  });
+});
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
