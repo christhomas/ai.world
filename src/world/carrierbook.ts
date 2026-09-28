@@ -28,6 +28,19 @@ export interface CartFinished {
 
 export type CarrierFact = CartLoaded | CartFinished;
 
+/** Where a loaded cart is between its two markets during its one day in flight. */
+export function cartPosition(
+  load: CartLoaded, time: number,
+  villages: readonly { name: string; x: number; z: number }[],
+): { x: number; z: number } | null {
+  const from = villages.find((village) => village.name === load.from);
+  const to = villages.find((village) => village.name === load.to);
+  if (!from || !to || !Number.isFinite(time)) return null;
+  const progress = Math.max(0, Math.min(1, time));
+  return { x: from.x + (to.x - from.x) * progress,
+    z: from.z + (to.z - from.z) * progress };
+}
+
 export function cartLoaded(day: number, cart: Carrying): CartLoaded {
   return {
     kind: 'cart-loaded', day, from: cart.from, to: cart.to,

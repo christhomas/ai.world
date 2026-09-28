@@ -40,6 +40,8 @@ export interface CommandWorld {
   towns(like?: string): unknown;
   /** What can be named, for when somebody has forgotten the word. */
   places(like?: string): unknown;
+  carts(): unknown;
+  robCart(): unknown;
   descend(): void;
   climbOut(): void;
   enterShrine(): unknown;
@@ -90,6 +92,8 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   });
   bus.define('towns', ([like]) => world.towns(like as string | undefined));
   bus.define('places', ([like]) => world.places(like as string | undefined));
+  bus.define('carts', () => world.carts());
+  bus.define('rob-cart', () => world.robCart());
   bus.define('descend', () => world.descend());
   bus.define('climb-out', () => world.climbOut());
   bus.define('enter-shrine', () => world.enterShrine());
