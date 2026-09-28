@@ -34,6 +34,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const HERE = process.env.SHOTS || 'docs/screenshots';
+// CI keeps a red-on-grey image for every scene that crosses the pixel threshold.
+const DIFF_OUT = process.env.DIFF_OUT || '';
 const THERE = process.argv[2];
 const ONLY = new Set(process.argv.slice(3));
 
@@ -85,7 +87,7 @@ async function main() {
     // made a single wide picture take minutes; this job now compares every scripted scene.
     const [reference, capture] = [path.join(THERE, name), path.join(HERE, name)]
       .map((file) => fs.readFileSync(file).toString('base64'));
-    const result = await page.evaluate(async ({ reference, capture, shade }) => {
+    const result = await page.evaluate(async ({ reference, capture, shade, much, drawDiff }) => {
       const read = async (b64) => {
         const img = new Image();
         img.src = `data:image/png;base64,${b64}`;
@@ -112,8 +114,29 @@ async function main() {
         );
         if (apart >= shade) moved++;
       }
-      return { moved, of };
-    }, { reference, capture, shade });
+      if (!drawDiff || moved / of <= much) return { moved, of };
+      const canvas = document.createElement('canvas');
+      canvas.width = before.width; canvas.height = before.height;
+      const context = canvas.getContext('2d');
+      const diff = context.createImageData(before.width, before.height);
+      for (let at = 0; at < of; at++) {
+        const px = at * 4;
+        const apart = Math.max(
+          Math.abs(before.data[px] - after.data[px]),
+          Math.abs(before.data[px + 1] - after.data[px + 1]),
+          Math.abs(before.data[px + 2] - after.data[px + 2]),
+        );
+        if (apart >= shade) {
+          diff.data[px] = 255; diff.data[px + 1] = 0; diff.data[px + 2] = 32;
+        } else {
+          const grey = Math.round((before.data[px] + before.data[px + 1] + before.data[px + 2]) / 6);
+          diff.data[px] = grey; diff.data[px + 1] = grey; diff.data[px + 2] = grey;
+        }
+        diff.data[px + 3] = 255;
+      }
+      context.putImageData(diff, 0, 0);
+      return { moved, of, diff: canvas.toDataURL('image/png').split(',')[1] };
+    }, { reference, capture, shade, much, drawDiff: Boolean(DIFF_OUT) });
     if (result.before) {
       lines.push(`  SIZE   ${name}: ${result.before.join('x')} against ${result.after.join('x')}`);
       told++;
@@ -121,7 +144,14 @@ async function main() {
     }
     const share = result.of === 0 ? 0 : result.moved / result.of;
     worst = Math.max(worst, share);
-    if (share > much) { told++; lines.push(`  MOVED  ${name}: ${(share * 100).toFixed(2)}% of it`); }
+    if (share > much) {
+      told++;
+      if (result.diff) {
+        fs.mkdirSync(DIFF_OUT, { recursive: true });
+        fs.writeFileSync(path.join(DIFF_OUT, name), Buffer.from(result.diff, 'base64'));
+      }
+      lines.push(`  MOVED  ${name}: ${(share * 100).toFixed(2)}% of it${result.diff ? ` (diff: ${path.join(DIFF_OUT, name)})` : ''}`);
+    }
   }
   for (const name of [...theirs].sort()) if (!mine.includes(name)) { lines.push(`  GONE   ${name}`); told++; }
 

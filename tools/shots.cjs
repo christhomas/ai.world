@@ -115,6 +115,18 @@ const PHONE = { width: 844, height: 390 };
 const PHONE_TALL = { width: 420, height: 900 };
 /** How long a fresh page is given to raise a world before anything is asked of it. */
 const LOADING = 18000;
+const CAPTURE_DATE = new Date('2026-01-01T12:00:00Z');
+
+/** Hold the photographed frame's light and HUD while the simulation finishes drawing. */
+const lockSceneClock = (page, time) => page.evaluate((at) => {
+  const state = window.__state;
+  const day = state.day;
+  Object.defineProperties(state, {
+    day: { configurable: true, get: () => day, set: () => {} },
+    time: { configurable: true, get: () => at, set: () => {} },
+  });
+  state.tick = () => {};
+}, time);
 
 /** Midday, dusk, and the dead of night, as the fraction of a day the `time` command wants. */
 const NOON = 0.5, DUSK = 0.78, NIGHT = 0.02;
@@ -281,9 +293,9 @@ const SHOTS = [
        * Both are the world's own, so this photographs the livelihood rather than a cow put there
        * for the picture — and it looks for a beast that has somebody standing near it, because a
        * field of cattle with no farmer in it is the fault this shot exists to show is fixed.
-       */
+      */
       await time(NOON);
-      await village();
+      const v = await village();
       await zoom(9);
       const spot = await ask(() => {
         const all = window.__entitiesFull().filter((e) => !e.dead);
@@ -297,10 +309,17 @@ const SHOTS = [
         return best;
       });
       if (!spot) return null;
-      // stood a couple of tiles off rather than across the field: the camera follows the hero, so
-      // anything further away than that is a picture of the hero with the subject in the corner
-      await stand(spot.x + 2.5, spot.z + 2.5, 2500);
-      await face(spot.x, spot.z);
+      // The documented road/seed-3 frame looks into the hub's paddock from one fixed tile.
+      // Following whichever cow happens to be closest shifts the entire camera by several tiles
+      // between runs, making every building and patch of ground a false visual diff. Keep the
+      // exploratory seed/world overrides useful by following their herd as before.
+      if ((process.env.WORLD || 'road') === 'road' && Number(process.env.SEED || 3) === 3) {
+        await stand(v.x + 18, v.z - 2, 2500);
+        await face(v.x + 15.5, v.z - 4.5);
+      } else {
+        await stand(spot.x + 2.5, spot.z + 2.5, 2500);
+        await face(spot.x, spot.z);
+      }
       return `${spot.kind}, ${spot.near} people about`;
     },
   },
@@ -799,6 +818,7 @@ process.on('exit', stopWorld);
 async function playerJoins(browser, seed, villages = 3, world = 'endless') {
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
+  await page.clock.setFixedTime(CAPTURE_DATE);
   await page.goto(`${origin}/?world=${world}&seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
   await page.waitForTimeout(LOADING);
@@ -826,6 +846,7 @@ async function playerJoins(browser, seed, villages = 3, world = 'endless') {
 async function take(browser, shot) {
   const page = await browser.newPage({ viewport: shot.viewport ?? VIEW });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
+  await page.clock.setFixedTime(CAPTURE_DATE);
   if (shot.join) await page.addInitScript(() => localStorage.setItem('ai.world/name', 'Ash'));
   if (RIG) {
     await page.addInitScript((on) => {
@@ -891,6 +912,7 @@ async function take(browser, shot) {
   try { note = await shot.setup(page, verbs(page), playing); }
   catch (e) { await done(); return { ok: false, why: e.message }; }
   if (note === null) { await done(); return { ok: false, why: 'nothing to photograph in this world today' }; }
+  if (!shot.page) await lockSceneClock(page, ['night', 'phone-night'].includes(shot.name) ? NIGHT : NOON);
   /*
    * Long enough for whatever was asked for to be drawn, and for the notices to clear.
    *

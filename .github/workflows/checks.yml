@@ -367,11 +367,11 @@ jobs:
           first_capture=$?
           OUT="$scenes_dir/holdout" node tools/shots.cjs > "$scenes_dir/holdout-capture.log" 2>&1
           holdout_capture=$?
-          SHOTS="$scenes_dir/first" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/first-reference.txt" 2>&1
+          SHOTS="$scenes_dir/first" DIFF_OUT="$scenes_dir/diff-first-reference" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/first-reference.txt" 2>&1
           first_reference=$?
-          SHOTS="$scenes_dir/holdout" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/holdout-reference.txt" 2>&1
+          SHOTS="$scenes_dir/holdout" DIFF_OUT="$scenes_dir/diff-holdout-reference" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/holdout-reference.txt" 2>&1
           holdout_reference=$?
-          SHOTS="$scenes_dir/holdout" node tools/compare.cjs "$scenes_dir/first" "${scenes[@]}" > "$scenes_dir/repeatability.txt" 2>&1
+          SHOTS="$scenes_dir/holdout" DIFF_OUT="$scenes_dir/diff-repeatability" node tools/compare.cjs "$scenes_dir/first" "${scenes[@]}" > "$scenes_dir/repeatability.txt" 2>&1
           repeatability=$?
           for report in "$scenes_dir"/*.log "$scenes_dir"/*.txt; do
             echo "=== $(basename "$report") ==="
@@ -391,6 +391,7 @@ jobs:
           path: |
             ${{ runner.temp }}/reference-scenes/first/*.png
             ${{ runner.temp }}/reference-scenes/holdout/*.png
+            ${{ runner.temp }}/reference-scenes/diff-*/*.png
             ${{ runner.temp }}/reference-scenes/*.log
             ${{ runner.temp }}/reference-scenes/*.txt
             docs/reports/pictures-report.txt
