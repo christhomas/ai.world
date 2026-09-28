@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { SceneGraph } from '../core/scenegraph';
 import { RecordingPipeline } from './recording';
 import { ThreeFramePipeline, submitGraphFrame } from './pipeline';
+import { EntityRenderer } from './entities';
+import { Entity, Herd } from '../entities/entity';
+import { KINDS } from '../entities/animals';
+import { mulberry32 } from '../core/rng';
 
 describe('engine-owned frame submission', () => {
   const camera = {
@@ -57,6 +61,38 @@ describe('engine-owned frame submission', () => {
     const first = new THREE.Matrix4();
     mesh.getMatrixAt(0, first);
     expect(new THREE.Vector3().setFromMatrixPosition(first).toArray()).toEqual([4, 0, 6]);
+    webgl.dispose();
+  });
+
+  it('uses graph-owned creature instance buffers for the live adapter and recording', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const renderer = new EntityRenderer(scene, graph);
+    const kind = KINDS.sheep;
+    const sheep = new Entity(kind, 4, 6, new Herd(kind, 4, 6, 4, 6, 0), 'test', mulberry32(2));
+    renderer.add(sheep);
+    renderer.update();
+    const nodes = graph.nodes.filter((node) => node.kind === 'instances');
+    expect(nodes.length).toBeGreaterThan(0);
+    for (const node of nodes) {
+      if (node.kind !== 'instances') continue;
+      const mesh = scene.children.find((child) => child instanceof THREE.InstancedMesh
+        && child.instanceMatrix.array === node.matrices) as THREE.InstancedMesh | undefined;
+      expect(mesh).toBeDefined();
+      expect(mesh?.count).toBe(node.count);
+    }
+    const recorder = new RecordingPipeline();
+    recorder.captureNext();
+    const render = vi.fn();
+    const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
+    const frame = submitGraphFrame(graph, [recorder, webgl]);
+    expect(recorder.last).toBe(frame);
+    expect(frame.nodes.filter((node) => node.kind === 'instances')
+      .reduce((total, node) => total + (node.instanceMatrices?.length ?? 0) / 16, 0))
+      .toBeGreaterThan(0);
+    expect(render).toHaveBeenCalledOnce();
+    renderer.dispose();
     webgl.dispose();
   });
 });

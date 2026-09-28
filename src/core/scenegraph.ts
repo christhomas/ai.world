@@ -6,7 +6,7 @@ const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 export interface SceneGeometry {
   positions: Float32Array;
   normals: Float32Array;
-  colors: Float32Array;
+  colors?: Float32Array;
   indices?: Uint32Array;
   flow?: Float32Array;
 }
@@ -18,6 +18,8 @@ export type SceneNode =
   | { kind: 'directional'; colour: number; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
   | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
       placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
+  | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
+      matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'water';
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number };
 
@@ -65,6 +67,20 @@ export class SceneGraph {
           receiveShadow: node.receiveShadow, parts: node.parts,
           glowParts: node.glowParts, placements: node.placements,
         };
+        if (node.kind === 'instances') return {
+          ...base, kind: 'instances' as const, castShadow: node.castShadow,
+          receiveShadow: node.receiveShadow,
+          material: { intent: 'lit' as const, colour: node.colour, emissive: 0,
+            vertexColours: false, transparent: false, opacity: 1, depthWrite: true,
+            side: 'front' as const, effects: [] },
+          attributes: {
+            position: { size: 3, values: Array.from(node.geometry.positions) },
+            normal: { size: 3, values: Array.from(node.geometry.normals) },
+          },
+          indices: node.geometry.indices ? Array.from(node.geometry.indices) : undefined,
+          instanceMatrices: Array.from(node.matrices.subarray(0, node.count * 16)),
+          instanceColours: node.colours ? Array.from(node.colours.subarray(0, node.count * 3)) : undefined,
+        };
         return {
           ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,
           receiveShadow: node.receiveShadow,
@@ -77,7 +93,7 @@ export class SceneGraph {
           attributes: {
             position: { size: 3, values: Array.from(node.geometry.positions) },
             normal: { size: 3, values: Array.from(node.geometry.normals) },
-            color: { size: 3, values: Array.from(node.geometry.colors) },
+            ...(node.geometry.colors ? { color: { size: 3, values: Array.from(node.geometry.colors) } } : {}),
             ...(node.geometry.flow ? { flow: { size: 1, values: Array.from(node.geometry.flow) } } : {}),
           },
           indices: node.geometry.indices ? Array.from(node.geometry.indices) : undefined,
