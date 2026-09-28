@@ -54,4 +54,20 @@ describe('Manifest', () => {
     expect(joinedManifest(9, saved.toJSON(), [], [sea, land]).terrain).toEqual([sea, land]);
     expect(joinedManifest(9, saved.toJSON(), [], []).terrain).toEqual([]);
   });
+
+  it('carries server-pinned sky sites and hand-placed access eyries into a fresh named-world page', () => {
+    const world = new Manifest(9);
+    const site = world.ensure('sky:100,100', 'skyisle', 100, 100, 'ground:100,100');
+    site.skySite = { radius: 22, y: 26 };
+    const eyrie = { id: 'eyrie:edit:00000000-0000-4000-8000-000000000322', kind: 'eyrie' as const,
+      x: 120, z: 100, seed: 42, parent: site.id, version: 2 };
+    world.anchors.set(eyrie.id, eyrie);
+    const local = new Manifest(9);
+    local.ensure('eyrie:1,2', 'eyrie', 1, 2);
+    const joined = new Manifest(9, joinedManifest(9, local.toJSON(), [], [],
+      world.byKind('skyisle'), [eyrie]));
+    expect(joined.get(site.id)).toEqual(site);
+    expect(joined.get(eyrie.id)).toEqual(eyrie);
+    expect(joined.get('eyrie:1,2')).toBeDefined();
+  });
 });

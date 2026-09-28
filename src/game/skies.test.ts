@@ -5,6 +5,8 @@ import type { IslandInfo } from '../world/graph';
 import type { Player } from '../entities/player';
 import type { IsoCamera } from '../render/camera';
 import type { TileWorld } from '../entities/entity';
+import { Manifest } from '../world/manifest';
+import { skyEyrieAnchor } from '../world/worldediting';
 
 const island: IslandInfo = { id: 'isle:0,0', seed: 1, x: 0, z: 0, radius: 90, biome: 0, hub: 0, firstNode: 0 };
 const [site] = planSkyIslands(1, [island], []);
@@ -33,7 +35,7 @@ function fakePlayer() {
   };
 }
 
-function harness() {
+function harness(manifest?: Manifest) {
   const player = fakePlayer();
   const iso = { target: { set: () => {} } };
   const said: string[] = [];
@@ -45,7 +47,7 @@ function harness() {
     chime: () => {},
     discover: () => {},
     persist: () => {},
-  }, [isle]);
+  }, [isle], manifest);
   return { player, skies, said };
 }
 
@@ -159,6 +161,16 @@ describe('staying on the island', () => {
 });
 
 describe('calling a bird down at the falls', () => {
+  it('also answers from an editor-placed eagle on a mountain near the pinned sky village', () => {
+    const manifest = new Manifest(1);
+    manifest.anchors.set(site.id, { id: site.id, kind: 'skyisle', x: site.x, z: site.z,
+      seed: 777, parent: site.over, version: 1, skySite: { radius: site.radius, y: site.y } });
+    const anchor = skyEyrieAnchor(manifest, site.id, site.x + 40, site.z,
+      'eyrie:edit:00000000-0000-4000-8000-000000000322')!;
+    manifest.anchors.set(anchor.id, anchor);
+    const { skies } = harness(manifest);
+    expect(skies.calledFrom(anchor.x, anchor.z)).toBe(isle);
+  });
   it('answers from the foot of the fall and nowhere else', () => {
     const { skies } = harness();
     expect(skies.calledFrom(isle.crag.x, isle.crag.z)).toBe(isle);

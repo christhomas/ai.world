@@ -530,7 +530,7 @@ export function startGame(
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     discover, persist: () => persist(),
-  }, skyIsles);
+  }, skyIsles, manifest);
   // a world put away while the hero was up in the clouds opens with them still up there. Without
   // it they come back at the same coordinates with the island no longer under their feet, which
   // is a spawn over open sea and a save that cannot be walked out of.

@@ -6,7 +6,7 @@ import {
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import { WorldRecordConflict } from './worldrecords';
 import type { Vault } from './vault';
-import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
+import { CLOCK_INTERVAL, DAY_LENGTH, type SharedWorld } from './world';
 import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
 import { boundsOf, patchOf, patchOfChunk } from '../src/world/patchwork';
@@ -38,6 +38,8 @@ import { lidLifted } from './chests';
 import { DungeonWorld } from '../src/dungeon/world';
 import { Manifest, type Anchor } from '../src/world/manifest';
 import { provinceOfHome } from '../src/world/provinces';
+import { hashString } from '../src/core/rng';
+import { authoredMountain, authoredTerrain, authoredSkyEyrie } from '../src/world/worldediting';
 
 /**
  * The simulation: everything the shared world does, and nothing about where it is running.
@@ -204,11 +206,16 @@ export function localHighlands(value: unknown): Anchor[] | null {
     if (!row || typeof row !== 'object') return null;
     const a = row as Partial<Anchor>;
     if (a.kind !== 'highland' || typeof a.id !== 'string' || a.id.length === 0
-      || a.id.length > 180 || ids.has(a.id) || a.parent !== null || a.version !== 1
+      || a.id.length > 180 || ids.has(a.id) || a.parent !== null
+      || (a.version !== 1 && a.version !== 2)
       || !Number.isSafeInteger(a.x) || !Number.isSafeInteger(a.z)
       || Math.abs(a.x!) > 1_000_000 || Math.abs(a.z!) > 1_000_000
       || !Number.isSafeInteger(a.seed) || a.seed! < 0 || a.seed! > 0xffffffff
       || !a.layer || !Number.isSafeInteger(a.layer.reach) || !Number.isSafeInteger(a.layer.lift)
+      || (a.layer.roughness !== undefined && (!Number.isFinite(a.layer.roughness)
+        || a.layer.roughness < 0 || a.layer.roughness > 1))
+      || (a.version === 1 && a.layer.roughness !== undefined)
+      || (a.version === 2 && a.layer.roughness === undefined)
       || a.layer.reach < 1 || a.layer.reach > 2048 || a.layer.lift < 1 || a.layer.lift > 100) return null;
     ids.add(a.id);
     layers.push(a as Anchor);
@@ -300,6 +307,96 @@ export class Simulation {
 
   private terrainOf(seed: number): readonly TerrainLayer[] {
     return terrainFor(this.rooms.manifestOf(seed));
+  }
+
+  /** The manifest revision shown to an editor before it proposes an addition. */
+  namedWorldRevision(name: string): string | null {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') return null;
+    return hashString(JSON.stringify(this.rooms.manifestOf(record.seed).toJSON())).toString(16);
+  }
+
+  namedWorldReminders(name: string, x: number, z: number, reach: number) {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') throw new Error('Choose an existing endless world.');
+    const history = this.rooms.rememberedForEdit(record.seed, x, z, reach);
+    const held = this.minds ? mindsOf(this.minds, record.seed) : null;
+    return { ...history, protectAllVillages: !!held && (held.minds.size > 0 || held.unreadable.length > 0) };
+  }
+
+  /** Commit one prepared mountain while nobody is using this world, then discard every old sampler. */
+  authorNamedMountain(name: string, expected: string, candidate: unknown, sites: readonly Anchor[] = []): string {
+    const anchor = authoredMountain(candidate);
+    if (!anchor) throw new Error('The mountain parameters are invalid.');
+    return this.authorNamedEdit(name, expected, sites, (world) => {
+      if (!world.authorMountain(anchor)) throw new Error('This mountain already exists or the world has 32 mountains.');
+      return () => { world.manifest.anchors.delete(anchor.id); };
+    });
+  }
+
+  authorNamedTerrain(name: string, expected: string, candidate: unknown, sites: readonly Anchor[] = []): string {
+    const layer = authoredTerrain(candidate);
+    if (!layer) throw new Error('The land or sea parameters are invalid.');
+    return this.authorNamedEdit(name, expected, sites, (world) => {
+      if (world.manifest.terrain.length >= 32) throw new Error('This world already has 32 land and sea edits.');
+      world.appendTerrain(layer);
+      return () => { world.manifest.terrain.pop(); };
+    });
+  }
+
+  authorNamedSkyEyrie(name: string, expected: string, candidate: unknown): string {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') throw new Error('Choose an existing endless world.');
+    const anchor = authoredSkyEyrie(this.rooms.manifestOf(record.seed), candidate);
+    if (!anchor) throw new Error('The skyward eyrie is invalid.');
+    return this.authorNamedEdit(name, expected, [], (world) => {
+      if (!world.authorSkyEyrie(anchor)) throw new Error('This eyrie is already placed.');
+      return () => { world.manifest.anchors.delete(anchor.id); };
+    });
+  }
+
+  private authorNamedEdit(name: string, expected: string, sites: readonly Anchor[],
+    edit: (world: SharedWorld) => () => void): string {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') throw new Error('Choose an existing endless world.');
+    const seed = record.seed;
+    const active = this.rooms.get(seed);
+    if (active?.clients.size || this.warming.has(seed)) throw new Error('Leave this world before editing its ground.');
+    const current = this.namedWorldRevision(name);
+    if (current !== expected) throw new Error('This world changed. Reload its map before saving.');
+    const room = active ?? this.rooms.open(seed, { day: 1, time: 0.3 }, record, 'endless');
+    const pinned: string[] = [];
+    const upgraded: string[] = [];
+    for (const site of sites) {
+      if (site.kind !== 'skyisle' || !site.skySite) continue;
+      const currentSite = room.world.manifest.get(site.id);
+      if (currentSite) {
+        if (!currentSite.skySite) { currentSite.skySite = site.skySite; upgraded.push(site.id); }
+      } else { room.world.manifest.anchors.set(site.id, site); pinned.push(site.id); }
+    }
+    try {
+      const undo = edit(room.world);
+      try {
+        room.world.keepNear([], true);
+        this.keepMindsOf(seed, true);
+        room.world.save(true);
+      } catch (error) { undo(); throw error; }
+    } catch (error) {
+      for (const id of pinned) room.world.manifest.anchors.delete(id);
+      for (const id of upgraded) delete room.world.manifest.get(id)!.skySite;
+      throw error;
+    }
+    this.rooms.close(seed);
+    this.keepMindsOf(seed);
+    this.ground.delete(seed);
+    this.patchworks.delete(seed);
+    this.groundKinds.delete(seed);
+    this.countryStamps.delete(seed);
+    this.folk.delete(seed);
+    this.held.delete(seed);
+    this.wildlife.delete(seed);
+    this.rooms.forgetGround(seed);
+    return this.namedWorldRevision(name)!;
   }
 
   /**
@@ -510,11 +607,12 @@ export class Simulation {
   }
 
   /** Save one live register, shared by shutdown, timeout teardown, and an orderly final leave. */
-  private keepMindsOf(seed: number): void {
+  private keepMindsOf(seed: number, strict = false): void {
     const folk = this.folk.get(seed);
     if (!this.minds || !folk) return;
     try { keepMinds(this.minds, seed, everybodyIn(folk.register)); }
     catch (why) {
+      if (strict) throw why;
       // a save that throws must not prevent the room and its sockets from being closed
       console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
     }

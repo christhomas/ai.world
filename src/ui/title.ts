@@ -8,7 +8,13 @@ import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
 import { cleanWorldName } from '../../server/protocol';
 import type { TerrainLayer } from '../world/terrainlayers';
+import { terrainEditFootprint } from '../world/terrainlayers';
 import { PREVIEW_SIZE, PREVIEW_SPAN, terrainPreview } from './terrainpreview';
+import { elevationFor } from '../world/growworld';
+import { Manifest, type Anchor } from '../world/manifest';
+import { addMountain, mountainAnchor, mountainDraft, skyEyrieAnchor } from '../world/worldediting';
+import { assessSavedEdit, type EditReach, type SavedEditAssessment } from '../world/savededit';
+import { pinsInSave, villagesInSave, type PlacePin } from '../world/editimpacts';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -132,6 +138,10 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
   const worldSeedInput = $('worldSeedInput') as HTMLInputElement;
   const worldError = $('titleWorldError');
   const terrain: TerrainLayer[] = [];
+  const mountains: Anchor[] = [];
+  const skyEyries: Anchor[] = [];
+  let editingSlot: number | null = null;
+  let pinnedTerrain = 0;
   const terrainList = $('terrainLayers');
   const terrainError = $('terrainError');
   const previewButton = $<HTMLButtonElement>('terrainPreviewButton');
@@ -140,6 +150,8 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
   let previewVersion = 0;
   let previewCentre = { x: 0, z: 0 };
   let previewOpen = false;
+  let previewFocus: 'mountain' | 'terrain' = 'mountain';
+  let previewDraftActive = false;
   const preview = () => {
     const version = ++previewVersion;
     const typed = worldSeedInput.value.trim();
@@ -149,21 +161,29 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       return;
     }
     if (!typed) worldSeedInput.value = String(randomSeed() >>> 0);
+    if (!terrainInput('mountainSeed')) $<HTMLInputElement>('mountainSeed').value = String(randomSeed() >>> 0);
     const seed = Number(worldSeedInput.value) >>> 0;
-    previewCentre = terrain.length ? { x: terrain.at(-1)!.x, z: terrain.at(-1)!.z } : { x: 0, z: 0 };
+    const draft = previewDraftActive ? readMountain() : null;
+    previewCentre = previewFocus === 'terrain' && terrain.length
+      ? { x: terrain.at(-1)!.x, z: terrain.at(-1)!.z }
+      : draft ? { x: draft.x, z: draft.z }
+        : mountains.length ? { x: mountains.at(-1)!.x, z: mountains.at(-1)!.z } : { x: 0, z: 0 };
     const centre = previewCentre;
     const layers = [...terrain];
+    const manifest = new Manifest(seed, { rootSeed: seed, anchors: [
+      ...mountains, ...(draft ? [mountainAnchor(draft, 'highland:edit:00000000-0000-4000-8000-000000000000')] : []),
+    ] });
     previewStatus.textContent = `Growing seed ${seed} near ${centre.x}, ${centre.z}…`;
     // Let the title paint the progress line before patch growth takes the main thread.
     window.setTimeout(() => {
       if (version !== previewVersion) return;
-      const pixels = terrainPreview(seed, layers, centre.x, centre.z);
+      const pixels = terrainPreview(seed, layers, centre.x, centre.z, PREVIEW_SIZE, elevationFor(manifest));
       if (version !== previewVersion) return;
       const context = previewCanvas.getContext('2d');
       if (!context) return;
       context.putImageData(new ImageData(new Uint8ClampedArray(pixels), PREVIEW_SIZE, PREVIEW_SIZE), 0, 0);
       previewCanvas.classList.add('show');
-      previewStatus.textContent = `Seed ${seed} · ${PREVIEW_SPAN} × ${PREVIEW_SPAN} tiles around ${centre.x}, ${centre.z}. Select a point to set the next layer centre.`;
+      previewStatus.textContent = `Seed ${seed} · ${PREVIEW_SPAN} × ${PREVIEW_SPAN} tiles around ${centre.x}, ${centre.z}. ${draft ? 'Mountain draft shown; pin it to keep it. ' : ''}Select a point to set the next layer centre.`;
     }, 0);
   };
   previewButton.addEventListener('click', () => { previewOpen = true; preview(); });
@@ -172,15 +192,134 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
     const rect = previewCanvas.getBoundingClientRect();
     $<HTMLInputElement>('terrainX').value = String(Math.round(previewCentre.x + ((event.clientX - rect.left) / rect.width - 0.5) * PREVIEW_SPAN));
     $<HTMLInputElement>('terrainZ').value = String(Math.round(previewCentre.z + ((event.clientY - rect.top) / rect.height - 0.5) * PREVIEW_SPAN));
+    $<HTMLInputElement>('mountainX').value = $<HTMLInputElement>('terrainX').value;
+    $<HTMLInputElement>('mountainZ').value = $<HTMLInputElement>('terrainZ').value;
+    $<HTMLInputElement>('skyEyrieX').value = $<HTMLInputElement>('terrainX').value;
+    $<HTMLInputElement>('skyEyrieZ').value = $<HTMLInputElement>('terrainZ').value;
+    previewFocus = 'mountain';
+    previewDraftActive = true;
+    if (previewOpen) preview();
   });
   const terrainInput = (id: string) => ($<HTMLInputElement>(id)).value.trim();
+  const readMountain = () => mountainDraft({
+    x: Number(terrainInput('mountainX')), z: Number(terrainInput('mountainZ')),
+    reach: Number(terrainInput('mountainReach')), lift: Number(terrainInput('mountainLift')),
+    roughness: Number(terrainInput('mountainRoughness')),
+    seed: Number(terrainInput('mountainSeed')),
+  });
+  const showMountains = () => {
+    $('mountainLayers').replaceChildren(...mountains.map((anchor) => {
+      const row = document.createElement('li');
+      row.textContent = `Mountain at ${anchor.x}, ${anchor.z} · reach ${anchor.layer?.reach} · lift ${anchor.layer?.lift} · ridges ${anchor.layer?.roughness ?? 0}`;
+      return row;
+    }));
+  };
+  const showSkyEyries = (manifest: Manifest) => {
+    const target = $<HTMLSelectElement>('skyEyrieTarget');
+    const chosen = target.value;
+    target.replaceChildren(...manifest.byKind('skyisle').map((site) => {
+      const option = document.createElement('option');
+      option.value = site.id; option.textContent = `Sky village at ${site.x}, ${site.z}`;
+      return option;
+    }));
+    if (chosen && [...target.options].some((option) => option.value === chosen)) target.value = chosen;
+    $('skyEyries').replaceChildren(...skyEyries.map((anchor) => {
+      const row = document.createElement('li');
+      row.textContent = `Eyrie at ${anchor.x}, ${anchor.z} for ${anchor.parent}`;
+      return row;
+    }));
+  };
+  $('skyEyrieAdd').addEventListener('click', () => {
+    if (editingSlot === null) { terrainError.textContent = 'Play and save a world before placing an eagle for its sky village.'; return; }
+    const old = saves[editingSlot];
+    if (!old) return;
+    const manifest = new Manifest(old.seed, old.manifest);
+    const anchor = skyEyrieAnchor(manifest, $<HTMLSelectElement>('skyEyrieTarget').value,
+      Number(terrainInput('skyEyrieX')), Number(terrainInput('skyEyrieZ')),
+      `eyrie:edit:${crypto.randomUUID()}`);
+    if (!anchor) { terrainError.textContent = 'Choose a pinned sky village and a whole-tile eyrie within 160 tiles of it.'; return; }
+    skyEyries.push(anchor);
+    showSkyEyries(manifest);
+    terrainError.textContent = 'Skyward eyrie prepared. Save edits to check its footing.';
+  });
+  const checkEdit = (seed: number, before: ReturnType<Manifest['toJSON']>,
+    after: ReturnType<Manifest['toJSON']>, changed: EditReach[], pins: PlacePin[],
+    villages: string[], protectAllVillages: boolean): Promise<SavedEditAssessment> => {
+    if (typeof Worker === 'undefined') return Promise.resolve(assessSavedEdit(seed, before, after,
+      changed, pins, villages, protectAllVillages));
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('./editworker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (event: MessageEvent<SavedEditAssessment>) => { worker.terminate(); resolve(event.data); };
+      worker.onerror = (event) => { worker.terminate(); reject(new Error(event.message)); };
+      worker.postMessage({ seed, before, after, changed, pins, villages, protectAllVillages });
+    });
+  };
+  $('saveWorldEdits').addEventListener('click', async () => {
+    if (editingSlot === null) return;
+    const slot = editingSlot;
+    const old = saves[slot];
+    if (!old) return;
+    const manifest = new Manifest(old.seed, old.manifest);
+    const before = manifest.toJSON();
+    const changed: EditReach[] = [];
+    for (const anchor of mountains) {
+      if (!manifest.get(anchor.id) && !addMountain(manifest, anchor)) {
+        terrainError.textContent = 'This mountain could not be saved. Check its parameters.';
+        return;
+      }
+      if (!before.anchors.some((a) => a.id === anchor.id)) changed.push({ x: anchor.x, z: anchor.z, reach: anchor.layer!.reach });
+    }
+    for (const anchor of skyEyries) if (!manifest.get(anchor.id)) manifest.anchors.set(anchor.id, anchor);
+    changed.push(...terrain.slice(pinnedTerrain).map(({ x, z, reach }) =>
+      ({ x, z, reach: terrainEditFootprint(reach) })));
+    manifest.terrain.splice(0, manifest.terrain.length, ...terrain);
+    terrainError.textContent = 'Checking saved places against the new ground…';
+    let assessment: SavedEditAssessment;
+    const villages = villagesInSave(old);
+    try { assessment = await checkEdit(old.seed, before, manifest.toJSON(), changed, pinsInSave(old),
+      villages.names, villages.all); }
+    catch { terrainError.textContent = 'The world edit could not be checked.'; return; }
+    if (assessment.conflict) { terrainError.textContent = assessment.conflict; return; }
+    for (const site of assessment.sites) manifest.anchors.set(site.id, site);
+    const updated = { ...old, manifest: manifest.toJSON() };
+    void (store.saveStrict?.(SLOT_KEYS[slot], updated) ?? store.save(SLOT_KEYS[slot], updated)).then(() => {
+      saves[slot] = updated;
+      editingSlot = null;
+      worldSeedInput.disabled = false;
+      $<HTMLButtonElement>('saveWorldEdits').hidden = true;
+      terrainError.textContent = 'World edits saved. Continue the slot to see the regrown country.';
+    }).catch(() => { terrainError.textContent = 'The world edit could not be saved.'; });
+  });
+  $('mountainAdd').addEventListener('click', () => {
+    if (!terrainInput('mountainSeed')) $<HTMLInputElement>('mountainSeed').value = String(randomSeed() >>> 0);
+    const draft = readMountain();
+    if (!draft || mountains.length >= 32) {
+      terrainError.textContent = 'Use whole coordinates, reach 1–2048, lift 1–100, ridges 0–1, and at most 32 mountains.';
+      return;
+    }
+    const anchor = mountainAnchor(draft, `highland:edit:${crypto.randomUUID()}`);
+    mountains.push(anchor);
+    previewFocus = 'mountain';
+    previewDraftActive = false;
+    terrainError.textContent = '';
+    showMountains();
+    if (previewOpen) preview();
+  });
+  for (const id of ['mountainX', 'mountainZ', 'mountainReach', 'mountainLift', 'mountainRoughness', 'mountainSeed']) {
+    $(id).addEventListener('change', () => {
+      previewFocus = 'mountain'; previewDraftActive = true;
+      if (previewOpen) preview();
+    });
+  }
   const showTerrain = () => {
     terrainList.replaceChildren(...terrain.map((layer, i) => {
       const row = document.createElement('li');
       row.textContent = `${layer.kind} at ${layer.x}, ${layer.z} · reach ${layer.reach} · seed ${layer.seed}`;
-      const remove = document.createElement('button');
-      remove.type = 'button'; remove.textContent = 'Remove'; remove.dataset.terrain = String(i);
-      row.append(remove);
+      if (i >= pinnedTerrain) {
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.textContent = 'Remove'; remove.dataset.terrain = String(i);
+        row.append(remove);
+      }
       return row;
     }));
   };
@@ -191,6 +330,8 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
     if (!layer) { terrainError.textContent = 'Use whole coordinates, a reach from 1 to 2048, and an optional whole seed.'; return; }
     terrainError.textContent = '';
     terrain.push(layer);
+    previewFocus = 'terrain';
+    previewDraftActive = false;
     showTerrain();
     if (previewOpen) preview();
   });
@@ -240,6 +381,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
           <button class="band" data-act="${s ? 'continue' : 'new'}" data-slot="${i}">
             <span class="slot-no">${i + 1}</span>${inside}
           </button>
+          ${s && kindOf(s.world) === 'endless' ? `<button class="slot-edit" data-act="edit" data-slot="${i}" title="Edit this world" aria-label="Edit slot ${i + 1}">Edit</button>` : ''}
           ${s ? `<button class="slot-del" data-act="delete" data-slot="${i}" title="Delete this world" aria-label="Delete slot ${i + 1}">✕</button>` : ''}
         </div>`;
       }).join('');
@@ -249,7 +391,26 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       // The tap that enters a world is the one moment a browser will give a page the whole screen,
       // so it is where it is asked for. On a phone the browser's own furniture is a fifth of the
       // glass and the game cannot be played through it; on anything else this does nothing at all.
-      if (act !== 'delete') void takeTheScreen();
+      if (act !== 'delete' && act !== 'edit') void takeTheScreen();
+      if (act === 'edit' && saves[i]) {
+        editingSlot = i;
+        const existing = saves[i]!;
+        worldSeedInput.value = String(existing.seed);
+        worldSeedInput.disabled = true;
+        worldNameInput.value = existing.worldName ?? `World ${existing.seed}`;
+        terrain.splice(0, terrain.length, ...(existing.manifest?.terrain ?? []));
+        pinnedTerrain = terrain.length;
+        mountains.splice(0, mountains.length, ...new Manifest(existing.seed, existing.manifest).layers());
+        previewFocus = mountains.length ? 'mountain' : 'terrain';
+        previewDraftActive = false;
+        skyEyries.splice(0, skyEyries.length, ...new Manifest(existing.seed, existing.manifest)
+          .byKind('eyrie').filter((a) => a.version === 2));
+        showTerrain(); showMountains(); showSkyEyries(new Manifest(existing.seed, existing.manifest));
+        $<HTMLButtonElement>('saveWorldEdits').hidden = false;
+        ($('terrainEditor') as HTMLDetailsElement).open = true;
+        previewOpen = true; preview();
+        return;
+      }
       if (act === 'delete') {
         if (!saves[i] || !window.confirm(`Delete slot ${i + 1}? This cannot be undone.`)) return;
         saves[i] = undefined;
@@ -262,6 +423,14 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         // no name yet and continue by seed, which is their intact migration path.
         finish({ key, save: saves[i], seed: saves[i]!.seed, worldName: saves[i]!.worldName, world: kindOf(saves[i]!.world) });
         return;
+      }
+      if (editingSlot !== null) {
+        editingSlot = null;
+        worldSeedInput.disabled = false;
+        $<HTMLButtonElement>('saveWorldEdits').hidden = true;
+        terrain.length = 0; mountains.length = 0; skyEyries.length = 0;
+        pinnedTerrain = 0;
+        showTerrain(); showMountains(); showSkyEyries(new Manifest(0));
       }
       const worldName = cleanWorldName(worldNameInput.value);
       if (!worldName) {
@@ -277,12 +446,16 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       }
       worldError.textContent = '';
       const world = chosenWorld();
-      if (terrain.length > 0 && world !== 'endless') {
-        worldError.textContent = 'Land and sea layers need endless country. Turn on that world first.';
+      if ((terrain.length > 0 || mountains.length > 0) && world !== 'endless') {
+        worldError.textContent = 'Authored layers need endless country. Turn on that world first.';
         return;
       }
       const choiceFor = (seed: number, home?: GrownPatch): SlotChoice => ({
-        key, seed, worldName, world, home, save: terrainSave(seed, worldName, terrain),
+        key, seed, worldName, world, home,
+        save: mountains.length ? { seed, world: 'endless', worldName,
+          cam: { x: 0, z: 0, rot: 0, zoom: 1 },
+          manifest: { rootSeed: seed, anchors: [...mountains], terrain: [...terrain] } }
+          : terrainSave(seed, worldName, terrain),
       });
       /*
        * A seed somebody typed is theirs, and is handed over untouched.

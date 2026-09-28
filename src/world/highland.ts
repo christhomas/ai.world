@@ -130,7 +130,12 @@ export interface Highland {
   reach: number;
   /** Terraces the ground stands at the middle of it. */
   lift: number;
+  /** Authored layers only: independent ridge strength and the seed fixing its shape. */
+  roughness?: number;
+  seed?: number;
 }
+
+const authoredRidges = new WeakMap<Highland, Simplex2D>();
 
 /**
  * The high country of a world: where the ground rises, and by how much.
@@ -200,7 +205,15 @@ export function swellAt(hill: Highland, x: number, z: number): number {
   // flat-ish over the middle, falling away over the outer part of the reach
   const inward = (hill.reach - away) / (hill.reach * HIGHLAND.SHOULDER);
   const share = Math.max(0, Math.min(1, inward));
-  return hill.lift * share * share * (3 - 2 * share);
+  const swell = hill.lift * share * share * (3 - 2 * share);
+  if (!hill.roughness) return swell;
+  let ridges = authoredRidges.get(hill);
+  if (!ridges) {
+    ridges = new Simplex2D(hill.seed ?? 0);
+    authoredRidges.set(hill, ridges);
+  }
+  const ridge = ridges.ridged(x / 96, z / 96, 3);
+  return swell * (1 - hill.roughness * 0.4 * (1 - ridge));
 }
 
 /**
@@ -267,4 +280,3 @@ export function highlandAt(
  * The bounded country it smoothed for retired with #192; what is left of it is a test-owned
  * invariant, so the class moved to `roadtree.ts`, the one place that still asks it.
  */
-
