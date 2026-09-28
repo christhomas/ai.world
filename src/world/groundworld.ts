@@ -12,6 +12,7 @@ import { tilesOf } from './tiles';
 import { Solids, boxesFrom, type Body } from './solids';
 import type { Parcel } from './chunkparcel';
 import type { Footprints } from './footprints';
+import type { RoadGraph } from './graph';
 import { Standing } from './standing';
 import { propsOf } from './propstream';
 import { withoutClearedTrees } from './fields';
@@ -374,6 +375,9 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return this.loaded.get(chunkKey(cx, cz)) ?? null;
   }
 
+  /** The local road network used by a journey between villages. */
+  roadGraphAt(x: number, z: number): RoadGraph { return this.country.at(x, z).graph; }
+
   heightAt(x: number, z: number): number | null {
     const hit = this.tileAt(x, z);
     if (!hit) return null;
@@ -501,5 +505,4 @@ export class GroundWorld implements TileWorld, ChunkSource {
 
 /** How far a mountain has to stand above a tile before nothing belongs there, in world units. */
 const BURIED_BY = 1.5;
-
 

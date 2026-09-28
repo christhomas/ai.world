@@ -173,6 +173,8 @@ export interface Client {
   hero: Entity | null;
   /** The last steer of theirs the world has run, so an answer can name where it has caught up to. */
   steered: number;
+  /** Today's cart this player has committed to guard while physically near it. */
+  escortingCart: number | null;
 }
 
 /** A handful of players travelling together. A party lives only as long as the people in it. */
@@ -312,7 +314,7 @@ export class Rooms {
       wire, seed, silent: 0, offers: new Map(), party: null, seeing: new Map(),
       knows: new Map(), standing: { x, z, gear: [], guilt: 0 }, guilt: 0,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
-      hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null, boat: null,
+      hero: null, steered: 0, escortingCart: null, standingIn: 'surface', leftSurfaceAt: null, boat: null,
       presence: { id: `p${this.nextId++}`, name, x, z, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);

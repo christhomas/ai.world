@@ -506,6 +506,8 @@ export type ClientMessage =
   | { type: 'swear'; village: string; trade: string }
   /** Intercept a loaded cart; the world checks the hero's position and writes the outcome. */
   | { type: 'rob-cart'; loadedOn: number }
+  /** Guard this cart while staying beside it, or stop guarding if already enlisted. */
+  | { type: 'escort-cart'; loadedOn: number }
   /**
    * Stand on the roll of the village the hero is in.
    *
@@ -866,6 +868,7 @@ export type ServerMessage =
   | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
   | { type: 'cart-robbed'; loadedOn: number; ok: boolean }
+  | { type: 'cart-escorted'; loadedOn: number; ok: boolean; escorting: boolean }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }
@@ -1207,9 +1210,12 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const receiving = entries(delta.receiving, 1);
       if (!Number.isInteger(delta.day) || !Number.isInteger(delta.loadedOn)
         || delta.loadedOn < 2 || delta.day < delta.loadedOn
-        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving) return null;
+        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving
+        || (delta.robber !== undefined && (delta.outcome !== 'robbed'
+          || typeof delta.robber !== 'string' || delta.robber.length < 1
+          || delta.robber.length > LIMITS.NAME))) return null;
       return { kind: 'cart-finished', day: delta.day, loadedOn: delta.loadedOn,
-        outcome: delta.outcome, receiving };
+        outcome: delta.outcome, receiving, ...(delta.robber === undefined ? {} : { robber: delta.robber }) };
     }
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };

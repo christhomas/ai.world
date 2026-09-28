@@ -27,6 +27,8 @@ export interface GameStateJson {
   time: number;
   day: number;
   inventory: InventoryJson;
+  /** Cart loads whose stolen food this hero has already put in their pack. */
+  claimedCarts?: number[];
   explored: string[];
   /**
    * The provinces somebody has bought a map of.
@@ -145,6 +147,7 @@ export class GameState {
   time = 0.34;
   day = 1;
   readonly inventory = new Inventory();
+  readonly claimedCarts = new Set<number>();
   /** What is worn where. Items here are not in the rucksack. */
   readonly equipped: Partial<Record<EquipSlot, string>> = {};
   readonly explored = new Set<string>();
@@ -449,6 +452,7 @@ export class GameState {
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
       savedAt: Date.now(), lodged: this.lodged,
       inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
+      claimedCarts: [...this.claimedCarts],
       explored: [...this.explored],
       charted: [...this.charted],
       quests: Object.fromEntries(this.quests),
@@ -494,6 +498,7 @@ export class GameState {
         if (ITEMS[id] && ITEMS[id].slot === slot) g.equipped[slot as EquipSlot] = id;
       }
     }
+    for (const day of json.claimedCarts ?? []) if (Number.isInteger(day) && day >= 2) g.claimedCarts.add(day);
     if (typeof json.standing === 'number') g.standing = json.standing;
     for (const k of json.explored ?? []) g.explored.add(k);
     // nothing here on a save from before maps were country, which reads back as a hero who has

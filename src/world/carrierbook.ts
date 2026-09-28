@@ -3,6 +3,7 @@ import { payAndSweep } from './purses';
 import { cellarCap } from './food';
 import type { Carrying, CarryingOutcome } from './carriers';
 import type { Settlement } from './settlement';
+import type { RoadGraph } from './graph';
 
 /** A cart's immutable load, including the exact owners and sums agreed at departure. */
 export interface CartLoaded {
@@ -24,21 +25,85 @@ export interface CartFinished {
   outcome: CarryingOutcome;
   /** Where the held buyer money went: sender on delivery, buyer (or its hall) on robbery. */
   receiving: [string, number][];
+  /** A robbed load's taker; the loaded fact carries the exact meals lost. */
+  robber?: string;
 }
 
 export type CarrierFact = CartLoaded | CartFinished;
 
 /** Where a loaded cart is between its two markets during its one day in flight. */
+const routes = new WeakMap<RoadGraph, Map<string, { x: number; z: number }[]>>();
+
+/** Follow the shortest connected road between the two village crossroads. */
+function roadRoute(graph: RoadGraph, from: { x: number; z: number }, to: { x: number; z: number }): { x: number; z: number }[] | null {
+  const key = `${from.x},${from.z}:${to.x},${to.z}`;
+  let cache = routes.get(graph);
+  if (!cache) { cache = new Map(); routes.set(graph, cache); }
+  const known = cache.get(key);
+  if (known) return known;
+  const nearest = (point: { x: number; z: number }): number => graph.nodes.reduce((best, node, i) =>
+    Math.hypot(node.x - point.x, node.z - point.z) < Math.hypot(graph.nodes[best].x - point.x, graph.nodes[best].z - point.z) ? i : best, 0);
+  if (graph.nodes.length === 0) return null;
+  const start = nearest(from), end = nearest(to);
+  const neighbours: Array<Array<[number, number]>> = graph.nodes.map(() => []);
+  for (const edge of graph.edges) {
+    const a = graph.nodes[edge.a], b = graph.nodes[edge.b];
+    if (!a || !b) continue;
+    const length = Math.hypot(a.x - b.x, a.z - b.z);
+    neighbours[edge.a].push([edge.b, length]);
+    neighbours[edge.b].push([edge.a, length]);
+  }
+  const distance = graph.nodes.map(() => Infinity), previous = graph.nodes.map(() => -1);
+  const open = new Set<number>([start]);
+  distance[start] = 0;
+  while (open.size) {
+    let current = -1;
+    for (const node of open) if (current < 0 || distance[node] < distance[current]) current = node;
+    if (current === end) break;
+    open.delete(current);
+    for (const [next, length] of neighbours[current]) {
+      const candidate = distance[current] + length;
+      if (candidate >= distance[next]) continue;
+      distance[next] = candidate;
+      previous[next] = current;
+      open.add(next);
+    }
+  }
+  if (!Number.isFinite(distance[end])) return null;
+  const points = [to];
+  for (let node = end; node >= 0; node = previous[node]) {
+    points.push(graph.nodes[node]);
+    if (node === start) break;
+  }
+  points.push(from);
+  points.reverse();
+  cache.set(key, points);
+  return points;
+}
+
 export function cartPosition(
   load: CartLoaded, time: number,
   villages: readonly { name: string; x: number; z: number }[],
+  graph?: RoadGraph,
 ): { x: number; z: number } | null {
   const from = villages.find((village) => village.name === load.from);
   const to = villages.find((village) => village.name === load.to);
   if (!from || !to || !Number.isFinite(time)) return null;
   const progress = Math.max(0, Math.min(1, time));
-  return { x: from.x + (to.x - from.x) * progress,
+  const points = graph ? roadRoute(graph, from, to) : null;
+  if (!points) return { x: from.x + (to.x - from.x) * progress,
     z: from.z + (to.z - from.z) * progress };
+  const lengths = points.slice(1).map((point, i) => Math.hypot(point.x - points[i].x, point.z - points[i].z));
+  let left = lengths.reduce((sum, length) => sum + length, 0) * progress;
+  for (let i = 0; i < lengths.length; i++) {
+    if (left <= lengths[i] || i === lengths.length - 1) {
+      const part = lengths[i] > 0 ? Math.min(1, left / lengths[i]) : 0;
+      return { x: points[i].x + (points[i + 1].x - points[i].x) * part,
+        z: points[i].z + (points[i + 1].z - points[i].z) * part };
+    }
+    left -= lengths[i];
+  }
+  return points[0];
 }
 
 export function cartLoaded(day: number, cart: Carrying): CartLoaded {
@@ -112,6 +177,8 @@ export class CarrierBook {
     if (!Number.isInteger(fact.day) || !Number.isInteger(fact.loadedOn)
       || fact.loadedOn < 2 || fact.day < fact.loadedOn
       || (fact.outcome !== 'delivered' && fact.outcome !== 'robbed')
+      || (fact.robber !== undefined && (fact.outcome !== 'robbed'
+        || typeof fact.robber !== 'string' || fact.robber.length === 0 || fact.robber.length > 64))
       || this.finishes.has(fact.loadedOn)
       || !this.validFinish(fact, this.loads.get(fact.loadedOn))) return false;
     this.finishes.set(fact.loadedOn, {
