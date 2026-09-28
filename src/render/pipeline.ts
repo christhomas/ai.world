@@ -121,7 +121,10 @@ export class ThreeFramePipeline implements FramePipeline {
           material.toneMapped = paint.toneMapped ?? true;
           material.side = paint.side === 'double' ? THREE.DoubleSide : paint.side === 'back' ? THREE.BackSide : THREE.FrontSide;
           if (paint.effects.includes('additive-blending')) material.blending = THREE.AdditiveBlending;
-          if (material instanceof THREE.MeshLambertMaterial) material.flatShading = paint.effects.includes('flat-shading');
+          if (material instanceof THREE.MeshLambertMaterial) {
+            material.flatShading = paint.effects.includes('flat-shading');
+            material.emissive.setHex(paint.emissive);
+          }
         }
         this.resources.push(geometry, material);
         if (node.kind === 'points') object = new THREE.Points(geometry, material);
