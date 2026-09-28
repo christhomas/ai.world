@@ -247,7 +247,7 @@ jobs:
     # The checked-in pixel references come from this OS image and the lockfile's Playwright.
     runs-on: ubuntu-24.04
     # The browser playtest and all documented reference scenes run in this required job.
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -354,16 +354,34 @@ jobs:
         if: always()
         env:
           PORT: '5185'
-          OUT: ${{ runner.temp }}/reference-scenes
         run: |
-          mkdir -p "$OUT"
-          node tools/shots.cjs
+          set +e
+          scenes_dir="$RUNNER_TEMP/reference-scenes"
+          mkdir -p "$scenes_dir/first" "$scenes_dir/holdout"
           mapfile -t scenes < <(node tools/shots.cjs --list | awk '{print $1 ".png"}')
           if [ "${#scenes[@]}" -eq 0 ]; then
             echo 'shots.cjs listed no reference scenes' >&2
             exit 1
           fi
-          SHOTS="$OUT" node tools/compare.cjs docs/screenshots "${scenes[@]}"
+          OUT="$scenes_dir/first" node tools/shots.cjs > "$scenes_dir/first-capture.log" 2>&1
+          first_capture=$?
+          OUT="$scenes_dir/holdout" node tools/shots.cjs > "$scenes_dir/holdout-capture.log" 2>&1
+          holdout_capture=$?
+          SHOTS="$scenes_dir/first" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/first-reference.txt" 2>&1
+          first_reference=$?
+          SHOTS="$scenes_dir/holdout" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/holdout-reference.txt" 2>&1
+          holdout_reference=$?
+          SHOTS="$scenes_dir/holdout" node tools/compare.cjs "$scenes_dir/first" "${scenes[@]}" > "$scenes_dir/repeatability.txt" 2>&1
+          repeatability=$?
+          for report in "$scenes_dir"/*.log "$scenes_dir"/*.txt; do
+            echo "=== $(basename "$report") ==="
+            cat "$report"
+          done
+          if [ "$first_capture" -ne 0 ] || [ "$holdout_capture" -ne 0 ] ||
+             [ "$first_reference" -ne 0 ] || [ "$holdout_reference" -ne 0 ] || [ "$repeatability" -ne 0 ]; then
+            echo 'documented reference capture or comparison failed; inspect both capture sets and reports' >&2
+            exit 1
+          fi
 
       - name: Keep reference scenes and diff
         if: always()
@@ -371,7 +389,10 @@ jobs:
         with:
           name: reference-scenes
           path: |
-            ${{ runner.temp }}/reference-scenes/*.png
+            ${{ runner.temp }}/reference-scenes/first/*.png
+            ${{ runner.temp }}/reference-scenes/holdout/*.png
+            ${{ runner.temp }}/reference-scenes/*.log
+            ${{ runner.temp }}/reference-scenes/*.txt
             docs/reports/pictures-report.txt
           if-no-files-found: warn
           retention-days: 30
