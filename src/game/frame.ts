@@ -337,7 +337,7 @@ export function createFrame(ctx: Framing) {
       mount.riding ? paceOf(mount.breed, goingUnderfoot()) : 1,
       mount.riding,
       state.count('cart') > 0,
-    ) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
+    ) * (state.shouldering ? 0.55 : 1) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
     if (sailing.sailing && !talking) {
       const tiller = {
         forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),

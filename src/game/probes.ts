@@ -10,6 +10,12 @@ import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../world/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
+import { canStand } from '../entities/entity';
+import { KINDS } from '../entities/animals';
+import { rangesAsMassifs } from '../world/ranges';
+import { Manifest } from '../world/manifest';
+import { layTheCarcass } from './baiting';
+import { tilesToVillage } from './camp';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
@@ -207,6 +213,13 @@ export function installProbes(ctx: Probed): void {
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;
+  (debug as { __canStand?: (kind: string, x: number, z: number) => boolean }).__canStand =
+    (kind, x, z) => !!KINDS[kind] && canStand(chunks, KINDS[kind], x, z);
+  const baitHigh = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
+  (debug as { __baitChance?: (x: number, z: number) => number }).__baitChance = (x, z) =>
+    layTheCarcass(new Manifest(seed), seed, state.day, baitHigh,
+      (tx, tz) => sampler.probe(tx, tz).land,
+      tilesToVillage(structures.villages, x, z), x, z).chance;
   (debug as { __pods?: () => unknown }).__pods = () => pods();
   (debug as { __sailing?: unknown }).__sailing = sailing;
   (debug as { __whaleY?: () => number[] }).__whaleY = () => {
@@ -503,6 +516,7 @@ export function installProbes(ctx: Probed): void {
     return {
       hero: { x: player.x, z: player.z },
       horse: horse ? { x: horse.x, z: horse.z } : null,
+      cargo: mount.cargo,
       under: horse ? Math.hypot(player.x - horse.x, player.z - horse.z) : null,
     };
   };
