@@ -25,28 +25,42 @@ export class ThreeGraphBridge {
     private readonly scene: THREE.Scene,
     private readonly litMaterial: THREE.Material,
     private readonly waterMaterial: THREE.Material,
+    private readonly solidMaterial?: THREE.Material,
   ) {}
 
-  add(node: Extract<SceneNode, { kind: 'mesh' }>): void {
+  add(node: Extract<SceneNode, { kind: 'mesh' }>): THREE.Mesh {
     if (this.meshes.has(node)) throw new Error('scene node is already mounted');
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(node.geometry.normals, 3));
     if (node.geometry.colors) geometry.setAttribute('color', new THREE.BufferAttribute(node.geometry.colors, 3));
     if (node.geometry.flow) geometry.setAttribute('flow', new THREE.BufferAttribute(node.geometry.flow, 1));
+    if (node.geometry.sea) geometry.setAttribute('sea', new THREE.BufferAttribute(node.geometry.sea, 1));
     if (node.geometry.indices) geometry.setIndex(new THREE.BufferAttribute(node.geometry.indices, 1));
     geometry.computeBoundingSphere();
-    const material = node.material === 'water' ? this.waterMaterial : this.litMaterial;
+    const material = node.material === 'water' ? this.waterMaterial
+      : node.material === 'lit-solid' ? this.solidMaterial : this.litMaterial;
+    if (!material) throw new Error(`scene graph has no material for ${node.material}`);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = node.castShadow ?? false;
     mesh.receiveShadow = node.receiveShadow;
     mesh.renderOrder = node.renderOrder ?? 0;
     mesh.matrixAutoUpdate = false;
+    if (node.world) mesh.matrix.fromArray(node.world);
     mesh.updateMatrixWorld(true);
-    mesh.matrixWorldAutoUpdate = false;
+    mesh.matrixWorldAutoUpdate = Boolean(node.world);
     this.graph.add(node);
     this.meshes.set(node, mesh);
     this.scene.add(mesh);
+    return mesh;
+  }
+
+  /** Move a retained adapter from the graph's current transform. */
+  sync(node: Extract<SceneNode, { kind: 'mesh' }>): void {
+    const mesh = this.meshes.get(node);
+    if (!mesh) throw new Error('scene node is not mounted');
+    if (node.world) mesh.matrix.fromArray(node.world);
+    mesh.updateMatrixWorld(true);
   }
 
   remove(node: SceneNode): void {
@@ -83,18 +97,22 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
       geometry.setAttribute('normal', new THREE.BufferAttribute(node.geometry.normals, 3));
       if (node.geometry.colors) geometry.setAttribute('color', new THREE.BufferAttribute(node.geometry.colors, 3));
       if (node.geometry.flow) geometry.setAttribute('flow', new THREE.BufferAttribute(node.geometry.flow, 1));
+      if (node.geometry.sea) geometry.setAttribute('sea', new THREE.BufferAttribute(node.geometry.sea, 1));
       if (node.geometry.indices) geometry.setIndex(new THREE.BufferAttribute(node.geometry.indices, 1));
       geometry.computeBoundingSphere();
       if (!litMaterial && node.material === 'lit-vertex-colours') {
         litMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
         resources.push(litMaterial);
       }
-      const material = node.material === 'water' ? waterMaterial : litMaterial;
+      const material = node.material === 'water' ? waterMaterial
+        : node.material === 'lit-solid' ? new THREE.MeshLambertMaterial({ color: node.colour ?? 0xffffff }) : litMaterial;
       if (!material) throw new Error(`scene graph has no material for ${node.material}`);
+      if (node.material === 'lit-solid') resources.push(material);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.castShadow = node.castShadow ?? false;
       mesh.receiveShadow = node.receiveShadow;
       mesh.renderOrder = node.renderOrder ?? 0;
+      if (node.world) { mesh.matrixAutoUpdate = false; mesh.matrix.fromArray(node.world); mesh.updateMatrixWorld(true); }
       scene.add(mesh);
       resources.push(geometry);
     }

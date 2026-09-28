@@ -2,15 +2,30 @@ import * as THREE from 'three';
 import { composerFor, worthAComposer } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
-import { SceneGraph, type SceneNode } from '../core/scenegraph';
+import { SceneGraph, type SceneGeometry, type SceneNode } from '../core/scenegraph';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
 import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
-import { attachSceneGraph, sceneForGraph } from './scenegraph';
+import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
 import { MountedThreePipeline, submitGraphFrame } from './pipeline';
 
 const SKY = 0x8fc1e6;
+
+const translated = (x: number, y: number, z: number): number[] =>
+  [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+
+/** Extract a surface once; its typed arrays belong to the graph from then on. */
+function surfaceGeometry(geometry: THREE.BufferGeometry): SceneGeometry {
+  return {
+    positions: geometry.getAttribute('position').array as Float32Array,
+    normals: geometry.getAttribute('normal').array as Float32Array,
+    colors: geometry.getAttribute('color')?.array as Float32Array | undefined,
+    flow: geometry.getAttribute('flow')?.array as Float32Array | undefined,
+    sea: geometry.getAttribute('sea')?.array as Float32Array | undefined,
+    indices: geometry.index?.array as Uint16Array | Uint32Array | undefined,
+  };
+}
 
 /**
  * Half the depth of ground the camera covers, as a fraction of the zoom. The frustum is `zoom`
@@ -375,19 +390,21 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     // a fall, and none of those has a coastline to bend a swell round
     seaGeo.setAttribute('sea', new THREE.BufferAttribute(new Float32Array(n).fill(1), 1));
   }
-  const water = new THREE.Mesh(seaGeo, waterMat.material);
-  water.position.y = WORLD.WATER_Y;
-  water.renderOrder = 1;
-  scene.add(water);
-
-  const deep = new THREE.Mesh(
-    new THREE.PlaneGeometry(900, 900),
-    new THREE.MeshLambertMaterial({ color: 0x1d4f78 }),
-  );
-  deep.rotation.x = -Math.PI / 2;
-  deep.position.y = -0.03;
-  deep.receiveShadow = true;
-  scene.add(deep);
+  const deepMaterial = new THREE.MeshLambertMaterial({ color: 0x1d4f78 });
+  const surfaceBridge = new ThreeGraphBridge(graph, scene, deepMaterial, waterMat.material, deepMaterial);
+  const waterNode: Extract<SceneNode, { kind: 'mesh' }> = {
+    kind: 'mesh', geometry: surfaceGeometry(seaGeo), material: 'water',
+    receiveShadow: false, renderOrder: 1, world: translated(0, WORLD.WATER_Y, 0),
+  };
+  surfaceBridge.add(waterNode);
+  seaGeo.dispose();
+  const deepGeo = new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2);
+  const deepNode: Extract<SceneNode, { kind: 'mesh' }> = {
+    kind: 'mesh', geometry: surfaceGeometry(deepGeo), material: 'lit-solid', colour: 0x1d4f78,
+    receiveShadow: true, world: translated(0, -0.03, 0),
+  };
+  surfaceBridge.add(deepNode);
+  deepGeo.dispose();
 
   const SUN_OFFSET = new THREE.Vector3(38, 72, 22);
 
@@ -446,8 +463,10 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
         cam.updateProjectionMatrix();
       }
       shadowHalf = half;
-      water.position.set(x, WORLD.WATER_Y, z);
-      deep.position.set(x, -0.03, z);
+      waterNode.world = translated(x, WORLD.WATER_Y, z);
+      deepNode.world = translated(x, -0.03, z);
+      surfaceBridge.sync(waterNode);
+      surfaceBridge.sync(deepNode);
       // the ground in shot is a rectangle zoom*aspect across by zoom*GROUND_DEPTH*2 deep, centred
       // on the target; nothing past its half-diagonal can be seen, so nothing there need be drawn
       const size = renderer.getSize(viewSize);
@@ -492,6 +511,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     get canvas() { return renderer.domElement; },
     dispose() {
       detachGraph();
+      surfaceBridge.dispose();
+      deepMaterial.dispose();
       waterMat.dispose();
       coast.dispose();
       second?.dispose();
