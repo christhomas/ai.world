@@ -96,13 +96,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # A pull_request checkout is the proposed merge commit. Its first parent is the base
-          # to compare with, so both commits must be present locally for the guard below.
-          fetch-depth: 2
-
-      - name: Guard the proposed merge result
-        if: github.event_name == 'pull_request'
-        run: node tools/mergeguard.cjs
+          # The proposed merge may sit on a synthetic merge of a stacked base. Fetch its
+          # ancestry so the guard can inspect the PR's actual base commit as well.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -114,6 +110,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Guard the proposed merge result
+        if: github.event_name == 'pull_request'
+        run: node tools/mergeguard.cjs
 
       # The same task runner the repository is driven by, pinned. `chores.yml` asks for 0.9.0 or
       # better; this is the version the tasks were last run against by hand.
