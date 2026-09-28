@@ -10,12 +10,7 @@ import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../world/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
-import { canStand } from '../entities/entity';
-import { KINDS } from '../entities/animals';
-import { rangesAsMassifs } from '../world/ranges';
-import { Manifest } from '../world/manifest';
-import { layTheCarcass } from './baiting';
-import { tilesToVillage } from './camp';
+import type { Manifest } from '../world/manifest';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
@@ -33,6 +28,7 @@ import { BUILDS, buildable, stageAt, type Houses } from './building';
 import type { CommandWorld } from './commands';
 import { installCreatureProbes } from './probesCreatures';
 import { installPeopleProbes } from './probesPeople';
+import { installBaitProbes } from './probesBait';
 import type { Director } from './director';
 import type { Eyrie } from './eyries';
 import type { Plots } from './farming';
@@ -198,7 +194,7 @@ export function leaveShop(
 
 export function installProbes(ctx: Probed): void {
   const {
-    seed, manifest, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
+    seed, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
     commandWorld, callOut, placeName, carcasses, markers, walking, wildlife, bites, doorsteps, streamTally, wing, leaveOne,
@@ -214,19 +210,7 @@ export function installProbes(ctx: Probed): void {
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;
-  (debug as { __canStand?: (kind: string, x: number, z: number) => boolean }).__canStand =
-    (kind, x, z) => !!KINDS[kind] && canStand(chunks, KINDS[kind], x, z);
-  const baitHigh = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
-  const previewBait = (x: number, z: number) =>
-    layTheCarcass(new Manifest(seed), seed, state.day, baitHigh,
-      (tx, tz) => sampler.probe(tx, tz).land,
-      tilesToVillage(structures.villages, x, z), x, z);
-  (debug as { __baitChance?: (x: number, z: number) => number }).__baitChance = (x, z) => previewBait(x, z).chance;
-  // A dry run on an empty manifest lets the cart playtest choose a winning tile without
-  // changing the game's probabilistic roll or writing an anchor ahead of the real bait.
-  (debug as { __baitWouldNest?: (x: number, z: number) => boolean }).__baitWouldNest = (x, z) =>
-    previewBait(x, z).nest !== null;
-  (debug as { __baitedEyries?: () => unknown }).__baitedEyries = () => manifest.byKind('eyrie');
+  installBaitProbes(ctx);
   (debug as { __pods?: () => unknown }).__pods = () => pods();
   (debug as { __sailing?: unknown }).__sailing = sailing;
   (debug as { __whaleY?: () => number[] }).__whaleY = () => {
