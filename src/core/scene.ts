@@ -31,6 +31,7 @@ export interface FrameDescription {
     groundColour?: number;
     distance?: number;
     decay?: number;
+    target?: [number, number, number];
     castShadow: boolean;
     receiveShadow: boolean;
     material?: {

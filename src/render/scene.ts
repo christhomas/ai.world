@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { composerFor, worthAComposer } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
-import { SceneGraph } from '../core/scenegraph';
+import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
 import { describeFrame, type RecordingPipeline } from './recording';
@@ -203,6 +203,12 @@ export function fogReach(chunks: number = WORLD.VIEW_RADIUS): { near: number; fa
 export interface SceneRig {
   scene: THREE.Scene;
   graph: SceneGraph;
+  lighting: {
+    sun: Extract<SceneNode, { kind: 'directional' }>;
+    hemi: Extract<SceneNode, { kind: 'hemisphere' }>;
+    ambient: Extract<SceneNode, { kind: 'ambient' }>;
+    lantern: Extract<SceneNode, { kind: 'point' }>;
+  };
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
   ambient: THREE.AmbientLight;
@@ -320,6 +326,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   // the contrast of the ground underfoot. A `DayCycle` re-tints both together every frame; a rig
   // with no day cycle keeps this pair, which is the sky it was already drawing
   scene.fog = new THREE.Fog(SKY, fogReach().near, fogReach().far);
+  graph.fog = { colour: SKY, ...fogReach() };
 
   const ambient = new THREE.AmbientLight(0xc9dcff, 0.45);
   scene.add(ambient);
@@ -337,6 +344,14 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   sun.shadow.normalBias = 0.03;
   scene.add(sun);
   scene.add(sun.target);
+  const lighting: SceneRig['lighting'] = {
+    ambient: graph.add({ kind: 'ambient', colour: 0xc9dcff, intensity: 0.45 }) as SceneRig['lighting']['ambient'],
+    hemi: graph.add({ kind: 'hemisphere', sky: 0xcfe6ff, ground: 0x6f8f4f, intensity: 1 }) as SceneRig['lighting']['hemi'],
+    sun: graph.add({ kind: 'directional', colour: 0xfff3dc, intensity: 2.6,
+      position: [38, 72, 22], target: [0, 0, 0], castShadow: true }) as SceneRig['lighting']['sun'],
+    lantern: graph.add({ kind: 'point', colour: 0xffb060, intensity: 0, distance: 9, decay: 1.6,
+      position: [0, 0, 0] }) as SceneRig['lighting']['lantern'],
+  };
 
   // Water: one big translucent plane that follows the camera. Seabed shows through near the coast,
   // the dark "deep" plane underneath makes open water read as depth.
@@ -389,7 +404,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
 
   return {
-    scene, graph, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
+    scene, graph, lighting, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
     quality: remembered,
     setQuality(level: Quality) {
       const want = QUALITY[level];
@@ -397,6 +412,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, want.pixels));
       renderer.shadowMap.enabled = want.shadows;
       sun.castShadow = want.shadows;
+      lighting.sun.castShadow = want.shadows;
       if (sun.shadow.mapSize.x !== want.shadowMap) {
         sun.shadow.mapSize.set(want.shadowMap, want.shadowMap);
         // the old shadow map is the wrong size now; three builds a new one when this is dropped
@@ -416,6 +432,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     follow(x, z, zoom) {
       sun.target.position.set(x, 0, z);
       if (!this.sunDriven) sun.position.set(x + SUN_OFFSET.x, SUN_OFFSET.y, z + SUN_OFFSET.z);
+      lighting.sun.target = [x, 0, z];
+      if (!this.sunDriven) lighting.sun.position = [sun.position.x, sun.position.y, sun.position.z];
       const half = zoom * SHADOW_SPREAD;
       const cam = sun.shadow.camera;
       if (cam.right !== half) {
@@ -484,8 +502,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       return describeGpu(renderer);
     },
     setBrightness(of, value) {
-      if (of === 'sun') sun.intensity = value;
-      else hemi.intensity = value;
+      if (of === 'sun') { lighting.sun.intensity = value; sun.intensity = value; }
+      else { lighting.hemi.intensity = value; hemi.intensity = value; }
     },
   };
 }
