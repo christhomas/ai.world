@@ -43,6 +43,15 @@ if (EXCLUDE_RECT && (EXCLUDE_RECT.length !== 4 || EXCLUDE_RECT.some((n) => !Numb
   throw new Error('EXCLUDE_RECT must be x0,y0,x1,y1');
 }
 
+function assertPixelsRemain(width, height, rect) {
+  if (!rect) return;
+  const x0 = Math.max(0, rect[0]), y0 = Math.max(0, rect[1]);
+  const x1 = Math.min(width, rect[2]), y1 = Math.min(height, rect[3]);
+  if (Math.max(0, x1 - x0) * Math.max(0, y1 - y0) >= width * height) {
+    throw new Error('EXCLUDE_RECT leaves no pixels to compare');
+  }
+}
+
 /** The comparison's own rules, read out of the module the tests hold. */
 const rules = () => {
   const src = fs.readFileSync(path.join(__dirname, 'pictures.ts'), 'utf8');
@@ -103,6 +112,7 @@ async function main() {
     };
     const before = await read(path.join(THERE, name));
     const after = await read(path.join(HERE, name));
+    assertPixelsRemain(before.width, before.height, EXCLUDE_RECT);
     if (before.width !== after.width || before.height !== after.height) {
       lines.push(`  SIZE   ${name}: ${before.width}x${before.height} against ${after.width}x${after.height}`);
       told++;
@@ -147,4 +157,6 @@ async function main() {
   process.exit(told === 0 ? 0 : 1);
 }
 
-main().catch((wrong) => { console.error(wrong); process.exit(1); });
+if (require.main === module) main().catch((wrong) => { console.error(wrong); process.exit(1); });
+
+module.exports = { assertPixelsRemain };

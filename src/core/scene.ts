@@ -1,6 +1,6 @@
 /** A scene description independent of the graphics API that displays it. */
 export interface FrameDescription {
-  camera: { projection: number[]; world: number[]; orthographic: boolean };
+  camera: { projection: number[]; world: number[]; orthographic: boolean; layers?: number };
   background: number | null;
   fog: { colour: number; near: number; far: number } | null;
   nodes: Array<{
@@ -8,6 +8,7 @@ export interface FrameDescription {
     kind: 'group' | 'mesh' | 'instances' | 'points' | 'directional' | 'hemisphere' | 'ambient' | 'point';
     world: number[];
     visible: boolean;
+    layers?: number;
     colour?: number;
     intensity?: number;
     /** World-space point a directional light shines toward. */

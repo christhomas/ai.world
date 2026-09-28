@@ -18,10 +18,12 @@ describe('recording pipeline', () => {
     material.userData.effects = ['season', 'cutaway'];
     const material2 = new THREE.MeshLambertMaterial({ color: 0x123456 });
     const mesh = new THREE.InstancedMesh(geometry, [material, material2], 2);
+    mesh.layers.set(1);
     mesh.setMatrixAt(0, new THREE.Matrix4().makeTranslation(3, 4, 5));
     mesh.count = 1;
     scene.add(mesh);
     const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 100);
+    camera.layers.set(1);
     camera.position.set(5, 10, 5);
     camera.lookAt(0, 0, 0);
 
@@ -33,12 +35,14 @@ describe('recording pipeline', () => {
     pipeline.draw(() => describeFrame(scene, camera));
     const frame = pipeline.last!;
     expect(frame.camera.orthographic).toBe(true);
+    expect(frame.camera.layers).toBe(2);
     expect(frame.nodes.find((node) => node.kind === 'ambient')).toMatchObject({ colour: 0xabcdef, intensity: 0.7 });
     expect(frame.nodes.find((node) => node.kind === 'directional')?.lightTarget).toEqual([-2, 0, 3]);
     const recorded = frame.nodes.find((node) => node.kind === 'instances')!;
     expect(recorded.attributes?.position.size).toBe(3);
     expect(recorded.instanceMatrices).toHaveLength(16);
     expect(recorded.material?.effects).toEqual(['season', 'cutaway']);
+    expect(recorded.layers).toBe(2);
     expect(recorded.materials).toHaveLength(2);
     expect(recorded.groups).toEqual([{ start: 0, count: 18, materialIndex: 0 }, { start: 18, count: 18, materialIndex: 1 }]);
     expect(JSON.parse(JSON.stringify(frame)).nodes.some((node: { isObject3D?: boolean }) => node.isObject3D)).toBe(false);
