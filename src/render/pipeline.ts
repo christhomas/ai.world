@@ -106,7 +106,8 @@ export class ThreeFramePipeline implements FramePipeline {
         geometry.computeBoundingSphere();
         const paint = node.material;
         const material = paint?.intent === 'points'
-          ? new THREE.PointsMaterial({ color: paint.colour, transparent: paint.transparent, opacity: paint.opacity })
+          ? new THREE.PointsMaterial({ color: paint.colour, size: paint.size ?? 1,
+            transparent: paint.transparent, opacity: paint.opacity })
           : paint?.intent === 'unlit'
             ? new THREE.MeshBasicMaterial({ color: paint.colour, vertexColors: paint.vertexColours, transparent: paint.transparent, opacity: paint.opacity })
             : new THREE.MeshLambertMaterial({ color: paint?.colour ?? 0xffffff, vertexColors: paint?.vertexColours ?? false,

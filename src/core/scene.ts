@@ -39,6 +39,7 @@ export interface FrameDescription {
       intent: 'lit' | 'unlit' | 'points' | 'water'; colour: number; emissive: number;
       vertexColours: boolean; transparent: boolean; opacity: number;
       depthWrite: boolean; side: 'front' | 'back' | 'double'; effects: string[];
+      size?: number;
     };
     materials?: NonNullable<FrameDescription['nodes'][number]['material']>[];
     groups?: Array<{ start: number; count: number; materialIndex: number }>;
