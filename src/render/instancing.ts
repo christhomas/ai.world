@@ -115,6 +115,7 @@ export function addPropInstances(
     const model = PROPS.get(kind);
     const node = graph && model ? graph.add({
       kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+      glowColour: glowMaterial instanceof THREE.MeshBasicMaterial ? glowMaterial.color.getHex() : undefined,
       placements: list, castShadow: shadows && worthAShadow(geometry), receiveShadow: shadows,
     }) : null;
     if (node) { mesh.userData.graphNode = node; mesh.userData.graph = graph; }
@@ -140,6 +141,9 @@ export function addPropInstances(
     }
     if (graph && node?.kind === 'prop-batch') {
       mesh.userData.unmount = bindGraphMount(graph, node, (frame) => {
+        if (glow && frame.glowColour !== undefined && glow.material instanceof THREE.MeshBasicMaterial) {
+          glow.material.color.setHex(frame.glowColour);
+        }
         const placements = frame.placements ?? [];
         mesh.count = placements.length;
         mesh.castShadow = frame.castShadow;
@@ -286,6 +290,8 @@ export class PropBatch {
       if (this.graph && model) {
         const node: Extract<SceneNode, { kind: 'prop-batch' }> = {
           kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+          glowColour: this.glowMaterial instanceof THREE.MeshBasicMaterial
+            ? this.glowMaterial.color.getHex() : undefined,
           placements: list, castShadow: worthAShadow(geometry), receiveShadow: true,
         };
         this.graph.add(node);
@@ -293,6 +299,9 @@ export class PropBatch {
         batch.placements.set(key, node.placements);
         batch.parts.set(key, pack(node.placements as PropInstance[]));
         batch.unmounts.set(key, bindGraphMount(this.graph, node, (frame) => {
+          if (frame.glowColour !== undefined && this.glowMaterial instanceof THREE.MeshBasicMaterial) {
+            this.glowMaterial.color.setHex(frame.glowColour);
+          }
           const placements = frame.placements ?? [];
           if (batch.placements.get(key) === placements) return;
           const previous = batch.parts.get(key)?.count ?? 0;

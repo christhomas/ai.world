@@ -173,6 +173,10 @@ export class DayCycle {
 
     // windows warm up as the light fades
     this.glowMaterial.color.copy(this.tmp2.copy(WINDOW_DAY).lerp(WINDOW_NIGHT, smoothstep(0.3, 0.8, night)));
+    const glowColour = this.glowMaterial.color.getHex();
+    for (const node of graph.nodes) {
+      if (node.kind === 'prop-batch' && node.glowParts?.length) node.glowColour = glowColour;
+    }
 
     // the light comes from what the hero is holding, and from his head only where there is nothing
     // in his hand to hold it — which after dark there always is

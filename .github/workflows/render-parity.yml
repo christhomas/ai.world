@@ -69,12 +69,12 @@ jobs:
           REPORTS: ${{ runner.temp }}
         run: |
           # The async minimap is outside the renderer seam. Exclude the same rectangle
-          # from both outdoor captures; the minimap has its own content assertions.
+          # from every pair of captures; the minimap has its own content assertions.
           set +e
           SHOTS="$OUT" EXCLUDE_RECT=1103,75,1415,394 node tools/compare.cjs "$BEFORE" town.png mountain.png
           outdoor=$?
           cp docs/reports/pictures-report.txt "$REPORTS/render-outdoor-report.txt"
-          SHOTS="$OUT" node tools/compare.cjs "$BEFORE" interior.png
+          SHOTS="$OUT" EXCLUDE_RECT=1103,75,1415,394 node tools/compare.cjs "$BEFORE" interior.png
           interior=$?
           cp docs/reports/pictures-report.txt "$REPORTS/render-interior-report.txt"
           test "$outdoor" -eq 0 && test "$interior" -eq 0
