@@ -8,6 +8,7 @@ import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
 import { cleanWorldName } from '../../server/protocol';
 import type { TerrainLayer } from '../world/terrainlayers';
+import { PREVIEW_SIZE, PREVIEW_SPAN, terrainPreview } from './terrainpreview';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -133,6 +134,45 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
   const terrain: TerrainLayer[] = [];
   const terrainList = $('terrainLayers');
   const terrainError = $('terrainError');
+  const previewButton = $<HTMLButtonElement>('terrainPreviewButton');
+  const previewCanvas = $<HTMLCanvasElement>('terrainPreviewCanvas');
+  const previewStatus = $('terrainPreviewStatus');
+  let previewVersion = 0;
+  let previewCentre = { x: 0, z: 0 };
+  let previewOpen = false;
+  const preview = () => {
+    const version = ++previewVersion;
+    const typed = worldSeedInput.value.trim();
+    if (typed && (!/^\d+$/.test(typed) || Number(typed) > 0xffffffff)) {
+      previewStatus.textContent = 'Use a whole seed from 0 to 4294967295.';
+      previewCanvas.classList.remove('show');
+      return;
+    }
+    if (!typed) worldSeedInput.value = String(randomSeed() >>> 0);
+    const seed = Number(worldSeedInput.value) >>> 0;
+    previewCentre = terrain.length ? { x: terrain.at(-1)!.x, z: terrain.at(-1)!.z } : { x: 0, z: 0 };
+    const centre = previewCentre;
+    const layers = [...terrain];
+    previewStatus.textContent = `Growing seed ${seed} near ${centre.x}, ${centre.z}…`;
+    // Let the title paint the progress line before patch growth takes the main thread.
+    window.setTimeout(() => {
+      if (version !== previewVersion) return;
+      const pixels = terrainPreview(seed, layers, centre.x, centre.z);
+      if (version !== previewVersion) return;
+      const context = previewCanvas.getContext('2d');
+      if (!context) return;
+      context.putImageData(new ImageData(new Uint8ClampedArray(pixels), PREVIEW_SIZE, PREVIEW_SIZE), 0, 0);
+      previewCanvas.classList.add('show');
+      previewStatus.textContent = `Seed ${seed} · ${PREVIEW_SPAN} × ${PREVIEW_SPAN} tiles around ${centre.x}, ${centre.z}. Select a point to set the next layer centre.`;
+    }, 0);
+  };
+  previewButton.addEventListener('click', () => { previewOpen = true; preview(); });
+  worldSeedInput.addEventListener('change', () => { if (previewOpen) preview(); });
+  previewCanvas.addEventListener('click', (event) => {
+    const rect = previewCanvas.getBoundingClientRect();
+    $<HTMLInputElement>('terrainX').value = String(Math.round(previewCentre.x + ((event.clientX - rect.left) / rect.width - 0.5) * PREVIEW_SPAN));
+    $<HTMLInputElement>('terrainZ').value = String(Math.round(previewCentre.z + ((event.clientY - rect.top) / rect.height - 0.5) * PREVIEW_SPAN));
+  });
   const terrainInput = (id: string) => ($<HTMLInputElement>(id)).value.trim();
   const showTerrain = () => {
     terrainList.replaceChildren(...terrain.map((layer, i) => {
@@ -152,18 +192,21 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
     terrainError.textContent = '';
     terrain.push(layer);
     showTerrain();
+    if (previewOpen) preview();
   });
   terrainList.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-terrain]');
     if (!button) return;
     terrain.splice(Number(button.dataset.terrain), 1);
     showTerrain();
+    if (previewOpen) preview();
   });
   offerTheSwitches($('titleExtras'));
   root.classList.add('show');
 
   return new Promise<SlotChoice>((resolve) => {
     const finish = (choice: SlotChoice) => {
+      previewVersion++;
       root.classList.remove('show');
       document.removeEventListener('keydown', onKey);
       stopSky();
