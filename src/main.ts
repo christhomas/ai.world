@@ -217,9 +217,9 @@ export function startGame(
   const heroGear = new HeroGear(rig.scene);
   // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
-  const updraughts = new Updraughts(rig.scene, seed);   // the warm air, drawn where a glider finds it
-  const seaEyes = new Swallows(rig.scene, seed);        // and the water that goes down, drawn where it turns
-  const holes = new Shafts(rig.scene, seed);            // and the shafts, drawn so they can be walked to
+  const updraughts = new Updraughts(rig.scene, seed, rig.graph);   // the warm air, drawn where a glider finds it
+  const seaEyes = new Swallows(rig.scene, seed, rig.graph);        // and the water that goes down, drawn where it turns
+  const holes = new Shafts(rig.scene, seed, rig.graph);            // and the shafts, drawn so they can be walked to
   const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));

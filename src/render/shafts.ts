@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SHAFT, shaftsAround } from '../world/shafts';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { recordInstances } from './instancegraph';
 
 /**
  * A hole in the ground, drawn so that it looks like one.
@@ -24,6 +26,8 @@ const STONES = 11;
 export class Shafts {
   private readonly hole: THREE.InstancedMesh;
   private readonly lip: THREE.InstancedMesh;
+  private readonly holeNode?: Extract<SceneNode, { kind: 'instances' }>;
+  private readonly lipNode?: Extract<SceneNode, { kind: 'instances' }>;
   private readonly m = new THREE.Matrix4();
   private readonly pos = new THREE.Vector3();
   private readonly flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
@@ -31,7 +35,7 @@ export class Shafts {
   private readonly spin = new THREE.Euler();
   private readonly scale = new THREE.Vector3(1, 1, 1);
 
-  constructor(scene: THREE.Scene, private readonly seed: number) {
+  constructor(scene: THREE.Scene, private readonly seed: number, private readonly graph?: SceneGraph) {
     this.hole = new THREE.InstancedMesh(
       new THREE.CircleGeometry(1, 20),
       // unlit black: a lit dark material picks up the sun and reads as slate rather than as depth
@@ -53,6 +57,8 @@ export class Shafts {
     this.hole.renderOrder = 1;
     this.lip.castShadow = true;
     this.lip.receiveShadow = true;
+    this.holeNode = graph && recordInstances(graph, this.hole);
+    this.lipNode = graph && recordInstances(graph, this.lip);
   }
 
   /**
@@ -90,6 +96,8 @@ export class Shafts {
     }
     this.write(this.hole, holes);
     this.write(this.lip, stones);
+    if (this.holeNode) this.holeNode.count = holes;
+    if (this.lipNode) this.lipNode.count = stones;
   }
 
   private write(mesh: THREE.InstancedMesh, count: number): void {
@@ -102,6 +110,8 @@ export class Shafts {
   }
 
   dispose(): void {
+    if (this.holeNode) this.graph?.remove(this.holeNode);
+    if (this.lipNode) this.graph?.remove(this.lipNode);
     for (const mesh of [this.hole, this.lip]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();

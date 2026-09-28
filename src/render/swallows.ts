@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { MAELSTROM, maelstromsAround } from '../world/maelstroms';
 import { WORLD } from '../core/config';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { recordInstances } from './instancegraph';
 
 /**
  * What a whirlpool looks like from the deck of a boat.
@@ -27,13 +29,15 @@ const FLECKS = 9;
 export class Swallows {
   private readonly foam: THREE.InstancedMesh;
   private readonly eye: THREE.InstancedMesh;
+  private readonly foamNode?: Extract<SceneNode, { kind: 'instances' }>;
+  private readonly eyeNode?: Extract<SceneNode, { kind: 'instances' }>;
   private readonly m = new THREE.Matrix4();
   private readonly pos = new THREE.Vector3();
   private readonly flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
   private readonly scale = new THREE.Vector3(1, 1, 1);
   private t = 0;
 
-  constructor(scene: THREE.Scene, private readonly seed: number) {
+  constructor(scene: THREE.Scene, private readonly seed: number, private readonly graph?: SceneGraph) {
     this.foam = new THREE.InstancedMesh(
       new THREE.PlaneGeometry(1, 1),
       new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 0.75, depthWrite: false }),
@@ -53,6 +57,8 @@ export class Swallows {
       mesh.userData.sea = true;
       scene.add(mesh);
     }
+    this.eyeNode = graph && recordInstances(graph, this.eye);
+    this.foamNode = graph && recordInstances(graph, this.foam);
   }
 
   /**
@@ -96,6 +102,8 @@ export class Swallows {
     }
     this.write(this.eye, eye);
     this.write(this.foam, fleck);
+    if (this.eyeNode) this.eyeNode.count = eye;
+    if (this.foamNode) this.foamNode.count = fleck;
   }
 
   private write(mesh: THREE.InstancedMesh, count: number): void {
@@ -108,6 +116,8 @@ export class Swallows {
   }
 
   dispose(): void {
+    if (this.eyeNode) this.graph?.remove(this.eyeNode);
+    if (this.foamNode) this.graph?.remove(this.foamNode);
     for (const mesh of [this.eye, this.foam]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { THERMAL, thermalsAround } from '../world/thermals';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { recordInstances } from './instancegraph';
 
 /**
  * What a column of warm air looks like from the ground.
@@ -29,13 +31,15 @@ const AT_ONCE = 24;
 export class Updraughts {
   private readonly motes: THREE.InstancedMesh;
   private readonly clouds: THREE.InstancedMesh;
+  private readonly motesNode?: Extract<SceneNode, { kind: 'instances' }>;
+  private readonly cloudsNode?: Extract<SceneNode, { kind: 'instances' }>;
   private readonly m = new THREE.Matrix4();
   private readonly pos = new THREE.Vector3();
   private readonly quat = new THREE.Quaternion();
   private readonly scale = new THREE.Vector3(1, 1, 1);
   private t = 0;
 
-  constructor(scene: THREE.Scene, private readonly seed: number) {
+  constructor(scene: THREE.Scene, private readonly seed: number, private readonly graph?: SceneGraph) {
     // a mote is a small pale flake, unlit so it reads as light rather than as a thing
     const flake = new THREE.PlaneGeometry(0.55, 0.55);
     this.motes = new THREE.InstancedMesh(
@@ -62,6 +66,8 @@ export class Updraughts {
       mesh.userData.air = true;                 // not a creature and not a prop: see `perf.test.ts`
       scene.add(mesh);
     }
+    this.motesNode = graph && recordInstances(graph, this.motes);
+    this.cloudsNode = graph && recordInstances(graph, this.clouds);
   }
 
   /**
@@ -124,6 +130,8 @@ export class Updraughts {
     }
     this.write(this.motes, mote);
     this.write(this.clouds, cloud);
+    if (this.motesNode) this.motesNode.count = mote;
+    if (this.cloudsNode) this.cloudsNode.count = cloud;
   }
 
   private write(mesh: THREE.InstancedMesh, count: number): void {
@@ -141,6 +149,8 @@ export class Updraughts {
   }
 
   dispose(): void {
+    if (this.motesNode) this.graph?.remove(this.motesNode);
+    if (this.cloudsNode) this.graph?.remove(this.cloudsNode);
     for (const mesh of [this.motes, this.clouds]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
