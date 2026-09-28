@@ -5,6 +5,8 @@ import type { Entity } from '../entities/entity';
 import { bodyMotion } from '../entities/motion';
 import { merge, part } from './geometry';
 import { dressed, isDressing } from './worn';
+import type { SceneGraph } from '../core/scenegraph';
+import { ModelGraph } from './modelgraph';
 
 /**
  * What the hero is carrying, drawn in his hands. The rig itself lives in the shared instanced pool,
@@ -260,9 +262,12 @@ export class HeroGear {
   /** Where the fire is this frame, for whatever wants to put a light there. */
   private readonly fire = new THREE.Vector3();
   private carrying = false;
+  private record: ModelGraph;
+  private needsRecord = false;
 
-  constructor(scene: THREE.Object3D) {
+  constructor(scene: THREE.Object3D, private graph?: SceneGraph) {
     scene.add(this.group);
+    this.record = new ModelGraph(this.group, graph);
   }
 
   /**
@@ -280,8 +285,11 @@ export class HeroGear {
   }
 
   /** Move the gear onto a different scene, following the hero indoors or underground. */
-  attachTo(scene: THREE.Object3D): void {
+  attachTo(scene: THREE.Object3D, graph?: SceneGraph): void {
+    this.record.dispose();
+    this.graph = graph;
     scene.add(this.group);
+    this.record = new ModelGraph(this.group, graph);
   }
 
   private geometryFor(item: Item): THREE.BufferGeometry | null {
@@ -328,6 +336,7 @@ export class HeroGear {
       this.torch.castShadow = true;
       this.flame = new THREE.Mesh(FLAME(), this.flameMaterial);
       this.group.add(this.torch, this.flame);
+      this.needsRecord = true;
     }
     if (this.torch && this.flame) { this.torch.visible = carry; this.flame.visible = carry; }
     const offhand = this.worn.get('offhand');
@@ -385,6 +394,12 @@ export class HeroGear {
       this.flame.scale.setScalar(scale * (1 + Math.sin(hero.phase * 5.3) * 0.07));
       this.fire.copy(this.flame.position);
     }
+    if (this.needsRecord) {
+      this.record.dispose();
+      this.record = new ModelGraph(this.group, this.graph);
+      this.needsRecord = false;
+    }
+    this.record.sync();
   }
 
   /**
@@ -412,6 +427,7 @@ export class HeroGear {
   }
 
   private rebuild(state: GameState, hero: Entity): void {
+    this.needsRecord = true;
     hero.hiddenTags.clear();
     // what he is wearing, which is what he is made of rather than something drawn over him
     hero.tints = dressed(hero.basePalette, (slot) => state.worn(slot));
@@ -463,6 +479,7 @@ export class HeroGear {
   }
 
   dispose(): void {
+    this.record.dispose();
     for (const g of this.cache.values()) g.dispose();
     this.material.dispose();
   }

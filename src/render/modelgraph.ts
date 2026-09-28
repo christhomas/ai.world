@@ -23,11 +23,14 @@ export class ModelGraph {
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
       const colour = 'color' in material && material.color instanceof THREE.Color
         ? material.color.getHex() : 0xffffff;
+      const colours = mesh.geometry.getAttribute('color');
+      const vertexColours = 'vertexColors' in material && material.vertexColors === true;
       const node: Extract<SceneNode, { kind: 'mesh' }> = {
-        kind: 'mesh', material: 'lit-solid', colour,
+        kind: 'mesh', material: vertexColours ? 'lit-vertex-colours' : 'lit-solid', colour,
         geometry: {
           positions: position.array as Float32Array,
           normals: normal.array as Float32Array,
+          colors: colours?.array as Float32Array | undefined,
           indices: mesh.geometry.index?.array as Uint16Array | Uint32Array | undefined,
         },
         world: mesh.matrixWorld.toArray(), visible: false,
@@ -35,7 +38,7 @@ export class ModelGraph {
         effects: material instanceof THREE.MeshLambertMaterial && material.flatShading ? ['flat-shading'] : [],
         materialState: {
           intent: material instanceof THREE.MeshBasicMaterial ? 'unlit' : 'lit',
-          colour, vertexColours: false,
+          colour, vertexColours,
           transparent: material.transparent, opacity: material.opacity,
           depthWrite: material.depthWrite,
           depthTest: material.depthTest,

@@ -5,6 +5,7 @@ import { Entity, Herd } from '../entities/entity';
 import { mulberry32 } from '../core/rng';
 import { GameState } from '../game/state';
 import { HeroGear } from './herogear';
+import { SceneGraph } from '../core/scenegraph';
 
 /**
  * The torch the hero carries after dark.
@@ -28,6 +29,26 @@ function hero(): Entity {
 const HAT = 1.5;
 
 describe('the torch after dark', () => {
+  it('moves carried geometry and visibility with the active neutral scene', () => {
+    const outdoors = new SceneGraph(0);
+    const indoors = new SceneGraph(0);
+    const gear = new HeroGear(new THREE.Group(), outdoors);
+    const state = new GameState();
+    const who = hero();
+    gear.update(state, who, true);
+    expect(outdoors.nodes).toHaveLength(2);
+    expect(outdoors.nodes.every((node) => node.kind === 'mesh' && node.visible)).toBe(true);
+    expect(outdoors.nodes[1]).toMatchObject({ kind: 'mesh', material: 'lit-vertex-colours',
+      materialState: { intent: 'unlit', vertexColours: true } });
+    gear.attachTo(new THREE.Group(), indoors);
+    expect(outdoors.nodes).toHaveLength(0);
+    expect(indoors.nodes).toHaveLength(2);
+    gear.group.visible = false;
+    gear.update(state, who, true);
+    expect(indoors.nodes.every((node) => node.kind === 'mesh' && !node.visible)).toBe(true);
+    gear.dispose();
+    expect(indoors.nodes).toHaveLength(0);
+  });
   it('is not out in daylight, and there is no light to put anywhere', () => {
     const gear = new HeroGear(new THREE.Group());
     gear.update(new GameState(), hero(), false);

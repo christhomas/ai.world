@@ -214,7 +214,7 @@ export function startGame(
   const clock = new Clock();
   const compass = new Compass();
   const photo = new PhotoMode();
-  const heroGear = new HeroGear(rig.scene);
+  const heroGear = new HeroGear(rig.scene, rig.graph);
   // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
   const updraughts = new Updraughts(rig.scene, seed, rig.graph);   // the warm air, drawn where a glider finds it
