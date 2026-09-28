@@ -542,6 +542,8 @@ export function startGame(
   putOfferToPlayer = interactions.showOffer;
 
   // whose world this is: the one in the next thread until somebody asks for another
+  // Give old saves their stable multiplayer identity before they can receive replayable player facts.
+  if (saved?.state?.playerId !== state.playerId) persist();
   joinAWorld({
     seed, kind: world, terrain: manifest.terrain, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
