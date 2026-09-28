@@ -5,6 +5,8 @@ import type { PropLibrary } from './props';
 import { addPropInstances, disposeInstances } from './instancing';
 import { ITile, type InteriorMap } from '../interior/generate';
 import { FLOOR_Y, WALL_HEIGHT } from '../interior/world';
+import { SceneGraph, type SceneGeometry } from '../core/scenegraph';
+import { mountSceneGraph } from './scenegraph';
 
 interface Palette { floor: number; floorAlt: number; wall: number; wallTop: number; counter: number; rug: number; light: number }
 
@@ -26,28 +28,24 @@ const PALETTES: Record<string, Palette> = {
 
 /** Builds the room: a floor, four walls seen from above, and the furniture in it. */
 export class InteriorScene {
-  readonly scene = new THREE.Scene();
-  private readonly geometries: THREE.BufferGeometry[] = [];
-  private readonly materials: THREE.Material[] = [];
+  readonly graph: SceneGraph;
+  readonly scene: THREE.Scene;
+  private readonly mounted: ReturnType<typeof mountSceneGraph>;
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffc060 });
 
   constructor(map: InteriorMap, props: PropLibrary) {
     const pal = PALETTES[map.kind] ?? PALETTES.house;
-    this.scene.background = new THREE.Color(0x0d1018);
-    this.scene.add(new THREE.AmbientLight(0xffe9cc, 1.35));
-    const hemi = new THREE.HemisphereLight(0xfff0d8, 0x4a3a2a, 0.9);
-    this.scene.add(hemi);
-    const lamp = new THREE.PointLight(pal.light, 14, Math.max(map.w, map.h) * 1.6, 1.4);
-    lamp.position.set(map.w / 2, 4.5, map.h / 2);
-    this.scene.add(lamp);
-
-    const geo = buildRoom(map, pal);
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    this.scene.add(mesh);
-    this.geometries.push(geo);
-    this.materials.push(mat);
+    this.graph = new SceneGraph(0x0d1018);
+    this.graph.add({ kind: 'ambient', colour: 0xffe9cc, intensity: 1.35 });
+    this.graph.add({ kind: 'hemisphere', sky: 0xfff0d8, ground: 0x4a3a2a, intensity: 0.9 });
+    this.graph.add({
+      kind: 'point', colour: pal.light, intensity: 14,
+      distance: Math.max(map.w, map.h) * 1.6, decay: 1.4,
+      position: [map.w / 2, 4.5, map.h / 2],
+    });
+    this.graph.add({ kind: 'mesh', geometry: buildRoom(map, pal), material: 'lit-vertex-colours', receiveShadow: true });
+    this.mounted = mountSceneGraph(this.graph);
+    this.scene = this.mounted.scene;
 
     addPropInstances(
       this.scene, props,
@@ -58,14 +56,13 @@ export class InteriorScene {
 
   dispose(): void {
     disposeInstances(this.scene);
-    for (const g of this.geometries) g.dispose();
-    for (const m of this.materials) m.dispose();
+    this.mounted.dispose();
     this.glowMaterial.dispose();
   }
 }
 
 /** One mesh for the whole room: floor quads, wall tops, and inward-facing wall faces. */
-function buildRoom(map: InteriorMap, pal: Palette): THREE.BufferGeometry {
+function buildRoom(map: InteriorMap, pal: Palette): SceneGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
@@ -115,10 +112,9 @@ function buildRoom(map: InteriorMap, pal: Palette): THREE.BufferGeometry {
     }
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(positions), 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(Float32Array.from(normals), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(colors), 3));
-  geo.computeBoundingSphere();
-  return geo;
+  return {
+    positions: Float32Array.from(positions),
+    normals: Float32Array.from(normals),
+    colours: Float32Array.from(colors),
+  };
 }
