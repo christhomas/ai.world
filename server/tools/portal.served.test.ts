@@ -20,7 +20,7 @@ describe('the tools portal, served', () => {
 
   const start = async (): Promise<RunningServer> => startServer({
     port: 0, quiet: true, dataDir: join(dir, 'worlds'),
-    durableDb: join(dir, 'ai-world.sqlite'), toolsSecret: secret,
+    durableDb: join(dir, 'ai-world.sqlite'), toolsSecret: secret, trustProxy: true,
   });
 
   beforeEach(async () => {
@@ -164,6 +164,19 @@ describe('the tools portal, served', () => {
   it('leaves the game and the status page alone', async () => {
     expect((await get('/status')).status).toBe(200);
     expect(await (await get('/status')).text()).toContain('ai.world server');
+  });
+
+  it('keeps page and tools routes available when the proxy reports an internal HTTP hop', async () => {
+    const headers = { 'x-forwarded-proto': 'http' };
+    const page = await fetch(at('/'), { redirect: 'manual', headers });
+    expect(page.status).toBe(200);
+    expect(page.headers.get('location')).toBeNull();
+    expect(await page.text()).toContain('ai.world server');
+
+    const login = await fetch(at('/tools/login'), { redirect: 'manual', headers });
+    expect(login.status).toBe(200);
+    expect(login.headers.get('location')).toBeNull();
+    expect(await login.text()).toContain('name="password"');
   });
 
   /*

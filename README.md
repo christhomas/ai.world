@@ -402,8 +402,10 @@ takes to read one file. Two knobs, both set for you by the compose file:
 **On a public host.** Put the server behind a TLS-terminating reverse proxy or ingress, and point
 the game at its `wss://` address. Keep one server replica: each world and its player sockets live
 in that process. The proxy must pass WebSocket upgrades and forward `X-Forwarded-Proto`; deployments
-using the chart's ingress enable trusted-proxy handling automatically. Ordinary HTTP browser
-requests are redirected to HTTPS, while WebSocket connections continue through the upgrade path.
+using the chart's ingress enable trusted-proxy handling automatically. Configure any HTTP-to-HTTPS
+redirect at the public edge, which knows the browser's scheme. The app serves requests even when an
+intermediate proxy reports its own HTTP hop as the forwarded scheme. WebSocket connections continue
+through the upgrade path.
 `server/proxy.test.ts` puts a generic HTTP relay in front of a real server and joins through it, so
 a change that breaks the upgrade fails the suite rather than the deployment.
 

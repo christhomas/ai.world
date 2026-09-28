@@ -15,7 +15,7 @@ import type { BuilderAt } from './builder/proxy';
 import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { bootstrapAccount, portalFor, requestProtocol, whatIsAsked } from './tools/portal';
+import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -189,18 +189,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       sim, builderChannel)
     : null;
   const http = createServer((req, res) => {
-    // TLS ends at the ingress, so the socket itself is plain HTTP. Only trust the forwarding
-    // header when this deployment explicitly trusts that ingress. WebSocket upgrades are handled
-    // separately below; browsers cannot follow an HTTP redirect during a WebSocket handshake.
-    if (options.trustProxy && req.headers.upgrade?.toLowerCase() !== 'websocket') {
-      const scheme = requestProtocol(req, true);
-      const host = req.headers.host;
-      if (scheme === 'http' && host && !/[\r\n]/.test(host)) {
-        res.writeHead(308, { location: `https://${host}${req.url ?? '/'}` });
-        res.end();
-        return;
-      }
-    }
     // A missing portal configuration used to look like a healthy but empty game server here,
     // leaving anyone opening the tools address with no clue why there was no login page.
     if (!tools && /^\/tools(?:\/|$)/.test(req.url ?? '')) {
