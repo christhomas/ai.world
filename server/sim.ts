@@ -36,7 +36,7 @@ import { WORLD } from '../src/core/config';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
 import { lidLifted } from './chests';
 import { DungeonWorld } from '../src/dungeon/world';
-import { Manifest } from '../src/world/manifest';
+import { Manifest, type Anchor } from '../src/world/manifest';
 import { provinceOfHome } from '../src/world/provinces';
 
 /**
@@ -194,6 +194,27 @@ function localTerrain(value: unknown): TerrainLayer[] | null {
   return layers;
 }
 
+/** A private worker accepts only complete, bounded highland anchors. */
+function localHighlands(value: unknown): Anchor[] | null {
+  if (!Array.isArray(value) || value.length > 32) return null;
+  const layers: Anchor[] = [];
+  const ids = new Set<string>();
+  for (const row of value) {
+    if (!row || typeof row !== 'object') return null;
+    const a = row as Partial<Anchor>;
+    if (a.kind !== 'highland' || typeof a.id !== 'string' || a.id.length === 0
+      || a.id.length > 180 || ids.has(a.id) || a.parent !== null || a.version !== 1
+      || !Number.isSafeInteger(a.x) || !Number.isSafeInteger(a.z)
+      || Math.abs(a.x!) > 1_000_000 || Math.abs(a.z!) > 1_000_000
+      || !Number.isSafeInteger(a.seed) || a.seed! < 0 || a.seed! > 0xffffffff
+      || !a.layer || !Number.isSafeInteger(a.layer.reach) || !Number.isSafeInteger(a.layer.lift)
+      || a.layer.reach < 1 || a.layer.reach > 2048 || a.layer.lift < 1 || a.layer.lift > 100) return null;
+    ids.add(a.id);
+    layers.push(a as Anchor);
+  }
+  return layers;
+}
+
 /** The deepest floor anybody may claim to be standing on, so a number is not a way to spend memory. */
 const FLOORS = 40;
 
@@ -347,7 +368,7 @@ export class Simulation {
       onFallen: (who, id) => this.buried(seed, who, id),
       onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
       onDeparted: (change) => this.forgetTheMind(seed, change.id),
-    });
+    }, room?.world.manifest);
     this.folk.set(seed, folk);
     const alive = new Wildlife(seed, grown, grown, folk);
     // and the book goes to the world, which is the one thing that knows when a place has stopped
@@ -963,6 +984,20 @@ export class Simulation {
         return null;
       }
       if (JSON.stringify(room.world.manifest.terrain) !== JSON.stringify(terrain)) room.world.authorTerrain(terrain);
+    }
+    if (this.localAuthoring && message.highlands !== undefined) {
+      const highlands = localHighlands(message.highlands);
+      const changed = highlands?.some((a) => !room.world.manifest.get(a.id));
+      const conflicting = highlands?.some((a) => {
+        const known = room.world.manifest.get(a.id);
+        return known && JSON.stringify(known) !== JSON.stringify(a);
+      });
+      if (!highlands || conflicting || (changed && (this.ground.has(seed) || room.clients.size > 0))) {
+        wire.send(JSON.stringify({ type: 'error', reason: 'This world could not accept that highland prayer.' } satisfies ServerMessage));
+        wire.close();
+        return null;
+      }
+      room.world.authorHighlands(highlands);
     }
     const x = Number(message.x), z = Number(message.z);
     const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;

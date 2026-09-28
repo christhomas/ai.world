@@ -110,6 +110,10 @@
     "note": "What lives above the treeline, on and around a massif. Kept apart from the biome tables because a mountain is not a biome: a massif can stand in any country, and what matters is the height rather than the latitude. Deliberately short and deliberately dangerous — it is the reason to look up when the ground starts to rise.",
     "kinds": { "goat": 5, "eagle": 3, "wolf": 2, "bear": 1, "bigfoot": 1, "yeti": 1 }
   },
+  "prayedHighland": {
+    "note": "The gods answer a mountain prayer with new high country and the dangerous things that come with it. Only a stored prayer anchor uses this table; old mountains keep their established ecology.",
+    "kinds": { "goat": 4, "eagle": 2, "wolf": 1, "bear": 1, "yeti": 2, "ogre": 1 }
+  },
 
   "deep": {
     "note": "What a pack in open water turns out to be. Sharks mostly, orcas now and then, and nothing else in the game spawns out there at all: the sea is one encounter with two faces, and the rarer one hits half again as hard.",

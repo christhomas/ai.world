@@ -6,7 +6,7 @@ import {
 import {
   KEEP_READY, provinceOf, provincePath, provincesNear, type ProvinceId,
 } from '../src/world/provinces';
-import { Manifest, type ManifestJson } from '../src/world/manifest';
+import { Manifest, type Anchor, type ManifestJson } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { HoldingBook, HoldingRecord } from '../src/world/holdingbook';
 
@@ -146,6 +146,17 @@ export class SharedWorld {
   authorTerrain(layers: readonly TerrainLayer[]): void {
     this.manifest.terrain.splice(0, this.manifest.terrain.length, ...layers);
     this.scheduleSave();
+  }
+
+  /** Accept new, versioned highland answers from this tab's private world only. */
+  authorHighlands(layers: readonly Anchor[]): void {
+    let added = false;
+    for (const layer of layers) {
+      if (this.manifest.get(layer.id)) continue;
+      this.manifest.anchors.set(layer.id, { ...layer, layer: { ...layer.layer! } });
+      added = true;
+    }
+    if (added) this.scheduleSave();
   }
 
   constructor(

@@ -163,6 +163,8 @@ export interface Surroundings {
   raining: () => boolean;
   discover: (name: string) => void;
   persist: () => void;
+  /** Finish the save before reloading after a world-shaping prayer. */
+  persistAsync: () => Promise<void>;
   /** Tell everybody else in this world about something the player changed. */
   told: (delta: WorldDelta) => void;
   /**

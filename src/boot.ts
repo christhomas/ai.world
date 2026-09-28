@@ -2,7 +2,10 @@ import { IndexedDbStore } from './save/store';
 import { serverOf } from './game/joining';
 import { kindOf, type SessionSave, type WorldKind } from './save/store';
 import type { WorldInvite } from '../server/protocol';
-import { joinedManifest } from './world/manifest';
+import { joinedManifest, Manifest } from './world/manifest';
+import { GameState } from './game/state';
+import { daysToLive } from './world/awaytime';
+import { answerHighland } from './game/prayers';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { startGame } from './main';
@@ -107,6 +110,22 @@ export async function boot(): Promise<void> {
     worldName = choice.worldName;
     home = choice.home;
     $('loading').style.display = 'block';
+  }
+  // A private world's two-month answer is applied before either the page or its worker grows a
+  // square. Reopening after time away therefore sees one country, with the recorded anchor roll.
+  if (saved && !url.searchParams.has('server') && world === 'endless') {
+    const prayerState = GameState.from(saved.state);
+    const today = prayerState.day + daysToLive(prayerState.awayFor, false);
+    const manifest = new Manifest(seed, saved.manifest);
+    let answered = false;
+    for (const prayer of prayerState.prayers) {
+      if (!prayer.answered && answerHighland(manifest, prayer, today)) answered = true;
+    }
+    if (answered) {
+      saved = { ...saved, manifest: manifest.toJSON(),
+        state: { ...saved.state, prayers: prayerState.prayers } };
+      await store.save(slotKey, saved);
+    }
   }
   startGame(store, slotKey, saved, seed, worldName, url, world, home);
 }
