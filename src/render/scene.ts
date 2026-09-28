@@ -220,7 +220,6 @@ export function fogReach(chunks: number = WORLD.VIEW_RADIUS): { near: number; fa
 }
 
 export interface SceneRig {
-  scene: THREE.Scene;
   graph: SceneGraph;
   lighting: {
     sun: Extract<SceneNode, { kind: 'directional' }>;
@@ -228,12 +227,6 @@ export interface SceneRig {
     ambient: Extract<SceneNode, { kind: 'ambient' }>;
     lantern: Extract<SceneNode, { kind: 'point' }>;
   };
-  sun: THREE.DirectionalLight;
-  hemi: THREE.HemisphereLight;
-  ambient: THREE.AmbientLight;
-  water: WaterMaterial;
-  /** How far every point of the sea is from land, which is what shapes the waves. */
-  coast: CoastField;
   /** Set true once a DayCycle positions the sun, so follow() stops overriding it. */
   sunDriven: boolean;
   /** Call every frame with the camera target so light, shadows and water travel with the view. */
@@ -288,6 +281,8 @@ export interface SceneRig {
    * has an opinion about how the picture got there.
    */
   readonly canvas: HTMLCanvasElement;
+  /** Diagnostic hook used by fixed scene capture to freeze native actor layers. */
+  debugScene(): unknown;
   /** Give the graphics context back. The renderer's, and nobody else's business how. */
   dispose(): void;
   /**
@@ -313,6 +308,15 @@ export interface SceneRig {
   /** How hard to work per frame. Saved, so the choice survives a return to the title. */
   quality: Quality;
   setQuality(level: Quality): void;
+}
+
+const nativeRigs = new WeakMap<SceneRig, { scene: THREE.Scene; water: WaterMaterial }>();
+
+/** Resolve a mounted WebGL adapter only from inside the render layer. */
+export function nativeRig(rig: SceneRig): { scene: THREE.Scene; water: WaterMaterial } {
+  const native = nativeRigs.get(rig);
+  if (!native) throw new Error('scene rig has no mounted WebGL adapter');
+  return native;
 }
 
 /**
@@ -372,6 +376,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     lantern: graph.add({ kind: 'point', colour: 0xffb060, intensity: 0, distance: 9, decay: 1.6,
       position: [0, 0, 0] }) as SceneRig['lighting']['lantern'],
   };
+  const lantern = new THREE.PointLight(0xffb060, 0, 9, 1.6);
+  scene.add(lantern);
   const unmountLights = [
     bindGraphMount(graph, lighting.ambient, (frame) => {
       ambient.color.setHex(frame.colour ?? 0xffffff);
@@ -388,6 +394,13 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       sun.position.set(frame.world[12], frame.world[13], frame.world[14]);
       sun.target.position.set(...(frame.target ?? [0, 0, 0]));
       sun.castShadow = frame.castShadow;
+    }),
+    bindGraphMount(graph, lighting.lantern, (frame) => {
+      lantern.color.setHex(frame.colour ?? 0xffffff);
+      lantern.intensity = frame.intensity ?? 0;
+      lantern.distance = frame.distance ?? 0;
+      lantern.decay = frame.decay ?? 2;
+      lantern.position.set(frame.world[12], frame.world[13], frame.world[14]);
     }),
   ];
 
@@ -444,8 +457,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
   const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
 
-  return {
-    scene, graph, lighting, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
+  const api: SceneRig = {
+    graph, lighting, sunDriven: false,
     quality: remembered,
     setQuality(level: Quality) {
       const want = QUALITY[level];
@@ -506,8 +519,10 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       // nothing has said where the camera is looking yet, so there is no picture to fit to
       if (shadowHalf === 0) return;
       const cam = sun.shadow.camera;
-      const flat = Math.hypot(sun.position.x - sun.target.position.x, sun.position.z - sun.target.position.z);
-      const far = shadowFar(sun.position.y - sun.target.position.y, flat, groundRadius, shadowHalf);
+      const [sx, sy, sz] = lighting.sun.position;
+      const [tx, ty, tz] = lighting.sun.target;
+      const flat = Math.hypot(sx - tx, sz - tz);
+      const far = shadowFar(sy - ty, flat, groundRadius, shadowHalf);
       // the sun crawls and the margin is eight tiles wide, so a slab that has barely moved is not
       // worth rebuilding a projection matrix for
       if (Math.abs(cam.far - far) < 1) return;
@@ -537,6 +552,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       submitGraphFrame(what, sinks);
     },
     get canvas() { return renderer.domElement; },
+    debugScene() { return scene; },
     dispose() {
       for (const unmount of unmountLights) unmount();
       detachGraph();
@@ -562,4 +578,6 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       else { lighting.hemi.intensity = value; hemi.intensity = value; }
     },
   };
+  nativeRigs.set(api, { scene, water: waterMat });
+  return api;
 }

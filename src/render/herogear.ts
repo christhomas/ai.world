@@ -7,6 +7,7 @@ import { merge, part } from './geometry';
 import { dressed, isDressing } from './worn';
 import type { SceneGraph } from '../core/scenegraph';
 import { ModelGraph } from './modelgraph';
+import { sceneForGraph } from './scenegraph';
 
 /**
  * What the hero is carrying, drawn in his hands. The rig itself lives in the shared instanced pool,
@@ -290,6 +291,11 @@ export class HeroGear {
     this.graph = graph;
     scene.add(this.group);
     this.record = new ModelGraph(this.group, graph);
+  }
+
+  /** Follow the hero to another engine-owned place without exposing its WebGL scene. */
+  attachToGraph(graph: SceneGraph): void {
+    this.attachTo(sceneForGraph(graph), graph);
   }
 
   private geometryFor(item: Item): THREE.BufferGeometry | null {

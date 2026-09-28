@@ -7,6 +7,12 @@ import type { Entity } from '../entities/entity';
 import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from '../entities/motion';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
 import { applyInstanceFrame, bindGraphMount } from './graphmount';
+import { sceneForGraph } from './scenegraph';
+
+/** Mount a place's creatures through its neutral scene graph. */
+export function entityRendererFor(graph: SceneGraph): EntityRenderer {
+  return new EntityRenderer(sceneForGraph(graph), graph);
+}
 
 /**
  * Draws every creature through InstancedMesh pools: one pool per kind, and inside it one mesh for
