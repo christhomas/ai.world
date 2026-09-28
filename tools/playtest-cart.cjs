@@ -87,10 +87,15 @@ module.exports = async function playCart(page, say, go, face) {
   await page.evaluate(() => window.__ride(true));
   // The earlier wall check may already own a horse parked in the village. Give the mounted update
   // a frame to bring that horse under its rider before dismounting at this distant carcass.
-  await page.waitForFunction(() => {
-    const mount = window.__mount();
-    return mount.horse && mount.under < 0.2;
-  }, null, { timeout: 5000 });
+  let under = null;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await page.waitForTimeout(250);
+    under = await page.evaluate(() => window.__mount().under);
+    if (under !== null && under < 0.2) break;
+  }
+  if (under === null || under >= 0.2) {
+    throw new Error(`horse did not reach rider at carcass: ${JSON.stringify(await snapshot())}`);
+  }
   await page.evaluate(() => window.__ride(false));
   phase(`at carcass ${JSON.stringify(await snapshot())}`);
   await page.keyboard.press('Enter');
@@ -103,11 +108,28 @@ module.exports = async function playCart(page, say, go, face) {
   await page.keyboard.press('Enter');
   await choose('Ride');
   const start = await snapshot();
-  const approach = { x: ground.crag.x + (ground.hunt.x - ground.crag.x) * 0.35,
-    z: ground.crag.z + (ground.hunt.z - ground.crag.z) * 0.35 };
-  await page.evaluate(([x, z]) => window.__walkTo(x, z), [approach.x, approach.z]);
-  await page.waitForTimeout(5500);
-  const hauled = await snapshot();
+  // The direct line to the ledge may cut across rock too steep for the horse. Pick a clear
+  // short lane that makes progress toward it, and try another lane if a creature blocks one.
+  let hauled = start;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const lane = await page.evaluate(({ crag, skip }) => {
+      const p = window.__player;
+      const toward = Math.atan2(crag.z - p.z, crag.x - p.x);
+      const turns = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6];
+      const clear = turns.map((turn) => {
+        const a = toward + turn, dx = Math.cos(a), dz = Math.sin(a);
+        const reach = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+          .every((d) => window.__canStand('horse', p.x + dx * d, p.z + dz * d));
+        return reach ? { x: p.x + dx * 5, z: p.z + dz * 5 } : null;
+      }).filter(Boolean);
+      return clear[skip % clear.length] ?? null;
+    }, { crag: ground.crag, skip: attempt });
+    if (!lane) break;
+    await page.evaluate(([x, z]) => window.__walkTo(x, z), [lane.x, lane.z]);
+    await page.waitForTimeout(5000);
+    hauled = await snapshot();
+    if (Math.hypot(hauled.hero.x - start.hero.x, hauled.hero.z - start.hero.z) > 2) break;
+  }
   const moved = Math.hypot(hauled.hero.x - start.hero.x, hauled.hero.z - start.hero.z);
   say('the loaded horse hauls the body toward the crag', moved > 2 && hauled.horse.cargo?.kind === 'goat',
     `${moved.toFixed(1)} tiles, cargo ${hauled.horse.cargo?.kind ?? 'none'}`);
