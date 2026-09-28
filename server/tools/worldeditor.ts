@@ -6,6 +6,7 @@ import { bodyOf } from '../builder/proxy';
 import { terrainPreview } from '../../src/ui/terrainpreview';
 import { elevationFor } from '../../src/world/growworld';
 import { authoredTerrain, mountainAnchor, mountainDraft, skyEyrieAnchor } from '../../src/world/worldediting';
+import { terrainEditFootprint } from '../../src/world/terrainlayers';
 import { addMountain } from '../../src/world/worldediting';
 import { Manifest } from '../../src/world/manifest';
 import { assessSkyAccess, assessSkyEyrie } from '../../src/world/skyaccess';
@@ -66,6 +67,7 @@ export function worldEditor(sim: Simulation, worker: GroundWorker | null) {
         const after = new Manifest(record.seed, before.toJSON());
         let proposed: unknown;
         let x: number, z: number, reach: number;
+        let inspectionReach: number;
         if (value.mode === 'eyrie') {
           const candidate = value.draft as { siteId?: unknown; x?: unknown; z?: unknown } | null;
           if (!candidate || typeof candidate.siteId !== 'string') {
@@ -86,6 +88,7 @@ export function worldEditor(sim: Simulation, worker: GroundWorker | null) {
           after.terrain.push(layer);
           proposed = layer;
           ({ x, z, reach } = layer);
+          inspectionReach = terrainEditFootprint(reach);
         } else if (value.mode === 'mountain') {
           const draft = mountainDraft(value.draft);
           if (!draft) { reply(res, 400, { error: 'The mountain parameters are invalid.' }); return; }
@@ -93,15 +96,16 @@ export function worldEditor(sim: Simulation, worker: GroundWorker | null) {
           if (!addMountain(after, anchor)) { reply(res, 400, { error: 'This world already has 32 mountains.' }); return; }
           proposed = anchor;
           ({ x, z, reach } = draft);
+          inspectionReach = reach;
         } else { reply(res, 400, { error: 'Choose a land, sea, or mountain edit.' }); return; }
-        const reminders = sim.namedWorldReminders(value.name, x, z, reach);
+        const reminders = sim.namedWorldReminders(value.name, x, z, inspectionReach);
         const assessment = worker
-          ? await worker.assess(record.seed, before.toJSON(), after.toJSON(), x, z, reach,
+          ? await worker.assess(record.seed, before.toJSON(), after.toJSON(), x, z, inspectionReach,
             reminders.pins, reminders.villages, reminders.protectAllVillages)
           : (() => {
-            const sky = assessSkyAccess(record.seed, before.toJSON(), after.toJSON(), x, z, reach);
+            const sky = assessSkyAccess(record.seed, before.toJSON(), after.toJSON(), x, z, inspectionReach);
             if (sky.conflict) return sky;
-            const changed = [{ x, z, reach }];
+            const changed = [{ x, z, reach: inspectionReach }];
             const conflict = assessPlacePins(record.seed, before.toJSON(), after.toJSON(), changed, reminders.pins)
               ?? assessVillageContinuity(record.seed, before.toJSON(), after.toJSON(), changed,
                 reminders.villages, reminders.protectAllVillages);

@@ -223,6 +223,12 @@ describe('the fingerprint of a country that has no edge', () => {
     expect(endlessStamp(4242, [...range, ...far])).not.toBe(endlessStamp(4242, range));
   });
 
+  it('stamps authored ridge roughness at the precision the generator uses', () => {
+    const a: Highland[] = [{ x: 200, z: 0, reach: 300, lift: 24, roughness: 0.4001, seed: 9 }];
+    const b: Highland[] = [{ ...a[0], roughness: 0.4002 }];
+    expect(endlessStamp(4242, a)).not.toBe(endlessStamp(4242, b));
+  });
+
   it('includes authored terrain and its application order', () => {
     expect(endlessStamp(4242, [], [land])).not.toBe(endlessStamp(4242));
     expect(endlessStamp(4242, [], [sea])).not.toBe(endlessStamp(4242, [], [land]));

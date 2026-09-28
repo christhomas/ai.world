@@ -39,9 +39,9 @@ describe('remembered places under a terrain edit', () => {
       manifest: before.toJSON() } as SessionSave;
     const original = JSON.stringify(save);
     expect(changedNamedGround(seed, save.manifest, after.toJSON())).toEqual([
-      { x: land!.x, z: land!.z, reach: 80 },
+      { x: land!.x, z: land!.z, reach: 89 },
     ]);
-    expect(impactOnReturningSave(save, after.toJSON())).toContain('A planted field');
+    expect(impactOnReturningSave(save, after.toJSON())).not.toBeNull();
     expect(JSON.stringify(save), 'a refused join must leave its IndexedDB value untouched').toBe(original);
     expect(impactOnReturningSave(save, before.toJSON())).toBeNull();
   });

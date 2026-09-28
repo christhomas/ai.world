@@ -3,6 +3,8 @@ import { elevationFor, terrainFor } from './growworld';
 import { Manifest, type ManifestJson } from './manifest';
 import { Patchwork, PATCH } from './patchwork';
 import { TileType } from './terrain';
+import { terrainEditFootprint } from './terrainlayers';
+import { assessSkyAccess } from './skyaccess';
 import { PROP_HEADROOM } from './ground';
 import { mountainAt } from './ranges';
 import type { EditReach } from './savededit';
@@ -71,8 +73,8 @@ export function changedNamedGround(seed: number, beforeJson: ManifestJson | unde
   for (let i = 0; i < length; i++) {
     const old = before.terrain[i], next = after.terrain[i];
     if (JSON.stringify(old) === JSON.stringify(next)) continue;
-    if (old) changed.push({ x: old.x, z: old.z, reach: old.reach });
-    if (next) changed.push({ x: next.x, z: next.z, reach: next.reach });
+    if (old) changed.push({ x: old.x, z: old.z, reach: terrainEditFootprint(old.reach) });
+    if (next) changed.push({ x: next.x, z: next.z, reach: terrainEditFootprint(next.reach) });
   }
   return changed;
 }
@@ -84,6 +86,10 @@ export function impactOnReturningSave(save: SessionSave, joined: ManifestJson): 
   if (save.sky && !new Manifest(save.seed, joined).get(save.sky))
     return 'Your saved sky village is no longer in this world.';
   if (!changed.length) return null;
+  for (const one of changed) {
+    const sky = assessSkyAccess(save.seed, before, joined, one.x, one.z, one.reach);
+    if (sky.conflict) return sky.conflict;
+  }
   const place = assessPlacePins(save.seed, before, joined, changed, pinsInSave(save));
   if (place) return place;
   const villages = villagesInSave(save);

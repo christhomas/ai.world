@@ -70,13 +70,12 @@ export function assessSkyAccess(
         ?? { id: site.id, kind: 'skyisle' as const, x: site.x, z: site.z,
           seed: before.deriveSeed(site.id, 'skyisle', site.over), parent: site.over,
           version: 1, skySite: { radius: site.radius, y: site.y } };
-      if (!anchor.skySite) anchor.skySite = { radius: site.radius, y: site.y };
       if (!existed) pinnedCount++;
       const existing = after.get(anchor.id);
       if (!existing || !existing.skySite) {
-        if (!existing) after.anchors.set(anchor.id, anchor);
-        else existing.skySite = anchor.skySite;
-        sites.push(anchor);
+        const pinned = { ...(existing ?? anchor), skySite: anchor.skySite ?? { radius: site.radius, y: site.y } };
+        after.anchors.set(anchor.id, pinned);
+        sites.push(pinned);
       }
     }
     const pinned = after.byKind('skyisle').filter((anchor) =>

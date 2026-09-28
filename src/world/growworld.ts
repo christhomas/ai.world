@@ -279,7 +279,13 @@ function eatLayers(eat: (n: number) => void, layers: readonly Highland[]): void 
     eat(Math.round(l.x * 1000)); eat(Math.round(l.z * 1000));
     eat(Math.round(l.reach * 1000)); eat(Math.round(l.lift * 1000));
     // Legacy layers keep their existing stamp. Authored roughness and seed change the ground.
-    if (l.roughness) { eat(0x72696467); eat(Math.round(l.roughness * 1000)); eat(l.seed ?? 0); }
+    // Hash the same Float64 bits the generator reads; rounding can make distinct accepted shapes
+    // agree on a country stamp even though they grow different terrain.
+    if (l.roughness) {
+      const bits = new DataView(new ArrayBuffer(8));
+      bits.setFloat64(0, l.roughness);
+      eat(0x72696467); eat(bits.getUint32(0)); eat(bits.getUint32(4)); eat(l.seed ?? 0);
+    }
   }
 }
 
