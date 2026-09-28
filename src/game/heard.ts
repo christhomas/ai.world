@@ -321,7 +321,12 @@ export function heard(o: Listening, message: ServerMessage): void {
       o.events.onChat(`${message.name}: ${message.text}`);
       break;
     case 'cart-robbed':
-      o.events.onSystem(message.ok ? 'The cart was robbed.' : 'No cart is within reach.');
+      o.events.onSystem(message.ok ? 'The cart was robbed.' : 'The cart is out of reach or guarded.');
+      break;
+    case 'cart-escorted':
+      o.events.onSystem(message.ok
+        ? message.escorting ? 'Guarding the cart. Stay beside it to protect the cargo.' : 'You stopped guarding the cart.'
+        : 'No cart is within reach.');
       break;
     case 'trade-offered':
       o.events.onOffer(message.offer, message.fromName);
