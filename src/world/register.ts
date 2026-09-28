@@ -113,6 +113,7 @@ export class Register {
       stableBought: (village, on) => this.stables.on(village, on),
       takeOff: (person, on, cause) => this.remove(person, on, cause),
       fieldToClear: (village, settlement) => this.fieldSurvey?.(village, settlement) ?? null,
+      holdingEarned: (village, facts) => this.holdingsBook.earned(village, facts),
     };
   }
 
