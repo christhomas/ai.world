@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { TileWorld } from '../entities/entity';
 import { Player } from '../entities/player';
+import { canStand } from '../entities/entity';
+import { KINDS } from '../entities/animals';
 import { EntityRenderer } from '../entities/pool';
 import { Mount } from './mount';
 import { breedOf } from './stables';
@@ -14,6 +16,23 @@ const meadow: TileWorld = {
 };
 
 describe('putting a rider down', () => {
+  it('boards at the parked horse instead of moving it onto the dismount ledge', () => {
+    const renderer = new EntityRenderer(new THREE.Scene());
+    const ledge: TileWorld = { ...meadow, blocked: (x) => x > 0.8 };
+    const player = new Player(ledge, renderer, 1.2, 0);
+    const mount = new Mount(() => 0.5);
+    mount.buy(0, 0, ledge, renderer);
+    player.walkTo(5, 0);
+    expect(canStand(ledge, KINDS.horse, player.x, player.z)).toBe(false);
+
+    mount.mount(player);
+
+    expect({ x: player.x, z: player.z }).toEqual({ x: mount.entity!.x, z: mount.entity!.z });
+    expect(canStand(ledge, KINDS.horse, player.x, player.z)).toBe(true);
+    expect(player.steering).toBe(false);
+    expect(mount.riding).toBe(true);
+  });
+
   it('clears the traversal carrier whenever the mount leaves the world', () => {
     const renderer = new EntityRenderer(new THREE.Scene());
     const player = new Player(meadow, renderer, 0, 0);
