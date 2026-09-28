@@ -38,6 +38,8 @@ export class SceneGraph {
   /** The camera chosen by the engine for the next submitted frame. */
   camera: FrameDescription['camera'] | null = null;
   fog: FrameDescription['fog'] = null;
+  cutaway: FrameDescription['cutaway'] = null;
+  coast: FrameDescription['coast'] = null;
 
   constructor(public background: number) {}
 
@@ -55,6 +57,8 @@ export class SceneGraph {
       camera: this.camera,
       background: this.background,
       fog: this.fog,
+      cutaway: this.cutaway,
+      coast: this.coast,
       nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
         if (node.kind === 'ambient') return { ...base, kind: 'ambient' as const, colour: node.colour, intensity: node.intensity };

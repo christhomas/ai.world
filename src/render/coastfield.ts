@@ -115,6 +115,8 @@ export class CoastField {
   x0 = -HALF;
   z0 = -HALF;
   readonly span = COAST.SIZE * COAST.CELL;
+  /** Samples are owned by the field and cloned only when a frame is recorded. */
+  get samples(): Uint8Array { return this.bytes; }
 
   private readonly land = new Uint8Array(COAST.SIZE * COAST.SIZE);
   private readonly dist = new Float32Array(COAST.SIZE * COAST.SIZE);
