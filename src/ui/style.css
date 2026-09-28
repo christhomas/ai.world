@@ -658,6 +658,9 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 #terrainLayers { padding-left: calc(22 * var(--ui-scale)); max-height: calc(130 * var(--ui-scale)); overflow: auto; }
 #terrainLayers li { margin-top: calc(5 * var(--ui-scale)); }
 #terrainLayers li button { margin-left: calc(7 * var(--ui-scale)); padding: calc(2 * var(--ui-scale)) calc(5 * var(--ui-scale)); }
+#terrainPreviewButton { width: 100%; }
+#terrainPreviewCanvas { display: none; width: min(100%, calc(220 * var(--ui-scale))); aspect-ratio: 1; image-rendering: pixelated; cursor: crosshair; border: var(--ui-scale) solid var(--rule); }
+#terrainPreviewCanvas.show { display: block; }
 #titleWorldError { min-height: calc(14 * var(--ui-scale)); color: var(--accent); font-size: calc(11 * var(--ui-scale)); }
 /*
  * The build, at the very bottom of the rail.
