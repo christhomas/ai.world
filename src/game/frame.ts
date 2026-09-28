@@ -400,7 +400,7 @@ export function createFrame(ctx: Framing) {
       hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.draw(indoors.scene.scene, iso.camera);
+      rig.draw(indoors.scene.graph, iso);
       endFrame(dt);
       return;
     }
@@ -432,7 +432,7 @@ export function createFrame(ctx: Framing) {
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
         `draws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
         `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.draw(below.scene.scene, iso.camera);
+      rig.draw(below.scene.graph, iso);
       endFrame(dt);
       return;
     }
@@ -633,7 +633,7 @@ export function createFrame(ctx: Framing) {
       })());
 
     minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
-    rig.draw(rig.scene, iso.camera);
+    rig.draw(rig.graph, iso);
     endFrame(dt);
   };
 

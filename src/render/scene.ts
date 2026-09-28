@@ -6,6 +6,8 @@ import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
 import { describeFrame, type RecordingPipeline } from './recording';
+import type { IsoCamera } from './camera';
+import { attachSceneGraph, sceneForGraph } from './scenegraph';
 
 const SKY = 0x8fc1e6;
 
@@ -260,7 +262,7 @@ export interface SceneRig {
    * A second rig that draws through an `EffectComposer` (#250) is now a rig with a different
    * `draw`, and nothing that asks for a picture has to know which kind it got.
    */
-  draw(scene: THREE.Scene, camera: THREE.Camera): void;
+  draw(graph: SceneGraph, camera: IsoCamera): void;
   /**
    * The canvas the picture lands on, for the things that legitimately need the element itself:
    * hanging input listeners on it, taking it out of the document, and reading it back for a photo.
@@ -322,6 +324,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY);
   const graph = new SceneGraph(SKY);
+  const detachGraph = attachSceneGraph(graph, scene);
   // and the same colour again as fog, so far country recedes towards the sky instead of standing at
   // the contrast of the ground underfoot. A `DayCycle` re-tints both together every frame; a rig
   // with no day cycle keeps this pair, which is the sky it was already drawing
@@ -486,6 +489,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     },
     get canvas() { return renderer.domElement; },
     dispose() {
+      detachGraph();
       waterMat.dispose();
       coast.dispose();
       second?.dispose();

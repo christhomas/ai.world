@@ -1,6 +1,21 @@
 import * as THREE from 'three';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
 
+const mountedScenes = new WeakMap<SceneGraph, THREE.Scene>();
+
+/** The WebGL adapter for a neutral graph; callers outside rendering only keep the graph. */
+export function sceneForGraph(graph: SceneGraph): THREE.Scene {
+  const scene = mountedScenes.get(graph);
+  if (!scene) throw new Error('scene graph has no mounted WebGL adapter');
+  return scene;
+}
+
+export function attachSceneGraph(graph: SceneGraph, scene: THREE.Scene): () => void {
+  if (mountedScenes.has(graph)) throw new Error('scene graph is already mounted');
+  mountedScenes.set(graph, scene);
+  return () => { mountedScenes.delete(graph); };
+}
+
 /** Mount and retire streamed neutral mesh nodes without leaking WebGL objects into their owner. */
 export class ThreeGraphBridge {
   private readonly meshes = new Map<SceneNode, THREE.Mesh>();
@@ -49,6 +64,7 @@ export class ThreeGraphBridge {
 /** Build one Three scene from the engine's neutral fixed-scene description. */
 export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Material): { scene: THREE.Scene; dispose(): void } {
   const scene = new THREE.Scene();
+  const detach = attachSceneGraph(graph, scene);
   scene.background = new THREE.Color(graph.background);
   const resources: Array<THREE.BufferGeometry | THREE.Material> = [];
   let litMaterial: THREE.MeshLambertMaterial | null = null;
@@ -83,5 +99,5 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
       resources.push(geometry);
     }
   }
-  return { scene, dispose: () => { for (const resource of resources) resource.dispose(); } };
+  return { scene, dispose: () => { detach(); for (const resource of resources) resource.dispose(); } };
 }
