@@ -66,6 +66,8 @@ source checkout so a later `git add .` cannot stage the copied credentials. Set
 `AI_WORLD_BACKUP_DIR` if you want a different private location:
 
 ```sh
+set -eu
+trap 'docker compose start world' EXIT
 docker compose stop world
 backup_dir="${AI_WORLD_BACKUP_DIR:-$HOME/ai-world-backups}"
 mkdir -p "$backup_dir"
@@ -77,28 +79,42 @@ docker run --rm \
   -v "$backup_dir:/backup" \
   alpine:3.21 \
   sh -c "tar -czf /backup/ai-world-data-$backup_stamp.tgz -C /data ."
-docker compose start world
 ```
 
-To restore an archive, preserve a backup of the current volume first. The commands below remove the
-Compose container, recreate the named volume, and restore its contents:
+To restore an archive, check it and extract it into a staging volume before touching the live data.
+Keep the current volume in a second named volume so it can be recovered if the final copy fails:
 
 ```sh
-docker compose down
+set -eu
 backup_dir="${AI_WORLD_BACKUP_DIR:-$HOME/ai-world-backups}"
+backup_stamp=YYYYMMDDTHHMMSSZ
+archive="ai-world-data-$backup_stamp.tgz"
+env_backup=".env-$backup_stamp"
+staging="ai-world-data-restore-$backup_stamp"
+previous="ai-world-data-before-restore-$backup_stamp"
+test -f "$backup_dir/$archive"
+test -f "$backup_dir/$env_backup"
+docker run --rm -v "$backup_dir:/backup:ro" alpine:3.21 \
+  sh -c 'tar -tzf "/backup/$1" >/dev/null' sh "$archive"
+docker volume create "$staging"
+docker run --rm -v "$staging:/data" -v "$backup_dir:/backup:ro" alpine:3.21 \
+  sh -c 'tar -xzf "/backup/$1" -C /data' sh "$archive"
+docker compose down
+docker volume create "$previous"
+docker run --rm -v ai-world-data:/source:ro -v "$previous:/backup" alpine:3.21 \
+  sh -c 'cp -a /source/. /backup/'
 docker volume rm ai-world-data
 docker volume create ai-world-data
 docker run --rm \
-  -v ai-world-data:/data \
-  -v "$backup_dir:/backup:ro" \
-  alpine:3.21 \
-  tar -xzf /backup/ai-world-data-YYYYMMDDTHHMMSSZ.tgz -C /data
-cp -p "$backup_dir/.env-YYYYMMDDTHHMMSSZ" .env
+  -v "$staging:/source:ro" -v ai-world-data:/data alpine:3.21 \
+  sh -c 'cp -a /source/. /data/'
+cp -p "$backup_dir/$env_backup" .env
 chmod 600 .env
 docker compose up -d
 ```
 
-Use the same timestamp for the archive and `.env` copy. Restore the matching private `.env`
-as well so the tools signing key and proxy setting stay the same. Keep backups and `.env` access
-restricted: together they contain the server's durable state and the credentials used to protect
-the tools portal.
+The staging and `ai-world-data-before-restore-$backup_stamp` volumes are left in place for recovery;
+remove them only after confirming the restored server works. If copying staged data fails, the
+previous volume still contains the original server data. Restore the matching private `.env` as well
+so the tools signing key and proxy setting stay the same. Keep backups and `.env` access restricted:
+together they contain the server's durable state and the credentials used to protect the tools portal.
