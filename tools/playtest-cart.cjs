@@ -120,36 +120,53 @@ module.exports = async function playCart(page, say, go, face) {
 
   await page.keyboard.press('Enter');
   await choose('Ride');
+  // The dialogue mounts the rider before the next frame brings the horse under him. Route
+  // checks made in that gap start from a body that has not yet settled at the cart.
+  await page.waitForFunction(() => window.__mount().under < 0.2, null,
+    { timeout: 5000, polling: 100 });
   const start = await snapshot();
-  // The direct line to the ledge may cut across rock too steep for the horse. Pick a clear
-  // short lane that makes progress toward it, and try another lane if a creature blocks one.
+  // A clear five-tile ray at the hunt site does not promise one where the fight and dismount
+  // leave the rider. Take short verified steps around the rock, then measure real progress.
   let hauled = start;
   const attempts = [];
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const lane = await page.evaluate(({ crag, skip }) => {
+  const tried = new Set();
+  const distance = (hero) => Math.hypot(hero.x - ground.crag.x, hero.z - ground.crag.z);
+  for (let attempt = 0; attempt < 12 && distance(start.hero) - distance(hauled.hero) <= 2; attempt++) {
+    const lanes = await page.evaluate(({ crag, tried }) => {
       const p = window.__player;
       const toward = Math.atan2(crag.z - p.z, crag.x - p.x);
-      const turns = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6];
-      const clear = turns.map((turn) => {
-        const a = toward + turn, dx = Math.cos(a), dz = Math.sin(a);
-        const reach = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
-          .every((d) => window.__canStand('horse', p.x + dx * d, p.z + dz * d));
-        return reach ? { x: p.x + dx * 5, z: p.z + dz * 5 } : null;
-      }).filter(Boolean);
-      return clear[skip % clear.length] ?? null;
-    }, { crag: ground.crag, skip: attempt });
-    if (!lane) { attempts.push({ lane: null }); break; }
+      const used = new Set(tried);
+      const before = Math.hypot(crag.x - p.x, crag.z - p.z);
+      const lanes = [];
+      for (const length of [5, 4, 3, 2, 1, 0.5]) {
+        for (const turn of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6, 2, -2, 2.4, -2.4, Math.PI]) {
+          const a = toward + turn, dx = Math.cos(a), dz = Math.sin(a);
+          const x = p.x + dx * length, z = p.z + dz * length;
+          const key = `${Math.round(x * 2)},${Math.round(z * 2)}`;
+          if (used.has(key)) continue;
+          let clear = true;
+          for (let d = 0.25; d <= length; d += 0.25) {
+            if (!window.__canStand('horse', p.x + dx * d, p.z + dz * d)) { clear = false; break; }
+          }
+          if (clear) lanes.push({ x, z, key, gain: before - Math.hypot(crag.x - x, crag.z - z) });
+        }
+      }
+      return lanes.sort((a, b) => b.gain - a.gain);
+    }, { crag: ground.crag, tried: [...tried] });
+    const lane = lanes[0] ?? null;
+    if (!lane) { attempts.push({ lane: null, at: hauled.hero }); break; }
+    tried.add(lane.key);
     const walking = await page.evaluate(([x, z]) => window.__walkTo(x, z), [lane.x, lane.z]);
-    await page.waitForTimeout(5000);
+    await page.waitForFunction(() => !window.__player.steering, null, { timeout: 8000, polling: 100 });
     hauled = await snapshot();
     attempts.push({ lane, walking, at: hauled.hero });
-    if (Math.hypot(hauled.hero.x - start.hero.x, hauled.hero.z - start.hero.z) > 2) break;
   }
   const moved = Math.hypot(hauled.hero.x - start.hero.x, hauled.hero.z - start.hero.z);
-  const hauledBody = moved > 2 && hauled.horse.cargo?.kind === 'goat';
+  const gained = distance(start.hero) - distance(hauled.hero);
+  const hauledBody = moved > 2 && gained > 2 && hauled.horse.cargo?.kind === 'goat';
   say('the loaded horse hauls the body toward the crag', hauledBody,
-    hauledBody ? `${moved.toFixed(1)} tiles, cargo goat`
-      : `${moved.toFixed(1)} tiles, cargo ${hauled.horse.cargo?.kind ?? 'none'}; start ${JSON.stringify(start)}; attempts ${JSON.stringify(attempts)}`);
+    hauledBody ? `${moved.toFixed(1)} tiles, ${gained.toFixed(1)} nearer crag, cargo goat`
+      : `${moved.toFixed(1)} tiles, ${gained.toFixed(1)} nearer crag, cargo ${hauled.horse.cargo?.kind ?? 'none'}; start ${JSON.stringify(start)}; attempts ${JSON.stringify(attempts)}`);
   await page.evaluate(() => window.__ride(false));
   await page.keyboard.press('Enter');
   await choose('Shoulder the carcass');
@@ -158,26 +175,37 @@ module.exports = async function playCart(page, say, go, face) {
     JSON.stringify(lifted.shoulder));
   if (!lifted.shoulder) return;
 
-  const foot = await page.evaluate(() => {
+  const feet = await page.evaluate(() => {
     const p = window.__player;
+    const sites = new Map();
     for (let r = 3; r <= 20; r += 1) for (let a = 0; a < 6.3; a += 0.45) {
       const x = Math.round(p.x + Math.cos(a) * r);
       const z = Math.round(p.z + Math.sin(a) * r);
-      if (window.__canStand('hero', x, z) && window.__baitWouldNest(x, z)) return { x, z };
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d <= 1 || sites.has(`${x},${z}`)) continue;
+      if (window.__canStand('hero', x, z) && window.__baitWouldNest(x, z)) sites.set(`${x},${z}`, { x, z, d });
     }
-    return null;
+    return [...sites.values()].sort((a, b) => a.d - b.d).slice(0, 30);
   });
-  if (!foot) { say('a winning crag is reachable from the parked horse', false,
+  if (!feet.length) { say('a winning crag is reachable from the parked horse', false,
     JSON.stringify({ lifted, crag: ground.crag })); return; }
   const footStart = lifted.hero;
-  // The roll keys off the rounded tile, so arrive inside that tile before spending the body.
-  await page.evaluate(([x, z]) => window.__walkTo(x, z, 0.2), [foot.x, foot.z]);
-  await page.waitForFunction(() => !window.__player.steering, null, { timeout: 30000 });
-  const reached = await snapshot();
-  const gap = Math.hypot(reached.hero.x - foot.x, reached.hero.z - foot.z);
+  // A candidate tile may be standable but cut off by rock between it and the hunter. Try
+  // other seeded winning tiles and only spend the body after a real on-foot arrival.
+  let reached = lifted, gap = Infinity;
+  const footAttempts = [];
+  for (const foot of feet) {
+    await page.evaluate(([x, z]) => window.__walkTo(x, z, 0.2), [foot.x, foot.z]);
+    await page.waitForFunction(() => !window.__player.steering, null, { timeout: 8000, polling: 100 });
+    reached = await snapshot();
+    gap = Math.hypot(reached.hero.x - foot.x, reached.hero.z - foot.z);
+    footAttempts.push({ foot, gap });
+    if (gap < 0.5) break;
+  }
   const footMoved = Math.hypot(reached.hero.x - footStart.x, reached.hero.z - footStart.z);
   say('the carcass reaches a standable crag on foot', gap < 0.5 && footMoved > 1 && reached.shoulder?.kind === 'goat',
-    `${gap.toFixed(1)} tiles from the ledge; walked ${footMoved.toFixed(1)} tiles`);
+    `${gap.toFixed(1)} tiles from the ledge; walked ${footMoved.toFixed(1)} tiles; attempts ${JSON.stringify(footAttempts)}`);
+  if (gap >= 0.5 || footMoved <= 1) return;
   const beforeAnchors = await page.evaluate(() => window.__baitedEyries());
   const wouldNest = await page.evaluate(() => window.__baitWouldNest(window.__player.x, window.__player.z));
   await page.keyboard.press('Enter');

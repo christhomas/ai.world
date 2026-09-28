@@ -10,6 +10,7 @@ import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../world/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
+import { spaceNear } from '../entities/entity';
 import type { Manifest } from '../world/manifest';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
@@ -497,6 +498,12 @@ export function installProbes(ctx: Probed): void {
     }
     if (!mount.owned) mount.buy(player.x, player.z, chunks, overworldRenderer);
     else mount.restore(chunks, overworldRenderer);
+    // The playtest can summon an owned horse after teleporting to a hunt site. Place that
+    // horse on ground it can use before boarding; ordinary play still requires proximity.
+    if (mount.entity && !mount.near(player.x, player.z)) {
+      const at = spaceNear(chunks, mount.entity.kind, player.x, player.z);
+      if (at) { mount.entity.x = at.x; mount.entity.z = at.z; mount.entity.y = chunks.heightAt(at.x, at.z) ?? 0; }
+    }
     mount.mount(player);
     return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
   };
