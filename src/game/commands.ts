@@ -42,6 +42,7 @@ export interface CommandWorld {
   places(like?: string): unknown;
   carts(): unknown;
   robCart(): unknown;
+  escortCart(): unknown;
   descend(): void;
   climbOut(): void;
   enterShrine(): unknown;
@@ -94,6 +95,7 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   bus.define('places', ([like]) => world.places(like as string | undefined));
   bus.define('carts', () => world.carts());
   bus.define('rob-cart', () => world.robCart());
+  bus.define('escort-cart', () => world.escortCart());
   bus.define('descend', () => world.descend());
   bus.define('climb-out', () => world.climbOut());
   bus.define('enter-shrine', () => world.enterShrine());
