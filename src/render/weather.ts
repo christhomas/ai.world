@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Season } from '../game/seasons';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { bindGraphMount } from './graphmount';
 
 const COUNT = 900;
 /** The column of falling drops follows the camera; this is its half-extent in tiles. */
@@ -20,6 +21,7 @@ export class Weather {
   private strength = 0;
   private snowy = false;
   private readonly node: Extract<SceneNode, { kind: 'points' }> | null;
+  private readonly unmount?: () => void;
 
   constructor(scene: THREE.Scene, private readonly graph?: SceneGraph) {
     const positions = new Float32Array(COUNT * 3);
@@ -40,6 +42,18 @@ export class Weather {
     this.points.frustumCulled = false;
     this.points.visible = false;
     scene.add(this.points);
+    if (graph && this.node) this.unmount = bindGraphMount(graph, this.node, (frame) => {
+      this.points.visible = frame.visible;
+      this.material.color.setHex(frame.material?.colour ?? 0xffffff);
+      this.material.size = frame.material?.size ?? 1;
+      this.material.opacity = frame.material?.opacity ?? 1;
+      const values = frame.attributes?.position.values;
+      const buffer = this.points.geometry.getAttribute('position') as THREE.BufferAttribute;
+      if (values && values !== buffer.array) {
+        (buffer.array as Float32Array).set(values);
+        buffer.needsUpdate = true;
+      }
+    });
   }
 
   /** @param strength 0 = clear, 1 = full downpour */
@@ -78,6 +92,7 @@ export class Weather {
   }
 
   dispose(): void {
+    this.unmount?.();
     if (this.node) this.graph?.remove(this.node);
     this.points.geometry.dispose();
     this.material.dispose();

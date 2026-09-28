@@ -14,7 +14,7 @@ export function putFerriesOut<Line>(
 ): Array<{ line: Line; visual: FerryVisual }> {
   return lines.map((line) => {
     const mesh = buildBoat();
-    const record = graph && boatRecord(graph, true);
+    const record = graph && boatRecord(graph, true, mesh);
     scene.add(mesh);
     return {
       line,

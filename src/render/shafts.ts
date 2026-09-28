@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SHAFT, shaftsAround } from '../world/shafts';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
-import { recordInstances } from './instancegraph';
+import { recordInstances, retireInstances } from './instancegraph';
 
 /**
  * A hole in the ground, drawn so that it looks like one.
@@ -110,8 +110,8 @@ export class Shafts {
   }
 
   dispose(): void {
-    if (this.holeNode) this.graph?.remove(this.holeNode);
-    if (this.lipNode) this.graph?.remove(this.lipNode);
+    if (this.holeNode && this.graph) retireInstances(this.graph, this.holeNode);
+    if (this.lipNode && this.graph) retireInstances(this.graph, this.lipNode);
     for (const mesh of [this.hole, this.lip]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();

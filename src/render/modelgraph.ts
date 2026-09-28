@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyMeshFrame, bindGraphMount } from './graphmount';
 
 /**
  * A graph projection for a small assembled model. Primitive geometry and local transforms are
@@ -8,7 +9,7 @@ import type { SceneGraph, SceneNode } from '../core/scenegraph';
  * material state into the neutral graph.
  */
 export class ModelGraph {
-  private readonly nodes: Array<{ mesh: THREE.Mesh; node: Extract<SceneNode, { kind: 'mesh' }> }> = [];
+  private readonly nodes: Array<{ mesh: THREE.Mesh; node: Extract<SceneNode, { kind: 'mesh' }>; unmount: () => void }> = [];
   private readonly world = new THREE.Matrix4();
 
   constructor(private readonly root: THREE.Object3D, private readonly graph?: SceneGraph) {
@@ -48,7 +49,8 @@ export class ModelGraph {
         },
       };
       graph.add(node);
-      this.nodes.push({ mesh, node });
+      const unmount = bindGraphMount(graph, node, (frame) => applyMeshFrame(mesh, frame));
+      this.nodes.push({ mesh, node, unmount });
     });
     this.sync();
   }
@@ -73,7 +75,7 @@ export class ModelGraph {
 
   dispose(): void {
     if (!this.graph) return;
-    for (const { node } of this.nodes) this.graph.remove(node);
+    for (const { node, unmount } of this.nodes) { unmount(); this.graph.remove(node); }
     this.nodes.length = 0;
   }
 }

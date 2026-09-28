@@ -3,6 +3,7 @@ import { bodyOf, share } from '../world/health';
 import type { AnimalKind, PartDef } from '../entities/animals';
 import type { Entity } from '../entities/entity';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyInstanceFrame, bindGraphMount } from './graphmount';
 
 /**
  * What a creature has left, shown over its head while it is being hit.
@@ -87,6 +88,7 @@ export class HealthBars {
   private readonly fill: THREE.InstancedMesh;
   private readonly backNode?: Extract<SceneNode, { kind: 'instances' }>;
   private readonly fillNode?: Extract<SceneNode, { kind: 'instances' }>;
+  private readonly unmounts: Array<() => void> = [];
   private readonly m = new THREE.Matrix4();
   private readonly pos = new THREE.Vector3();
   private readonly scl = new THREE.Vector3();
@@ -135,6 +137,7 @@ export class HealthBars {
       },
     };
     graph.add(node);
+    this.unmounts.push(bindGraphMount(graph, node, (frame) => applyInstanceFrame(mesh, frame)));
     return node;
   }
 
@@ -250,6 +253,7 @@ export class HealthBars {
   get showing(): number { return this.count; }
 
   dispose(): void {
+    for (const unmount of this.unmounts) unmount();
     for (const mesh of [this.back, this.fill]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();

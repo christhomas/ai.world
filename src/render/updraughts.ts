@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { THERMAL, thermalsAround } from '../world/thermals';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
-import { recordInstances } from './instancegraph';
+import { recordInstances, retireInstances } from './instancegraph';
 
 /**
  * What a column of warm air looks like from the ground.
@@ -149,8 +149,8 @@ export class Updraughts {
   }
 
   dispose(): void {
-    if (this.motesNode) this.graph?.remove(this.motesNode);
-    if (this.cloudsNode) this.graph?.remove(this.cloudsNode);
+    if (this.motesNode && this.graph) retireInstances(this.graph, this.motesNode);
+    if (this.cloudsNode && this.graph) retireInstances(this.graph, this.cloudsNode);
     for (const mesh of [this.motes, this.clouds]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();

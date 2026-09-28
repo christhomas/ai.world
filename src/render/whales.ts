@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import { WHALE, whaleAt, type Pod } from '../game/whales';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyMeshFrame, bindGraphMount } from './graphmount';
 
 type MeshNode = Extract<SceneNode, { kind: 'mesh' }>;
+const unmounts = new WeakMap<MeshNode, () => void>();
 interface WhalePart {
   shape: 'body' | 'belly' | 'head' | 'tail' | 'box';
   colour: number;
@@ -26,7 +28,7 @@ const PARTS: readonly WhalePart[] = [
 function describeMesh(graph: SceneGraph, mesh: THREE.Mesh, colour: number, lit: boolean): MeshNode {
   const position = mesh.geometry.getAttribute('position');
   const normal = mesh.geometry.getAttribute('normal');
-  return graph.add({
+  const node = graph.add({
     kind: 'mesh', material: 'lit-solid', colour, visible: false,
     castShadow: mesh.castShadow, receiveShadow: false,
     geometry: { positions: position.array as Float32Array, normals: normal.array as Float32Array,
@@ -36,6 +38,8 @@ function describeMesh(graph: SceneGraph, mesh: THREE.Mesh, colour: number, lit: 
       opacity: lit ? 1 : 0.5, depthWrite: lit,
       effects: lit ? ['flat-shading'] : [] },
   }) as MeshNode;
+  unmounts.set(node, bindGraphMount(graph, node, (frame) => applyMeshFrame(mesh, frame)));
+  return node;
 }
 
 function partWorld(x: number, y: number, z: number, yaw: number, pitch: number, part: WhalePart, out: number[]): void {
@@ -168,9 +172,13 @@ export class WhaleSchool {
         (mesh.material as THREE.Material).dispose();
       });
     }
-    for (const nodes of this.bodyNodes) for (const node of nodes) this.graph?.remove(node);
+    for (const nodes of this.bodyNodes) for (const node of nodes) {
+      unmounts.get(node)?.(); unmounts.delete(node); this.graph?.remove(node);
+    }
     for (const ring of this.rings) {
-      if (ring.node) this.graph?.remove(ring.node);
+      if (ring.node) {
+        unmounts.get(ring.node)?.(); unmounts.delete(ring.node); this.graph?.remove(ring.node);
+      }
       this.scene.remove(ring.mesh);
       (ring.mesh.material as THREE.Material).dispose();
     }

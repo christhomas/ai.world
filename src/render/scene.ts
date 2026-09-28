@@ -9,6 +9,7 @@ import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
 import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
 import { MountedThreePipeline, submitGraphFrame, type FramePipeline } from './pipeline';
+import { bindGraphMount } from './graphmount';
 
 const SKY = 0x8fc1e6;
 
@@ -371,6 +372,24 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     lantern: graph.add({ kind: 'point', colour: 0xffb060, intensity: 0, distance: 9, decay: 1.6,
       position: [0, 0, 0] }) as SceneRig['lighting']['lantern'],
   };
+  const unmountLights = [
+    bindGraphMount(graph, lighting.ambient, (frame) => {
+      ambient.color.setHex(frame.colour ?? 0xffffff);
+      ambient.intensity = frame.intensity ?? 0;
+    }),
+    bindGraphMount(graph, lighting.hemi, (frame) => {
+      hemi.color.setHex(frame.colour ?? 0xffffff);
+      hemi.groundColor.setHex(frame.groundColour ?? 0xffffff);
+      hemi.intensity = frame.intensity ?? 0;
+    }),
+    bindGraphMount(graph, lighting.sun, (frame) => {
+      sun.color.setHex(frame.colour ?? 0xffffff);
+      sun.intensity = frame.intensity ?? 0;
+      sun.position.set(frame.world[12], frame.world[13], frame.world[14]);
+      sun.target.position.set(...(frame.target ?? [0, 0, 0]));
+      sun.castShadow = frame.castShadow;
+    }),
+  ];
 
   // Water: one big translucent plane that follows the camera. Seabed shows through near the coast,
   // the dark "deep" plane underneath makes open water read as depth.
@@ -510,7 +529,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
         pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
           if (second) second.draw(mountedScene, mountedCamera);
           else renderer.render(mountedScene, mountedCamera);
-        });
+        }, what);
         mountedPipelines.set(what, pipeline);
       }
       const sinks: FramePipeline[] = [pipeline];
@@ -519,6 +538,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     },
     get canvas() { return renderer.domElement; },
     dispose() {
+      for (const unmount of unmountLights) unmount();
       detachGraph();
       surfaceBridge.dispose();
       deepMaterial.dispose();

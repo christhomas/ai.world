@@ -3,6 +3,7 @@ import type { FrameDescription } from '../core/scene';
 import type { SceneGraph } from '../core/scenegraph';
 import { build } from './geometry';
 import { composeInstance, shadeOf } from './instancing';
+import { applyGraphMounts } from './graphmount';
 
 export interface FramePipeline { draw(frame: FrameDescription): void }
 
@@ -18,7 +19,8 @@ export class MountedThreePipeline implements FramePipeline {
   private readonly camera = new THREE.OrthographicCamera();
 
   constructor(private readonly scene: THREE.Scene,
-    private readonly submit: (scene: THREE.Scene, camera: THREE.Camera) => void) {
+    private readonly submit: (scene: THREE.Scene, camera: THREE.Camera) => void,
+    private readonly graph?: SceneGraph) {
     this.camera.matrixAutoUpdate = false;
   }
 
@@ -31,13 +33,14 @@ export class MountedThreePipeline implements FramePipeline {
     if (frame.background !== null) {
       if (!(this.scene.background instanceof THREE.Color)) this.scene.background = new THREE.Color();
       this.scene.background.setHex(frame.background);
-    }
+    } else this.scene.background = null;
     if (frame.fog) {
       if (!(this.scene.fog instanceof THREE.Fog)) this.scene.fog = new THREE.Fog(frame.fog.colour, frame.fog.near, frame.fog.far);
       this.scene.fog.color.setHex(frame.fog.colour);
       this.scene.fog.near = frame.fog.near;
       this.scene.fog.far = frame.fog.far;
-    }
+    } else this.scene.fog = null;
+    if (this.graph) applyGraphMounts(this.graph, frame);
     this.submit(this.scene, this.camera);
   }
 }
