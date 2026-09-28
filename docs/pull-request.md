@@ -28,6 +28,13 @@ after reviewing a PR description line beginning `Merge guard exception:` with a 
 at least 30 characters after the prefix.
 The exception and the detected changes remain visible in the check log.
 
+The required `playtest` job also compares fresh `map` and `phone-title` captures with their
+checked-in `docs/screenshots/` references. To change a reference deliberately, run
+`node tools/shots.cjs map phone-title` with `OUT=docs/screenshots`, inspect both PNGs, and commit
+the changed images with the feature PR. CI uploads its captures and a pixel-difference report when
+the comparison fails. The moving town scene remains a documentation screenshot rather than a
+pixel baseline.
+
 **Assume you are not the only thing moving `main`.** Other sessions and the repository's own
 automation land work concurrently. A branch you rebased and pushed ten minutes ago can be behind
 again by the time you come back to it, and a plain `git push` on a branch you already pushed can be
