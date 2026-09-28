@@ -420,7 +420,9 @@ export function openConsole(ctx: Consoled) {
       return { x: spot[0] + 0.5, z: spot[1] + 1.6 };
     },
     spawn: (kind, away) => {
-      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now());
+      // A console spawn outdoors belongs to its ground chunk; a dungeon-keyed animal is swept
+      // away on the next country update, before a hunter can finish the fight.
+      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now(), true);
       return e ? { kind: e.kind.id, x: Math.round(e.x), z: Math.round(e.z), hp: e.hp } : null;
     },
     sow: (x, z) => {
