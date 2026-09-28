@@ -167,7 +167,7 @@ export function startGame(
   // screens, so this is the one place the two are introduced
   const kinPanel = new KinPanel();
   const roster = new Roster();          // everybody in the world, read live off the register
-  const entityRenderer = new EntityRenderer(rig.scene);
+  const entityRenderer = new EntityRenderer(rig.scene, rig.graph);
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
   const register = new Register(seed, 1, () => {}, 'journaled');
   register.theyStandAt(structures.villages);

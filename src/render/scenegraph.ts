@@ -17,7 +17,7 @@ export class ThreeGraphBridge {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(node.geometry.normals, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(node.geometry.colors, 3));
+    if (node.geometry.colors) geometry.setAttribute('color', new THREE.BufferAttribute(node.geometry.colors, 3));
     if (node.geometry.flow) geometry.setAttribute('flow', new THREE.BufferAttribute(node.geometry.flow, 1));
     if (node.geometry.indices) geometry.setIndex(new THREE.BufferAttribute(node.geometry.indices, 1));
     geometry.computeBoundingSphere();
@@ -65,7 +65,7 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));
       geometry.setAttribute('normal', new THREE.BufferAttribute(node.geometry.normals, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(node.geometry.colors, 3));
+      if (node.geometry.colors) geometry.setAttribute('color', new THREE.BufferAttribute(node.geometry.colors, 3));
       if (node.geometry.flow) geometry.setAttribute('flow', new THREE.BufferAttribute(node.geometry.flow, 1));
       if (node.geometry.indices) geometry.setIndex(new THREE.BufferAttribute(node.geometry.indices, 1));
       geometry.computeBoundingSphere();

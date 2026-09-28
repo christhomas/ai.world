@@ -320,7 +320,7 @@ export class Places {
     const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style, props.footprints);
     world.unlocked = state.keys.has(lockFor(anchor.id, floor));
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
-    const renderer = new EntityRenderer(scene.scene);
+    const renderer = new EntityRenderer(scene.scene, scene.graph);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
     this.ctx.heroGear.attachTo(scene.scene);
@@ -566,7 +566,7 @@ export class Places {
     const map = generateInterior(room, door.kind as InteriorKind, door.village);
     const world = new InteriorWorld(map, props.footprints);
     const scene = new InteriorScene(map, props);
-    const renderer = new EntityRenderer(scene.scene);
+    const renderer = new EntityRenderer(scene.scene, scene.graph);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
     this.ctx.heroGear.attachTo(scene.scene);

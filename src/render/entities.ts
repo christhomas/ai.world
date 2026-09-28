@@ -5,6 +5,7 @@ import { HealthBars, heightOf } from './healthbars';
 import type { AnimRole, AnimalKind, PartDef } from '../entities/animals';
 import type { Entity } from '../entities/entity';
 import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from '../entities/motion';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
 
 /**
  * Draws every creature through InstancedMesh pools: one pool per kind, and inside it one mesh for
@@ -115,6 +116,7 @@ interface PartRuntime {
 /** One draw call: every part of a kind that can share a shape, a colour and a shadow. */
 interface PartMesh {
   mesh: THREE.InstancedMesh;
+  node?: Extract<SceneNode, { kind: 'instances' }>;
   /** Parts drawn through it, so the buffer holds this many instances for every creature. */
   parts: number;
   /** Instances written this frame; the mesh draws exactly this many. */
@@ -151,7 +153,7 @@ class KindPool {
   /** How far above its feet the top of this kind reaches, in rig units: where a bar floats. */
   readonly top: number;
 
-  constructor(readonly kind: AnimalKind, scene: THREE.Scene) {
+  constructor(readonly kind: AnimalKind, scene: THREE.Scene, graph?: SceneGraph) {
     this.top = heightOf(kind);
     const grouped = new Map<string, PartDef[]>();
     for (const def of kind.parts) {
@@ -176,8 +178,24 @@ class KindPool {
       // a pool sits at the origin and stays there; only the instances inside it ever move
       mesh.matrixAutoUpdate = false;
       scene.add(mesh);
+      let node: Extract<SceneNode, { kind: 'instances' }> | undefined;
+      if (graph) {
+        node = graph.add({
+          kind: 'instances', colour: first.tint === undefined ? first.color : 0xffffff,
+          geometry: {
+            positions: (geo.getAttribute('position').array as Float32Array),
+            normals: (geo.getAttribute('normal').array as Float32Array),
+            indices: geo.index?.array as Uint32Array | undefined,
+          },
+          count: 0, matrices: new Float32Array(room * 16),
+          colours: first.tint === undefined ? undefined : new Float32Array(room * 3),
+          castShadow: mesh.castShadow, receiveShadow: true,
+        }) as Extract<SceneNode, { kind: 'instances' }>;
+        mesh.instanceMatrix = new THREE.InstancedBufferAttribute(node.matrices, 16);
+        if (node.colours) mesh.instanceColor = new THREE.InstancedBufferAttribute(node.colours, 3);
+      }
       const part: PartMesh = {
-        mesh, parts: defs.length, count: 0,
+        mesh, node, parts: defs.length, count: 0,
         drawn: [], hot: new Uint8Array(room), paint: new Int32Array(room).fill(-1), recoloured: false,
       };
       mesh.userData.pool = this;
@@ -265,13 +283,13 @@ export class EntityRenderer {
   /** What is left of whatever is being fought, drawn over its head. */
   private readonly bars: HealthBars;
 
-  constructor(private readonly scene: THREE.Scene) {
+  constructor(private readonly scene: THREE.Scene, private readonly graph?: SceneGraph) {
     this.bars = new HealthBars(scene);
   }
 
   private pool(kind: AnimalKind): KindPool {
     let p = this.pools.get(kind.id);
-    if (!p) { p = new KindPool(kind, this.scene); this.pools.set(kind.id, p); }
+    if (!p) { p = new KindPool(kind, this.scene, this.graph); this.pools.set(kind.id, p); }
     return p;
   }
 
@@ -409,7 +427,8 @@ export class EntityRenderer {
           else if (part.scale) this.m.scale(part.scale);
           const into = part.into;
           const k = into.count++;
-          into.mesh.setMatrixAt(k, this.m);
+          if (into.node) this.m.toArray(into.node.matrices, k * 16);
+          else into.mesh.setMatrixAt(k, this.m);
           if (d.tint === undefined) continue;
           const hot = e.hurt > 0 ? 1 : 0;
           const paint = e.tints[Math.min(d.tint, e.tints.length - 1)];
@@ -427,6 +446,7 @@ export class EntityRenderer {
       for (const part of p.meshes) {
         const mesh = part.mesh;
         mesh.count = part.count;
+        if (part.node) part.node.count = part.count;
         // a count of zero draws nothing either way, but three finds that out only after walking
         // the mesh, sorting it into the render list and offering it to the shadow pass as well;
         // hidden, it is passed over at the one point where passing over it is free
@@ -493,12 +513,18 @@ export class EntityRenderer {
   private writeColour(part: PartMesh, index: number, e: Entity, paint: number): void {
     this.color.setHex(paint);
     if (e.hurt > 0) this.color.lerp(HURT_COLOR, 0.7);
-    part.mesh.setColorAt(index, this.color);
+    if (part.node?.colours) {
+      const at = index * 3;
+      part.node.colours[at] = this.color.r;
+      part.node.colours[at + 1] = this.color.g;
+      part.node.colours[at + 2] = this.color.b;
+    } else part.mesh.setColorAt(index, this.color);
   }
 
   dispose(): void {
     for (const p of this.pools.values()) {
       for (const part of p.meshes) {
+        if (part.node) this.graph?.remove(part.node);
         this.scene.remove(part.mesh);
         part.mesh.geometry.dispose();
         (part.mesh.material as THREE.Material).dispose();
