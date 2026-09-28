@@ -4,7 +4,7 @@ import { fillTheGaps as whoIsBorn } from './births';
 import { taxedForTheHall } from './hall';
 import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
-import { fallIll, shakeItOff } from './ailments';
+import { illnessEvening } from './ailments';
 import { whatIsPaidBack } from './debts';
 import { aDaysPractice } from './mastery';
 import { raiseWhoIsDue } from './shrine';
@@ -51,6 +51,8 @@ import { PROSPER } from './prosperity';
  */
 export interface TheDay {
 seed: number;
+/** Benchmark counterfactual; production always enables contact transmission. */
+illnessContacts?: boolean;
 /** The day the register has reached, which is not the day being lived. See above. */
 today: number;
 /** How hard something is leaning on this village this morning. */
@@ -304,9 +306,9 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
 /**
  * A day of falling ill, mending, and getting better — and what the doctor was owed for it.
  *
- * Four things, and the order is the argument. Somebody who wakes up ill is ill *today*, not
- * tomorrow, so `fallIll` comes first; somebody whose last day of a fever this is gets up and goes
- * to work, so `shakeItOff` comes last. Between them the doctor is paid what the patient has, and
+ * Four things, and the order is the argument. A sick villager misses today's work; tonight their
+ * remaining days count down and tomorrow's new cases are rolled. Even a one-day fever therefore
+ * costs a day of work. The doctor is paid what the patient has, and
  * what the patient has not is written down rather than dropped — he does not refuse, so the rest is
  * a claim against the man and is paid off out of the mornings after.
  *
@@ -318,8 +320,8 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
  * in every world from that morning on.
  */
 function mendThePeople(o: TheDay, name: string, village: Settlement, day: number): Change[] {
-  payAndSweep(village, fallIll(village.people, streamFor(o.seed, `${name}:ill`, day),
-                               { baths: village.works.includes('bathhouse'), day }));
+  payAndSweep(village, illnessEvening(village.people, streamFor(o.seed, `${name}:ill`, day),
+    { baths: village.works.includes('bathhouse'), day, contacts: o.illnessContacts }));
   const { fees, owed } = mendThem(village.people);
   payAndSweep(village, fees);
   for (const debt of owed) {
@@ -329,7 +331,6 @@ function mendThePeople(o: TheDay, name: string, village: Settlement, day: number
     if (already) already.much = Math.round((already.much + debt.much) * 100) / 100;
     else village.debts = [...(village.debts ?? []), debt];
   }
-  shakeItOff(village.people);
   return [];
 }
 
