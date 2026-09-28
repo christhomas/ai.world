@@ -172,6 +172,10 @@ export class SharedWorld {
     this.manifest = new Manifest(seed, loaded?.manifest);
     this.clock = loaded?.clock ?? start;
     for (const delta of loaded?.deltas ?? []) this.remember(delta);
+    // Worlds saved before nests travelled may have the anchor but no replay row yet.
+    for (const anchor of this.manifest.byKind('eyrie')) {
+      this.remember({ kind: 'eyrie', anchor, present: true });
+    }
     for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
     this.letters = loaded?.letters ?? [];
     for (const name of loaded?.folk ?? []) this.seen.add(name);
@@ -372,6 +376,10 @@ export class SharedWorld {
       kept.delete(key);
     } else {
       kept.set(key, delta);
+    }
+    if (delta.kind === 'eyrie') {
+      if (delta.present) this.manifest.anchors.set(delta.anchor.id, delta.anchor);
+      else this.manifest.anchors.delete(delta.anchor.id);
     }
     if (where) this.province(provinceOf(where.x, where.z)).dirty = true;
     return true;
