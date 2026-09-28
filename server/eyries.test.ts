@@ -90,4 +90,18 @@ describe('shared baited nests', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('replaces a saved page nest with the remote world snapshot on reconnect and save/load', () => {
+    const local = new Manifest(SEED);
+    const ghost = nest();
+    local.anchors.set(ghost.id, ghost);
+    const high = new HighCountry(SEED, local, {} as SkyIslands);
+    high.reconcileBaited([]);
+    expect(local.byKind('eyrie')).toEqual([]);
+    expect(new Manifest(SEED, local.toJSON()).byKind('eyrie')).toEqual([]);
+
+    const accepted = new Manifest(SEED).ensure('eyrie:20,30', 'eyrie', 20, 30);
+    high.reconcileBaited([accepted]);
+    expect(new Manifest(SEED, local.toJSON()).byKind('eyrie')).toEqual([accepted]);
+  });
 });

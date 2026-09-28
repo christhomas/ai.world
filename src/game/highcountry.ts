@@ -141,8 +141,20 @@ export class HighCountry {
 
   /** Apply the shared world's accepted nest state without rolling bait again. */
   applyBaited(anchor: Anchor, present: boolean): void {
-    if (present) this.manifest.anchors.set(anchor.id, anchor);
-    else this.manifest.anchors.delete(anchor.id);
+    this.setBaited(anchor.id, present ? anchor : null);
+  }
+
+  /** Set one nest to the state the server returned for this page's own report. */
+  setBaited(id: string, anchor: Anchor | null): void {
+    if (anchor) this.manifest.anchors.set(id, anchor);
+    else this.manifest.anchors.delete(id);
+    this.perchesBaited();
+  }
+
+  /** A remote welcome is a complete snapshot, including nests absent from its delta log. */
+  reconcileBaited(anchors: readonly Anchor[]): void {
+    for (const old of this.manifest.byKind('eyrie')) this.manifest.anchors.delete(old.id);
+    for (const anchor of anchors) this.manifest.anchors.set(anchor.id, anchor);
     this.perchesBaited();
   }
 

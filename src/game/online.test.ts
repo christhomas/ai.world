@@ -3,6 +3,9 @@ import { WORLD_PAUSE, WORLD_RESUME, type Link, type LinkEvents } from '../net/li
 import { PROTOCOL_VERSION, type ServerMessage } from '../../server/protocol';
 import { Online, type OnlineEvents } from './online';
 import { ownerFromSave } from '../world/holdings';
+import { Manifest, type ManifestJson } from '../world/manifest';
+import { HighCountry } from './highcountry';
+import type { SkyIslands } from '../render/skyisland';
 
 /**
  * A world that stops answering.
@@ -60,6 +63,82 @@ const standing = {
 };
 
 describe('a world that goes quiet', () => {
+  it('reconciles an offline bait on remote reconnect and keeps private worker nests', () => {
+    const seed = 7;
+    const accepted = new Manifest(seed).ensure('eyrie:0,0', 'eyrie', 0, 0);
+    const ghost = new Manifest(seed).ensure('eyrie:30,30', 'eyrie', 30, 30);
+    const world = deadWorld();
+    const manifest = new Manifest(seed);
+    const high = new HighCountry(seed, manifest, {} as SkyIslands);
+    let saved: ManifestJson = manifest.toJSON();
+    const persist = () => { saved = manifest.toJSON(); };
+    const events = new Proxy({}, { get: (_target, key) => {
+      if (key === 'onEyries') return (anchors: typeof accepted[]) => { high.reconcileBaited(anchors); persist(); };
+      if (key === 'onEyrieState') return (id: string, anchor: typeof accepted | null) => {
+        high.setBaited(id, anchor); persist();
+      };
+      if (key === 'onDelta') return (delta: { kind: string; anchor?: typeof accepted; present?: boolean }) => {
+        if (delta.kind === 'eyrie' && delta.anchor) high.applyBaited(delta.anchor, !!delta.present);
+      };
+      return () => {};
+    } }) as OnlineEvents;
+    const online = new Online(events, world.linkFor);
+    online.connect('ws://somewhere', seed, 'Rowan', { day: 1, time: 0 });
+    world.say({ type: 'welcome', id: 'p1', seed, players: [], clock: { day: 1, time: 0 },
+      deltas: [{ kind: 'eyrie', anchor: accepted, present: true }] });
+    expect(manifest.byKind('eyrie')).toEqual([accepted]);
+
+    world.shut();
+    high.applyBaited(ghost, true);
+    persist();
+    online.report({ kind: 'eyrie', anchor: ghost, present: true });
+    expect(world.sent.some((raw) => raw.includes(ghost.id))).toBe(false);
+    expect(new Manifest(seed, saved).byKind('eyrie')).toEqual([accepted, ghost]);
+
+    online.update(2, standing);
+    world.say({ type: 'welcome', id: 'p1', seed, players: [], clock: { day: 1, time: 0 },
+      deltas: [{ kind: 'eyrie', anchor: accepted, present: true }] });
+    expect(manifest.byKind('eyrie')).toEqual([accepted]);
+    expect(new Manifest(seed, saved).byKind('eyrie')).toEqual([accepted]);
+
+    // The private worker has no copy of the page's saved manifest; its welcome must not erase it.
+    const privateWorld = deadWorld();
+    const privateManifest = new Manifest(seed, saved);
+    privateManifest.anchors.set(ghost.id, ghost);
+    const privateHigh = new HighCountry(seed, privateManifest, {} as SkyIslands);
+    const privateEvents = new Proxy({}, { get: (_target, key) => key === 'onEyries'
+      ? (anchors: typeof accepted[]) => privateHigh.reconcileBaited(anchors) : () => {} }) as OnlineEvents;
+    new Online(privateEvents, privateWorld.linkFor).connect('', seed, 'Rowan', { day: 1, time: 0 });
+    privateWorld.say({ type: 'welcome', id: 'p2', seed, players: [], clock: { day: 1, time: 0 }, deltas: [] });
+    expect(privateManifest.byKind('eyrie')).toEqual([accepted, ghost]);
+  });
+
+  it('applies a refused report to the originating page and its next save', () => {
+    const seed = 7;
+    const world = deadWorld();
+    const manifest = new Manifest(seed);
+    const high = new HighCountry(seed, manifest, {} as SkyIslands);
+    const nest = new Manifest(seed).ensure('eyrie:12,34', 'eyrie', 12, 34);
+    let saved = manifest.toJSON();
+    const events = new Proxy({}, { get: (_target, key) => {
+      if (key === 'onEyries') return (anchors: typeof nest[]) => high.reconcileBaited(anchors);
+      if (key === 'onEyrieState') return (id: string, anchor: typeof nest | null) => {
+        high.setBaited(id, anchor); saved = manifest.toJSON();
+      };
+      return () => {};
+    } }) as OnlineEvents;
+    const online = new Online(events, world.linkFor);
+    online.connect('ws://somewhere', seed, 'Rowan', { day: 1, time: 0 });
+    world.say({ type: 'welcome', id: 'p1', seed, players: [], clock: { day: 1, time: 0 }, deltas: [] });
+    high.applyBaited(nest, true);
+    saved = manifest.toJSON();
+    online.report({ kind: 'eyrie', anchor: nest, present: true });
+    expect(world.sent.some((raw) => raw.includes(nest.id))).toBe(true);
+    world.say({ type: 'eyrie-state', id: nest.id, anchor: null });
+    expect(manifest.byKind('eyrie')).toEqual([]);
+    expect(new Manifest(seed, saved).byKind('eyrie')).toEqual([]);
+  });
+
   it('hands the daybook snapshot in a welcome to the game', () => {
     const world = deadWorld();
     const received: unknown[] = [];

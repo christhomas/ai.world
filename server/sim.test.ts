@@ -150,15 +150,34 @@ describe('the simulation, hosted by nothing at all', () => {
     const removed = { kind: 'eyrie', anchor, present: false } as const;
 
     rowan.say({ type: 'delta', delta: added });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor });
     expect(wren.of('delta').map((m) => m.delta)).toEqual([added]);
     expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toContainEqual(added);
     rowan.say({ type: 'delta', delta: added });
+    expect(rowan.of('eyrie-state')).toHaveLength(2);
     expect(wren.of('delta')).toHaveLength(1);
 
     rowan.say({ type: 'delta', delta: removed });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
     expect(wren.of('delta').at(-1)?.delta).toEqual(removed);
     expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
       .toContainEqual(removed);
+  });
+
+  it('corrects a refused nest report without changing the other player or the world', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    const wren = new Pretend(sim).join(7, 'Wren');
+    const far = new Manifest(7).ensure('eyrie:100,100', 'eyrie', 100, 100);
+
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: far, present: true } });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: far.id, anchor: null }]);
+    expect(wren.of('delta')).toEqual([]);
+    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toEqual([]);
+
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: { ...far, seed: -1 }, present: true } });
+    expect(rowan.of('eyrie-state')).toHaveLength(2);
+    expect(rowan.of('eyrie-state').at(-1)?.anchor).toBeNull();
   });
 
   it('sends the server holding daybook to a joining player', () => {

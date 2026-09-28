@@ -1,6 +1,7 @@
 import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, type Presence,
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
+import type { Anchor } from '../world/manifest';
 import type { HoldingRecord } from '../world/holdingbook';
 
 /**
@@ -74,6 +75,10 @@ export interface OnlineEvents {
   onChestOpened: (seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
+  /** The complete nest state on joining a remote world; private workers keep the local save. */
+  onEyries: (anchors: Anchor[]) => void;
+  /** The server's answer to this page's own nest report, even when it refused the change. */
+  onEyrieState: (id: string, anchor: Anchor | null) => void;
   /** Recorded holding mornings from the authoritative shared world. */
   onHoldingDays: (rows: HoldingRecord[]) => void;
   /** The market as the server sees it: who holds which pitch and what is on it. */
@@ -175,6 +180,8 @@ export function heard(o: Listening, message: ServerMessage): void {
       o.events.onCountryComing();
       for (const p of message.players) o.players.set(p.id, p);
       o.events.onClock(message.clock);
+      if (!o.local) o.events.onEyries(message.deltas.flatMap((delta) =>
+        delta.kind === 'eyrie' && delta.present ? [delta.anchor] : []));
       // catch up on everything that happened here before we arrived
       for (const delta of message.deltas) o.events.onDelta(delta, true);
       if (message.holdingDays) o.events.onHoldingDays(message.holdingDays);
@@ -224,6 +231,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'delta':
       o.events.onDelta(message.delta, false);
+      break;
+    case 'eyrie-state':
+      o.events.onEyrieState(message.id, message.anchor);
       break;
     case 'joined':
       o.players.set(message.player.id, message.player);
