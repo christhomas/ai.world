@@ -585,7 +585,7 @@ export function startGame(
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
-    school: new WhaleSchool(rig.scene), campField: new CampField(rig.scene),
+    school: new WhaleSchool(rig.scene, rig.graph), campField: new CampField(rig.scene),
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     knockOut,
