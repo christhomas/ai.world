@@ -94,10 +94,10 @@ export class RecordingPipeline {
 
   captureNext(): void { this.armed = true; }
 
-  draw(describe: () => FrameDescription): void {
+  draw(frame: FrameDescription | (() => FrameDescription)): void {
     this.frames++;
     if (!this.armed) return;
-    this.last = describe();
+    this.last = typeof frame === 'function' ? frame() : frame;
     this.armed = false;
   }
 }
