@@ -11,7 +11,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
 
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 23;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
@@ -504,6 +504,8 @@ export type ClientMessage =
    * into somebody else's village. The trade is named and the world decides whether it is vacant.
    */
   | { type: 'swear'; village: string; trade: string }
+  /** Intercept a loaded cart; the world checks the hero's position and writes the outcome. */
+  | { type: 'rob-cart'; loadedOn: number }
   /**
    * Stand on the roll of the village the hero is in.
    *
@@ -863,6 +865,7 @@ export type ServerMessage =
   /** Whether the seed took. `ok: false` means the page lifts it back out and returns the seed. */
   | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
+  | { type: 'cart-robbed'; loadedOn: number; ok: boolean }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }

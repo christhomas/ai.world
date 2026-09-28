@@ -14,6 +14,7 @@ import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
 import { callTownVote } from './voting';
+import { robLoadedCart } from './cartrobbery';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -57,6 +58,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'swear':
       takeTheWork(rooms, me, room, message);
+      return;
+    case 'rob-cart':
+      robTheCart(rooms, me, room, message);
       return;
     case 'arrive':
       walkIntoTheVillage(rooms, me, room, message);
@@ -604,6 +608,19 @@ function aboutAVillager(rooms: Rooms, me: Client, room: Room, message: ClientMes
   const said = cleanRecall(message);
   if (!said) return;
   world.register?.recall(said.who, said.what, said.about, room.world.clock.day);
+}
+
+function robTheCart(
+  rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'rob-cart' }>,
+): void {
+  const world = me.standingIn === 'surface' ? rooms.worldOf(me.seed, 'surface') : null;
+  const register = world?.register;
+  const robbed = register && me.hero && robLoadedCart(
+    register, Math.floor(room.world.clock.day), room.world.clock.time,
+    me.hero, world.villages, message.loadedOn, (fact) => room.world.apply(fact),
+  );
+  if (robbed) rooms.broadcast(me.seed, { type: 'delta', delta: robbed, from: '' });
+  rooms.send(me, { type: 'cart-robbed', loadedOn: message.loadedOn, ok: !!robbed });
 }
 
 /**
