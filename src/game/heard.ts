@@ -320,6 +320,9 @@ export function heard(o: Listening, message: ServerMessage): void {
     case 'said':
       o.events.onChat(`${message.name}: ${message.text}`);
       break;
+    case 'cart-robbed':
+      o.events.onSystem(message.ok ? 'The cart was robbed.' : 'No cart is within reach.');
+      break;
     case 'trade-offered':
       o.events.onOffer(message.offer, message.fromName);
       break;
