@@ -97,6 +97,18 @@ describe('interiors', () => {
 describe('furniture you cannot walk through', () => {
   const footprints = propFootprints();
 
+  it('a chapel pew blocks a probe outside its tile and inside its drawn edge', () => {
+    const map = generateInterior(3, 'church', 'Testford');
+    const world = new InteriorWorld(map, footprints);
+    const pews = map.furniture.filter((f) => f.kind === PropKind.Pew);
+    expect(pews.length).toBeGreaterThan(2);
+    const offsets = [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]];
+    for (const pew of pews) {
+      expect(offsets.some(([dx, dz]) => world.blocked(pew.x + 0.5 + dx, pew.z + 0.5 + dz)),
+        'a pew is drawn beyond the half-tile edge').toBe(true);
+    }
+  });
+
   it('stops you at the far end of a bed, not only on its own tile', () => {
     const map = generateInterior(interiorSeed(1, 5, 7), 'house', 'Testford');
     const bed = map.furniture.find((f) => f.kind === PropKind.Bed);

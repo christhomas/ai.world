@@ -72,6 +72,8 @@ export interface Drift {
   wrongBy: { worst: number; mean: number; of: number };
   /** The same, for creatures within reach of the hero: the number a fight is decided by. */
   wrongClose: { worst: number; mean: number; of: number; worstIs: string };
+  /** Close corrections with at least one image drawn since that creature's previous snapshot. */
+  drawnClose: { worst: number; mean: number; of: number; worstIs: string };
   /** The same, smoothed, for something that wants to show it rather than measure it. */
   recent: number;
 }
@@ -180,6 +182,8 @@ export class Wildlife {
   private readonly bodies = new Map<number, Entity>();
   /** Last time each body was moved toward its prediction, including between rendered frames. */
   private readonly drawnAt = new Map<number, number>();
+  /** Last animation frame before each creature's most recent authoritative snapshot. */
+  private readonly snapshotFrame = new Map<number, number>();
   /**
    * Where the world last said each one was, how fast it seemed to be going when it said so, and
    * how long ago that was — which together are where it probably is now.
@@ -196,6 +200,8 @@ export class Wildlife {
   private wrong = { n: 0, total: 0, worst: 0 };
   /** The same, for the creatures close enough to fight, which is the number that decides a swing. */
   private wrongClose = { n: 0, total: 0, worst: 0, worstIs: '' };
+  /** Corrections to positions that the browser had a chance to render. */
+  private drawnClose = { n: 0, total: 0, worst: 0, worstIs: '' };
   /**
    * The same thing as a running average, for the corner of the screen.
    *
@@ -252,6 +258,7 @@ export class Wildlife {
         if (!this.renderer.add(body)) continue;
         this.bodies.set(snap.id, body);
         this.drawnAt.set(snap.id, now);
+        this.snapshotFrame.set(snap.id, this.frame);
       } else {
         // A headless or busy page may go a whole snapshot interval without a rendered frame. Bring
         // the old prediction up to this message's arrival time before comparing it to the new truth;
@@ -291,6 +298,14 @@ export class Wildlife {
           this.wrongClose.n++;
           this.wrongClose.total += out;
           if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
+          // A queue can deliver several snapshots between animation frames. Those raw corrections
+          // are useful diagnostics, but no image was drawn between them, so they are not evidence
+          // that the player saw a creature in the wrong place.
+          if (this.frame > (this.snapshotFrame.get(snap.id) ?? this.frame)) {
+            this.drawnClose.n++;
+            this.drawnClose.total += out;
+            if (out > this.drawnClose.worst) { this.drawnClose.worst = out; this.drawnClose.worstIs = body.kind.id; }
+          }
         }
         // An easing tail is for arithmetic-sized disagreement. Once it is a whole visible body,
         // preserving the old drawing only lets the next message measure and inherit the same lie.
@@ -320,6 +335,7 @@ export class Wildlife {
           this.wanted.delete(snap.id);
         }
       }
+      this.snapshotFrame.set(snap.id, this.frame);
       body.state = snap.state;
       body.walk = snap.walk;
       body.hp = snap.hp;
@@ -340,6 +356,7 @@ export class Wildlife {
       this.bodies.delete(id);
       this.wanted.delete(id);
       this.drawnAt.delete(id);
+      this.snapshotFrame.delete(id);
     }
   }
 
@@ -372,16 +389,18 @@ export class Wildlife {
       total += out;
       n++;
     }
-    const seen = this.wrong, close = this.wrongClose;
+    const seen = this.wrong, close = this.wrongClose, drawn = this.drawnClose;
     if (clear) {
       this.wrong = { n: 0, total: 0, worst: 0 };
       this.wrongClose = { n: 0, total: 0, worst: 0, worstIs: '' };
+      this.drawnClose = { n: 0, total: 0, worst: 0, worstIs: '' };
     }
     return {
       drawn: this.bodies.size, worst, mean: n > 0 ? total / n : 0, worstIs, far,
       // how wrong the screen was, since the last time anybody asked
       wrongBy: { worst: seen.worst, mean: seen.n > 0 ? seen.total / seen.n : 0, of: seen.n },
       wrongClose: { worst: close.worst, mean: close.n > 0 ? close.total / close.n : 0, of: close.n, worstIs: close.worstIs },
+      drawnClose: { worst: drawn.worst, mean: drawn.n > 0 ? drawn.total / drawn.n : 0, of: drawn.n, worstIs: drawn.worstIs },
       recent: this.recent,
     };
   }
@@ -522,6 +541,7 @@ export class Wildlife {
     this.bodies.clear();
     this.wanted.clear();
     this.drawnAt.clear();
+    this.snapshotFrame.clear();
     this.corrections.length = 0;
     this.frame = 0;
   }
