@@ -543,7 +543,12 @@ export function villageInteractions(ctx: Surroundings) {
       return true;
     }
     if (mount.near(player.x, player.z)) {
-      if (preview) { horseVerb = `Ride ${mount.name}`; return true; }
+      if (preview) { horseVerb = state.shouldering ? 'Set down the carcass before riding' : `Ride ${mount.name}`; return true; }
+      if (state.shouldering) {
+        hud.flash('Set down the carcass before mounting.');
+        sound.thud();
+        return true;
+      }
       mount.mount(player);
       hud.flash(`You swing up onto ${mount.name}.`);
       sound.chime();

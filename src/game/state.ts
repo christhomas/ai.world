@@ -10,6 +10,7 @@ import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippa
 import { chunkKey } from '../world/spatial';
 import { provinceOf, type ProvinceId } from '../world/provinces';
 import type { HorseSave } from './mount';
+import { hideOf, type CarriedCarcass } from './furs';
 import type { PlotJson } from './farming';
 import type { HouseJson } from './building';
 import type { BoatSave } from './sailing';
@@ -114,6 +115,8 @@ export interface GameStateJson {
   grudges?: Record<string, Held>;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
+  /** One whole carcass carried on foot for the final climb from a parked cart. */
+  shouldering?: CarriedCarcass | null;
   /** What is planted where. */
   plots?: PlotJson;
   /** The builder you are holding, and every house you have had put up. */
@@ -180,6 +183,7 @@ export class GameState {
    * when an app is swiped away — which is how a game on a phone actually ends.
    */
   lodged = false;
+  shouldering: CarriedCarcass | null = null;
 
   /**
    * World days that passed while the game was shut, worked out once as the save is read.
@@ -473,6 +477,7 @@ export class GameState {
       keys: [...this.keys],
       standing: this.standing,
       practice: this.practice,
+      shouldering: this.shouldering,
     };
   }
 
@@ -495,6 +500,9 @@ export class GameState {
     if (typeof json.time === 'number') g.time = json.time;
     if (typeof json.day === 'number') g.day = json.day;
     g.lodged = json.lodged === true;
+    if (json.shouldering && hideOf(json.shouldering.kind) && json.shouldering.left > 0) {
+      g.shouldering = { ...json.shouldering };
+    }
     /*
      * And the days that passed while nobody was looking.
      *

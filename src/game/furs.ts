@@ -137,6 +137,9 @@ export interface Carcass {
   left: number;
 }
 
+/** A body off the ground keeps its kind and remaining usable lifetime, never a new one. */
+export type CarriedCarcass = Pick<Carcass, 'kind' | 'left'>;
+
 /**
  * The bodies still worth going back for. Kept for a sitting and thrown away with it, for the same
  * reason dug holes are: what a carcass gives up follows from the kind and the knife, so there is
@@ -155,6 +158,15 @@ export class Carcasses {
     this.bodies.push(body);
     if (this.bodies.length > FUR.KEPT) this.bodies.shift();
     return body;
+  }
+
+  /** Put a carried body down without renewing the time left on it. */
+  put(body: CarriedCarcass, x: number, z: number): Carcass | null {
+    if (!hideOf(body.kind) || body.left <= 0) return null;
+    const placed = { ...body, x, z };
+    this.bodies.push(placed);
+    if (this.bodies.length > FUR.KEPT) this.bodies.shift();
+    return placed;
   }
 
   /** The body within reach, if you are standing over one. */

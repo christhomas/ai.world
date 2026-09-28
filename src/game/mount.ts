@@ -4,6 +4,7 @@ import { Entity, Herd, canStand, yawFor, type TileWorld } from '../entities/enti
 import type { EntityRenderer } from '../entities/pool';
 import type { Player } from '../entities/player';
 import { breedOf, type Breed } from './stables';
+import { FUR, type Carcass, type CarriedCarcass } from './furs';
 
 /** What a horse is worth, and how much faster it carries you. */
 export const HORSE = {
@@ -33,6 +34,8 @@ export interface HorseSave {
   palette: number;
   /** Which animal it is. Absent on saves written before there was a choice, which means a horse. */
   breed?: string;
+  /** One whole body in the cart tied to this horse, never in the hero's pack. */
+  cargo?: CarriedCarcass;
 }
 
 /**
@@ -57,9 +60,46 @@ export class Mount {
   get owned(): boolean { return this.saved !== null; }
   /** What you bought. A save from before there were camels and goats is a horse, as it always was. */
   get breed(): Breed { return breedOf(this.saved?.breed); }
+  get cargo(): CarriedCarcass | null { return this.saved?.cargo ?? null; }
+
+  /** The cart has one slot; both hunter and body must be at the parked horse. */
+  canLoad(body: Carcass, hasCart: boolean, x: number, z: number): boolean {
+    return !!this.saved && !!this.entity && this.breed.id === 'horse' && hasCart && !this.riding &&
+      !this.saved.cargo && body.left > 0 &&
+      this.near(x, z) && Math.hypot(body.x - x, body.z - z) < FUR.REACH &&
+      Math.hypot(body.x - this.entity.x, body.z - this.entity.z) < HORSE.REACH;
+  }
+
+  load(body: Carcass, hasCart: boolean, x: number, z: number): boolean {
+    if (!this.canLoad(body, hasCart, x, z)) return false;
+    this.saved!.cargo = { kind: body.kind, left: body.left };
+    return true;
+  }
+
+  /** At the parked horse, lift the body back out to carry it where wheels cannot go. */
+  unload(x: number, z: number): CarriedCarcass | null {
+    if (!this.saved?.cargo || this.riding || !this.near(x, z)) return null;
+    const body = this.saved.cargo;
+    delete this.saved.cargo;
+    return body;
+  }
+
+  /** Cart cargo spoils just as a body on the ground does. */
+  ageCargo(dt: number, hasCart = true): boolean {
+    if (!this.saved?.cargo) return false;
+    if (!hasCart) { delete this.saved.cargo; return true; }
+    this.saved.cargo.left -= dt;
+    if (this.saved.cargo.left > 0) return false;
+    delete this.saved.cargo;
+    return true;
+  }
 
   /** Buy a horse: it appears saddled and waiting at the spot given. */
   buy(x: number, z: number, world: TileWorld, renderer: EntityRenderer, breed: Breed = breedOf('horse')): string {
+    if (this.entity) {
+      this.leaveRider();
+      renderer.remove(this.entity);
+    }
     const kind = KINDS[breed.id] ?? KINDS.horse;
     const names = kind.names;
     const name = names[Math.floor(this.rng() * names.length)];
@@ -153,12 +193,12 @@ export class Mount {
 
   toJSON(): HorseSave | null {
     this.remember();
-    return this.saved;
+    return this.saved ? { ...this.saved, cargo: this.saved.cargo ? { ...this.saved.cargo } : undefined } : null;
   }
 
   static from(json: HorseSave | null | undefined, rng: Rng): Mount {
     const mount = new Mount(rng);
-    if (json) mount.saved = { ...json };
+    if (json) mount.saved = { ...json, cargo: json.cargo ? { ...json.cargo } : undefined };
     return mount;
   }
 
