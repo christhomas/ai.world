@@ -97,12 +97,14 @@ export class Register {
     day = FOUNDED_ON,
     private readonly onDeparted: (change: Change) => void = () => {},
     private readonly carrierMode: 'instant' | 'journaled' = 'instant',
+    private readonly illnessContacts = true,
   ) {
     this.day = Math.floor(day);
     // A village's day sees this small boundary, with today's date read live during historical replay.
     const book = this;
     this.theDay = {
       seed: this.seed,
+      illnessContacts: this.illnessContacts,
       get today() { return book.day; },
       pressureOn: (village, on) => this.pressure.on(village, on),
       killedOn: (id) => this.telling.killedOn(id),
@@ -222,15 +224,9 @@ export class Register {
 
   /**
    * What a day in one village is allowed to know about the rest of the world: see `aday.ts`.
-   *
-   * Six things, built once and handed down, and the shortness of the list is the point of the cut.
-   * A day needs a settlement to change, a handful of numbers and somewhere to write down what the
-   * hall took and what it paid; it never asks who is alive in the next valley. The moment a seventh
-   * entry is wanted, the day has started asking a question that belongs to the book rather than to
-   * a Tuesday in one place, and that is worth noticing rather than quietly answering.
-   *
    * `today` is read through a getter rather than copied, because a replay lives day two while the
    * register stands on day four hundred, and what a village may build is asked against the latter.
+   * Contact transmission uses only this village's people, never another village's mutable state.
    */
   private readonly theDay: TheDay;
 
