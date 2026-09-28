@@ -165,6 +165,16 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
+  /** Capture waits for the worker queue itself, not a debug label from the previous frame. */
+  captureProgress(): { loaded: number; pending: number; desired: number; grown: number } {
+    return {
+      loaded: this.loaded.size,
+      pending: this.pending.size + this.queue.length,
+      desired: this.offsets.length,
+      grown: this.grown,
+    };
+  }
+
   /**
    * The mountains that can be stood on, when there are any: geometry, not chunks to stream.
    *

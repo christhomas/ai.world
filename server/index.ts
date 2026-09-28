@@ -38,6 +38,7 @@ const running = await startServer({
   // Outbound builder sockets live in this process. A second replica would strand requests on the
   // wrong pod, so reject a declared scale-up instead of quietly sending users to "offline".
   replicas: Number(process.env.AI_WORLD_REPLICAS ?? 1),
+  captureClock: process.env.SHOTS_CAPTURE === '1',
   // believe X-Forwarded-Proto only where the deployment says something is in front of us, or the
   // `Secure` flag is decided by a header anybody can send
   trustProxy: process.env.TRUST_PROXY === '1',

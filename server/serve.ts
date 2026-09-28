@@ -73,6 +73,8 @@ export interface ServerOptions {
   builder?: BuilderAt;
   /** This in-process worker registry requires exactly one server replica. */
   replicas?: number;
+  /** Explicit ticks for the isolated screenshot server; requires an operator token. */
+  captureClock?: boolean;
 }
 
 export interface RunningServer {
@@ -175,6 +177,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     dataDir, vault: new FileVault(), ground: true,
     minds: durable ?? undefined, chronicles: durable ?? undefined,
   });
+  let captureNow = 0;
+  if (options.captureClock) {
+    if (!options.operatorToken) throw new Error('capture clock requires an operator token');
+    sim.captureAt(captureNow);
+  }
   const rooms = sim.rooms;
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
@@ -189,6 +196,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       sim, builderChannel)
     : null;
   const http = createServer((req, res) => {
+    if (options.captureClock && req.url?.startsWith('/__shots/step?')) {
+      const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
+      if (!local || req.method !== 'POST' || req.headers.authorization !== `Bearer ${options.operatorToken}`) {
+        res.writeHead(403).end();
+        return;
+      }
+      const count = Number(new URL(req.url, 'http://shots.invalid').searchParams.get('count'));
+      if (!Number.isInteger(count) || count < 0 || count > 100) { res.writeHead(400).end(); return; }
+      for (let i = 0; i < count; i++) sim.tick(captureNow += 100);
+      res.writeHead(204).end();
+      return;
+    }
     // A missing portal configuration used to look like a healthy but empty game server here,
     // leaving anyone opening the tools address with no clue why there was no login page.
     if (!tools && /^\/tools(?:\/|$)/.test(req.url ?? '')) {
@@ -257,7 +276,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     socket.on('error', () => player.leave());
   });
 
-  sim.start();
+  if (!options.captureClock) sim.start();
 
   const port = await listen(http, options.port ?? 8787);
   if (!options.quiet) {

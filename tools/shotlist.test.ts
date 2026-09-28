@@ -67,7 +67,7 @@ describe('how long a shot is allowed to take', () => {
   it('never lowers what was there before', () => {
     // `Math.max(60000, …)` rather than the env outright: an unset or silly PATIENCE cannot make the
     // wait shorter than the minute this always allowed.
-    expect(source).toContain("{ timeout: Math.max(60000, PATIENCE) }");
+    expect(source).toContain('timeout: Math.max(60000, PATIENCE)');
     expect(source, 'and the default leaves playwright its own').toContain('if (PATIENCE) page.setDefaultTimeout(PATIENCE);');
   });
 });

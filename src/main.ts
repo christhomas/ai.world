@@ -80,6 +80,7 @@ import { putFerriesOut } from './game/ferry';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
 import { createFrame } from './game/frame';
+import { captureTidings } from './game/capture';
 import { createMeeting } from './game/meeting';
 import { aftermath, createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
@@ -677,7 +678,7 @@ export function startGame(
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
-    autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
+    autoQuality, director, walked, castbar, blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,
     noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,

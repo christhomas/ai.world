@@ -462,6 +462,12 @@ export class Simulation {
     this.keepTheMinds();
   }
 
+  /** Give a capture harness a fixed origin before it drives explicit ticks. */
+  captureAt(now: number): void {
+    if (this.ticker) throw new Error('a running simulation cannot use the capture clock');
+    this.lastTick = now;
+  }
+
   /**
    * Write down what every villager of every open world holds.
    *
