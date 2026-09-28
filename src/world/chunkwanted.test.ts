@@ -24,4 +24,21 @@ describe('ground the page grew before the world answered', () => {
     expect(requests([], [[2, 3]], [[2, 3]])).toEqual([]);
     expect(requests([], [[2, 3]], [], [[2, 3]])).toEqual([]);
   });
+
+  it('keeps an authoritative replacement queued when the player changes chunks', () => {
+    const chunks = Object.assign(Object.create(ChunkManager.prototype), {
+      focusCx: 2, focusCz: 3,
+      offsets: [{ dx: 0, dz: 0 }],
+      queue: [{ cx: 2, cz: 3, since: 0 }],
+      loaded: new Map([['2,3', { cx: 2, cz: 3, grown: true }]]),
+      sent: new Map([['2,3', new ArrayBuffer(1)]]),
+      pending: new Map(),
+    }) as ChunkManager;
+    const state = chunks as unknown as {
+      refreshDesired: () => void;
+      queue: Array<{ cx: number; cz: number }>;
+    };
+    state.refreshDesired();
+    expect(state.queue.map(({ cx, cz }) => [cx, cz])).toEqual([[2, 3]]);
+  });
 });

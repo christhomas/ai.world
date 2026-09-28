@@ -28,6 +28,11 @@ on:
   pull_request:
   # so a failing bench can be re-run without pushing anything
   workflow_dispatch:
+    inputs:
+      scenes:
+        description: Space-separated reference scene names for a focused hosted diagnosis; empty means all scenes
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -266,13 +271,14 @@ jobs:
       - name: Photograph documented reference scenes
         env:
           PORT: '5185'
+          SCENES: ${{ inputs.scenes || '' }}
         run: |
           set -uo pipefail
           capture="$RUNNER_TEMP/reference-scenes/${{ matrix.pass }}"
           mkdir -p "$capture"
-          OUT="$capture" node tools/shots.cjs > "$capture/capture.log" 2>&1
-          result=$?
-          cat "$capture/capture.log"
+          read -r -a selected <<< "$SCENES"
+          OUT="$capture" node tools/shots.cjs "${selected[@]}" 2>&1 | tee "$capture/capture.log"
+          result=${PIPESTATUS[0]}
           exit "$result"
       - name: Keep captured reference scenes
         if: always()
@@ -401,12 +407,19 @@ jobs:
 
       - name: Compare documented reference scenes
         if: always()
+        env:
+          SCENES: ${{ inputs.scenes || '' }}
         run: |
           set +e
           scenes_dir="$RUNNER_TEMP/reference-scenes"
           first="$scenes_dir/reference-first"
           holdout="$scenes_dir/reference-holdout"
-          mapfile -t scenes < <(node tools/shots.cjs --list | awk '{print $1 ".png"}')
+          read -r -a selected <<< "$SCENES"
+          if [ "${#selected[@]}" -gt 0 ]; then
+            scenes=("${selected[@]/%/.png}")
+          else
+            mapfile -t scenes < <(node tools/shots.cjs --list | awk '{print $1 ".png"}')
+          fi
           if [ "${#scenes[@]}" -eq 0 ]; then
             echo 'shots.cjs listed no reference scenes' >&2
             exit 1

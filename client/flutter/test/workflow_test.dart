@@ -9,8 +9,12 @@ void main() {
     expect(workflow, contains('\npermissions:\n  contents: read\n'));
 
     final flutterStart = workflow.indexOf('\n  flutter:');
-    final nextJob = workflow.indexOf('\n  playtest:', flutterStart);
     expect(flutterStart, greaterThanOrEqualTo(0));
+    // Capture jobs can sit between Flutter and playtest. Inspect only this job's actions.
+    final nextJob = RegExp(r'^  [a-z][a-z-]*:$', multiLine: true)
+        .allMatches(workflow)
+        .firstWhere((match) => match.start > flutterStart + 1)
+        .start;
     expect(nextJob, greaterThan(flutterStart));
     final flutterJob = workflow.substring(flutterStart, nextJob);
     final uses = RegExp(

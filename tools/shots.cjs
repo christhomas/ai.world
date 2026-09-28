@@ -698,6 +698,16 @@ const SHOTS = [
       if (!dock) return null;                       // a world whose coast raised no jetty today
       await ask(() => { window.__state.inventory.gold = 400; window.__state.version++; });
       await stand(dock.x, dock.z, 4000);
+      const pierState = () => ({
+        player: { x: window.__player.x, z: window.__player.z },
+        speaker: document.querySelector('.dlg-them .dlg-name')?.textContent,
+        dialogue: document.getElementById('dialogue')?.className,
+        prompt: document.getElementById('interactPrompt')?.textContent,
+      });
+      const landed = await ask(pierState);
+      if (Math.hypot(landed.player.x - dock.x, landed.player.z - dock.z) >= 4) {
+        throw new Error(`sea: pier landing out of boatwright reach: ${JSON.stringify({ dock, landed })}`);
+      }
       // The ferry sometimes calls at this pier at noon. When it does, Enter talks to its
       // ferryman and the first choice would board it instead of asking after our own boat.
       // Try fixed world times until the ferry is away and the timetable offers the boatwright.
@@ -705,7 +715,12 @@ const SHOTS = [
       for (const phase of [0.5, 0.515, 0.53, 0.545, 0.56, 0.575, 0.59, 0.605, 0.62, 0.635]) {
         await time(phase);
         await key('Enter');
-        await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'));
+        try {
+          await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'),
+            null, { timeout: 15_000 });
+        } catch (error) {
+          throw new Error(`sea: no pier choices at phase ${phase}: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
+        }
         const speaker = await p.locator('.dlg-them .dlg-name').textContent();
         if (speaker === 'Timetable') { timetable = true; break; }
         if (speaker !== 'Ferryman') throw new Error(`sea: expected pier timetable or ferryman at ${phase}, got ${speaker}`);
@@ -713,8 +728,12 @@ const SHOTS = [
       }
       if (!timetable) throw new Error('sea: ferry remained docked through every fixed timetable phase');
       await key('Enter');                           // ask after a boat of your own
-      await p.waitForFunction(() => document.querySelector('.dlg-them .dlg-name')?.textContent === 'Boatwright'
-        && document.getElementById('dialogue')?.classList.contains('choosing'));
+      try {
+        await p.waitForFunction(() => document.querySelector('.dlg-them .dlg-name')?.textContent === 'Boatwright'
+          && document.getElementById('dialogue')?.classList.contains('choosing'), null, { timeout: 15_000 });
+      } catch (error) {
+        throw new Error(`sea: no boatwright choices after timetable: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
+      }
       await key('Enter');                           // buy her
       await wait(1200);
       await key('Enter');                           // cast off
@@ -754,8 +773,8 @@ const SHOTS = [
         ]);
       } catch (error) {
         const [mine, theirs] = await Promise.all([
-          p.evaluate(() => window.__stream ?? null),
-          playing.evaluate(() => window.__stream ?? null),
+          p.evaluate(() => ({ stream: window.__stream ?? null, grown: window.__grownDetails?.() })),
+          playing.evaluate(() => ({ stream: window.__stream ?? null, grown: window.__grownDetails?.() })),
         ]);
         throw new Error(`shared stream did not settle: mine=${JSON.stringify(mine)} other=${JSON.stringify(theirs)}; ${error.message}`);
       }

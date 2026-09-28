@@ -270,6 +270,10 @@ export class ChunkManager implements TileWorld, ChunkSource {
     for (const [k, c] of this.loaded) {
       if (Math.max(Math.abs(c.cx - cx), Math.abs(c.cz - cz)) > WORLD.UNLOAD_RADIUS) {
         this.unload(k, c);
+      } else if (c.grown && this.sent.has(k) && !this.pending.has(k)) {
+        // A focus change clears the queue above. Keep the world's replacement for ground we grew
+        // locally on that queue, or its bytes remain in `sent` and the guess stays on screen.
+        this.queue.push({ cx: c.cx, cz: c.cz, since: 0 });
       }
     }
   }
@@ -421,6 +425,18 @@ export class ChunkManager implements TileWorld, ChunkSource {
       out.push([chunk.cx, chunk.cz]);
     }
     return out;
+  }
+
+  /** Why a connected page still has locally grown ground, for the streaming probe. */
+  grownDetails(): { counted: number; loaded: Array<{ key: string; sent: boolean; pending: boolean; queued: boolean }>; idle: number; paused: boolean } {
+    const queued = new Set(this.queue.map(({ cx, cz }) => chunkKey(cx, cz)));
+    return {
+      counted: this.grown,
+      loaded: [...this.loaded.entries()].filter(([, chunk]) => chunk.grown).map(([key]) => ({
+        key, sent: this.sent.has(key), pending: this.pending.has(key), queued: queued.has(key),
+      })),
+      idle: this.idle.length, paused: this.paused,
+    };
   }
 
   /**
