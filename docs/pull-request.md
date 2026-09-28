@@ -140,32 +140,22 @@ Re-check merge state immediately before merging, not just when you started worki
 somebody else is working issues, stop here: the sections above are your whole job, and picking up
 feature work would be the boundary going the other way. If you are not sure which you are, ask.
 
-A required check takes minutes. Watching one is the largest waste in this pipeline, because nothing
-about a green tick is improved by being observed, and a session that merges a PR and then waits has
-chosen to do nothing for ten minutes at a time.
+A required check takes minutes. Issue agents should not wait on it: claim distinct issues, work in
+separate worktrees, and open component PRs as each issue is ready. Use focused local checks while
+coding; GitHub-hosted Actions owns the full suite, Flutter checks, screenshots, and browser playtest.
 
-So the wait is where the next issue becomes the next pull request. Take the oldest unblocked issue,
-branch, write the failing test, watch it fail, make it pass, open the request. Then come back.
+The integration agent groups complete component PRs by dependency into a temporary batch branch.
+Intermediate component and batch-to-batch PRs do not run the expensive full gate. The final PR from
+each batch to `main` runs every required check against the combined result. Merge only that final PR,
+after all required checks pass; then close its component PRs as superseded. Keep the original issue
+closing references on the final `main` PR so the batch closes exactly the issues it completed.
 
-**Every time you come back, ask the queue before you ask the work.** If the oldest request — or the
-one everything else is stacked on — has gone green while you were elsewhere, merge that before you
-touch anything else. A merged request unblocks other people and shortens the queue; one sitting
-behind a finished check is pure latency, and latency compounds when six are waiting on it.
-
-The loop is: **merge what is ready, start what is next, return when the next check lands.** The
-queue grows during the wait rather than the wait being dead time.
-
-Two things this is not. It is not a licence to have six branches half-written at once — one issue in
-hand at a time, taken to a request before the next is started, or you are not pipelining, you are
-context-switching. And it is not a reason to merge something early: a check that has not finished is
-not a check that has passed, and the ordering rule above says merge what is *ready*, not what is
-nearly ready.
+The loop is: **claim in parallel, submit component PRs as they are ready, integrate by batch, merge
+only a green batch PR to `main`.** Do not use a green component check as a substitute for testing the
+combined batch, and do not merge a batch while any required check is pending or failed.
 
 ## Releasing
 
-Cutting a release (`docs/releasing.md`) is the natural next step after landing a batch from this
-queue, not a separate occasion — it's what turns a pile of merged PRs into a deployed version, and
-its own changelog is generated *from* the PRs merged since the last tag. There's no fixed batch size;
-use judgement (a handful of merged PRs, or a natural stopping point in the queue) rather than
-releasing after every single merge or letting an unbounded pile of unreleased work accumulate on
-`main`. See `docs/releasing.md` for the mechanics and what version bump to choose.
+Cut a release after every two merged batch PRs, from a clean, current `main`, using
+`docs/releasing.md`. That keeps playtestable versions arriving regularly without repeating the full
+browser playtest for every component PR.

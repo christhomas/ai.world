@@ -28,12 +28,31 @@ issue.
 
 ## The boundary
 
-**Branch, fix, commit to the branch, open the pull request. Stop there.**
+**Claim, branch, fix, commit to the branch, open the pull request. Stop there.**
 
 - Never commit to `main`, never merge, never cut a release. The repository's own pipeline reviews
   and merges; a session that merges its own work has removed the review it was asking for.
 - Never mark a pull request draft. The pipeline is the review.
-- Opening a PR is the end of the task. The next task is the next issue, not watching this one.
+- Component PRs may target a temporary batch branch. The final batch PR targets `main` and owns the
+  full required checks and issue-closing references.
+- Opening a component PR is the end of that issue task. Keep moving on another claimed issue rather
+  than watching its CI.
+
+## Claims and parallel work
+
+Before starting, add the shared `agent:sol-claimed` label to the issue. This is the visible claim
+that prevents another session from duplicating the work. Remove it after the issue is closed. If a
+claim is already present, coordinate with its owner rather than taking the issue.
+
+Independent issues can be worked at the same time by separate agents, each in its own worktree and
+branch. Keep each branch tied to one issue, agree on shared interfaces before editing the same
+subsystem, and send commits across branches rather than sharing a checkout. Stack dependent work
+when a parent is still in progress.
+
+Group completed component PRs into a temporary batch branch in dependency order. Open one batch PR
+to `main`, list its component PRs, and include `Closes #...` for every issue whose complete fix is in
+that batch. After the batch PR is green and merged, close its component PRs as superseded. Do not
+close an issue merely because a partial component PR merged into the temporary branch.
 
 Everything below serves that boundary.
 
@@ -54,9 +73,8 @@ over it.
 
 ## Choosing what to do
 
-1. **Finish the issue in hand** before starting another.
-2. Then prefer a child, a blocker, a regression, or a gap found while working, over anything
-   unrelated.
+1. **Claim a distinct issue** with `agent:sol-claimed`; work in its own clean branch/worktree.
+2. Prefer a child, a blocker, a regression, or a gap found while working, over anything unrelated.
 3. **Read the whole issue immediately before starting** — body *and every comment*. The last
    comment often carries a decision, a branch that already exists, an approach that failed, or
    evidence that supersedes the body entirely. Several issues here were already half-built, and two
@@ -98,7 +116,13 @@ aliases, unless persisted data needs a migration.
 
 ## Verifying
 
-Run, in this order, and record what actually happened:
+Run focused tests and typecheck locally while implementing, and record what actually happened.
+The shared low-power host should not run whole-suite or browser passes. Run the full suite, Flutter
+checks, screenshot comparisons, and Playwright playtest on GitHub-hosted Actions for the final batch
+PR to `main`; keep its reports and screenshots as artifacts. A skipped component-PR workflow is not
+evidence that a batch passed.
+
+The full local sequence, when a capable development machine is available, is:
 
     pnpm exec tsc --noEmit
     npx vitest run --maxWorkers=4          # the whole suite, not the file you touched
@@ -114,8 +138,9 @@ Three checks bite on changes that look unrelated to them. Expect them:
 - **`chore excuses`** — an excuse for an unreached export must name an open issue or a named test.
   It fails when the issue it names closes.
 
-**For anything visible, drive a browser.** A suite never draws anything. Borrow playwright rather
-than depending on it:
+**For anything visible, drive a browser.** A suite never draws anything. Use the Playwright job on a
+GitHub-hosted runner for the integrated batch and inspect its uploaded captures/reports. A targeted
+local browser check is fine when it is useful and does not overload the shared host:
 
     NODE_PATH=/path/to/a/checkout/with/playwright CHANNEL=chrome node tools/playtest.cjs
 
