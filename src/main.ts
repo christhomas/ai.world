@@ -253,7 +253,7 @@ export function startGame(
    * Not saved: it refills in seconds, so a save that remembered it would be remembering nothing.
    */
   const breath = new Breath();
-  const ownBoat = putBoatIn(rig.scene);
+  const ownBoat = putBoatIn(rig.scene, rig.graph);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial, rig.graph);
   // and on the same sites, the houses the villages built themselves — and, out of the same book and
@@ -300,7 +300,7 @@ export function startGame(
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
-  const ferries = putFerriesOut(makeFerryLines(structures, structures.villages, graph.islands), rig.scene);
+  const ferries = putFerriesOut(makeFerryLines(structures, structures.villages, graph.islands), rig.scene, rig.graph);
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
