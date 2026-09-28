@@ -95,6 +95,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A pull_request checkout is the proposed merge commit. Its first parent is the base
+          # to compare with, so both commits must be present locally for the guard below.
+          fetch-depth: 2
+
+      - name: Guard the proposed merge result
+        if: github.event_name == 'pull_request'
+        run: node tools/mergeguard.cjs
 
       - uses: pnpm/action-setup@v4
         with:
