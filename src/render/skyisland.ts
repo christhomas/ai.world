@@ -7,7 +7,8 @@ import { MeshBuilder, hexToLinear } from '../world/mesher';
 import { SKY, type SkyIsland } from '../world/skyisland';
 import { addPropInstances, disposeInstances, meshFromData } from './instancing';
 import type { PropLibrary } from './props';
-import type { SceneGraph } from '../core/scenegraph';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { ThreeGraphBridge } from './scenegraph';
 
 /**
  * Drawing a village in the clouds.
@@ -71,6 +72,7 @@ interface Placed {
   isle: SkyIsland;
   group: THREE.Group;
   clouds: THREE.Group;
+  nodes: SceneNode[];
 }
 
 /** The four sides of a tile: which way, and the corners of the edge shared with that neighbour. */
@@ -87,6 +89,7 @@ export class SkyIslands {
     color: 0xf4f8ff, transparent: true, opacity: 0.5, depthWrite: false,
   });
   private readonly landMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+  private readonly bridge: ThreeGraphBridge | null;
   private turned = 0;
 
   constructor(
@@ -95,7 +98,9 @@ export class SkyIslands {
     private readonly waterMaterial: THREE.Material,
     private readonly glowMaterial: THREE.Material,
     private readonly graph?: SceneGraph,
-  ) {}
+  ) {
+    this.bridge = graph ? new ThreeGraphBridge(graph, scene, this.landMaterial, waterMaterial) : null;
+  }
 
   /**
    * Put one island in the sky. `groundY` is how high the land is under a point, which is where the
@@ -104,18 +109,37 @@ export class SkyIslands {
    */
   add(isle: SkyIsland, groundY: (x: number, z: number) => number): void {
     const group = new THREE.Group();
+    const nodes: SceneNode[] = [];
     const land = buildLand(isle);
     if (land) {
-      const mesh = meshFromData(land, this.landMaterial);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+      if (this.bridge) {
+        const node: Extract<SceneNode, { kind: 'mesh' }> = {
+          kind: 'mesh', material: 'lit-vertex-colours', geometry: land,
+          castShadow: true, receiveShadow: true,
+        };
+        this.bridge.add(node);
+        nodes.push(node);
+      } else {
+        const mesh = meshFromData(land, this.landMaterial);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+      }
     }
     const water = buildWater(isle, groundY(isle.fall.x + isle.fall.dx * SKY.PLUME, isle.fall.z + isle.fall.dz * SKY.PLUME));
     if (water) {
-      const mesh = meshFromData(water, this.waterMaterial);
-      mesh.renderOrder = 2;
-      group.add(mesh);
+      if (this.bridge) {
+        const node: Extract<SceneNode, { kind: 'mesh' }> = {
+          kind: 'mesh', material: 'water', geometry: water,
+          receiveShadow: false, renderOrder: 2,
+        };
+        this.bridge.add(node);
+        nodes.push(node);
+      } else {
+        const mesh = meshFromData(water, this.waterMaterial);
+        mesh.renderOrder = 2;
+        group.add(mesh);
+      }
     }
     addPropInstances(group, this.props, isle.props.map((p) => ({
       kind: p.kind, x: p.x, y: p.y, z: p.z, rot: p.rot, scale: p.scale,
@@ -124,7 +148,7 @@ export class SkyIslands {
 
     const clouds = buildClouds(isle, this.cloudMaterial);
     this.scene.add(clouds);
-    this.placed.push({ isle, group, clouds });
+    this.placed.push({ isle, group, clouds, nodes });
   }
 
   /**
@@ -153,6 +177,7 @@ export class SkyIslands {
    */
   clear(): void {
     for (const p of this.placed) {
+      for (const node of p.nodes) this.bridge?.remove(node);
       this.scene.remove(p.group);
       this.scene.remove(p.clouds);
       p.group.traverse((o) => {
