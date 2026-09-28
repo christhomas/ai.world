@@ -84,4 +84,32 @@ describe('neutral scene graph adapter', () => {
     lit.dispose();
     water.dispose();
   });
+
+  it('moves a water surface from its graph transform without losing sea shader attributes', () => {
+    const graph = new SceneGraph(0x102030);
+    const scene = new THREE.Scene();
+    const lit = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const water = new THREE.MeshBasicMaterial();
+    const bridge = new ThreeGraphBridge(graph, scene, lit, water);
+    const node = {
+      kind: 'mesh' as const, material: 'water' as const, receiveShadow: false, renderOrder: 1,
+      world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1],
+      geometry: {
+        positions: Float32Array.of(0, 0, 0, 1, 0, 0, 0, 0, 1),
+        normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
+        colors: Float32Array.of(1, 0, 0, 1, 0, 0, 1, 0, 0),
+        sea: Float32Array.of(1, 1, 1), flow: Float32Array.of(0, 0, 0),
+      },
+    };
+    const mesh = bridge.add(node);
+    expect(mesh.geometry.getAttribute('sea').array).toBe(node.geometry.sea);
+    node.world[12] = 5;
+    bridge.sync(node);
+    expect(mesh.matrixWorld.elements[12]).toBe(5);
+    graph.camera = { projection: new Array(16).fill(0), world: new Array(16).fill(0), orthographic: true };
+    expect(graph.frame().nodes[0]).toMatchObject({ world: node.world, renderOrder: 1 });
+    bridge.dispose();
+    lit.dispose();
+    water.dispose();
+  });
 });

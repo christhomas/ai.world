@@ -7,8 +7,9 @@ export interface SceneGeometry {
   positions: Float32Array;
   normals: Float32Array;
   colors?: Float32Array;
-  indices?: Uint32Array;
+  indices?: Uint16Array | Uint32Array;
   flow?: Float32Array;
+  sea?: Float32Array;
 }
 
 export type SceneNode =
@@ -20,8 +21,8 @@ export type SceneNode =
       placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
       matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean }
-  | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'water';
-      castShadow?: boolean; receiveShadow: boolean; renderOrder?: number };
+  | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'lit-solid' | 'water'; colour?: number;
+      castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[] };
 
 /** The engine owns these values; a renderer decides how to display them. */
 export class SceneGraph {
@@ -84,9 +85,11 @@ export class SceneGraph {
         return {
           ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,
           receiveShadow: node.receiveShadow,
+          world: node.world ?? IDENTITY,
+          renderOrder: node.renderOrder,
           material: {
             intent: node.material === 'water' ? 'water' as const : 'lit' as const,
-            colour: 0xffffff, emissive: 0, vertexColours: true,
+            colour: node.colour ?? 0xffffff, emissive: 0, vertexColours: node.material !== 'lit-solid',
             transparent: node.material === 'water', opacity: 1, depthWrite: node.material !== 'water',
             side: 'front' as const, effects: [],
           },
@@ -95,6 +98,7 @@ export class SceneGraph {
             normal: { size: 3, values: node.geometry.normals },
             ...(node.geometry.colors ? { color: { size: 3, values: node.geometry.colors } } : {}),
             ...(node.geometry.flow ? { flow: { size: 1, values: node.geometry.flow } } : {}),
+            ...(node.geometry.sea ? { sea: { size: 1, values: node.geometry.sea } } : {}),
           },
           indices: node.geometry.indices,
         };

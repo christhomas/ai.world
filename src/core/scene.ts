@@ -34,6 +34,7 @@ export interface FrameDescription {
     target?: [number, number, number];
     castShadow: boolean;
     receiveShadow: boolean;
+    renderOrder?: number;
     material?: {
       intent: 'lit' | 'unlit' | 'points' | 'water'; colour: number; emissive: number;
       vertexColours: boolean; transparent: boolean; opacity: number;

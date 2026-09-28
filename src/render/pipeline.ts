@@ -126,6 +126,7 @@ export class ThreeFramePipeline implements FramePipeline {
         } else object = new THREE.Mesh(geometry, material);
       } else object = new THREE.Group();
       object.visible = node.visible;
+      object.renderOrder = node.renderOrder ?? 0;
       object.castShadow = node.castShadow;
       object.receiveShadow = node.receiveShadow;
       object.matrixAutoUpdate = false;
