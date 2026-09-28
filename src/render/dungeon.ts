@@ -5,6 +5,7 @@ import type { PropLibrary } from './props';
 import type { DungeonWorld } from '../dungeon/world';
 import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { mountSceneGraph } from './scenegraph';
+import { bindGraphMount } from './graphmount';
 
 const MAX_TORCH_LIGHTS = 10;
 
@@ -52,6 +53,7 @@ export class DungeonScene {
   readonly scene: THREE.Scene;
   readonly heroLight = new THREE.PointLight(0xffc080, 3, 7, 1.6);
   private readonly heroLightNode: Extract<SceneNode, { kind: 'point' }>;
+  private readonly unmountHeroLight: () => void;
   private readonly mounted: ReturnType<typeof mountSceneGraph>;
   private propMeshes: THREE.Object3D[] = [];
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffb040 });
@@ -109,6 +111,10 @@ export class DungeonScene {
     this.heroLightNode = this.graph.add({ kind: 'point', colour: 0xffc080,
       intensity: 3, distance: 7, decay: 1.6, position: [0, 0, 0] }) as Extract<SceneNode, { kind: 'point' }>;
     this.scene.add(this.heroLight);
+    this.unmountHeroLight = bindGraphMount(this.graph, this.heroLightNode, (frame) => {
+      this.heroLight.intensity = frame.intensity ?? 0;
+      this.heroLight.position.set(frame.world[12], frame.world[13], frame.world[14]);
+    });
     this.rebuildProps(opened);
   }
 
@@ -131,6 +137,7 @@ export class DungeonScene {
   }
 
   dispose(): void {
+    this.unmountHeroLight();
     this.mounted.dispose();
     for (const m of this.propMeshes) disposeInstances(m);
     this.glowMaterial.dispose();

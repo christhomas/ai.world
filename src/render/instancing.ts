@@ -6,6 +6,7 @@ import type { ScenePlacement } from '../core/scene';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
 import { PROPS } from '../entities/props';
 import { worldView } from './scene';
+import { bindGraphMount } from './graphmount';
 
 /**
  * One prop to draw: which kind, where, facing where, at what size — and the three small
@@ -129,12 +130,32 @@ export function addPropInstances(
     parent.add(mesh);
 
     const glowGeometry = props.glows.get(kind);
-    if (!glowGeometry) continue;
-    const glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, list.length);
-    glow.instanceMatrix.copy(mesh.instanceMatrix);
-    glow.instanceMatrix.needsUpdate = true;
-    glow.computeBoundingSphere();
-    parent.add(glow);
+    let glow: THREE.InstancedMesh | null = null;
+    if (glowGeometry) {
+      glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, list.length);
+      glow.instanceMatrix.copy(mesh.instanceMatrix);
+      glow.instanceMatrix.needsUpdate = true;
+      glow.computeBoundingSphere();
+      parent.add(glow);
+    }
+    if (graph && node?.kind === 'prop-batch') {
+      mesh.userData.unmount = bindGraphMount(graph, node, (frame) => {
+        const placements = frame.placements ?? [];
+        mesh.count = placements.length;
+        mesh.castShadow = frame.castShadow;
+        mesh.receiveShadow = frame.receiveShadow;
+        placements.forEach((inst, at) => {
+          mesh.setMatrixAt(at, composeInstance(inst, matrix));
+          mesh.setColorAt(at, shadeOf(inst.tint ?? 0.5));
+        });
+        if (placements.length) mesh.instanceMatrix.needsUpdate = true;
+        if (glow) {
+          glow.count = placements.length;
+          glow.instanceMatrix.copy(mesh.instanceMatrix);
+          if (placements.length) glow.instanceMatrix.needsUpdate = true;
+        }
+      });
+    }
   }
 }
 
@@ -173,6 +194,8 @@ interface KindBatch {
   glowGeometry: THREE.BufferGeometry | undefined;
   parts: Map<string, PackedProps>;
   nodes: Map<string, SceneNode>;
+  unmounts: Map<string, () => void>;
+  placements: Map<string, readonly ScenePlacement[]>;
   /** Instances held across every part, which is what the buffer has to be big enough for. */
   total: number;
   mesh: THREE.InstancedMesh | null;
@@ -254,7 +277,8 @@ export class PropBatch {
       if (!batch) {
         batch = {
           geometry, glowGeometry: this.props.glows.get(kind),
-          parts: new Map(), nodes: new Map(), total: 0, mesh: null, glow: null, capacity: 0,
+          parts: new Map(), nodes: new Map(), unmounts: new Map(), placements: new Map(),
+          total: 0, mesh: null, glow: null, capacity: 0,
         };
         this.kinds.set(kind, batch);
       }
@@ -266,7 +290,20 @@ export class PropBatch {
         };
         this.graph.add(node);
         batch.nodes.set(key, node);
+        batch.placements.set(key, node.placements);
         batch.parts.set(key, pack(node.placements as PropInstance[]));
+        batch.unmounts.set(key, bindGraphMount(this.graph, node, (frame) => {
+          const placements = frame.placements ?? [];
+          if (batch.placements.get(key) === placements) return;
+          const previous = batch.parts.get(key)?.count ?? 0;
+          const packed = pack(placements as PropInstance[]);
+          batch.parts.set(key, packed);
+          batch.placements.set(key, placements);
+          batch.total += packed.count - previous;
+          this.dirty = true;
+          if (batch.total === 0) this.drop(batch);
+          else this.update();
+        }));
       } else batch.parts.set(key, pack(list));
       batch.total += list.length;
       this.dirty = true;
@@ -280,6 +317,9 @@ export class PropBatch {
       if (!part) continue;
       batch.parts.delete(key);
       const node = batch.nodes.get(key);
+      batch.unmounts.get(key)?.();
+      batch.unmounts.delete(key);
+      batch.placements.delete(key);
       if (node) this.graph?.remove(node);
       batch.nodes.delete(key);
       batch.total -= part.count;
@@ -377,6 +417,7 @@ export class PropBatch {
 
   dispose(): void {
     for (const batch of this.kinds.values()) {
+      for (const unmount of batch.unmounts.values()) unmount();
       for (const node of batch.nodes.values()) this.graph?.remove(node);
       this.drop(batch);
     }
@@ -398,6 +439,7 @@ export function disposeInstances(parent: THREE.Object3D): void {
     if (!(o instanceof THREE.InstancedMesh)) return;
     const graph = o.userData.graph as SceneGraph | undefined;
     const node = o.userData.graphNode as SceneNode | undefined;
+    (o.userData.unmount as (() => void) | undefined)?.();
     if (graph && node) graph.remove(node);
     o.dispose();
   });

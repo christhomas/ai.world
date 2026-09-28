@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import type { ScenePlacement, ScenePropPart } from '../core/scene';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { bindGraphMount } from './graphmount';
 
 /** One boat definition feeds the live adapter and the portable frame. */
 export const BOAT_PARTS: readonly ScenePropPart[] = [
@@ -16,7 +17,7 @@ export const BOAT_PARTS: readonly ScenePropPart[] = [
   { shape: 'box', size: [0.3, 0.3, 0.3], color: 0x8a6a3e, offset: [-0.6, 0.75, -0.35] },
 ];
 
-export function boatRecord(graph: SceneGraph, visible: boolean): {
+export function boatRecord(graph: SceneGraph, visible: boolean, mesh: THREE.Group): {
   node: Extract<SceneNode, { kind: 'prop-batch' }>; pose: ScenePlacement;
   show(on: boolean): void;
 } {
@@ -24,6 +25,13 @@ export function boatRecord(graph: SceneGraph, visible: boolean): {
   const placements: ScenePlacement[] = visible ? [pose] : [];
   const node = graph.add({ kind: 'prop-batch', parts: BOAT_PARTS, placements,
     castShadow: true, receiveShadow: false }) as Extract<SceneNode, { kind: 'prop-batch' }>;
+  bindGraphMount(graph, node, (frame) => {
+    const at = frame.placements?.[0];
+    mesh.visible = Boolean(at);
+    if (!at) return;
+    mesh.position.set(at.x, at.y, at.z);
+    mesh.rotation.y = at.rot;
+  });
   return { node, pose, show(on) { placements.length = 0; if (on) placements.push(pose); } };
 }
 
@@ -57,7 +65,7 @@ export interface BoatVisual {
 
 export function putBoatIn(scene: THREE.Scene, graph?: SceneGraph): BoatVisual {
   const mesh = buildBoat();
-  const record = graph && boatRecord(graph, false);
+  const record = graph && boatRecord(graph, false, mesh);
   mesh.visible = false;
   scene.add(mesh);
   return {

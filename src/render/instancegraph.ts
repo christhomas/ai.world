@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyInstanceFrame, bindGraphMount } from './graphmount';
+
+const unmounts = new WeakMap<SceneNode, () => void>();
 
 /** Publish an instanced WebGL adapter's shared buffers as neutral frame data. */
 export function recordInstances(graph: SceneGraph, mesh: THREE.InstancedMesh): Extract<SceneNode, { kind: 'instances' }> {
@@ -35,5 +38,12 @@ export function recordInstances(graph: SceneGraph, mesh: THREE.InstancedMesh): E
     },
   };
   graph.add(node);
+  unmounts.set(node, bindGraphMount(graph, node, (frame) => applyInstanceFrame(mesh, frame)));
   return node;
+}
+
+export function retireInstances(graph: SceneGraph, node: Extract<SceneNode, { kind: 'instances' }>): void {
+  unmounts.get(node)?.();
+  unmounts.delete(node);
+  graph.remove(node);
 }

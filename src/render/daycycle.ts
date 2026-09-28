@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { fogReach, type SceneRig } from './scene';
 import { smoothstep } from '../game/state';
 import type { SeasonTint } from '../game/seasons';
+import { bindGraphMount } from './graphmount';
 
 /**
  * How fast a carried fire wavers, in cycles per day.
@@ -99,6 +100,13 @@ export class DayCycle {
     this.dayHemiIntensity = rig.lighting.hemi.intensity;
     this.dayAmbientIntensity = rig.lighting.ambient.intensity;
     rig.scene.add(this.lantern);
+    bindGraphMount(rig.graph, rig.lighting.lantern, (frame) => {
+      this.lantern.color.setHex(frame.colour ?? 0xffffff);
+      this.lantern.intensity = frame.intensity ?? 0;
+      this.lantern.distance = frame.distance ?? 0;
+      this.lantern.decay = frame.decay ?? 2;
+      this.lantern.position.set(frame.world[12], frame.world[13], frame.world[14]);
+    });
   }
 
   /** Call when the options sliders change so the cycle scales the new daytime values. */

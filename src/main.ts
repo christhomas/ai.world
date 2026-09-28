@@ -190,21 +190,9 @@ export function startGame(
   );
   // and whoever is standing about, so the roster can say what each of them is presently doing
   roster.reads(() => register, () => structures.villages.length, entities, () => player);
-  /**
-   * The creatures the world says are there.
-   *
-   * When the simulation owns the wildlife — which it does the moment this client is connected to
-   * one, whether that is a server or the thread next door — the game stops inventing its own and
-   * draws what it is told. Two players in one field then see the same deer, which is the whole of
-   * what phase three of docs/server-authority.md is for.
-   */
+  // Shared-world wildlife comes from the authoritative simulation.
   const wildlife = new Wildlife(entityRenderer, entities, bookOf(register, structures.villages));
-  /**
-   * And the world's creatures on whatever floor the hero is standing on, when he is standing on one.
-   *
-   * A floor is a world of its own with its own monsters and its own numbering, so it gets its own
-   * telling rather than sharing the country's. Null above ground, which is most of the time.
-   */
+  // Dungeon floors own separate creature rosters; null on the surface.
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   const sound = new Sound();
@@ -229,13 +217,7 @@ export function startGame(
     ? `${places.underground.poi.name}:${places.underground.floor}`
     : places.indoors ? places.indoors.title : 'surface';
 
-  /**
-   * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
-   * swinging spends it, holding a guard drains it, and it only comes back when you are doing
-   * neither — so there is now a reason to stop pressing the button.
-   *
-   * Not saved: it refills in seconds, so a save that remembered it would be remembering nothing.
-   */
+  // Combat breath refills quickly, so it is not saved.
   const breath = new Breath();
   const ownBoat = putBoatIn(rig.scene, rig.graph);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
@@ -619,13 +601,7 @@ export function startGame(
     walkedInto: walksIn(register, online),
   });
 
-  /*
-   * The screen, as the game asks for it.
-   *
-   * This is the one place that knows both halves — that "leave whatever I am in" means closing six
-   * particular panels, and that a conversation is a `DialogueBox`. The keyboard is told none of it:
-   * it asks for a journal, and something here knows where the journal is kept.
-   */
+  // The screen coordinates panels and dialogue for input bindings.
   const screen = screenOf({
     hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, roster, playerList, photo, places,
     cutaway,

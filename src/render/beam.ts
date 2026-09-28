@@ -3,6 +3,7 @@ import { mulberry32 } from '../core/rng';
 import { Entity, Herd } from '../entities/entity';
 import type { EntityRenderer } from './entities';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyMeshFrame, bindGraphMount } from './graphmount';
 
 /**
  * Teleporting, made into something you can watch.
@@ -188,6 +189,7 @@ interface Column {
 
 export class Beam {
   private readonly columns: Column[] = [];
+  private readonly unmounts: Array<() => void> = [];
   private readonly shape = new THREE.BoxGeometry(1, 1, 1);
   /** The copy of the hero left behind to come apart where he was standing. */
   private ghost: Entity | null = null;
@@ -232,8 +234,8 @@ export class Beam {
       group.add(shaft, core);
       group.visible = false;
       scene.add(group);
-      const shaftNode = graph && this.describe(SHAFT, SHAFT_COLOUR, SHAFT_OPACITY);
-      const coreNode = graph && this.describe(CORE, CORE_COLOUR, CORE_OPACITY);
+      const shaftNode = graph && this.describe(shaft, SHAFT, SHAFT_COLOUR, SHAFT_OPACITY);
+      const coreNode = graph && this.describe(core, CORE, CORE_COLOUR, CORE_OPACITY);
       this.columns.push({ group, shaft, core, shaftNode, coreNode,
         x: 0, y: 0, z: 0, turn: 0, grown: 1,
         shaftAlpha: SHAFT_OPACITY, coreAlpha: CORE_OPACITY, shown: false,
@@ -241,10 +243,10 @@ export class Beam {
     }
   }
 
-  private describe(half: number, colour: number, opacity: number): Extract<SceneNode, { kind: 'mesh' }> {
+  private describe(mesh: THREE.Mesh, half: number, colour: number, opacity: number): Extract<SceneNode, { kind: 'mesh' }> {
     const position = this.shape.getAttribute('position');
     const normal = this.shape.getAttribute('normal');
-    return this.graph!.add({
+    const node = this.graph!.add({
       kind: 'mesh', material: 'lit-solid', colour, visible: false, receiveShadow: false,
       geometry: {
         positions: position.array as Float32Array, normals: normal.array as Float32Array,
@@ -254,6 +256,8 @@ export class Beam {
       materialState: { intent: 'unlit', transparent: true, opacity, depthWrite: false,
         effects: ['additive-blending'] },
     }) as Extract<SceneNode, { kind: 'mesh' }>;
+    this.unmounts.push(bindGraphMount(this.graph!, node, (frame) => applyMeshFrame(mesh, frame)));
+    return node;
   }
 
   /** Numeric column state is the source for the neutral record and its retained WebGL adapters. */
@@ -440,6 +444,7 @@ export class Beam {
   }
 
   dispose(): void {
+    for (const unmount of this.unmounts) unmount();
     this.clearGhost();
     this.settle();
     for (const column of this.columns) {

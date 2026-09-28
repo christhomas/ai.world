@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { SceneGraph } from '../core/scenegraph';
 import { BOAT_PARTS, putBoatIn } from './boat';
 import { putFerriesOut } from './ferries';
+import { MountedThreePipeline } from './pipeline';
 
 describe('boats in the neutral frame', () => {
   it('uses one part definition and one pose for the live boat and recording', () => {
@@ -28,5 +29,10 @@ describe('boats in the neutral frame', () => {
     const node = graph.nodes[0];
     expect(node.kind === 'prop-batch' && node.placements).toEqual([{ x: -4, y: 2, z: 9, rot: 1.2 }]);
     expect(scene.children[0].rotation.y).toBeCloseTo(1.2);
+    if (node.kind !== 'prop-batch') throw new Error('ferry has no neutral pose');
+    node.placements[0].x = 34;
+    graph.camera = { projection: new THREE.Matrix4().toArray(), world: new THREE.Matrix4().toArray(), orthographic: true };
+    new MountedThreePipeline(scene, () => {}, graph).draw(graph.frame());
+    expect(scene.children[0].position.x).toBe(34);
   });
 });

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { MAELSTROM, maelstromsAround } from '../world/maelstroms';
 import { WORLD } from '../core/config';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
-import { recordInstances } from './instancegraph';
+import { recordInstances, retireInstances } from './instancegraph';
 
 /**
  * What a whirlpool looks like from the deck of a boat.
@@ -116,8 +116,8 @@ export class Swallows {
   }
 
   dispose(): void {
-    if (this.eyeNode) this.graph?.remove(this.eyeNode);
-    if (this.foamNode) this.graph?.remove(this.foamNode);
+    if (this.eyeNode && this.graph) retireInstances(this.graph, this.eyeNode);
+    if (this.foamNode && this.graph) retireInstances(this.graph, this.foamNode);
     for (const mesh of [this.eye, this.foam]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
