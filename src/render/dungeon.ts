@@ -3,7 +3,7 @@ import { buildChunkMesh, type WallCut } from '../world/mesher';
 import { addPropInstances, disposeInstances } from './instancing';
 import type { PropLibrary } from './props';
 import type { DungeonWorld } from '../dungeon/world';
-import { SceneGraph } from '../core/scenegraph';
+import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { mountSceneGraph } from './scenegraph';
 
 const MAX_TORCH_LIGHTS = 10;
@@ -51,6 +51,7 @@ export class DungeonScene {
   readonly graph: SceneGraph;
   readonly scene: THREE.Scene;
   readonly heroLight = new THREE.PointLight(0xffc080, 3, 7, 1.6);
+  private readonly heroLightNode: Extract<SceneNode, { kind: 'point' }>;
   private readonly mounted: ReturnType<typeof mountSceneGraph>;
   private propMeshes: THREE.Object3D[] = [];
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffb040 });
@@ -103,8 +104,21 @@ export class DungeonScene {
     }
     this.mounted = mountSceneGraph(this.graph, waterMaterial);
     this.scene = this.mounted.scene;
+    // The moving hero light is added after mounting; its retained adapter is the same light
+    // used by WebGL, while the neutral point belongs to every submitted dungeon frame.
+    this.heroLightNode = this.graph.add({ kind: 'point', colour: 0xffc080,
+      intensity: 3, distance: 7, decay: 1.6, position: [0, 0, 0] }) as Extract<SceneNode, { kind: 'point' }>;
     this.scene.add(this.heroLight);
     this.rebuildProps(opened);
+  }
+
+  setHeroLight(x: number, y: number, z: number, intensity: number): void {
+    this.heroLightNode.position[0] = x;
+    this.heroLightNode.position[1] = y;
+    this.heroLightNode.position[2] = z;
+    this.heroLightNode.intensity = intensity;
+    this.heroLight.position.set(x, y, z);
+    this.heroLight.intensity = intensity;
   }
 
   /** Instanced torches, stairs and chests; called again when a chest opens. */

@@ -409,8 +409,8 @@ export function createFrame(ctx: Framing) {
     if (below) {
       countFrame(dt);
       // underground: the hero, the monsters, the lights and the HUD tick
-      below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      below.scene.heroLight.intensity = state.can('light') || magic.lit ? 9 : 3;
+      below.scene.setHeroLight(player.x, player.y + 1.5, player.z,
+        state.can('light') || magic.lit ? 9 : 3);
       // The world runs the monsters on a floor, the way it runs the animals in a field, and this
       // side eases them between what it is told. Where there is no world listening, the same
       // manager thinks for them itself: it holds its own monsters rather than guests, and `update`
