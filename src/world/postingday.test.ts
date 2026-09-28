@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POST, theDaysPosts } from './postings';
+import { POST, theDaysPosts, wageForAGuard } from './postings';
 import { THE_HALL_OWNER } from './holdings';
 import type { Person } from './people';
 import type { Settlement } from './settlement';
@@ -108,23 +108,55 @@ describe('the posts a village stands on one morning', () => {
       .toEqual([[GROWN_BY, POST.BUILDER, 0]]);
   });
 
-  /*
-   * And a holding the hall owns pays nobody, exactly as it did not before. `payAndSweep` would
-   * happily take the wage out of the hall's purse now that the paying goes through it — which would
-   * be a change to *what* happens on the same morning as a change to *where*. Whether the hall
-   * should pay for a man on its own farm is a question for its own issue.
-   */
-  it('leaves a hall-owned holding paying nobody, as it did before', () => {
+  it('pays a hall-owned yard crew from the treasury and records the same transfer', () => {
     const bob = who('bob', 'builder');
     const book = aBook();
+    const here = village([bob], THE_HALL_OWNER);
 
-    theDaysPosts(village([bob], THE_HALL_OWNER), () => 0, GROWN_BY, book);
+    theDaysPosts(here, () => 0, GROWN_BY, book);
+
+    expect(bob.purse).toBe(500 + POST.BUILDER);
+    expect(here.get('Ashford')!.hall.purse).toBe(1000 - POST.BUILDER);
+    expect(moved(book, 'bob')).toBe(POST.BUILDER);
+    expect(moved(book, THE_HALL_OWNER)).toBe(-POST.BUILDER);
+    expect(book.on('y1').map((fact) => [fact.funder, fact.paid]))
+      .toEqual([[THE_HALL_OWNER, POST.BUILDER]]);
+  });
+
+  it('does not hire a crew for a hall that cannot afford one', () => {
+    const bob = who('bob', 'builder');
+    const book = aBook();
+    const here = village([bob], THE_HALL_OWNER);
+    here.get('Ashford')!.hall.purse = 0;
+
+    theDaysPosts(here, () => 0, GROWN_BY, book);
 
     expect(bob.purse).toBe(500);
-    expect(moved(book, 'bob')).toBe(0);
-    // and nothing is written down either, because no post was stood: `postsToday` looks the owner
-    // up on the roll to see what he can lay out, and the hall is not on it
-    expect(book.on('y1'), 'the hall stood a post').toEqual([]);
+    expect(book.on('y1')).toEqual([]);
+  });
+
+  it('shares one daily treasury budget across hall-owned guards and yards', () => {
+    const soldier = who('soldier', 'soldier');
+    const builder = who('builder', 'builder');
+    const here = new Map<string, Settlement>([['Ashford', {
+      people: [soldier, builder],
+      holdings: [
+        { id: 'f1', kind: 'farm', owner: THE_HALL_OWNER, worker: 'builder', founded: 1 },
+        { id: 'y1', kind: 'yard', owner: THE_HALL_OWNER, worker: 'builder', founded: 1 },
+      ],
+      hall: { id: THE_HALL_OWNER, purse: 100 },
+    } as unknown as Settlement]]);
+    const book = aBook();
+
+    const posts = theDaysPosts(here, () => 1, GROWN_BY, book).get('Ashford') ?? [];
+
+    expect(posts.map((post) => post.kind)).toEqual(['guard']);
+    expect(soldier.purse).toBe(500 + wageForAGuard(1));
+    expect(builder.purse).toBe(500);
+    expect(here.get('Ashford')!.hall.purse).toBe(100 - wageForAGuard(1));
+    expect(book.on('f1').map((fact) => [fact.funder, fact.paid]))
+      .toEqual([[THE_HALL_OWNER, wageForAGuard(1)]]);
+    expect(book.on('y1')).toEqual([]);
   });
 
   /*
