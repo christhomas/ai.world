@@ -3,7 +3,7 @@ import { WORLD } from '../core/config';
 import { rangesAsMassifs } from '../world/ranges';
 import { buildSkyIsland, planSkyIslands, type SkyIsland } from '../world/skyisland';
 import { skyGroundsIn } from '../world/skygrounds';
-import { planEyries, type Eyrie } from './eyries';
+import { EYRIE, planEyries, type Eyrie } from './eyries';
 import { layTheCarcass, nestsOn, type Bait } from './baiting';
 import type { Anchor, Manifest } from '../world/manifest';
 import type { Massif } from '../world/mountains';
@@ -141,8 +141,33 @@ export class HighCountry {
 
   /** Apply the shared world's accepted nest state without rolling bait again. */
   applyBaited(anchor: Anchor, present: boolean): void {
-    if (present) this.manifest.anchors.set(anchor.id, anchor);
-    else this.manifest.anchors.delete(anchor.id);
+    this.setBaited(anchor.id, present ? anchor : null);
+  }
+
+  /** Only a nest someone baited may be taken down; planned crags are part of the country. */
+  baitedAt(x: number, z: number): Anchor | null {
+    return this.manifest.byKind('eyrie').find((anchor) =>
+      Math.hypot(anchor.x - x, anchor.z - z) <= EYRIE.REACH) ?? null;
+  }
+
+  /** Take down a nearby baited nest locally; the server's reply settles its final state. */
+  removeBaitedAt(x: number, z: number): Anchor | null {
+    const anchor = this.baitedAt(x, z);
+    if (anchor) this.setBaited(anchor.id, null);
+    return anchor;
+  }
+
+  /** Set one nest to the state returned after this page's report. */
+  setBaited(id: string, anchor: Anchor | null): void {
+    if (anchor) this.manifest.anchors.set(id, anchor);
+    else this.manifest.anchors.delete(id);
+    this.perchesBaited();
+  }
+
+  /** A remote welcome is a complete snapshot, including nests absent from its delta log. */
+  reconcileBaited(anchors: readonly Anchor[]): void {
+    for (const old of this.manifest.byKind('eyrie')) this.manifest.anchors.delete(old.id);
+    for (const anchor of anchors) this.manifest.anchors.set(anchor.id, anchor);
     this.perchesBaited();
   }
 
