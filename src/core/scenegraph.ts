@@ -74,12 +74,12 @@ export class SceneGraph {
             vertexColours: false, transparent: false, opacity: 1, depthWrite: true,
             side: 'front' as const, effects: [] },
           attributes: {
-            position: { size: 3, values: Array.from(node.geometry.positions) },
-            normal: { size: 3, values: Array.from(node.geometry.normals) },
+            position: { size: 3, values: node.geometry.positions },
+            normal: { size: 3, values: node.geometry.normals },
           },
-          indices: node.geometry.indices ? Array.from(node.geometry.indices) : undefined,
-          instanceMatrices: Array.from(node.matrices.subarray(0, node.count * 16)),
-          instanceColours: node.colours ? Array.from(node.colours.subarray(0, node.count * 3)) : undefined,
+          indices: node.geometry.indices,
+          instanceMatrices: node.matrices.subarray(0, node.count * 16),
+          instanceColours: node.colours?.subarray(0, node.count * 3),
         };
         return {
           ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,
@@ -91,12 +91,12 @@ export class SceneGraph {
             side: 'front' as const, effects: [],
           },
           attributes: {
-            position: { size: 3, values: Array.from(node.geometry.positions) },
-            normal: { size: 3, values: Array.from(node.geometry.normals) },
-            ...(node.geometry.colors ? { color: { size: 3, values: Array.from(node.geometry.colors) } } : {}),
-            ...(node.geometry.flow ? { flow: { size: 1, values: Array.from(node.geometry.flow) } } : {}),
+            position: { size: 3, values: node.geometry.positions },
+            normal: { size: 3, values: node.geometry.normals },
+            ...(node.geometry.colors ? { color: { size: 3, values: node.geometry.colors } } : {}),
+            ...(node.geometry.flow ? { flow: { size: 1, values: node.geometry.flow } } : {}),
           },
-          indices: node.geometry.indices ? Array.from(node.geometry.indices) : undefined,
+          indices: node.geometry.indices,
         };
       }),
     };

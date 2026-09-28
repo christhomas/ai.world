@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { SceneGraph } from '../core/scenegraph';
 import { RecordingPipeline } from './recording';
-import { ThreeFramePipeline, submitGraphFrame } from './pipeline';
+import { MountedThreePipeline, ThreeFramePipeline, submitGraphFrame } from './pipeline';
 import { EntityRenderer } from './entities';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
@@ -29,7 +29,7 @@ describe('engine-owned frame submission', () => {
 
     const frame = submitGraphFrame(graph, [recording, webgl]);
 
-    expect(recording.last).toBe(frame);
+    expect(recording.last).toEqual(frame);
     expect(render).toHaveBeenCalledOnce();
     const [scene, drawnCamera] = render.mock.calls[0] as [THREE.Scene, THREE.Camera];
     expect(scene.background).toBeInstanceOf(THREE.Color);
@@ -38,6 +38,34 @@ describe('engine-owned frame submission', () => {
     expect((scene.children[0] as THREE.AmbientLight).intensity).toBe(0.75);
     expect(drawnCamera.projectionMatrix.toArray()).toEqual(frame.camera.projection);
     expect(drawnCamera.matrixWorld.toArray()).toEqual(frame.camera.world);
+  });
+
+  it('passes large geometry through without copying it for each frame', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const positions = Float32Array.of(0, 0, 0, 1, 0, 0, 0, 0, 1);
+    graph.add({ kind: 'mesh', material: 'lit-vertex-colours', receiveShadow: true,
+      geometry: { positions, normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
+        colors: Float32Array.of(1, 0, 0, 0, 1, 0, 0, 0, 1) } });
+    expect(graph.frame().nodes[0].attributes?.position.values).toBe(positions);
+    expect(graph.frame().nodes[0].attributes?.position.values).toBe(positions);
+  });
+
+  it('submits the graph frame to the live mount with its numeric camera', () => {
+    const graph = new SceneGraph(0x1f3245);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const draw = vi.fn();
+    const mounted = new MountedThreePipeline(scene, draw);
+    const recording = new RecordingPipeline();
+    recording.captureNext();
+    const frame = submitGraphFrame(graph, [mounted, recording]);
+    const [drawnScene, drawnCamera] = draw.mock.calls[0] as [THREE.Scene, THREE.Camera];
+    expect(drawnScene).toBe(scene);
+    expect((scene.background as THREE.Color).getHex()).toBe(frame.background);
+    expect(drawnCamera.matrixWorld.toArray()).toEqual(frame.camera.world);
+    expect(drawnCamera.projectionMatrix.toArray()).toEqual(frame.camera.projection);
+    expect(recording.last).toEqual(frame);
   });
 
   it('records and draws the same instanced prop description', () => {
@@ -54,7 +82,7 @@ describe('engine-owned frame submission', () => {
     const render = vi.fn();
     const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
     const frame = submitGraphFrame(graph, [recorder, webgl]);
-    expect(recorder.last).toBe(frame);
+    expect(recorder.last).toEqual(frame);
     expect(frame.nodes[0].parts).toBe(parts);
     expect(frame.nodes[0].placements).toBe(placements);
     const [scene] = render.mock.calls[0] as [THREE.Scene, THREE.Camera];
@@ -90,7 +118,7 @@ describe('engine-owned frame submission', () => {
     const render = vi.fn();
     const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
     const frame = submitGraphFrame(graph, [recorder, webgl]);
-    expect(recorder.last).toBe(frame);
+    expect(recorder.last).toEqual(frame);
     expect(frame.nodes.filter((node) => node.kind === 'instances')
       .reduce((total, node) => total + (node.instanceMatrices?.length ?? 0) / 16, 0))
       .toBeGreaterThan(0);
