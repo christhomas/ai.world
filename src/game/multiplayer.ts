@@ -168,6 +168,8 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
+    onEyries: (anchors) => { high.reconcileBaited(anchors); state.version++; persist(); },
+    onEyrieState: (id, anchor) => { high.setBaited(id, anchor); state.version++; persist(); },
     onHoldingDays: (rows) => { register.holdingsBook.restore(rows); state.version++; },
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),

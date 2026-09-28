@@ -3,7 +3,7 @@ import { composerFor, worthAComposer } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
 import { SceneGraph, type SceneGeometry, type SceneNode } from '../core/scenegraph';
-import { CoastField } from './coastfield';
+import { CoastField, COAST } from './coastfield';
 import { WaterMaterial } from './water';
 import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
@@ -408,6 +408,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   // the dark "deep" plane underneath makes open water read as depth.
   const waterMat = new WaterMaterial();
   const coast = new CoastField();
+  graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, values: coast.samples };
   const coastArea = new THREE.Vector4();
   waterMat.setCoast(coast.texture, coast.area(coastArea));
   const seaGeo = new THREE.PlaneGeometry(900, 900, 1, 1).rotateX(-Math.PI / 2);
@@ -509,6 +510,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     },
     seaAround(x, z, source) {
       if (coast.update(x, z, source, performance.now())) {
+        graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, values: coast.samples };
         waterMat.setCoast(coast.texture, coast.area(coastArea));
       }
     },
@@ -539,15 +541,18 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     },
     draw(what, camera) {
       what.camera = camera.frameCamera();
-      let pipeline = mountedPipelines.get(what);
-      if (!pipeline) {
-        pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
-          if (second) second.draw(mountedScene, mountedCamera);
-          else renderer.render(mountedScene, mountedCamera);
-        }, what);
-        mountedPipelines.set(what, pipeline);
+      const sinks: FramePipeline[] = [];
+      if (!new URLSearchParams(location.search).has('record-only')) {
+        let pipeline = mountedPipelines.get(what);
+        if (!pipeline) {
+          pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
+            if (second) second.draw(mountedScene, mountedCamera);
+            else renderer.render(mountedScene, mountedCamera);
+          }, what);
+          mountedPipelines.set(what, pipeline);
+        }
+        sinks.push(pipeline);
       }
-      const sinks: FramePipeline[] = [pipeline];
       if (recording) sinks.push({ draw: (frame) => recording.draw(() => frame) });
       submitGraphFrame(what, sinks);
     },

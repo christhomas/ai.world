@@ -296,7 +296,7 @@ export function createFrame(ctx: Framing) {
     rock.lookAt(heroSpot, iso);
     // and the same hole in whatever is standing in front of him — a cottage, a wall, a wood —
     // when he has asked for one. It costs a uniform whether it is on or off
-    cutaway.lookAt(heroSpot, iso);
+    cutaway.lookAt(heroSpot, iso, rig.graph);
 
     /*
      * Whoever is behind a counter watches whoever is standing at it.

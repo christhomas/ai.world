@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { MountainMaterial, Mountains, buildMountainMesh } from './mountains';
 import type { Ranges } from '../world/ranges';
 import { SceneGraph } from '../core/scenegraph';
-import { MountedThreePipeline, ThreeFramePipeline } from './pipeline';
+import { MountedThreePipeline } from './pipeline';
+import { ThreeFramePipeline } from './three-frame.test.support';
 
 /**
  * The rock standing in the scene, when which rock that is can change.

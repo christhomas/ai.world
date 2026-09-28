@@ -94,7 +94,8 @@ export function startGame(
    * would ever be adjusted for anybody.
    */
   const qualityWasChosen = everChoseQuality();
-  const recording = new URLSearchParams(location.search).has('record-scene') ? new RecordingPipeline() : undefined;
+  const sceneFlags = new URLSearchParams(location.search);
+  const recording = sceneFlags.has('record-scene') || sceneFlags.has('record-only') ? new RecordingPipeline() : undefined;
   if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
   const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);
@@ -620,7 +621,7 @@ export function startGame(
     const drawLineage = (village: string): void => kinPanel.show(...lineageDrawing(register, village, state.day));
     whereLineageIsDrawn(drawLineage);
     installProbes({ endless, grower,
-      seed, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
+      seed, manifest, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
       commandWorld, placeName, walking, wildlife, bites, doorsteps, streamTally, mount, drawLineage, wing: air,
