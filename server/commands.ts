@@ -89,6 +89,8 @@ export const COMMANDS: Record<string, CommandSpec> = {
     [rest('like', true)], true),
   places: spec('places', 'List everything with a name on it: a word narrows it to a name, a kind, or a country',
     [rest('like', true)], true),
+  carts: spec('carts', 'Show any loaded cart and where it is now', [], true),
+  'rob-cart': spec('rob-cart', 'Rob the cart when you are within four tiles of it'),
   descend: spec('descend', 'Go down the stairs of the place you are standing in'),
   'climb-out': spec('climb-out', 'Leave the underground for the surface'),
   'enter-shrine': spec('enter-shrine', 'Step into the nearest shrine'),
