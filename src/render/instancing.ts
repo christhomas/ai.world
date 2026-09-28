@@ -41,7 +41,7 @@ const UP = new THREE.Vector3(0, 1, 0);
  * draw call. A tree or a boulder plainly casts one; a flower, a tuft of grass or a pebble drops
  * a shadow nobody can see, and the shadow pass is the most expensive half of a frame.
  *
- * The same rule creatures use for their parts, in `entities/pool.ts`, at their own scale.
+ * The same rule creatures use for their parts, in `render/entities.ts`, at their own scale.
  */
 const SHADOW_VOLUME = 0.5;
 

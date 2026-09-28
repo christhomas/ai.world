@@ -21,7 +21,7 @@ import { box, cone, cyl, dodec, footprintOf, ico, prism, type PropPart } from '.
 /**
  * Everything that stands on the ground: what it is made of, and how much room it takes up.
  *
- * This was a list of `THREE` primitives, and everything about it was right except where it left
+ * This was a list of renderer primitives, and everything about it was right except where it left
  * the answer to "how big is a house". That answer had to be measured off a mesh, so the only way
  * to know it was to build one — and the world server, which draws nothing and has never opened a
  * canvas, carried a 3D library into its container image for the sake of measuring a cottage.

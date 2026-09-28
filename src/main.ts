@@ -13,7 +13,7 @@ import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
 import { bookOf, tellingTheWorld, wordOfARobbery } from './game/folk';
 import { Skies } from './game/skies';
-import { buildBoat } from './render/boat';
+import { putBoatIn } from './render/boat';
 import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
@@ -51,7 +51,7 @@ import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
-import { EntityRenderer } from './entities/pool';
+import { EntityRenderer } from './render/entities';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
@@ -76,7 +76,10 @@ import { Swallows } from './render/swallows';
 import { Shafts } from './render/shafts';
 import { createWaysIn } from './game/waysin';
 import { openCountry } from './game/shafts';
-import { putFerriesOut } from './game/ferry';
+import { putFerriesOut } from './render/ferries';
+import { WhaleSchool } from './render/whales';
+import { CampField } from './render/wildcamps';
+import { RecordingPipeline } from './render/recording';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
 import { createFrame } from './game/frame';
@@ -103,7 +106,9 @@ export function startGame(
    * would ever be adjusted for anybody.
    */
   const qualityWasChosen = everChoseQuality();
-  const rig = createSceneRig($('gameContainer'), isOn('composer'));
+  const recording = new URLSearchParams(location.search).has('record-scene') ? new RecordingPipeline() : undefined;
+  if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
+  const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);
   const iso = new IsoCamera();
   const input = new Input(rig.canvas);
@@ -231,9 +236,7 @@ export function startGame(
    * Not saved: it refills in seconds, so a save that remembered it would be remembering nothing.
    */
   const breath = new Breath();
-  const ownBoat = buildBoat();
-  ownBoat.visible = false;
-  rig.scene.add(ownBoat);
+  const ownBoat = putBoatIn(rig.scene);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
   // and on the same sites, the houses the villages built themselves — and, out of the same book and
@@ -379,7 +382,7 @@ export function startGame(
   let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
     register, hires,
-    player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso.camera,
+    player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso,
     dialogue, hud, chat, sound, questList, discovered, high, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
@@ -582,7 +585,7 @@ export function startGame(
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
-    scene: rig.scene,
+    school: new WhaleSchool(rig.scene), campField: new CampField(rig.scene),
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     knockOut,

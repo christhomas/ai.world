@@ -25,7 +25,7 @@ import { describe, expect, it } from 'vitest';
  * The road world never saw it because it has no patchwork, so the branch never ran.
  */
 describe('the order a chunk job is started in', () => {
-  const source = readFileSync('src/world/chunkManager.ts', 'utf8');
+  const source = readFileSync('src/render/chunkManager.ts', 'utf8');
   const pump = source.slice(source.indexOf('private pump()'), source.indexOf('private pump()') + 4000);
 
   it('asks whether the patch is grown before it takes anything', () => {

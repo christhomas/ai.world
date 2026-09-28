@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Player } from './player';
 import type { Input } from '../core/input';
 import type { IsoCamera } from '../render/camera';
-import type { EntityRenderer } from './pool';
+import type { EntityRenderer } from '../render/entities';
 import type { TileWorld } from '../world/tiles';
 
 /**

@@ -1,4 +1,4 @@
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import { ChunkStore, browserKeep } from '../world/chunkstore';
 import { packChunk, unpackChunk, worldStamp } from '../world/chunkparcel';
 import type { TerrainSampler } from '../world/terrain';

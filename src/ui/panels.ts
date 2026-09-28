@@ -1,6 +1,5 @@
 import { Roster } from './roster';
 import { rememberCutaway } from '../render/cutaway';
-import type * as THREE from 'three';
 import type { Screen } from '../game/screen';
 import type { Places } from '../game/places';
 import type { Chat } from './chat';
