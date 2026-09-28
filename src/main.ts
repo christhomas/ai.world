@@ -200,7 +200,7 @@ export function startGame(
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   const sound = new Sound();
-  const weather = new Weather(rig.scene);
+  const weather = new Weather(rig.scene, seed);
   const fishing = new Fishing();
   const journal = new Journal();
   const clock = new Clock();
