@@ -378,7 +378,7 @@ export function startGame(
   const multiplayer = createMultiplayer({
     register, hires,
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso.camera,
-    dialogue, hud, chat, sound, questList, discovered, seed,
+    dialogue, hud, chat, sound, questList, discovered, high, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
     ...heeding,

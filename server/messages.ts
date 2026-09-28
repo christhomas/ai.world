@@ -17,6 +17,7 @@ import { callTownVote } from './voting';
 import { cartActionPosition, cartGuarded, robLoadedCart } from './cartrobbery';
 import { carrierOnRoad } from './carrieractor';
 import type { CartLoaded } from '../src/world/carrierbook';
+import { mayChangeEyrie } from './eyries';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -758,6 +759,8 @@ function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessag
   // a change that has a command of its own cannot also be announced as a fact, or the command is a
   // suggestion rather than a check: see `mayReport`
   if (!mayReport(delta)) return;
+  if (delta.kind === 'eyrie' && (me.presence.place !== 'surface'
+    || !mayChangeEyrie(room.world.manifest, me.hero ?? me.presence, delta))) return;
   if (!room.world.apply(delta)) return;
   /*
    * A death is not only a row in a log any more.

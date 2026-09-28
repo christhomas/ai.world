@@ -18,7 +18,7 @@ import type { Surroundings } from './context';
  */
 export function campInteractions(ctx: Surroundings) {
   const {
-    player, state, structures, sampler, sailing, dialogue, hud, sound, seed, high, persist,
+    player, state, structures, sampler, sailing, dialogue, hud, sound, seed, high, online, persist,
   } = ctx;
 
   /**
@@ -63,6 +63,7 @@ export function campInteractions(ctx: Surroundings) {
     const laid = high.bait(body.x, body.z, state.day, tilesToVillage(structures.villages, body.x, body.z));
     carcasses.leaveIt(body);
     if (laid.nest) {
+      online.report({ kind: 'eyrie', anchor: laid.nest, present: true });
       sound.chime();
       state.version++;
       // the nest is a told fact from here on, so the save has to have it before anything else can
