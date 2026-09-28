@@ -27,7 +27,7 @@
  * hour is not a reason to lose the other twenty pictures.
  */
 const { chromium } = require('playwright');
-const { spawn } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -98,7 +98,7 @@ const origin = `http://localhost:${PORT}`;
 /** The shape of the pictures in the README: wide enough to show a street, short enough to scroll past. */
 const VIEW = { width: 1440, height: 900 };
 /** Hide transient capture clutter without changing the running page or the rest of its HUD. */
-const CLEAN_FRAME = '#areaName, #toast, #debug { visibility: hidden !important; }';
+const CLEAN_FRAME = '#areaName, #toast, #debug, #buildLine { visibility: hidden !important; }';
 /** A phone held upright, for the one shot that is about the touch controls. */
 /*
  * A phone, at the size the design is drawn at.
@@ -602,7 +602,7 @@ const SHOTS = [
   },
   {
     name: 'phone-title', title: 'The title screen on a phone', viewport: PHONE, touch: true,
-    page: '/',
+    page: '/', cleanFrame: true,
     setup: async () => 'the three slots, before a world is opened',
   },
   {
@@ -724,7 +724,10 @@ const startWorld = async () => {
     catch { return false; }
   };
   if (await answers()) throw new Error(`something is already on port ${WORLD_PORT} — set WORLD_PORT`);
-  serving = spawn('pnpm', ['tsx', 'server/index.ts'], {
+  // The server imports portal HTML through Vite's ?raw loader. Build the same bundle used by the
+  // published image; tsx cannot load that import when a shared or Domesday shot needs a server.
+  execFileSync('pnpm', ['exec', 'vite', 'build', '--config', 'server/build.config.ts'], { stdio: 'inherit' });
+  serving = spawn('node', ['server/dist/server.mjs'], {
     detached: true, stdio: ['ignore', 'ignore', 'inherit'],
     // its own worlds, thrown away with the directory: a screenshot must never be taken of, or write
     // to, the worlds somebody is actually playing

@@ -54,6 +54,8 @@ and stay out of the way of a mouse — `?touch=1` and `?touch=0` settle any argu
 Three save slots on the title screen. Give a new world a name; open **Choose a seed** only when you
 want a particular number underneath it. Old `?seed=123` links and saves still open unchanged.
 
+![The title screen on a phone](docs/screenshots/phone-title.png)
+
 ---
 
 ## What is out there
@@ -215,6 +217,8 @@ searched once for salvage.
 ### The map
 
 ![The full-screen map](docs/screenshots/map.png)
+
+This reference shows the road country at seed 3, captured by `node tools/shots.cjs map`.
 
 Towns are always named. Landmarks, caves and wrecks are named once you have found them, ferries
 show live, and your errand is ringed in green. The fog lifts as you walk, or all at once if you
