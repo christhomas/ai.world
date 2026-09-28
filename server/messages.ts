@@ -14,7 +14,9 @@ import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
 import { callTownVote } from './voting';
-import { robLoadedCart } from './cartrobbery';
+import { cartGuarded, robLoadedCart } from './cartrobbery';
+import { carrierOnRoad } from './carrieractor';
+import type { CartLoaded } from '../src/world/carrierbook';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -61,6 +63,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'rob-cart':
       robTheCart(rooms, me, room, message);
+      return;
+    case 'escort-cart':
+      escortTheCart(rooms, me, room, message);
       return;
     case 'arrive':
       walkIntoTheVillage(rooms, me, room, message);
@@ -615,12 +620,40 @@ function robTheCart(
 ): void {
   const world = me.standingIn === 'surface' ? rooms.worldOf(me.seed, 'surface') : null;
   const register = world?.register;
-  const robbed = register && me.hero && robLoadedCart(
+  const load = register?.carrierFacts().find((fact): fact is CartLoaded =>
+    fact.kind === 'cart-loaded' && fact.day === message.loadedOn);
+  const from = world?.villages.find((village) => village.name === load?.from);
+  const ground = rooms.groundOf(me.seed);
+  const carrier = register && ground instanceof GroundWorld
+    ? carrierOnRoad(register, world.villages, ground, Math.floor(room.world.clock.day), room.world.clock.time) : null;
+  const guarded = cartGuarded(room.clients, me, message.loadedOn, carrier);
+  const robbed = !guarded && register && me.hero && robLoadedCart(
     register, Math.floor(room.world.clock.day), room.world.clock.time,
     me.hero, world.villages, message.loadedOn, (fact) => room.world.apply(fact),
+    from && ground instanceof GroundWorld ? ground.roadGraphAt(from.x, from.z) : undefined,
+    me.presence.name,
   );
   if (robbed) rooms.broadcast(me.seed, { type: 'delta', delta: robbed, from: '' });
   rooms.send(me, { type: 'cart-robbed', loadedOn: message.loadedOn, ok: !!robbed });
+}
+
+function escortTheCart(
+  rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'escort-cart' }>,
+): void {
+  if (me.escortingCart === message.loadedOn) {
+    me.escortingCart = null;
+    rooms.send(me, { type: 'cart-escorted', loadedOn: message.loadedOn, ok: true, escorting: false });
+    return;
+  }
+  const world = me.standingIn === 'surface' ? rooms.worldOf(me.seed, 'surface') : null;
+  const ground = rooms.groundOf(me.seed);
+  const carrier = world?.register && ground instanceof GroundWorld
+    ? carrierOnRoad(world.register, world.villages, ground,
+      Math.floor(room.world.clock.day), room.world.clock.time) : null;
+  const ok = !!(carrier && me.hero && message.loadedOn === Math.floor(room.world.clock.day)
+    && Math.hypot(me.hero.x - carrier.x, me.hero.z - carrier.z) <= 4);
+  if (ok) me.escortingCart = message.loadedOn;
+  rooms.send(me, { type: 'cart-escorted', loadedOn: message.loadedOn, ok, escorting: ok });
 }
 
 /**
