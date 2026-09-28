@@ -47,7 +47,7 @@ describe('a player robbing an in-flight cart', () => {
     expect(written).toEqual([robbed]);
     expect(forward.larderOf(FROM)).toBeCloseTo(before.larderOf(FROM) - loaded.meals);
     expect(state(forward, TO)).toEqual(state(before, TO));
-    expect(forward.living(FROM).map((p) => p.purse)).toEqual(before.living(FROM).map((p) => p.purse));
+    expect({ ...state(forward, FROM), food: state(before, FROM).food }).toEqual(state(before, FROM));
     expect(forward.carrierFacts()).toEqual([loaded, robbed]);
 
     const replay = world();
