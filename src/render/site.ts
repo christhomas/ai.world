@@ -4,6 +4,7 @@ import { CIVICS } from '../world/civics';
 import { addPropInstances, disposeInstances } from './instancing';
 import type { PropLibrary } from './props';
 import { WORLD } from '../core/config';
+import type { SceneGraph } from '../core/scenegraph';
 
 /**
  * How far a building site can be from the hero before it stops being drawn.
@@ -194,7 +195,8 @@ export class BuildingSite {
   private readonly group = new THREE.Group();
   private signature = '';
 
-  constructor(scene: THREE.Object3D, private readonly props: PropLibrary, private readonly glowMaterial: THREE.Material) {
+  constructor(scene: THREE.Object3D, private readonly props: PropLibrary,
+    private readonly glowMaterial: THREE.Material, private readonly graph?: SceneGraph) {
     scene.add(this.group);
   }
 
@@ -208,8 +210,8 @@ export class BuildingSite {
     if (signature === this.signature) return;
     this.signature = signature;
 
-    this.group.clear();
     disposeInstances(this.group);
+    this.group.clear();
     addPropInstances(
       this.group, this.props,
       near.map(({ site, kind }) => ({
@@ -220,6 +222,8 @@ export class BuildingSite {
         rot: site.rot ?? 0,
       })),
       this.glowMaterial,
+      true,
+      this.graph,
     );
   }
 

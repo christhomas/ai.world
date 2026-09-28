@@ -112,7 +112,7 @@ export class DungeonScene {
     for (const m of this.propMeshes) { this.scene.remove(m); disposeInstances(m); }
     this.propMeshes = [];
     const before = this.scene.children.length;
-    addPropInstances(this.scene, this.props, this.world.props(opened), this.glowMaterial);
+    addPropInstances(this.scene, this.props, this.world.props(opened), this.glowMaterial, true, this.graph);
     this.propMeshes = this.scene.children.slice(before);
   }
 

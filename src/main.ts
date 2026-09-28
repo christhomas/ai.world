@@ -254,8 +254,8 @@ export function startGame(
    */
   const breath = new Breath();
   const ownBoat = putBoatIn(rig.scene);
-  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
-  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
+  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
+  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial, rig.graph);
   // and on the same sites, the houses the villages built themselves — and, out of the same book and
   // on the same day, the acres they cleared to fields: `game/villageroofs.ts` owns both, because
   // this file is assembly and a feature that needs six lines of it is wired in the wrong place

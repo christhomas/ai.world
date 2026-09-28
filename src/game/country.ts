@@ -210,7 +210,7 @@ export function growCountry(ctx: Growing) {
    * wrong without it, which is the mountains' own failure one layer up — islands over country
    * behind you, and crags that are not there.
    */
-  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
+  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial, rig.graph);
   skyRenderer.useSeasonTint(seasonTintMaterials);
   const high = new HighCountry(seed, manifest, skyRenderer);
   high.standOn(sampler);

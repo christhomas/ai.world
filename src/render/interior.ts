@@ -51,6 +51,8 @@ export class InteriorScene {
       this.scene, props,
       map.furniture.map((f) => ({ kind: f.kind, x: f.x + 0.5, y: FLOOR_Y, z: f.z + 0.5, rot: f.rot })),
       this.glowMaterial,
+      true,
+      this.graph,
     );
   }
 
