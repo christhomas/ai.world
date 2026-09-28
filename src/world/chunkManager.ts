@@ -469,9 +469,10 @@ export class ChunkManager implements TileWorld, ChunkSource {
     const far = Math.max(Math.abs(msg.cx - this.focusCx), Math.abs(msg.cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) { this.pump(); return; }
 
-    // ground drawn over: whatever was there stops being this page's own opinion
+    // Ground drawn over must leave the scene as well as the loaded map. Keeping its group behind
+    // draws two coplanar terrains with different z-buffer wins on each capture and leaks draw calls.
     const before = this.loaded.get(k);
-    if (before?.grown) this.grown--;
+    if (before) this.unload(k, before);
     if (msg.grown) this.grown++;
     /*
      * And if the world's own ground turned up while this was being drawn, draw it again.

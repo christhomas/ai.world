@@ -716,15 +716,22 @@ const SHOTS = [
         await time(phase);
         await key('Enter');
         try {
+          await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('show'),
+            null, { timeout: 5_000 });
+        } catch (error) {
+          throw new Error(`sea: no pier dialogue at phase ${phase}: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
+        }
+        const speaker = await p.locator('.dlg-them .dlg-name').textContent();
+        if (speaker === 'Ferryman') { await key('Escape'); continue; }
+        if (speaker !== 'Timetable') throw new Error(`sea: expected pier timetable or ferryman at ${phase}, got ${speaker}`);
+        try {
           await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'),
             null, { timeout: 15_000 });
         } catch (error) {
-          throw new Error(`sea: no pier choices at phase ${phase}: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
+          throw new Error(`sea: no timetable choices at phase ${phase}: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
         }
-        const speaker = await p.locator('.dlg-them .dlg-name').textContent();
-        if (speaker === 'Timetable') { timetable = true; break; }
-        if (speaker !== 'Ferryman') throw new Error(`sea: expected pier timetable or ferryman at ${phase}, got ${speaker}`);
-        await key('Escape');
+        timetable = true;
+        break;
       }
       if (!timetable) throw new Error('sea: ferry remained docked through every fixed timetable phase');
       await key('Enter');                           // ask after a boat of your own
