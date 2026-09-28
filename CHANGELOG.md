@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.102.5 — 2026-09-28
+
+Fix HTTPS redirect loops behind proxy chains
+
 ## v0.102.4 — 2026-09-27
 
 portable hosting setup and proxy scheme detection
