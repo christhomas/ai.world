@@ -96,7 +96,8 @@ function cellKey(cx: number, cz: number): number {
  * order it was handed.
  */
 export function inOrder(layers: readonly Highland[]): Highland[] {
-  return [...layers].sort((a, b) => a.x - b.x || a.z - b.z || a.reach - b.reach || a.lift - b.lift);
+  return [...layers].sort((a, b) => a.x - b.x || a.z - b.z || a.reach - b.reach || a.lift - b.lift
+    || (a.roughness ?? 0) - (b.roughness ?? 0) || (a.seed ?? 0) - (b.seed ?? 0));
 }
 
 /** A world's elevation layers, and a grid to find the few of them that reach a given tile. */

@@ -112,6 +112,7 @@ describe('authoring terrain before a new world opens', () => {
     expect(terrainSave(9, 'Cove', [])).toBeUndefined();
     const source = readFileSync('src/ui/title.ts', 'utf8');
     expect(source).toContain('store.save(choice.key, choice.save)');
-    expect(source).toContain('save: terrainSave(seed, worldName, terrain)');
+    expect(source).toContain(': terrainSave(seed, worldName, terrain)');
+    expect(source).toContain('manifest: { rootSeed: seed, anchors: [...mountains], terrain: [...terrain] }');
   });
 });

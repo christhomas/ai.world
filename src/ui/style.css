@@ -243,6 +243,7 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
   background: var(--accent); box-shadow: 0 0 calc(4 * var(--ui-scale)) color-mix(in srgb, var(--surface) 80%, transparent);
 }
 #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--accent); font-size: calc(24 * var(--ui-scale)); z-index: 2000; }
+#loading.blocked { width: min(90vw, 42rem); line-height: 1.4; text-align: center; }
 #debug {
   position: fixed; bottom: calc(20 * var(--ui-scale)); right: calc(20 * var(--ui-scale));
   color: color-mix(in srgb, var(--ink) 78%, transparent); font-size: calc(11 * var(--ui-scale));
@@ -655,6 +656,9 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 #terrainEditor .terrain-fields input { margin: 0; min-width: 0; }
 #terrainEditor select, #terrainEditor button { background: var(--surface); border: var(--ui-scale) solid var(--rule); color: var(--ink); font: inherit; padding: calc(8 * var(--ui-scale)); }
 #terrainEditor button { cursor: pointer; }
+#terrainEditor #mountainLayers { max-height: calc(95 * var(--ui-scale)); overflow-y: auto; }
+#terrainEditor #saveWorldEdits { width: 100%; margin-top: calc(8 * var(--ui-scale)); }
+#slots .slot-edit { background: transparent; border: var(--ui-scale) solid var(--rule); color: var(--ink); cursor: pointer; }
 #terrainLayers { padding-left: calc(22 * var(--ui-scale)); max-height: calc(130 * var(--ui-scale)); overflow: auto; }
 #terrainLayers li { margin-top: calc(5 * var(--ui-scale)); }
 #terrainLayers li button { margin-left: calc(7 * var(--ui-scale)); padding: calc(2 * var(--ui-scale)) calc(5 * var(--ui-scale)); }

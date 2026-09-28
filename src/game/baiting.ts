@@ -227,9 +227,11 @@ export function nestsOn(
   const nests: Eyrie[] = here.map((a) => ({
     id: a.id, name: cragName(a.seed, a.x, a.z), x: a.x, z: a.z, partner: '', fare: 0,
   }));
+  const skyward = new Set(here.filter((a) => a.version === 2).map((a) => a.id));
 
   const all = [...planned, ...nests];
   for (const nest of nests) {
+    if (skyward.has(nest.id)) continue;
     let partner: Eyrie | null = null;
     let across = Infinity;
     for (const other of all) {

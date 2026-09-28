@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>World Editor</title>
+<style>
+  body { max-width: 850px; margin: 2rem auto; padding: 0 1rem; background: #16202a; color: #ecf3e8; font: 16px system-ui; }
+  a { color: #b8d69b; } label { display: inline-grid; gap: .3rem; margin: .4rem; }
+  input, select, button { font: inherit; padding: .4rem; } input { width: 6rem; }
+  canvas { width: min(100%, 512px); aspect-ratio: 1; image-rendering: pixelated; border: 1px solid #809085; display: block; margin: 1rem 0; }
+  button { cursor: pointer; } #message { min-height: 2rem; } .layers { max-height: 12rem; overflow: auto; }
+</style>
+<a href="/tools/">Tools</a><h1>World Editor</h1>
+<p>Choose a named endless world with no players connected. Pick a point, preview a mountain or land and sea brush, then save it. Skyward eyries can be placed beside a pinned sky village.</p>
+<label>World <select id="world"></select></label>
+<div><label>Layer <select id="mode"><option value="mountain">Mountain</option><option value="land">Land</option><option value="sea">Sea</option><option value="eyrie">Skyward eyrie</option></select></label>
+<label>Sky village <select id="site"></select></label>
+<label>Centre X <input id="x" type="number" value="0"></label><label>Centre Z <input id="z" type="number" value="0"></label>
+<label>Reach <input id="reach" type="number" min="1" max="2048" value="80"></label>
+<label>Lift <input id="lift" type="number" min="1" max="100" value="16"></label>
+<label>Roughness <input id="roughness" type="number" min="0" max="1" step="0.05" value="0.35"></label>
+<label>Shape seed <input id="seed" type="number" min="0" max="4294967295" value="1"></label></div>
+<button id="preview">Preview</button> <button id="pin">Pin this layer or eyrie</button>
+<p id="message" role="status"></p><canvas id="map" width="64" height="64" aria-label="Preview map"></canvas>
+<h2>Saved layers</h2><ol id="layers" class="layers"></ol>
+<script>
+const $ = (id) => document.getElementById(id);
+let revision = null;
+let centre = { x: 0, z: 0 };
+function draft() {
+  if ($('mode').value === 'eyrie') return { x: Number($('x').value), z: Number($('z').value), siteId: $('site').value };
+  const fields = $('mode').value === 'mountain' ? ['x','z','reach','lift','roughness','seed'] : ['x','z','reach','seed'];
+  const value = Object.fromEntries(fields.map(id => [id, Number($(id).value)]));
+  if ($('mode').value !== 'mountain') value.kind = $('mode').value;
+  return value;
+}
+function say(message) { $('message').textContent = message; }
+async function json(url, options) {
+  const response = await fetch(url, { credentials: 'same-origin', ...options });
+  const value = await response.json();
+  if (!response.ok) throw Error(value.error || 'The editor could not load this world.');
+  return value;
+}
+async function show(withDraft = false) {
+  const name = $('world').value;
+  if (!name) { say('Choose a named endless world.'); return; }
+  if (withDraft) centre = { x: Number($('x').value), z: Number($('z').value) };
+  say('Drawing the map…');
+  try {
+    const query = new URLSearchParams({ name, x: String(centre.x), z: String(centre.z) });
+    if (withDraft && $('mode').value !== 'eyrie') { query.set('draft', JSON.stringify(draft())); query.set('mode', $('mode').value === 'mountain' ? 'mountain' : 'terrain'); }
+    const data = await json('/tools/world-editor/data?' + query);
+    revision = data.revision;
+    const context = $('map').getContext('2d');
+    const pixels = new Uint8ClampedArray(data.pixels);
+    context.putImageData(new ImageData(pixels, 64, 64), 0, 0);
+    const mark = (x, z, color) => {
+      const mx = Math.round(32 + (x - centre.x) / 8), mz = Math.round(32 + (z - centre.z) / 8);
+      if (mx < 0 || mx >= 64 || mz < 0 || mz >= 64) return;
+      context.fillStyle = color; context.fillRect(mx - 1, mz - 1, 3, 3);
+    };
+    data.sites.forEach(site => mark(site.x, site.z, '#fff094'));
+    data.skyEyries.forEach(anchor => mark(anchor.x, anchor.z, '#f28d34'));
+    if ($('mode').value === 'eyrie') mark(Number($('x').value), Number($('z').value), '#ff533f');
+    const selectedSite = $('site').value;
+    $('site').replaceChildren(...data.sites.map(site => {
+      const option = document.createElement('option'); option.value = site.id;
+      option.textContent = `(${site.x}, ${site.z})`; return option;
+    }));
+    if ([...$('site').options].some(option => option.value === selectedSite)) $('site').value = selectedSite;
+    $('layers').replaceChildren(...[...data.layers.map(layer => {
+      const item = document.createElement('li');
+      item.textContent = `Mountain (${layer.x}, ${layer.z}) reach ${layer.layer.reach}, lift ${layer.layer.lift}, roughness ${layer.layer.roughness ?? 0}`;
+      return item;
+    }), ...data.terrain.map(layer => {
+      const item = document.createElement('li');
+      item.textContent = `${layer.kind} (${layer.x}, ${layer.z}) reach ${layer.reach}`;
+      return item;
+    }), ...data.skyEyries.map(anchor => {
+      const item = document.createElement('li');
+      item.textContent = `Skyward eyrie (${anchor.x}, ${anchor.z}) for ${anchor.parent}`;
+      return item;
+    })]);
+    say(withDraft ? 'Preview only. Pin to save this edit.' : 'Saved world loaded.');
+  } catch (error) { say(error.message); }
+}
+$('preview').onclick = () => show(true);
+$('world').onchange = () => { revision = null; show(); };
+$('map').onclick = (event) => {
+  const box = $('map').getBoundingClientRect();
+  const x = Math.floor((event.clientX - box.left) / box.width * 64);
+  const z = Math.floor((event.clientY - box.top) / box.height * 64);
+  $('x').value = Math.round(centre.x + (x - 31.5) * 8);
+  $('z').value = Math.round(centre.z + (z - 31.5) * 8);
+  show(true);
+};
+$('pin').onclick = async () => {
+  if (!revision) { say('Load the world first.'); return; }
+  try {
+    await json('/tools/world-editor/data', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: $('world').value, revision,
+        mode: $('mode').value === 'mountain' ? 'mountain' : $('mode').value === 'eyrie' ? 'eyrie' : 'terrain', draft: draft() }) });
+    await show();
+    say('Edit saved. This world will use it on the next join.');
+  } catch (error) { say(error.message); }
+};
+json('/tools/world-editor/data').then(data => {
+  $('world').replaceChildren(...data.worlds.map(world => {
+    const option = document.createElement('option'); option.value = world.name; option.textContent = world.name; return option;
+  }));
+  if (data.worlds.length) show(); else say('There are no named endless worlds yet.');
+}).catch(error => say(error.message));
+</script></html>

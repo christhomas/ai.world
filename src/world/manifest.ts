@@ -42,7 +42,9 @@ export interface Anchor {
    * slot machine. `version` above is what keeps an old anchor pinned when the generator that reads
    * these changes. #322, #324.
    */
-  layer?: { reach: number; lift: number };
+  layer?: { reach: number; lift: number; roughness?: number };
+  /** Exact sky-island site geometry, pinned when the site is first discovered. */
+  skySite?: { radius: number; y: number };
 }
 
 export interface ManifestJson {
@@ -118,10 +120,13 @@ function isLayer(anchor: Anchor): boolean {
  */
 export function joinedManifest(
   seed: number, saved: ManifestJson | undefined, invited: readonly Anchor[] | undefined,
-  invitedTerrain?: readonly TerrainLayer[],
+  invitedTerrain?: readonly TerrainLayer[], invitedSites?: readonly Anchor[],
+  invitedSkyEyries?: readonly Anchor[],
 ): ManifestJson {
   const mine = (saved?.anchors ?? []).filter((a) => a.kind !== 'island');
-  const anchors = invited ? [...mine.filter((a) => !isLayer(a)), ...invited] : mine;
+  const fromServer = [...(invitedSites ?? []), ...(invitedSkyEyries ?? [])];
+  const sites = new Set(fromServer.map((a) => a.id));
+  const anchors = invited ? [...mine.filter((a) => !isLayer(a) && !sites.has(a.id)), ...invited, ...fromServer] : mine;
   return { rootSeed: seed, anchors, terrain: [...(invitedTerrain ?? saved?.terrain ?? [])] };
 }
 

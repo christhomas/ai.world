@@ -1,8 +1,7 @@
 import { TileType } from '../world/terrain';
 import { WORLD } from '../core/config';
 import { rangesAsMassifs } from '../world/ranges';
-import { buildSkyIsland, planSkyIslands, type SkyIsland } from '../world/skyisland';
-import { skyGroundsIn } from '../world/skygrounds';
+import { buildSkyIsland, SKY, type SkyIsland, type SkySite } from '../world/skyisland';
 import { planEyries, type Eyrie } from './eyries';
 import { layTheCarcass, nestsOn, type Bait } from './baiting';
 import type { Anchor, Manifest } from '../world/manifest';
@@ -11,6 +10,7 @@ import type { Within } from '../world/window';
 import type { SkyIslands } from '../render/skyisland';
 import type { TerrainSampler } from '../world/terrain';
 import { anchoredHighlands } from '../world/anchoredhighlands';
+import { plannedSkySites, siteOf } from '../world/skyaccess';
 
 /**
  * What stands on and above the rock: the eagles' crags, and the villages in the clouds.
@@ -106,11 +106,25 @@ export class HighCountry {
      * places on a stream of its own — see `skygrounds.ts`, which is item 85 and says why an island
      * was never what this actually needed.
      */
-    const grounds = sampler.within
-      ? skyGroundsIn(this.seed, sampler.within, land)
-      : sampler.graph.islands;
-    this.isles.push(...planSkyIslands(this.seed, grounds, high, land).map((site) =>
-      buildSkyIsland(site, this.manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed, land)));
+    const proposed = plannedSkySites(this.seed, sampler, this.manifest);
+    const inThisSquare = (anchor: Anchor): boolean => !sampler.within
+      || (anchor.x >= sampler.within.x0 && anchor.x < sampler.within.x1
+        && anchor.z >= sampler.within.z0 && anchor.z < sampler.within.z1);
+    let pinnedCount = this.manifest.byKind('skyisle').filter(inThisSquare).length;
+    for (const site of proposed) {
+      const existed = this.manifest.get(site.id) !== undefined;
+      if (!existed && pinnedCount >= SKY.MOST) continue;
+      const anchor = this.manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over);
+      anchor.skySite ??= { radius: site.radius, y: site.y };
+      if (!existed) pinnedCount++;
+    }
+    // A saved sky village keeps its site even when later ground edits make the planner choose
+    // differently. The fallback reconstructs older anchors that predate stored site geometry.
+    const pinned: SkySite[] = this.manifest.byKind('skyisle')
+      .filter(inThisSquare)
+      .map(siteOf);
+    this.isles.push(...pinned.map((site) =>
+      buildSkyIsland(site, this.manifest.get(site.id)!.seed, land)));
 
     const sample = sampler.newSample();
     for (const isle of this.isles) {

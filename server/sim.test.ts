@@ -19,6 +19,7 @@ import { MINDS_SCHEMA, keepMinds, mindsOf } from './durable/minds';
 import type { Person } from '../src/world/people';
 import { HoldingBook } from '../src/world/holdingbook';
 import { ownerFromSave } from '../src/world/holdings';
+import { mountainAnchor, skyEyrieAnchor } from '../src/world/worldediting';
 
 describe('private prayer manifests', () => {
   it('keeps long-lived worlds with more than 32 answered prayers joinable', () => {
@@ -27,6 +28,97 @@ describe('private prayer manifests', () => {
       parent: null, version: 1, layer: { reach: 80, lift: 5 },
     }));
     expect(localHighlands(anchors)).toHaveLength(40);
+  });
+});
+
+describe('authoring an existing named world', () => {
+  const draft = { x: 2000, z: 2000, reach: 80, lift: 12, roughness: 0.4, seed: 7 };
+
+  it('writes loaded province state before replacing its terrain samplers', () => {
+    const vault = new Forgetful();
+    const sim = new Simulation({ vault, dataDir: 'worlds', ground: true });
+    const record = sim.rooms.claimWorld('Old Vale', 322, 'endless');
+    const room = sim.rooms.open(322, { day: 2, time: 0.4 }, record, 'endless');
+    room.world.apply({ kind: 'sow', tile: '2000,2000', crop: 'wheat', day: 2 });
+    expect(sim.namedWorldReminders('Old Vale', 2000, 2000, 80).pins)
+      .toContainEqual({ x: 2000, z: 2000, label: 'A planted field', footing: 'land' });
+    const revision = sim.namedWorldRevision('Old Vale')!;
+    sim.authorNamedMountain('Old Vale', revision,
+      mountainAnchor(draft, 'highland:edit:00000000-0000-4000-8000-000000000322'));
+    expect(sim.rooms.get(322)).toBeUndefined();
+
+    const reopened = sim.rooms.open(322, { day: 1, time: 0.3 }, record, 'endless');
+    reopened.world.keepNear([{ x: 2000, z: 2000 }]);
+    expect(reopened.world.log).toContainEqual(expect.objectContaining({ kind: 'sow', tile: '2000,2000' }));
+    expect(reopened.world.manifest.layers()).toHaveLength(1);
+  });
+
+  it('rejects occupied, stale, and malformed edits without changing the manifest', () => {
+    const sim = new Simulation({ vault: new Forgetful(), dataDir: 'worlds' });
+    const record = sim.rooms.claimWorld('Old Vale', 322, 'endless');
+    const revision = sim.namedWorldRevision('Old Vale')!;
+    expect(() => sim.authorNamedMountain('Old Vale', revision, { kind: 'highland' })).toThrow('invalid');
+    const person = new Pretend(sim).join(322, 'Ada');
+    expect(() => sim.authorNamedMountain('Old Vale', revision,
+      mountainAnchor(draft, 'highland:edit:00000000-0000-4000-8000-000000000322'))).toThrow('Leave this world');
+    person.leave();
+    expect(() => sim.authorNamedTerrain('Old Vale', 'stale', { x: 0, z: 0, reach: 60, seed: 1, kind: 'sea' }))
+      .toThrow('changed');
+    expect(sim.rooms.manifestOf(record.seed).layers()).toHaveLength(0);
+  });
+
+  it('reports a failed durable write and rolls the proposed layer back', () => {
+    class FailedWorldVault extends Forgetful {
+      override write(name: string, text: string): void {
+        if (name.endsWith('/322.json')) throw new Error('disk full');
+        super.write(name, text);
+      }
+    }
+    const sim = new Simulation({ vault: new FailedWorldVault(), dataDir: 'worlds' });
+    const record = sim.rooms.claimWorld('Old Vale', 322, 'endless');
+    const revision = sim.namedWorldRevision('Old Vale')!;
+    expect(() => sim.authorNamedMountain('Old Vale', revision,
+      mountainAnchor(draft, 'highland:edit:00000000-0000-4000-8000-000000000322'))).toThrow('disk full');
+    expect(sim.rooms.manifestOf(record.seed).layers()).toHaveLength(0);
+    expect(sim.namedWorldRevision('Old Vale')).toBe(revision);
+  });
+
+  it('does not discard a loaded field or publish an edit when its province cannot be flushed', () => {
+    class FailedProvinceVault extends Forgetful {
+      override write(name: string, text: string): void {
+        if (name.includes('/322/')) throw new Error('province disk full');
+        super.write(name, text);
+      }
+    }
+    const sim = new Simulation({ vault: new FailedProvinceVault(), dataDir: 'worlds' });
+    const record = sim.rooms.claimWorld('Old Vale', 322, 'endless');
+    const room = sim.rooms.open(322, { day: 2, time: 0.4 }, record, 'endless');
+    room.world.apply({ kind: 'sow', tile: '2000,2000', crop: 'wheat', day: 2 });
+    const revision = sim.namedWorldRevision('Old Vale')!;
+    expect(() => sim.authorNamedMountain('Old Vale', revision,
+      mountainAnchor(draft, 'highland:edit:00000000-0000-4000-8000-000000000322'))).toThrow('province disk full');
+    expect(sim.rooms.get(322)?.world.log).toContainEqual(expect.objectContaining({ kind: 'sow', tile: '2000,2000' }));
+    expect(sim.rooms.manifestOf(322).layers()).toHaveLength(0);
+    expect(sim.namedWorldRevision('Old Vale')).toBe(revision);
+  });
+
+  it('persists an editor-placed skyward eyrie and offers it on the next named invite', () => {
+    const vault = new Forgetful();
+    const sim = new Simulation({ vault, dataDir: 'worlds' });
+    const record = sim.rooms.claimWorld('Old Vale', 322, 'endless');
+    const room = sim.rooms.open(322, { day: 1, time: 0.3 }, record, 'endless');
+    const site = room.world.manifest.ensure('sky:256,256', 'skyisle', 256, 256, 'ground:256,256');
+    site.skySite = { radius: 22, y: 26 };
+    room.world.authorTerrain([]);
+    room.world.save(true);
+    sim.rooms.close(322);
+    const anchor = skyEyrieAnchor(sim.rooms.manifestOf(322), site.id, 300, 256,
+      'eyrie:edit:00000000-0000-4000-8000-000000000322')!;
+    sim.authorNamedSkyEyrie('Old Vale', sim.namedWorldRevision('Old Vale')!, anchor);
+    const again = new Simulation({ vault, dataDir: 'worlds' });
+    expect(again.rooms.invite('Old Vale')).toMatchObject({
+      sites: [site], skyEyries: [anchor],
+    });
   });
 });
 
@@ -326,6 +418,45 @@ describe('the simulation holding the ground itself', () => {
     rowan.leave();
     expect(mindsOf(db, 3).minds.get(person.id)?.memories[0]?.who,
       'the orderly leave closes the room immediately, so the save must precede it').toBe('Rowan');
+  });
+
+  it('keeps a named village mind when an empty room is closed for an edit', () => {
+    const db = mindBook();
+    const vault = new Forgetful();
+    const sim = new Simulation({ vault, dataDir: 'worlds', ground: true, minds: db,
+      timeout: 10 * 60_000 });
+    const record = sim.rooms.claimWorld('Memory Vale', 3, 'endless');
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const person = meetAVillager(sim, rowan);
+    rowan.leave();
+    expect(sim.rooms.get(3)).toBeUndefined();
+    // The register remains live until the next tick's ordinary teardown. The edit must keep it first.
+    person.memories.push({ what: 'given', who: 'After leave', day: 3 });
+    sim.authorNamedMountain(record.name, sim.namedWorldRevision(record.name)!, mountainAnchor(
+      { x: 2000, z: 2000, reach: 80, lift: 12, roughness: 0.4, seed: 7 },
+      'highland:edit:00000000-0000-4000-8000-000000000003'));
+    expect(mindsOf(db, 3).minds.get(person.id)?.memories.at(-1)?.who).toBe('After leave');
+    expect(sim.rooms.get(3)).toBeUndefined();
+    expect(sim.rooms.open(3, { day: 1, time: 0.3 }, record, 'endless').world.manifest.layers())
+      .toHaveLength(1);
+  });
+
+  it('refuses a named edit when a live village mind cannot be written', () => {
+    const db = mindBook();
+    const sim = new Simulation({ vault: new Forgetful(), dataDir: 'worlds', ground: true, minds: db });
+    const record = sim.rooms.claimWorld('Memory Vale', 3, 'endless');
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const person = meetAVillager(sim, rowan);
+    rowan.leave();
+    person.memories.push({ what: 'given', who: 'After leave', day: 3 });
+    const revision = sim.namedWorldRevision(record.name)!;
+    db.exec('DROP TABLE mind');
+    expect(() => sim.authorNamedMountain(record.name, revision, mountainAnchor(
+      { x: 2000, z: 2000, reach: 80, lift: 12, roughness: 0.4, seed: 7 },
+      'highland:edit:00000000-0000-4000-8000-000000000004'))).toThrow();
+    expect(sim.rooms.manifestOf(3).layers()).toHaveLength(0);
+    expect(sim.namedWorldRevision(record.name)).toBe(revision);
+    expect(sim.livesIn(3)?.register?.find(person.id)?.memories.at(-1)?.who).toBe('After leave');
   });
 
   it('deletes a durable mind when a recorded death removes its owner', () => {

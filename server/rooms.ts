@@ -6,11 +6,13 @@ import type { Village } from '../src/world/structures';
 import type { Blow, Standing } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
-import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldInvite, WorldRecord } from './protocol';
+import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldDelta, WorldInvite, WorldRecord } from './protocol';
 import { worldKey } from './protocol';
 import { Forgetful, type Vault } from './vault';
 import { SharedWorld, manifestIn, worldPath } from './world';
 import { WorldRecordConflict, WorldRecords } from './worldrecords';
+import type { PlacePin } from '../src/world/editimpacts';
+import { provincePath, provincesNear } from '../src/world/provinces';
 
 /**
  * The way to reach one player, whatever they are on the other end of.
@@ -267,11 +269,54 @@ export class Rooms {
     const record = this.records.find(name);
     if (!record) return undefined;
     const manifest = this.manifestOf(record.seed);
-    return { ...record, kind: record.kind ?? LEGACY_KIND, layers: manifest.layers(), terrain: [...manifest.terrain] };
+    return { ...record, kind: record.kind ?? LEGACY_KIND, layers: manifest.layers(),
+      sites: manifest.byKind('skyisle'),
+      skyEyries: manifest.byKind('eyrie').filter((a) => a.version === 2),
+      terrain: [...manifest.terrain] };
   }
 
   worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }
   worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
+
+  /** Read the persisted fields and village facts an offline terrain edit must leave reachable. */
+  rememberedForEdit(seed: number, x: number, z: number, reach: number): {
+    pins: PlacePin[]; villages: string[];
+  } {
+    const pins: PlacePin[] = [];
+    const villages = new Set<string>();
+    const seen = new Set<string>();
+    const collect = (value: unknown) => {
+      if (!value || typeof value !== 'object') return;
+      const delta = value as Partial<WorldDelta> & { village?: unknown; tile?: unknown };
+      if (typeof delta.village === 'string') villages.add(delta.village);
+      if (delta.kind === 'sow' && typeof delta.tile === 'string' && !seen.has(delta.tile)) {
+        seen.add(delta.tile);
+        const [px, pz] = delta.tile.split(',').map(Number);
+        if (Number.isFinite(px) && Number.isFinite(pz)) pins.push({ x: px, z: pz, label: 'A planted field', footing: 'land' });
+      }
+    };
+    const room = this.get(seed);
+    for (const delta of room?.world.log ?? []) collect(delta);
+    const worldFile = this.vault.read(worldPath(this.dataDir, seed));
+    if (worldFile) {
+      let raw: unknown;
+      try { raw = JSON.parse(worldFile); } catch { throw new Error('The saved world could not be checked safely.'); }
+      const file = raw as { deltas?: unknown[]; holdingDays?: Array<{ village?: unknown }> };
+      for (const delta of file.deltas ?? []) collect(delta);
+      for (const row of file.holdingDays ?? []) if (typeof row.village === 'string') villages.add(row.village);
+    }
+    for (const id of provincesNear(x, z, reach + 8)) {
+      const path = provincePath(this.dataDir, seed, id);
+      const text = this.vault.read(path);
+      if (!text) continue;
+      let raw: unknown;
+      try { raw = JSON.parse(text); } catch { throw new Error(`The saved province ${id} could not be checked safely.`); }
+      const deltas = Array.isArray(raw) ? raw : (raw as { deltas?: unknown[] }).deltas;
+      if (!Array.isArray(deltas)) throw new Error(`The saved province ${id} could not be checked safely.`);
+      for (const delta of deltas) collect(delta);
+    }
+    return { pins, villages: [...villages] };
+  }
 
   /** Every known world, including named records, saved legacy seed files, and open rooms. */
   knownWorlds(): Array<{ seed: number; name?: string; kind?: WorldKind }> {
