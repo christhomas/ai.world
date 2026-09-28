@@ -406,6 +406,10 @@ export function startGame(
      * than left to be discovered as a hero standing in a named village in an empty field.
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
+    onCountryProgress: (done, total) => {
+      chunks.aWorldIsGrowingIt();
+      hud.setLoading(`Preparing world — ${done} of ${total} pieces ready`);
+    },
     onCountryGrown: (stamp, theirKind) => {
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`, and

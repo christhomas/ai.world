@@ -3,7 +3,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
 import type { ServerMessage, WorldInvite } from './protocol';
 import { FileVault } from './filevault';
-import { Simulation } from './sim';
+import { Simulation, type SimOptions } from './sim';
+import { GroundWorker } from './groundworker';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
 import { addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
@@ -73,6 +74,10 @@ export interface ServerOptions {
   builder?: BuilderAt;
   /** This in-process worker registry requires exactly one server replica. */
   replicas?: number;
+  /** Grow a joining world's expensive first patches off the HTTP/socket event loop. */
+  asyncCountry?: boolean;
+  /** An asynchronous patch source for integration tests and other server hosts. */
+  preparePatch?: SimOptions['preparePatch'];
 }
 
 export interface RunningServer {
@@ -171,8 +176,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'register', MINDS_SCHEMA);
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
+  const groundWorker = options.asyncCountry && !options.preparePatch ? new GroundWorker() : null;
   const sim = new Simulation({
     dataDir, vault: new FileVault(), ground: true,
+    preparePatch: options.preparePatch
+      ?? (groundWorker ? (seed, patch, layers, terrain) => groundWorker.grow(seed, patch, layers, terrain) : undefined),
     minds: durable ?? undefined, chronicles: durable ?? undefined,
   });
   const rooms = sim.rooms;
@@ -275,6 +283,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       for (const socket of sockets.clients) socket.terminate();
       await new Promise<void>((done) => sockets.close(() => done()));
       await new Promise<void>((done) => http.close(() => done()));
+      await groundWorker?.close();
       // and the database, or a test that opens twenty servers holds twenty write locks
       durable?.close();
     },

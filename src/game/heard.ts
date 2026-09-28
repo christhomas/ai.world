@@ -31,6 +31,8 @@ export interface OnlineEvents {
    * answered and this says a world did.
    */
   onCountryComing: () => void;
+  /** The server is still preparing the view; refresh the waiting state and show its progress. */
+  onCountryProgress?: (done: number, total: number) => void;
   /**
    * The country is grown, and this is the world's own fingerprint of it: stop waiting, and check.
    *
@@ -178,6 +180,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'country':
       o.events.onCountryGrown(message.stamp, message.kind);
+      break;
+    case 'country-progress':
+      o.events.onCountryProgress?.(message.done, message.total);
       break;
     case 'youAre':
       o.events.onWhereYouAre(message.seq, message.x, message.z, message.y);
