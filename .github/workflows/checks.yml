@@ -244,7 +244,8 @@ jobs:
   playtest:
     needs: only-once
     if: needs.only-once.outputs.run == 'yes'
-    runs-on: ubuntu-latest
+    # The checked-in pixel references come from this OS image and the lockfile's Playwright.
+    runs-on: ubuntu-24.04
     # A browser that hangs should cost a quarter of an hour, not the six hours a job is allowed by
     # default. The run itself is a minute and a half on a laptop.
     timeout-minutes: 15
