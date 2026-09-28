@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { MountainMaterial, Mountains, buildMountainMesh } from './mountains';
 import type { Ranges } from '../world/ranges';
+import { SceneGraph } from '../core/scenegraph';
 
 /**
  * The rock standing in the scene, when which rock that is can change.
@@ -36,6 +37,21 @@ const meshesIn = (scene: THREE.Scene): THREE.Mesh[] =>
   scene.children.filter((child): child is THREE.Mesh => (child as THREE.Mesh).isMesh === true);
 
 describe('the mountains in the scene', () => {
+  it('streams range geometry through a neutral graph', () => {
+    const graph = new SceneGraph(0x8fc1e6);
+    const scene = new THREE.Scene();
+    const material = new MountainMaterial();
+    const hills = new Mountains(scene, material.material, graph);
+    hills.show(rockAt(0, 40));
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0]).toMatchObject({ kind: 'mesh', castShadow: true,
+      receiveShadow: true, effects: ['mountain-cutaway'] });
+    expect((graph.nodes[0] as { geometry: { positions: Float32Array } }).geometry.positions.length).toBe(18);
+    hills.show(null);
+    expect(graph.nodes).toHaveLength(0);
+    expect(meshesIn(scene)).toHaveLength(0);
+    material.dispose();
+  });
   it('stands rock up when it is given some', () => {
     const scene = new THREE.Scene();
     const hills = new Mountains(scene, new MountainMaterial().material);
