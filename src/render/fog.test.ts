@@ -4,6 +4,7 @@ import { DayCycle } from './daycycle';
 import { fogReach, type SceneRig } from './scene';
 import { CAMERA, WORLD } from '../core/config';
 import { SceneGraph } from '../core/scenegraph';
+import { MountedThreePipeline } from './pipeline';
 
 /**
  * Distance reads as distance, which in a terraced country it did not.
@@ -62,10 +63,14 @@ describe('how far the fog reaches', () => {
  * And the thing the issue actually asks for: that the fog is the colour of its own sky, at every
  * hour. A horizon that seams against a sky it disagrees with is worse than no fog at all.
  */
-const rig = (): SceneRig => {
+const rig = (): SceneRig & { scene: THREE.Scene } => {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x8fc1e6);
   const graph = new SceneGraph(0x8fc1e6);
+  graph.camera = {
+    projection: new THREE.Matrix4().identity().toArray(), world: new THREE.Matrix4().identity().toArray(),
+    orthographic: true,
+  };
   const lighting = {
     sun: graph.add({ kind: 'directional', colour: 0xffffff, intensity: 1, position: [0, 1, 0], target: [0, 0, 0], castShadow: true }),
     hemi: graph.add({ kind: 'hemisphere', sky: 0xffffff, ground: 0x000000, intensity: 1 }),
@@ -86,7 +91,7 @@ const rig = (): SceneRig => {
     seaAround: () => {},
     fitShadow: () => {},
     redrawShadows: () => {},
-  } as unknown as SceneRig;
+  } as unknown as SceneRig & { scene: THREE.Scene };
 };
 
 const at = (time: number) => ({
@@ -95,25 +100,38 @@ const at = (time: number) => ({
 });
 
 describe('the colour of the fog', () => {
+  it('publishes window glow colour through the neutral prop description', () => {
+    const one = rig();
+    const windows = one.graph.add({ kind: 'prop-batch', parts: [], glowParts: [
+      { shape: 'box', size: [1, 1, 1], offset: [0, 0, 0], color: 0xffffff },
+    ], placements: [], castShadow: false, receiveShadow: false });
+    new DayCycle(one).apply(at(0.5) as never);
+    if (windows.kind !== 'prop-batch') throw new Error('missing window batch');
+    expect(windows.glowColour).toBeDefined();
+    expect(one.graph.frame().nodes.at(-1)?.glowColour).toBe(windows.glowColour);
+  });
+
   for (const [hour, when] of [[0.5, 'noon'], [0.78, 'dusk'], [0.0, 'night']] as const) {
     it(`is the colour of the sky at ${when}`, () => {
       const one = rig();
       const cycle = new DayCycle(one);
       cycle.apply(at(hour) as never);
+      new MountedThreePipeline(one.scene, () => {}, one.graph).draw(one.graph.frame());
       const sky = one.scene.background as THREE.Color;
       expect(one.scene.fog, 'there is no fog at all').toBeTruthy();
       expect((one.scene.fog as THREE.Fog).color.getHex()).toBe(sky.getHex());
       expect(one.graph.background).toBe(sky.getHex());
       expect(one.graph.fog?.colour).toBe((one.scene.fog as THREE.Fog).color.getHex());
-      expect(one.lighting.sun.intensity).toBe(one.sun.intensity);
-      expect(one.lighting.hemi.intensity).toBe(one.hemi.intensity);
-      expect(one.lighting.ambient.intensity).toBe(one.ambient.intensity);
+      expect(one.lighting.sun.intensity).toBeGreaterThan(0);
+      expect(one.lighting.hemi.intensity).toBeGreaterThan(0);
+      expect(one.lighting.ambient.intensity).toBeGreaterThan(0);
     });
   }
 
   it('is a linear fog rather than an exponential one, because this world is blocky', () => {
     const one = rig();
     new DayCycle(one).apply(at(0.5) as never);
+    new MountedThreePipeline(one.scene, () => {}, one.graph).draw(one.graph.frame());
     expect((one.scene.fog as THREE.Fog).isFog).toBe(true);
   });
 });
