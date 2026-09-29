@@ -12,7 +12,7 @@ import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
 import type { HoldingRecord } from '../src/world/holdingbook';
 
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
@@ -876,6 +876,8 @@ export type ServerMessage =
   /** Whether the seed took. `ok: false` means the page lifts it back out and returns the seed. */
   | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
+  /** The authoritative state after this client's eyrie report, including a refused report. */
+  | { type: 'eyrie-state'; id: string; anchor: Anchor | null }
   | { type: 'cart-robbed'; loadedOn: number; ok: boolean }
   | { type: 'cart-escorted'; loadedOn: number; ok: boolean; escorting: boolean }
   | { type: 'said'; id: string; name: string; text: string }

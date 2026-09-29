@@ -169,6 +169,8 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
     onHoldingDays: (rows) => { register.holdingsBook.restore(rows); state.version++; },
+    onEyries: (anchors) => { high.reconcileBaited(anchors); state.version++; persist(); },
+    onEyrieState: (id, anchor) => { high.setBaited(id, anchor); state.version++; persist(); },
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
     onParcel: (bytes) => ctx.onParcel?.(bytes),
