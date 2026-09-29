@@ -32,11 +32,13 @@ import type { Chat } from '../ui/chat';
 import type { Sound } from './audio';
 import type { MapMarker } from '../ui/mapbase';
 import type { Register } from '../world/register';
+import type { HighCountry } from './highcountry';
 import { HIRE, type Hires } from './hire';
 import {
   WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
 } from './warband';
 import { Enterings } from './entering';
+import { claimCartCargo } from './cartloot';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -47,6 +49,7 @@ import { Enterings } from './entering';
  * objects sits there costing nothing until somebody joins.
  */
 export interface MultiplayerContext {
+  high: HighCountry;
   player: Player;
   state: GameState;
   /** What the hero has left to swing and guard with, so a bout obeys the same rules a fight does. */
@@ -103,6 +106,7 @@ export interface MultiplayerContext {
   onParcel?: (bytes: ArrayBuffer) => void;
   /** A world has answered and is standing this country up, so the page may stop guessing at it. */
   onCountryComing: () => void;
+  onCountryProgress?: (done: number, total: number) => void;
   /** The country is grown, and this is the world's fingerprint of it to check our own against. */
   /** @param kind which sort of country the world grew, when it is new enough to say. */
   onCountryGrown: (stamp: string, kind?: WorldKind) => void;
@@ -126,7 +130,7 @@ export interface MultiplayerContext {
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera,
-    dialogue, hud, chat, sound, questList, discovered, register, hires, seed, placeName, persist, showOffer,
+    dialogue, hud, chat, sound, questList, discovered, register, hires, high, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
   const duelBar = $('duelbar');
@@ -164,10 +168,14 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
+    onHoldingDays: (rows) => { register.holdingsBook.restore(rows); state.version++; },
+    onEyries: (anchors) => { high.reconcileBaited(anchors); state.version++; persist(); },
+    onEyrieState: (id, anchor) => { high.setBaited(id, anchor); state.version++; persist(); },
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
     onParcel: (bytes) => ctx.onParcel?.(bytes),
     onCountryComing: () => ctx.onCountryComing(),
+    onCountryProgress: (done, total) => ctx.onCountryProgress?.(done, total),
     onCountryGrown: (stamp, kind) => ctx.onCountryGrown(stamp, kind),
     onCreatureKilled: (place, id, mine) => ctx.onCreatureKilled(place, id, mine),
     onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
@@ -438,6 +446,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
    */
   const applyWorldDelta = (delta: WorldDelta, catchingUp: boolean): void => {
     switch (delta.kind) {
+      case 'eyrie':
+        high.applyBaited(delta.anchor, delta.present);
+        break;
       case 'chest':
         state.opened.add(delta.id);
         places.underground?.scene.rebuildProps(state.opened);
@@ -461,7 +472,20 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         break;
       case 'cart-loaded':
       case 'cart-finished':
-        register.recordCarrier(delta);
+        {
+          const recorded = register.recordCarrier(delta);
+          if (recorded && delta.kind === 'cart-finished' && delta.outcome === 'robbed' && !catchingUp) {
+            const load = register.carrierFacts().find((fact) => fact.kind === 'cart-loaded'
+              && fact.day === delta.loadedOn);
+            if (load?.kind === 'cart-loaded') chat.line(
+              `The carrier from ${load.from} to ${load.to} was robbed. The food is gone and the buyers pay nothing.`, 'sys');
+          }
+          const meals = claimCartCargo(state, online.name, register.carrierFacts());
+          if (meals > 0) {
+            hud.flash(`Took ${meals} meals from the cart`);
+            persist();
+          }
+        }
         break;
       case 'built':
         // a village is a house bigger, whoever paid for it. What stage the work has reached is

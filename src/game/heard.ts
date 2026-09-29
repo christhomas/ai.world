@@ -1,6 +1,8 @@
 import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, type Presence,
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
+import type { HoldingRecord } from '../world/holdingbook';
+import type { Anchor } from '../world/manifest';
 
 /**
  * What the world says, and what this half does about each of it.
@@ -31,6 +33,8 @@ export interface OnlineEvents {
    * answered and this says a world did.
    */
   onCountryComing: () => void;
+  /** The server is still preparing the view; refresh the waiting state and show its progress. */
+  onCountryProgress?: (done: number, total: number) => void;
   /**
    * The country is grown, and this is the world's own fingerprint of it: stop waiting, and check.
    *
@@ -71,6 +75,12 @@ export interface OnlineEvents {
   onChestOpened: (seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
+  /** Recorded holding mornings from the authoritative shared world. */
+  onHoldingDays: (rows: HoldingRecord[]) => void;
+  /** Complete nest state when joining a remote world. */
+  onEyries: (anchors: Anchor[]) => void;
+  /** The server's answer to this page's own nest report. */
+  onEyrieState: (id: string, anchor: Anchor | null) => void;
   /** The market as the server sees it: who holds which pitch and what is on it. */
   onStalls: (stalls: Stall[]) => void;
   /** A purchase from somebody's stall went through: the goods are yours, so pay for them. */
@@ -170,14 +180,24 @@ export function heard(o: Listening, message: ServerMessage): void {
       o.events.onCountryComing();
       for (const p of message.players) o.players.set(p.id, p);
       o.events.onClock(message.clock);
+      if (!o.local) o.events.onEyries(message.deltas.flatMap((delta) =>
+        delta.kind === 'eyrie' && delta.present ? [delta.anchor] : []));
       // catch up on everything that happened here before we arrived
-      for (const delta of message.deltas) o.events.onDelta(delta, true);
+      for (const delta of message.deltas) {
+        // A private worker can have a different saved history from the page's own manifest.
+        if (o.local && delta.kind === 'eyrie') continue;
+        o.events.onDelta(delta, true);
+      }
+      if (message.holdingDays) o.events.onHoldingDays(message.holdingDays);
       if (!o.local) {
         o.events.onSystem(`Joined world ${message.seed} as ${o.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
       }
       break;
     case 'country':
       o.events.onCountryGrown(message.stamp, message.kind);
+      break;
+    case 'country-progress':
+      o.events.onCountryProgress?.(message.done, message.total);
       break;
     case 'youAre':
       o.events.onWhereYouAre(message.seq, message.x, message.z, message.y);
@@ -215,6 +235,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'delta':
       o.events.onDelta(message.delta, false);
+      break;
+    case 'eyrie-state':
+      o.events.onEyrieState(message.id, message.anchor);
       break;
     case 'joined':
       o.players.set(message.player.id, message.player);
@@ -319,6 +342,14 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'said':
       o.events.onChat(`${message.name}: ${message.text}`);
+      break;
+    case 'cart-robbed':
+      o.events.onSystem(message.ok ? 'The cart was robbed.' : 'The cart is out of reach or guarded.');
+      break;
+    case 'cart-escorted':
+      o.events.onSystem(message.ok
+        ? message.escorting ? 'Guarding the cart. Stay beside it to protect the cargo.' : 'You stopped guarding the cart.'
+        : 'No cart is within reach.');
       break;
     case 'trade-offered':
       o.events.onOffer(message.offer, message.fromName);

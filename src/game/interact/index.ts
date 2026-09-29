@@ -13,6 +13,7 @@ import { giftInteractions } from './gifts';
 import { rescueInteractions } from './rescue';
 import { nemesisInteractions } from './nemesis';
 import { builderInteractions } from './builder';
+import { carrierInteractions } from './carrier';
 import type { Surroundings } from './context';
 
 export type { Surroundings } from './context';
@@ -54,14 +55,16 @@ export function createInteractions(ctx: Surroundings) {
   const rescue = rescueInteractions(ctx);
   const nettle = nemesisInteractions(ctx);
   const builder = builderInteractions(ctx);
+  const carrier = carrierInteractions(ctx);
   const { player, places, dialogue, hud, entities, skies, startTalk } = ctx;
 
   const ordered: readonly Interaction[] = [
     { verb: () => ctx.craft().flying ? 'Land the craft' : 'Board the craft', attempt: travel.tryDerelict },
+    { verb: 'Inspect the carrier', attempt: carrier.tryCarrier },
     { verb: 'Skin the carcass', attempt: camp.trySkin },
     { verb: travel.ferryLabel, attempt: travel.tryFerry },
     { verb: () => ctx.sailing.sailing ? 'Step ashore' : 'Use the boat', attempt: travel.tryBoat },
-    { verb: 'Fly over the mountains', attempt: travel.tryEagle },
+    { verb: travel.eagleLabel, attempt: travel.tryEagle },
     { verb: 'Fly to the sky island', attempt: travel.trySkyward },
     { verb: village.horseLabel, attempt: village.tryHorse },
     { verb: 'Open the chest', attempt: builder.tryChest },

@@ -9,12 +9,15 @@ import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
+import { boundsOf, patchOf, patchOfChunk } from '../src/world/patchwork';
+import { rebuildPatch, type PatchParts } from '../src/world/endless';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { isTold, replayTold } from '../src/world/telling';
 import type { CarrierFact } from '../src/world/carrierbook';
 import { advanceWorldCarriers } from './carrierflow';
+import { carrierOnRoad } from './carrieractor';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
@@ -65,6 +68,8 @@ export interface SimOptions {
    * players are walking on, which is what owning the creatures in it will need.
    */
   ground?: boolean;
+  /** A server host can grow expensive patches on another thread before admitting the view. */
+  preparePatch?: (seed: number, patch: string, layers: readonly Highland[], terrain: readonly TerrainLayer[]) => Promise<PatchParts>;
   /** The private browser worker may accept its page's authored terrain at join. */
   localAuthoring?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
@@ -200,6 +205,10 @@ export class Simulation {
   private readonly reach: number;
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
+  private readonly patchworks = new Map<number, Patchwork>();
+  private readonly warming = new Map<number, Promise<void>>();
+  private readonly warmingClients = new Set<Client>();
+  private readonly preparePatch?: SimOptions['preparePatch'];
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
@@ -251,6 +260,7 @@ export class Simulation {
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
+    this.preparePatch = options.preparePatch;
     this.reach = options.reach ?? REACH;
   }
 
@@ -290,6 +300,7 @@ export class Simulation {
     // A read-only survey can precede the first road join. Replace its provisional endless ground.
     if (held) {
       this.ground.delete(seed);
+      this.patchworks.delete(seed);
       this.countryStamps.delete(seed);
       this.folk.delete(seed);
       this.wildlife.delete(seed);
@@ -310,7 +321,9 @@ export class Simulation {
      */
     const layers = this.layersOf(seed);
     const terrain = this.terrainOf(seed);
-    const patches = kind === 'endless' ? new Patchwork(seed, growPatch, undefined, layers, terrain) : null;
+    const patches = kind === 'endless'
+      ? (this.patchworks.get(seed) ?? new Patchwork(seed, growPatch, undefined, layers, terrain)) : null;
+    if (patches) this.patchworks.set(seed, patches);
     const roadGraph = patches ? null : growWorld(seed, islandsFor(this.rooms.manifestOf(seed), seed));
     const country = patches ? patchedCountry(patches) : oneCountry(new TerrainSampler(roadGraph!));
     this.countryStamps.set(seed, roadGraph ? countryStamp(roadGraph, layers, terrain) : endlessStamp(seed, layers, terrain));
@@ -507,6 +520,7 @@ export class Simulation {
         const room = this.rooms.get(client.seed);
         if (!room) return;
         client.silent = 0;
+        if (this.warmingClients.has(client)) return;
         // A floor is the one thing a message can ask the simulation to *make*, so it is answered
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
@@ -545,6 +559,7 @@ export class Simulation {
 
     for (const [seed, room] of this.rooms.entries()) {
       for (const client of room.clients) {
+        if (this.warmingClients.has(client)) { client.silent = 0; continue; }
         client.silent += heard;
         if (client.silent > this.timeout) { client.wire.close(); this.rooms.leave(client); }
       }
@@ -558,6 +573,7 @@ export class Simulation {
         this.rooms.close(seed);
         this.keepMindsOf(seed);
         this.ground.delete(seed);
+        this.patchworks.delete(seed);
         this.groundKinds.delete(seed);
         this.countryStamps.delete(seed);
         this.folk.delete(seed);
@@ -599,7 +615,7 @@ export class Simulation {
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
       // who is where. A world is several worlds at once — the country, and a floor under every
       // staircase somebody is standing on — and each of them is stepped for the people in it.
-      const above = [...room.clients].filter((c) => c.standingIn === 'surface');
+      const above = [...room.clients].filter((c) => c.standingIn === 'surface' && !this.warmingClients.has(c));
       const players = above.map((c) => c.presence);
       this.sinceCreatures += TICK;
       const tellNow = this.sinceCreatures >= CREATURE_INTERVAL;
@@ -619,7 +635,7 @@ export class Simulation {
       room.world.keepNear(players);
       // the ground exists where somebody is standing, and nowhere else: a chunk nobody is near is a
       // chunk with nobody to tell about it
-      const ground = this.groundOf(seed);
+      const ground = this.ground.get(seed) ?? (this.warming.has(seed) ? null : this.groundOf(seed));
       if (ground && players.length > 0) {
         // First the country they can see, then the country they can be bitten in. In that order
         // because the second is a subset of the first and is taken out of it for nothing: a chunk
@@ -636,7 +652,8 @@ export class Simulation {
             // before `tellAboutCreatures` introduces the people to a client, which is the first
             // moment that client can know an id well enough to change its mind.
             if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
-          });
+          }, alive.register ? carrierOnRoad(alive.register, alive.villages, ground,
+            Math.floor(room.world.clock.day), room.world.clock.time) : null);
         }
       }
       this.stepFloors(seed, room, creatureSeconds, tellNow);
@@ -664,7 +681,7 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
-    beforeTell?: () => void,
+    beforeTell?: () => void, carrier?: CreatureSnap | null,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -686,8 +703,8 @@ export class Simulation {
     beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
-    if (tell) this.tellAboutCreatures(alive, place, who, null);
-    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT);
+    if (tell) this.tellAboutCreatures(alive, place, who, null, carrier);
+    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT, carrier);
   }
 
   /**
@@ -768,9 +785,12 @@ export class Simulation {
    * gone — this is the frequent pass over what the player is close enough to fight, and a creature
    * that has merely walked out of arm's reach has not walked out of sight.
    */
-  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null): void {
+  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null,
+    carrier?: CreatureSnap | null): void {
     for (const client of who) {
       const near = alive.inSightOf(client.presence.x, client.presence.z, within ?? undefined);
+      if (carrier && Math.hypot(carrier.x - client.presence.x, carrier.z - client.presence.z)
+        <= (within ?? 60)) near.push({ ...carrier, who: { ...carrier.who! } });
       const changed: CreatureSnap[] = [];
       const now = new Map<number, string>();
       for (const c of near) {
@@ -819,6 +839,7 @@ export class Simulation {
    * it on, and the answer to both is the same: as many as anybody could want at once, and no more.
    */
   private sendChunks(client: Client, message: Extract<ClientMessage, { type: 'want-chunks' }>): void {
+    if (this.warmingClients.has(client)) return;
     const ground = this.groundOf(client.seed);
     if (!ground) return;
     const wanted = Array.isArray(message.chunks) ? message.chunks.slice(0, CHUNKS_AT_ONCE) : [];
@@ -945,13 +966,14 @@ export class Simulation {
     }
     const x = Number(message.x), z = Number(message.z);
     const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;
-    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at);
+    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at, message.playerId);
 
     this.rooms.send(joining, {
       type: 'welcome', id: joining.presence.id, seed, world: record,
       players: [...room.clients].filter((c) => c !== joining).map((c) => c.presence),
       clock: room.world.clock,
       deltas: room.world.log,
+      holdingDays: room.world.holdingDays,
     });
     this.rooms.send(joining, { type: 'stalls', stalls: room.world.stalls });
 
@@ -963,8 +985,75 @@ export class Simulation {
     if (waiting > 0) this.rooms.send(joining, { type: 'mail-here', from: `${waiting} parcel${waiting === 1 ? '' : 's'}` });
 
     this.rooms.broadcast(seed, { type: 'joined', player: joining.presence }, joining);
-    this.readyFor(joining, message);
+    if (this.preparePatch && this.growGround) {
+      this.warmingClients.add(joining);
+      const previous = this.warming.get(seed) ?? Promise.resolve();
+      let current: Promise<void>;
+      current = previous.then(() => this.readyForAsync(joining, message)).catch((error: unknown) => {
+        this.rooms.send(joining, { type: 'error', reason: error instanceof Error ? error.message : 'The country could not be grown.' });
+        wire.close();
+      }).finally(() => {
+        this.warmingClients.delete(joining);
+        if (this.warming.get(seed) === current) this.warming.delete(seed);
+      });
+      this.warming.set(seed, current);
+    } else this.readyFor(joining, message);
     return joining;
+  }
+
+  /** Prepare the first view without making the HTTP and socket event loop grow its patches. */
+  private async readyForAsync(client: Client, message: Extract<ClientMessage, { type: 'join' }>): Promise<void> {
+    const seed = client.seed;
+    const x = Number(message.x), z = Number(message.z);
+    const standing = Number.isFinite(x) && Number.isFinite(z);
+    const kind = this.rooms.get(seed)?.kind ?? 'endless';
+    const chunks = new Set<string>();
+    if (standing) {
+      const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
+      for (let dz = -VIEW; dz <= VIEW; dz++) for (let dx = -VIEW; dx <= VIEW; dx++) {
+        chunks.add(patchOfChunk(cx + dx, cz + dz));
+      }
+    }
+    const patchwork = kind === 'endless' ? (this.patchworks.get(seed)
+      ?? new Patchwork(seed, growPatch, undefined, this.layersOf(seed), this.terrainOf(seed))) : null;
+    const patches = patchwork
+      ? [...new Set([...(this.ground.has(seed) ? [] : [patchOf(0, 0)]), ...chunks])]
+        .filter((patch) => !patchwork.has(patch)) : [];
+    const totalChunks = standing ? (VIEW * 2 + 1) ** 2 : 0;
+    const total = patches.length + totalChunks;
+    let done = 0;
+    const progress = () => this.rooms.send(client, { type: 'country-progress', done, total });
+    progress();
+    const heartbeat = setInterval(progress, 3000);
+    try {
+      if (patches.length && this.preparePatch) {
+        const layers = this.layersOf(seed), terrain = this.terrainOf(seed);
+        for (const patch of patches) {
+          const parts = await this.preparePatch(seed, patch, layers, terrain);
+          if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+          patchwork!.put(patch, rebuildPatch(seed, boundsOf(patch), parts));
+          done++;
+          progress();
+        }
+      }
+      if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+      if (patchwork) this.patchworks.set(seed, patchwork);
+      const ground = this.groundOf(seed);
+      if (ground && standing) {
+        const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
+        for (let dz = -VIEW; dz <= VIEW; dz++) for (let dx = -VIEW; dx <= VIEW; dx++) {
+          ground.ready((cx + dx) * WORLD.CHUNK_SIZE, (cz + dz) * WORLD.CHUNK_SIZE, 0);
+          done++;
+          if (done % 8 === 0) progress();
+          // One chunk is short work; hand the loop back to other players between groups.
+          if (done % 8 === 0) await new Promise<void>((resume) => setTimeout(resume, 0));
+        }
+      }
+      progress();
+      this.rooms.send(client, { type: 'country', stamp: ground ? this.countryStamps.get(seed) ?? '' : '', kind });
+    } finally {
+      clearInterval(heartbeat);
+    }
   }
 
   /**

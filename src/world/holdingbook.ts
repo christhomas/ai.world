@@ -56,13 +56,16 @@ export interface HoldingDay {
    * And what actually left a purse for it, which is not the same number and cannot be derived.
    *
    * Nought where a man stands his own yard — the two ends of the hand-over are one purse, so the
-   * wage is real work at a real price and no coin moves — and nought where either end is not on
-   * the village's roll. A reader wanting *what this holding cost its owner* wants this; a reader
-   * wanting *what a day on it was worth* wants `wage`. Keeping only one of them would have made
-   * the other unanswerable, which is the whole argument of this file in one field.
+   * wage is real work at a real price and no coin moves. A hall-owned holding instead transfers
+   * from the hall treasury to the worker's purse. A reader wanting *what this holding cost its
+   * owner* wants this; a reader wanting *what a day on it was worth* wants `wage`. Keeping only one
+   * of them would have made the other unanswerable, the argument of this file in one field.
    */
   paid: number;
 }
+
+/** A daybook fact with the village key needed to restore or send it. */
+export interface HoldingRecord extends HoldingDay { village: string }
 
 export class HoldingBook {
   /**
@@ -96,6 +99,40 @@ export class HoldingBook {
   private readonly nets = new Map<string, Map<string, number>>();
 
   private key(id: string, day: number): string { return `${id}:${Math.floor(day)}`; }
+
+  /** A stable, flat snapshot for a world save or a joining client's welcome. */
+  records(): HoldingRecord[] {
+    const rows: HoldingRecord[] = [];
+    for (const [village, here] of this.told) for (const days of here.values()) {
+      for (const fact of days.values()) rows.push({ village, ...fact });
+    }
+    return rows.sort((a, b) => a.village.localeCompare(b.village)
+      || a.day - b.day || a.holding.localeCompare(b.holding));
+  }
+
+  /** Restore facts and their daily net index without transferring a coin. */
+  restore(records: readonly HoldingRecord[]): void {
+    this.told.clear();
+    this.nets.clear();
+    for (const { village, ...fact } of records) {
+      let here = this.told.get(village);
+      if (!here) { here = new Map(); this.told.set(village, here); }
+      let days = here.get(fact.holding);
+      if (!days) { days = new Map(); here.set(fact.holding, days); }
+      days.set(fact.day, fact);
+    }
+    for (const [village, here] of this.told) {
+      const purses = new Map<string, number>();
+      for (const days of here.values()) for (const fact of days.values()) {
+        if (fact.paid <= 0) continue;
+        const funder = this.key(fact.funder, fact.day);
+        const worker = this.key(fact.who, fact.day);
+        purses.set(funder, (purses.get(funder) ?? 0) - fact.paid);
+        purses.set(worker, (purses.get(worker) ?? 0) + fact.paid);
+      }
+      this.nets.set(village, purses);
+    }
+  }
 
   /**
    * One village's morning, written down.

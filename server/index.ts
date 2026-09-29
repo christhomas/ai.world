@@ -1,5 +1,9 @@
 import { startServer } from './serve';
+import { isMainThread } from 'node:worker_threads';
 
+// The published server bundle is also its ground worker's entry point. Only the main thread
+// listens; the worker registers its patch handler in groundworker.ts and then stays there.
+if (isMainThread) {
 if (process.env.BUILDER_HOST) {
   throw new Error('BUILDER_HOST routing is retired; pair each worker through /tools/build/pair');
 }
@@ -10,6 +14,7 @@ if (process.env.BUILDER_HOST) {
  * itself has; TOOLS_SECRET and the two TOOLS_ADMIN_* open the tools portal. The rest is serve.ts.
  */
 const running = await startServer({
+  asyncCountry: true,
   port: Number(process.env.PORT ?? 8787),
   dataDir: process.env.DATA_DIR ?? 'server/data',
   // set STATIC_DIR to a built copy of the game and this one process serves both halves
@@ -49,3 +54,4 @@ const shutDown = (): void => {
 };
 process.on('SIGINT', shutDown);
 process.on('SIGTERM', shutDown);
+}

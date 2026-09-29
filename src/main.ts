@@ -374,10 +374,11 @@ export function startGame(
   /** What a village you saved does for you, filled in once the interactions exist. */
   let villageWelcome: (village: string) => Kindness | null = () => null;
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
+  let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
     register, hires,
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso.camera,
-    dialogue, hud, chat, sound, questList, discovered, seed,
+    dialogue, hud, chat, sound, questList, discovered, high, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
     ...heeding,
@@ -390,23 +391,18 @@ export function startGame(
      */
     onParcel,
     /*
-     * A world is standing this country up, and then: it has, and here is its fingerprint.
-     *
-     * The first stops the page drawing ground it is about to be sent — a new world takes several
-     * times a page's patience to grow its first view, and without this every new country opened on
-     * the page's own guess.
-     *
-     * The second is the only check there is on everything that still does not travel. Chunks come
-     * down the wire, so the two halves cannot disagree about the height of a tile; the villages,
-     * the doors, the eyries and who lives where are worked out on each side from its own copy of
-     * the country. The shared patch generator makes those the same country and this proves it, at
-     * the one moment it can be proved for the price of eight characters. A page that hears a
-     * different answer is a page whose people come from one world and whose houses come from
-     * another, which is a thing this game has actually shipped — so it is said out loud rather
-     * than left to be discovered as a hero standing in a named village in an empty field.
+     * Hold local chunk generation while the world grows. Its final stamp checks what chunks
+     * cannot: villages, doors, eyries and creatures derived independently on both sides.
+     * A mismatch once shipped people into another country's houses, so report it explicitly.
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
+    onCountryProgress: (done, total) => {
+      preparingRemoteCountry = true;
+      chunks.aWorldIsGrowingIt();
+      hud.setLoading(`Preparing world — ${done} of ${total} pieces ready`);
+    },
     onCountryGrown: (stamp, theirKind) => {
+      if (preparingRemoteCountry) { hud.hideLoading(); preparingRemoteCountry = false; }
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`, and
       // `growCountry` for why the country takes its own rather than this taking one of it
@@ -542,6 +538,8 @@ export function startGame(
   putOfferToPlayer = interactions.showOffer;
 
   // whose world this is: the one in the next thread until somebody asks for another
+  // Give old saves their stable multiplayer identity before they can receive replayable player facts.
+  if (saved?.state?.playerId !== state.playerId) persist();
   joinAWorld({
     seed, kind: world, terrain: manifest.terrain, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),

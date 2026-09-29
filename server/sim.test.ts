@@ -17,6 +17,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { migrateDomain } from './durable/db';
 import { MINDS_SCHEMA, keepMinds, mindsOf } from './durable/minds';
 import type { Person } from '../src/world/people';
+import { HoldingBook } from '../src/world/holdingbook';
+import { ownerFromSave } from '../src/world/holdings';
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
@@ -137,6 +139,64 @@ describe('the simulation, hosted by nothing at all', () => {
     // and a page may no longer simply announce one. See `mayReport`
     rowan.say({ type: 'delta', delta: { kind: 'cleared', mine: 'Barrow', many: 4 } });
     expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'cleared', mine: 'Barrow', many: 4 }]);
+  });
+
+  it('broadcasts a baited nest and replays its latest state to a joining player', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    const wren = new Pretend(sim).join(7, 'Wren');
+    const anchor = new Manifest(7).ensure('eyrie:0,0', 'eyrie', 0, 0);
+    const added = { kind: 'eyrie', anchor, present: true } as const;
+    const removed = { kind: 'eyrie', anchor, present: false } as const;
+
+    rowan.say({ type: 'delta', delta: added });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor });
+    expect(wren.of('delta').map((m) => m.delta)).toEqual([added]);
+    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toContainEqual(added);
+    rowan.say({ type: 'delta', delta: added });
+    expect(rowan.of('eyrie-state')).toHaveLength(2);
+    expect(wren.of('delta')).toHaveLength(1);
+
+    rowan.say({ type: 'delta', delta: removed });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
+    expect(wren.of('delta').at(-1)?.delta).toEqual(removed);
+    expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
+      .toContainEqual(removed);
+    rowan.say({ type: 'delta', delta: removed });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
+    expect(wren.of('delta')).toHaveLength(2);
+  });
+
+  it('corrects refused and malformed nest reports without changing the other player or replay', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    const wren = new Pretend(sim).join(7, 'Wren');
+    const far = new Manifest(7).ensure('eyrie:100,100', 'eyrie', 100, 100);
+
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: far, present: true } });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: far.id, anchor: null }]);
+    expect(wren.of('delta')).toEqual([]);
+    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toEqual([]);
+
+    // A malformed attempt against an existing nest must return that nest, not the bad claim.
+    const near = new Manifest(7).ensure('eyrie:0,0', 'eyrie', 0, 0);
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: near, present: true } });
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: { ...near, seed: -1 }, present: false } });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: near.id, anchor: near });
+    expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'eyrie', anchor: near, present: true }]);
+    expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
+      .toContainEqual({ kind: 'eyrie', anchor: near, present: true });
+  });
+
+  it('sends the server holding daybook to a joining player', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    new Pretend(sim).join(7, 'Rowan');
+    const book = new HoldingBook();
+    book.stood('Ashford', 5, [{ day: 5, holding: 'yard-1', kind: 'crew', who: 'Bob',
+      funder: ownerFromSave('Rich'), wage: 12, paid: 12 }], new Map());
+    sim.rooms.get(7)!.world.keepsTheRegister({ compact: () => {}, holdingsBook: book });
+    const wren = new Pretend(sim).join(7, 'Wren');
+    expect(wren.of('welcome')[0].holdingDays).toEqual(book.records());
   });
 
   it('moves the clock and tells everybody where everybody is', () => {
@@ -402,6 +462,20 @@ describe('the simulation holding the ground itself', () => {
     const after = rowan.of('youAre').at(-1)!;
     expect(after.x).toBeGreaterThan(CLEAR_RUN.x);
     expect(after.z).toBeCloseTo(CLEAR_RUN.z, 5);
+  });
+
+  it('does not let horse coordinates become a verified foot position', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walkedX = rowan.of('youAre').at(-1)!.x;
+    rowan.say({ type: 'move', x: 1000, z: 1000, yaw: 0, walk: 0, place: 'surface', riding: 'horse', gear: [] });
+    rowan.say({ type: 'move', x: 1000, z: 1000, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 200);
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
+    expect(rowan.of('youAre').at(-1)!.x).toBeCloseTo(walkedX, 1);
   });
 
   it('keeps the hero at the door while he is somewhere it does not own', () => {

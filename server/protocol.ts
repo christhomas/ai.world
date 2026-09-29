@@ -10,8 +10,9 @@ import type { WorldKind } from '../src/world/countries';
 import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
+import type { HoldingRecord } from '../src/world/holdingbook';
 
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 25;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
@@ -142,6 +143,8 @@ export interface SwornIn {
 
 export type WorldDelta =
   | CarrierFact
+  /** The current state of a player-baited eagle nest, keyed by its anchor. */
+  | { kind: 'eyrie'; anchor: Anchor; present: boolean }
   | { kind: 'chest'; id: string }
   | { kind: 'key'; id: string }
   | { kind: 'sow'; tile: string; crop: string; day: number }
@@ -456,7 +459,7 @@ export type ClientMessage =
    * durable handle whose seed the server has already recorded; no terrain discriminator travels
    * because the endless country is the only country the running game can grow.
    */
-  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
+  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -504,6 +507,10 @@ export type ClientMessage =
    * into somebody else's village. The trade is named and the world decides whether it is vacant.
    */
   | { type: 'swear'; village: string; trade: string }
+  /** Intercept a loaded cart; the world checks the hero's position and writes the outcome. */
+  | { type: 'rob-cart'; loadedOn: number }
+  /** Guard this cart while staying beside it, or stop guarding if already enlisted. */
+  | { type: 'escort-cart'; loadedOn: number }
   /**
    * Stand on the roll of the village the hero is in.
    *
@@ -797,7 +804,9 @@ export type ServerMessage =
    * client is already drawing, so it has a name to put on the message.
    */
   | { type: 'arrested'; id: number }
-  | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
+  | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[]; holdingDays?: HoldingRecord[] }
+  /** A newly joined country is still being prepared; repeats keep the page's loading state alive. */
+  | { type: 'country-progress'; done: number; total: number }
   /**
    * The country you joined is grown, and this is its fingerprint.
    *
@@ -863,6 +872,10 @@ export type ServerMessage =
   /** Whether the seed took. `ok: false` means the page lifts it back out and returns the seed. */
   | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
+  /** The authoritative state after this client's eyrie report, including a refused report. */
+  | { type: 'eyrie-state'; id: string; anchor: Anchor | null }
+  | { type: 'cart-robbed'; loadedOn: number; ok: boolean }
+  | { type: 'cart-escorted'; loadedOn: number; ok: boolean; escorting: boolean }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }
@@ -1097,6 +1110,7 @@ export function mayReport(delta: WorldDelta): boolean {
 
 export function deltaKey(delta: WorldDelta): string {
   switch (delta.kind) {
+    case 'eyrie': return `eyrie:${delta.anchor.id}`;
     case 'chest': return `chest:${delta.id}`;
     case 'key': return `key:${delta.id}`;
     case 'sow': return `sow:${delta.tile}`;
@@ -1187,6 +1201,17 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
     return new Set(rows.map(([owner]) => owner)).size === rows.length ? rows : null;
   };
   switch (delta?.kind) {
+    case 'eyrie': {
+      const a = delta.anchor;
+      if (!a || a.kind !== 'eyrie' || typeof a.id !== 'string' || a.id.length > LIMITS.THING_ID
+        || !Number.isSafeInteger(a.x) || !Number.isSafeInteger(a.z)
+        || a.id !== `eyrie:${a.x},${a.z}` || a.parent !== null
+        || !Number.isInteger(a.seed) || a.seed < 0 || a.seed > 0xffffffff
+        || !Number.isSafeInteger(a.version) || a.version < 1
+        || typeof delta.present !== 'boolean') return null;
+      return { kind: 'eyrie', anchor: { id: a.id, kind: 'eyrie', x: a.x, z: a.z,
+        seed: a.seed, parent: null, version: a.version }, present: delta.present };
+    }
     case 'cart-loaded': {
       const paying = entries(delta.paying, -1), paid = entries(delta.paid, 1);
       if (!Number.isInteger(delta.day) || delta.day < 2
@@ -1204,9 +1229,16 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const receiving = entries(delta.receiving, 1);
       if (!Number.isInteger(delta.day) || !Number.isInteger(delta.loadedOn)
         || delta.loadedOn < 2 || delta.day < delta.loadedOn
-        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving) return null;
+        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving
+        || (delta.robber !== undefined && (delta.outcome !== 'robbed'
+          || typeof delta.robber !== 'string' || delta.robber.length < 1
+          || delta.robber.length > LIMITS.NAME))
+        || (delta.robberId !== undefined && (delta.outcome !== 'robbed'
+          || typeof delta.robberId !== 'string' || !/^[0-9a-f-]{36}$/i.test(delta.robberId)))) return null;
       return { kind: 'cart-finished', day: delta.day, loadedOn: delta.loadedOn,
-        outcome: delta.outcome, receiving };
+        outcome: delta.outcome, receiving,
+        ...(delta.robber === undefined ? {} : { robber: delta.robber }),
+        ...(delta.robberId === undefined ? {} : { robberId: delta.robberId }) };
     }
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };
