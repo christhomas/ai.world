@@ -105,10 +105,13 @@ describe('a slow first country', () => {
       type: 'join', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 256, z: 256,
     }));
     await until(() => seen.find((m) => m.type === 'country-progress'), 3000);
-    socket.send(JSON.stringify({ type: 'want-chunks', chunks: [[8, 8], [8, 9]] }));
+    // A page asks for each chunk of its opening view in its own message.
+    const view: Array<[number, number]> = [];
+    for (let cz = 3; cz <= 13; cz++) for (let cx = 3; cx <= 13; cx++) view.push([cx, cz]);
+    for (const chunk of view) socket.send(JSON.stringify({ type: 'want-chunks', chunks: [chunk] }));
     await until(() => seen.find((m) => m.type === 'country'));
-    await until(() => (parcels >= 2 ? true : undefined), 5000);
-    expect(parcels).toBe(2);
+    await until(() => (parcels >= view.length ? true : undefined), 10_000);
+    expect(parcels).toBe(view.length);
   }, 90_000);
 
   it('does not count server preparation as player silence', async () => {

@@ -238,7 +238,7 @@ export class Simulation {
   private readonly warming = new Map<number, Promise<void>>();
   private readonly warmingClients = new Set<Client>();
   /** Chunk requests heard while a client's first country was still being prepared. */
-  private readonly wantedWhileWarming = new Map<Client, Array<Extract<ClientMessage, { type: 'want-chunks' }>>>();
+  private readonly wantedWhileWarming = new Map<Client, Map<string, [number, number]>>();
   private readonly preparePatch?: SimOptions['preparePatch'];
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
@@ -652,8 +652,13 @@ export class Simulation {
           // A page asks for its opening view as soon as it is welcomed. Dropping that ask would
           // leave it waiting for bytes it believes are coming; answer it once the country is ready.
           if (message.type === 'want-chunks') {
-            const held = this.wantedWhileWarming.get(client) ?? [];
-            if (held.length < 8) held.push(message);
+            // A page asks for each chunk separately, so hold distinct chunks rather than messages.
+            const held = this.wantedWhileWarming.get(client) ?? new Map<string, [number, number]>();
+            const chunks = Array.isArray(message.chunks) ? message.chunks.slice(0, CHUNKS_AT_ONCE) : [];
+            for (const pair of chunks) {
+              if (held.size >= CHUNKS_AT_ONCE) break;
+              if (Array.isArray(pair) && pair.length === 2) held.set(`${pair[0]},${pair[1]}`, [pair[0], pair[1]]);
+            }
             this.wantedWhileWarming.set(client, held);
           }
           return;
@@ -1145,10 +1150,10 @@ export class Simulation {
         wire.close();
       }).finally(() => {
         this.warmingClients.delete(joining);
-        const held = this.wantedWhileWarming.get(joining) ?? [];
+        const held = this.wantedWhileWarming.get(joining);
         this.wantedWhileWarming.delete(joining);
-        if (joining.wire.open && this.rooms.get(seed)?.clients.has(joining)) {
-          for (const asked of held) this.sendChunks(joining, asked);
+        if (held?.size && joining.wire.open && this.rooms.get(seed)?.clients.has(joining)) {
+          this.sendChunks(joining, { type: 'want-chunks', chunks: [...held.values()] });
         }
         if (this.warming.get(seed) === current) this.warming.delete(seed);
       });
