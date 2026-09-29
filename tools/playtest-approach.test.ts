@@ -7,6 +7,7 @@ const { chooseHouseApproach, chooseGroundedDoors } = createRequire(import.meta.u
     solid: (x: number, z: number) => boolean,
     grounded?: (x: number, z: number) => boolean,
     crowd?: { x: number; z: number; dead?: boolean; role?: string }[],
+    doors?: { x: number; z: number }[],
   ) => { x: number; z: number; fullRay: boolean };
   chooseGroundedDoors: (
     doors: { x: number; z: number }[], player: { x: number; z: number },
@@ -53,6 +54,12 @@ describe('the played house approach', () => {
   it('chooses a different side when somebody is standing in the mounted approach', () => {
     const approach = chooseHouseApproach(house, () => false, () => true,
       [{ x: -6, z: 0, dead: false, role: 'animal' }]);
+    expect(approach.x).toBeCloseTo(4);
+    expect(approach.fullRay).toBe(true);
+  });
+
+  it('never walks the wall check into a door, which would take the hero indoors', () => {
+    const approach = chooseHouseApproach(house, () => false, () => true, [], [{ x: -1.5, z: 0 }]);
     expect(approach.x).toBeCloseTo(4);
     expect(approach.fullRay).toBe(true);
   });

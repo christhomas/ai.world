@@ -3,12 +3,22 @@ function chooseHouseApproach(
   { x, z, rot }, solid = globalThis.__solid,
   grounded = (px, pz) => globalThis.__player?.ground?.heightAt(px, pz) !== null,
   crowd = globalThis.__entitiesFull?.() ?? [],
+  doors = globalThis.__doors ?? [],
 ) {
   // `stride` walks round both ground props and people/animals. A ray clear of buildings can still
   // end several tiles short if it starts through a cow or villager. Leave enough room for the horse
   // body around every sampled point and choose another side before blaming the house wall.
   const crowdClear = (px, pz) => crowd.every((e) => e.dead || e.role === 'mount' ||
     Math.hypot(e.x - px, e.z - pz) >= 1.8);
+  // A walk that ends on a doorstep goes indoors instead of meeting the wall, and indoors the hero
+  // stands in the room's own coordinates, so the check read "moved 86 tiles" whenever the door had
+  // armed in time. Keep every approach's foot walk, from four tiles out to the wall, clear of doors.
+  const doorClear = (angle) => doors.every((door) => {
+    for (let step = 4; step >= 0.5; step -= 0.25) {
+      if (Math.hypot(x - Math.cos(angle) * step - door.x, z - Math.sin(angle) * step - door.z) < 1.5) return false;
+    }
+    return true;
+  });
   let footOnly = null;
   for (const turn of [0, Math.PI, Math.PI / 2, -Math.PI / 2]) {
     const angle = rot + turn;
@@ -26,7 +36,7 @@ function chooseHouseApproach(
       }
       return true;
     };
-    if (!clear(4, false)) continue;
+    if (!doorClear(angle) || !clear(4, false)) continue;
     if (clear(10, true)) return { ...from, fullRay: true };
     if (!footOnly) footOnly = { ...from, fullRay: false };
   }
