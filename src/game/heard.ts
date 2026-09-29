@@ -2,6 +2,7 @@ import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, t
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
 import type { HoldingRecord } from '../world/holdingbook';
+import type { Anchor } from '../world/manifest';
 
 /**
  * What the world says, and what this half does about each of it.
@@ -76,6 +77,10 @@ export interface OnlineEvents {
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
   /** Recorded holding mornings from the authoritative shared world. */
   onHoldingDays: (rows: HoldingRecord[]) => void;
+  /** Complete nest state when joining a remote world. */
+  onEyries: (anchors: Anchor[]) => void;
+  /** The server's answer to this page's own nest report. */
+  onEyrieState: (id: string, anchor: Anchor | null) => void;
   /** The market as the server sees it: who holds which pitch and what is on it. */
   onStalls: (stalls: Stall[]) => void;
   /** A purchase from somebody's stall went through: the goods are yours, so pay for them. */
@@ -175,8 +180,14 @@ export function heard(o: Listening, message: ServerMessage): void {
       o.events.onCountryComing();
       for (const p of message.players) o.players.set(p.id, p);
       o.events.onClock(message.clock);
+      if (!o.local) o.events.onEyries(message.deltas.flatMap((delta) =>
+        delta.kind === 'eyrie' && delta.present ? [delta.anchor] : []));
       // catch up on everything that happened here before we arrived
-      for (const delta of message.deltas) o.events.onDelta(delta, true);
+      for (const delta of message.deltas) {
+        // A private worker can have a different saved history from the page's own manifest.
+        if (o.local && delta.kind === 'eyrie') continue;
+        o.events.onDelta(delta, true);
+      }
       if (message.holdingDays) o.events.onHoldingDays(message.holdingDays);
       if (!o.local) {
         o.events.onSystem(`Joined world ${message.seed} as ${o.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
@@ -224,6 +235,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'delta':
       o.events.onDelta(message.delta, false);
+      break;
+    case 'eyrie-state':
+      o.events.onEyrieState(message.id, message.anchor);
       break;
     case 'joined':
       o.players.set(message.player.id, message.player);
