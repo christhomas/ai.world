@@ -10,7 +10,8 @@ describe('the visible carrier interaction', () => {
     const ctx = {
       player: hero, state: { day: 3, time: 0.5 },
       structures: { villages: [{ name: 'Barrowgate', x: 0, z: 0 }, { name: 'Stonerock', x: 20, z: 0 }] },
-      sampler: { graph: { nodes: [] } },
+      sampler: { graph: { nodes: [{ x: 0, z: 0 }, { x: 20, z: 0 }],
+        edges: [{ a: 0, b: 1 }] } },
       register: { carrierFacts: () => [{ kind: 'cart-loaded', day: 3, from: 'Barrowgate',
         to: 'Stonerock', meals: 12, price: 1, paying: [], paid: [] }] },
       online: { connected: true, cartAction: (type: string) => sent.push(type) },
