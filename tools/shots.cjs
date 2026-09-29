@@ -676,7 +676,9 @@ const SHOTS = [
       // the token is typed rather than put in the address, exactly as a person would: the page
       // deliberately never remembers one, because a tool that quietly keeps a password leaks it
       await p.fill('#token', TOKEN);
-      await p.click('#ask');
+      // Enter lists the server's worlds, selects the addressed seed, then opens its book. The
+      // button alone asks for whichever world is already chosen, and none is before that list.
+      await p.press('#token', 'Enter');
       await p.waitForSelector('#out table', { timeout: 30000 });
       await wait(1500);
       return p.$eval('#note', (el) => el.textContent.trim());
