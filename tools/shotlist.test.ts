@@ -174,3 +174,40 @@ describe('the village a shot is taken in', () => {
       .not.toContain('__villages[n]');
   });
 });
+
+/**
+ * That the title is photographed with its land painted, on every run rather than on lucky ones.
+ *
+ * The sky behind the title is painted from animation frames, and under the capture clock an
+ * animation frame happens only when the harness steps one. `showTitle` reads the saves out of
+ * IndexedDB before it starts that sky, so a harness that stepped as soon as the page said `load`
+ * could step before the title had asked for any frame at all. Then nothing was painted and the
+ * picture was an empty canvas with the HUD showing through; on run 36601636894 the first capture
+ * came out that way and the holdout, of the same commit, came out painted — 93.9% apart.
+ *
+ * Read off the source, like the rest of this file: what can be held is the pairing. The shot waits
+ * for the slot buttons, and the title starts its sky before it writes those buttons.
+ */
+describe('the title on a phone', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const shots = readFileSync(join(here, 'shots.cjs'), 'utf8');
+  const title = readFileSync(join(here, '..', 'src', 'ui', 'title.ts'), 'utf8');
+
+  it('waits for the slots before the clock is stepped', () => {
+    const at = shots.indexOf("name: 'phone-title'");
+    expect(at, 'the phone-title shot has gone').toBeGreaterThan(0);
+    const entry = shots.slice(at, shots.indexOf('\n  },', at));
+    expect(entry).toContain("document.querySelector('#slots button[data-act]')");
+  });
+
+  it('because the title has asked for its sky by the time the slots are there', () => {
+    const sky = title.indexOf("paintTitleSky($('titleSky')");
+    expect(sky, 'the title no longer starts its sky here').toBeGreaterThan(0);
+    // The first `render()` after the sky starts is the one that writes the slot buttons, in the
+    // same synchronous stretch: no await between them for a step to land in.
+    const rendered = title.indexOf('render();', sky);
+    expect(rendered, 'the slots are no longer written after the sky starts').toBeGreaterThan(sky);
+    expect(title.slice(sky, rendered)).not.toMatch(/\bawait\b/);
+    expect(title).toContain('data-act="${s ? \'continue\' : \'new\'}"');
+  });
+});

@@ -709,7 +709,23 @@ const SHOTS = [
   {
     name: 'phone-title', title: 'The title screen on a phone', viewport: PHONE, touch: true,
     page: '/', cleanFrame: true,
-    setup: async () => 'the three slots, before a world is opened',
+    /*
+     * The title is up only once its slots are, and the land behind it only moves once it is up.
+     *
+     * `load` is not the title: `showTitle` reads the three saves out of IndexedDB first, and only
+     * then starts the painted sky and fills the slots, in one synchronous breath. The sky paints
+     * from animation frames, which the capture clock hands out only when it steps — so stepping
+     * before the title had asked for its first one stepped nothing, and the picture was of a canvas
+     * nobody had painted, with the HUD showing through it. Stepping after it painted the land.
+     * Which of the two a run got was IndexedDB against a round trip to the browser, and it went
+     * both ways on one commit (run 36601636894). Waiting for the slots means the sky's first frame
+     * is pending before the first step, every time, and the picture is always the painted one.
+     */
+    setup: async (p) => {
+      await p.waitForFunction(() => document.querySelector('#slots button[data-act]') !== null, null,
+        { timeout: Math.max(60000, PATIENCE), polling: 100 });
+      return 'the three slots, before a world is opened';
+    },
   },
   {
     // the same square held upright, which is not the designed shape and is the shape a player will
