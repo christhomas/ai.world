@@ -13,7 +13,7 @@ function setting(shared = false) {
     state, manifest: new Manifest(3), structures: { villages: [
       { name: 'Ashford', x: 196, z: 100 },
     ] },
-    around: { villages: (_x: number, _z: number, _reach: number) => [
+    around: { surveyVillages: (_x: number, _z: number, _reach: number) => [
       { name: 'Ashford', x: 196, z: 100 },
       { name: 'Neighboring patch', x: 290, z: 100 },
     ] },
@@ -44,5 +44,17 @@ describe('the shrine prayer conversation', () => {
     warning?.choices?.[0].next();
     expect(state.prayers).toMatchObject([{ id: 'highland:prayer:Shrine of Echoes:east', due: 70 }]);
     expect(persistAsync).toHaveBeenCalledOnce();
+  });
+
+  it('retries a due answer after persistence fails', async () => {
+    const { ctx, state, persistAsync } = setting();
+    state.prayers.push({ id: 'highland:prayer:test', due: 10 });
+    persistAsync.mockRejectedValue(new Error('storage unavailable'));
+    const prayer = prayerInteractions(ctx);
+    prayer.tick();
+    await Promise.resolve();
+    await Promise.resolve();
+    prayer.tick();
+    expect(persistAsync).toHaveBeenCalledTimes(2);
   });
 });
