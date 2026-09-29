@@ -120,6 +120,18 @@ describe('neutral frame camera', () => {
       frame.projection.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.projectionMatrix.elements[at], 10));
     }));
   }
+
+  it('shows where the rig stands, not where the hero and the skyline have since asked it to go', () => atWindow(1280, 720, () => {
+    const iso = new IsoCamera();
+    iso.target.set(14, 2, -8);
+    iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
+    // what the frame loop does after the rig has moved: the hero takes the target to his feet and
+    // the skyline eases the lift up the mountain, and the rig carries both at its next move
+    iso.target.set(14.2, 2.1, -8.3);
+    iso.lift = 0.4;
+    iso.camera.updateMatrixWorld(true);
+    iso.frameCamera().world.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.matrixWorld.elements[at], 10));
+  }));
 });
 
 /**

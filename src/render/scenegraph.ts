@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
-import { applyMeshFrame, bindGraphMount } from './graphmount';
+import { applyMeshFrame, bindGraphMount, bindLightMount, lightColourOf } from './graphmount';
 
 const mountedScenes = new WeakMap<SceneGraph, THREE.Scene>();
 
@@ -90,31 +90,14 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
   const unmounts: Array<() => void> = [];
   let litMaterial: THREE.MeshLambertMaterial | null = null;
   for (const node of graph.nodes) {
-    if (node.kind === 'ambient') {
-      const light = new THREE.AmbientLight(node.colour, node.intensity);
+    if (node.kind === 'ambient' || node.kind === 'hemisphere' || node.kind === 'point') {
+      const light = node.kind === 'ambient' ? new THREE.AmbientLight(lightColourOf(node.colour), node.intensity)
+        : node.kind === 'hemisphere'
+          ? new THREE.HemisphereLight(lightColourOf(node.sky), lightColourOf(node.ground), node.intensity)
+          : new THREE.PointLight(lightColourOf(node.colour), node.intensity, node.distance, node.decay);
+      if (node.kind === 'point') light.position.set(...node.position);
       scene.add(light);
-      unmounts.push(bindGraphMount(graph, node, (frame) => {
-        light.color.setHex(frame.colour ?? 0xffffff); light.intensity = frame.intensity ?? 0;
-      }));
-    } else if (node.kind === 'hemisphere') {
-      const light = new THREE.HemisphereLight(node.sky, node.ground, node.intensity);
-      scene.add(light);
-      unmounts.push(bindGraphMount(graph, node, (frame) => {
-        light.color.setHex(frame.colour ?? 0xffffff);
-        light.groundColor.setHex(frame.groundColour ?? 0xffffff);
-        light.intensity = frame.intensity ?? 0;
-      }));
-    } else if (node.kind === 'point') {
-      const light = new THREE.PointLight(node.colour, node.intensity, node.distance, node.decay);
-      light.position.set(...node.position);
-      scene.add(light);
-      unmounts.push(bindGraphMount(graph, node, (frame) => {
-        light.color.setHex(frame.colour ?? 0xffffff);
-        light.intensity = frame.intensity ?? 0;
-        light.distance = frame.distance ?? 0;
-        light.decay = frame.decay ?? 2;
-        light.position.set(frame.world[12], frame.world[13], frame.world[14]);
-      }));
+      unmounts.push(bindLightMount(graph, node, light));
     } else if (node.kind === 'mesh') {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));

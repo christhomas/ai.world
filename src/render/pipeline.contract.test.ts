@@ -225,6 +225,32 @@ describe('engine-owned frame submission', () => {
     glow.dispose();
   });
 
+  it('keeps the night glow when a batch with no windows is drawn after the ones that have them', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const props = new PropLibrary();
+    const glow = new THREE.MeshBasicMaterial({ color: 0x9fd4ef });
+    const batch = new PropBatch(scene, props, glow, graph);
+    // the windows arrive first and the trees after them, both while it is still day
+    batch.set('village', [{ kind: PropKind.GreatHearth, x: 1, y: 0, z: 2, rot: 0 }]);
+    batch.set('wood', [{ kind: PropKind.Oak, x: 4, y: 0, z: 4, rot: 0 }]);
+    batch.update();
+    // then night falls, the way the day cycle says it has
+    glow.color.setHex(0xffc45a);
+    for (const node of graph.nodes) {
+      if (node.kind === 'prop-batch' && node.glowParts?.length) node.glowColour = 0xffc45a;
+    }
+    expect(graph.nodes.filter((node) => node.kind === 'prop-batch')).toHaveLength(2);
+
+    new MountedThreePipeline(scene, () => {}, graph).draw(graph.frame());
+
+    expect(glow.color.getHex()).toBe(0xffc45a);
+    batch.dispose();
+    props.dispose();
+    glow.dispose();
+  });
+
   it('lets the neutral frame recolour retained prop glows', () => {
     const graph = new SceneGraph(0x102030);
     graph.camera = camera;

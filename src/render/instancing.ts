@@ -96,6 +96,17 @@ function byKindOf(instances: Iterable<PropInstance>): Map<PropKind, PropInstance
 }
 
 /**
+ * The colour a batch's glow is drawn in, or nothing for a kind with no glow to draw.
+ *
+ * Every batch shares one glow material and writes this back to it on each frame. A kind with no
+ * windows used to carry the colour it was built with too, so at night a stand of trees streamed in
+ * at noon repainted every lit window in the country pale blue.
+ */
+function glowColourOf(material: THREE.Material, glow: readonly unknown[] | undefined): number | undefined {
+  return glow?.length && material instanceof THREE.MeshBasicMaterial ? material.color.getHex() : undefined;
+}
+
+/**
  * Draw a batch of props as one InstancedMesh per kind, plus a matching unlit mesh for any kind
  * that has a glow (lit windows, torch flames, a forge). Used by chunks, dungeons and interiors,
  * which all draw the same prop library in the same way.
@@ -115,7 +126,7 @@ export function addPropInstances(
     const model = PROPS.get(kind);
     const node = graph && model ? graph.add({
       kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
-      glowColour: glowMaterial instanceof THREE.MeshBasicMaterial ? glowMaterial.color.getHex() : undefined,
+      glowColour: glowColourOf(glowMaterial, model.glow),
       placements: list, castShadow: shadows && worthAShadow(geometry), receiveShadow: shadows,
     }) : null;
     if (node) { mesh.userData.graphNode = node; mesh.userData.graph = graph; }
@@ -290,8 +301,7 @@ export class PropBatch {
       if (this.graph && model) {
         const node: Extract<SceneNode, { kind: 'prop-batch' }> = {
           kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
-          glowColour: this.glowMaterial instanceof THREE.MeshBasicMaterial
-            ? this.glowMaterial.color.getHex() : undefined,
+          glowColour: glowColourOf(this.glowMaterial, model.glow),
           placements: list, castShadow: worthAShadow(geometry), receiveShadow: true,
         };
         this.graph.add(node);
@@ -299,7 +309,9 @@ export class PropBatch {
         batch.placements.set(key, node.placements);
         batch.parts.set(key, pack(node.placements as PropInstance[]));
         batch.unmounts.set(key, bindGraphMount(this.graph, node, (frame) => {
-          if (frame.glowColour !== undefined && this.glowMaterial instanceof THREE.MeshBasicMaterial) {
+          // the glow material is shared by every kind, so only a batch that draws a glow may set it:
+          // a stand of trees has no windows and would put back whatever colour it was made with
+          if (batch.glowGeometry && frame.glowColour !== undefined && this.glowMaterial instanceof THREE.MeshBasicMaterial) {
             this.glowMaterial.color.setHex(frame.glowColour);
           }
           const placements = frame.placements ?? [];

@@ -68,6 +68,8 @@ export class IsoCamera {
    */
   lift = 0;
   zoom: number = zoomBand(window.innerHeight).start;
+  /** Where the rig last stood and looked, which is what a frame shows. */
+  private readonly pose = { x: 0, y: 0, z: 0, targetX: 0, targetY: 0, targetZ: 0 };
   /** How far back this place lets you stand: less sky indoors and underground than in a field. */
   private ceiling: number = CAMERA.MAX_ZOOM;
   /**
@@ -101,15 +103,20 @@ export class IsoCamera {
     this.applyPosition();
   }
 
-  /** Engine-owned frame camera. The Three camera below is only its interaction adapter. */
+  /**
+   * Engine-owned frame camera. The Three camera below is only its interaction adapter.
+   *
+   * Taken from where the rig last put itself, not worked out afresh from `target` and `lift`. The
+   * hero pulls the target to his feet and the skyline sets the lift after the rig has moved for
+   * the frame, and both land at the next move; the picture, the minimap's corners and whatever
+   * the pointer is over all see the pose the rig is in. Aiming the picture at the newer values
+   * put it a fraction of a pixel away from all of those, and from every frame drawn before #445,
+   * whenever the camera was still easing up a mountain.
+   */
   frameCamera(): FrameDescription['camera'] {
-    const at = this.target.y + this.lift;
     const aspect = window.innerWidth / window.innerHeight;
     return orthographicFrame({
-      x: this.target.x + Math.cos(this.rotation) * CAMERA.DIST,
-      y: at + CAMERA.HEIGHT,
-      z: this.target.z + Math.sin(this.rotation) * CAMERA.DIST,
-      targetX: this.target.x, targetY: at, targetZ: this.target.z,
+      ...this.pose,
       width: this.zoom * aspect, height: this.zoom,
       near: 0.1, far: 1000,
     });
@@ -247,11 +254,14 @@ export class IsoCamera {
 
   private applyPosition(): void {
     const at = this.target.y + this.lift;
-    this.camera.position.set(
-      this.target.x + Math.cos(this.rotation) * CAMERA.DIST,
-      at + CAMERA.HEIGHT,
-      this.target.z + Math.sin(this.rotation) * CAMERA.DIST,
-    );
-    this.camera.lookAt(this.target.x, at, this.target.z);
+    const pose = this.pose;
+    pose.x = this.target.x + Math.cos(this.rotation) * CAMERA.DIST;
+    pose.y = at + CAMERA.HEIGHT;
+    pose.z = this.target.z + Math.sin(this.rotation) * CAMERA.DIST;
+    pose.targetX = this.target.x;
+    pose.targetY = at;
+    pose.targetZ = this.target.z;
+    this.camera.position.set(pose.x, pose.y, pose.z);
+    this.camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
   }
 }
