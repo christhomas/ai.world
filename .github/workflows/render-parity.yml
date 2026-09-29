@@ -78,14 +78,15 @@ jobs:
           OUT: ${{ runner.temp }}/render-after
           BEFORE: ${{ runner.temp }}/render-before
           REPORTS: ${{ runner.temp }}
+          EXCLUDE_RECT: 1103,0,1440,900
         run: |
-          # The async minimap is outside the renderer seam. Exclude the same rectangle
-          # from every pair of captures; the minimap has its own content assertions.
+          # The right HUD column contains the live clock, messages, bars and async minimap.
+          # Compare every pixel of the fixed world area at the unchanged 0.50% threshold.
           set +e
-          SHOTS="$OUT" EXCLUDE_RECT=1103,75,1415,394 node tools/compare.cjs "$BEFORE" town.png mountain.png
+          SHOTS="$OUT" node tools/compare.cjs "$BEFORE" town.png mountain.png
           outdoor=$?
           cp docs/reports/pictures-report.txt "$REPORTS/render-outdoor-report.txt"
-          SHOTS="$OUT" EXCLUDE_RECT=1103,75,1415,394 node tools/compare.cjs "$BEFORE" interior.png
+          SHOTS="$OUT" node tools/compare.cjs "$BEFORE" interior.png
           interior=$?
           cp docs/reports/pictures-report.txt "$REPORTS/render-interior-report.txt"
           test "$outdoor" -eq 0 && test "$interior" -eq 0
