@@ -5,7 +5,7 @@ import { BIOMES } from '../../world/biomes';
 import { CAMP, heartsFrom, huntersOf, nightAt, tilesToVillage, wakes, type Country } from '../camp';
 import { Carcasses, paidFor, type Carcass } from '../furs';
 import { ITEMS } from '../items';
-import type { Surroundings } from './context';
+import type { DialogueNode, Surroundings } from './context';
 
 /**
  * What Enter does over a body and at the end of a day's walk: take the hide off something you
@@ -18,13 +18,12 @@ import type { Surroundings } from './context';
  */
 export function campInteractions(ctx: Surroundings) {
   const {
-    player, state, structures, sampler, sailing, dialogue, hud, sound, seed, high, online, persist,
+    player, state, structures, sampler, sailing, dialogue, hud, sound, seed, high, online, mount, persist,
   } = ctx;
 
   /**
-   * The bodies left lying about this sitting. It lives here rather than in the world for the
-   * reason the dug holes do: what a carcass gives up follows from the kind and the knife, so
-   * there is nothing to save and nobody to tell.
+   * The bodies left on the ground are transient. Once lifted, the body and its remaining lifetime
+   * live with the horse or the hero in their save; putting one down does not make it fresh again.
    */
   const carcasses = new Carcasses();
 
@@ -41,7 +40,21 @@ export function campInteractions(ctx: Surroundings) {
   const onVisitor = (put: (kind: string, x: number, z: number) => void): void => { arrive = put; };
 
   /** Let the bodies nobody came back for go, at the same rate everything else out here ages. */
-  const age = (dt: number): void => carcasses.age(dt);
+  const age = (dt: number): void => {
+    carcasses.age(dt);
+    if (mount.ageCargo(dt, state.has('cart'))) {
+      hud.flash(state.has('cart') ? 'The carcass in the cart has spoiled.' : 'The cart is gone, and its carcass is lost.');
+      persist();
+    }
+    if (state.shouldering) {
+      state.shouldering.left -= dt;
+      if (state.shouldering.left <= 0) {
+        state.shouldering = null;
+        hud.flash('The carcass on your shoulder has spoiled.');
+        persist();
+      }
+    }
+  };
 
   /** The bodies still lying about, for whatever draws them. */
   const bodies = () => carcasses.all;
@@ -59,9 +72,9 @@ export function campInteractions(ctx: Surroundings) {
    * the teaching: an eagle that eats and flies away tells a hunter the ledge was too low, and that
    * is a hint system with no tutorial text anywhere in it. `baiting.ts` owns every word of it.
    */
-  const layItOut = (body: Carcass) => {
-    const laid = high.bait(body.x, body.z, state.day, tilesToVillage(structures.villages, body.x, body.z));
-    carcasses.leaveIt(body);
+  const layItOut = (x: number, z: number, spent: () => void) => {
+    const laid = high.bait(x, z, state.day, tilesToVillage(structures.villages, x, z));
+    spent();
     if (laid.nest) {
       online.report({ kind: 'eyrie', anchor: laid.nest, present: true });
       sound.chime();
@@ -71,6 +84,7 @@ export function campInteractions(ctx: Surroundings) {
       persist();
     } else {
       sound.thud();
+      persist();
     }
     return { speaker: 'The high country', emoji: '🦅', pages: [laid.said] };
   };
@@ -79,21 +93,20 @@ export function campInteractions(ctx: Surroundings) {
    * Enter over a body: take the hide. A knife makes it certain, and bare hands are worth trying
    * once, which is the closest this game comes to telling you to go and buy the knife.
    */
-  const trySkin = (preview = false): boolean => {
-    const body = carcasses.nearest(player.x, player.z);
-    if (!body) return false;
-    if (preview) return true;
+  const bodyNode = (body: Carcass): DialogueNode => {
     const kind = KINDS[body.kind];
     const knife = state.can('skin');
-    dialogue.start({
+    return {
       speaker: `The dead ${kind?.label.toLowerCase() ?? body.kind}`,
       emoji: kind?.emoji ?? '🐺',
-      pages: [knife
+      pages: [(knife
         ? 'The fur is still good. Work the knife in along the belly and it will come away whole.'
-        : 'The fur is still good, and you have nothing on you to cut it with. Pull at it and hope?'],
+        : 'The fur is still good, and you have nothing on you to cut it with. Pull at it and hope?') +
+        (state.has('cart') && mount.owned
+          ? ' A horse can haul one whole carcass in your cart. Dismount beside the body to load it.'
+          : ' A horse and a cart from the village wright could haul the whole carcass.')],
       choices: [
         { label: knife ? 'Skin it' : 'Pull at it', next: () => {
-          // seeded from where it fell, so a torn hide is torn for whoever gets there first
           const hide = carcasses.take(body, knife, mulberry32(seed ^ Math.floor(body.x * 131 + body.z * 977)));
           if (!hide) {
             sound.thud();
@@ -109,10 +122,69 @@ export function campInteractions(ctx: Surroundings) {
           persist();
           return null;
         } },
-        { label: 'Leave it for the eagles', next: () => layItOut(body) },
+        ...(mount.canLoad(body, state.has('cart'), player.x, player.z) ? [{ label: 'Load into the cart', next: () => {
+          if (mount.load(body, state.has('cart'), player.x, player.z)) {
+            carcasses.leaveIt(body); sound.select(); persist(); hud.flash('The carcass is in the cart. One load fills it.');
+          }
+          return null;
+        } }] : []),
+        { label: 'Leave it for the eagles', next: () => layItOut(body.x, body.z, () => carcasses.leaveIt(body)) },
         { label: 'Leave it', next: () => null },
       ],
-    });
+    };
+  };
+
+  const trySkin = (preview = false): boolean => {
+    if (state.shouldering) {
+      if (preview) return true;
+      const body = state.shouldering;
+      const canStow = mount.canLoad({ ...body, x: player.x, z: player.z }, state.has('cart'), player.x, player.z);
+      dialogue.start({
+        speaker: 'The carcass on your shoulder', emoji: '🦌',
+        pages: ['It is heavy. The cart holds one whole carcass, and the horse must wait wherever the ground lets it stand.'],
+        choices: [
+          { label: 'Leave it for the eagles here', next: () => layItOut(player.x, player.z, () => { state.shouldering = null; }) },
+          ...(canStow ? [{ label: 'Stow it in the cart', next: () => {
+            if (mount.load({ ...body, x: player.x, z: player.z }, state.has('cart'), player.x, player.z)) {
+              state.shouldering = null; sound.select(); persist(); hud.flash('The carcass is in the cart.');
+            }
+            return null;
+          } }] : []),
+          { label: 'Set it down', next: () => {
+            carcasses.put(body, player.x, player.z);
+            state.shouldering = null; sound.select(); persist();
+            return null;
+          } },
+          { label: 'Keep carrying it', next: () => null },
+        ],
+      });
+      return true;
+    }
+    const body = carcasses.nearest(player.x, player.z);
+    if (mount.cargo && mount.near(player.x, player.z) && !mount.riding) {
+      if (preview) return true;
+      dialogue.start({
+        speaker: 'The cart', emoji: '🛒',
+        pages: ['One carcass lies in the cart. The horse can bring it to the foot of a crag; from there you can take it on your shoulder.'],
+        choices: [
+          { label: 'Shoulder the carcass', next: () => {
+            state.shouldering = mount.unload(player.x, player.z);
+            sound.select(); persist(); hud.flash('You shoulder the carcass. Walking will be slow.');
+            return null;
+          } },
+          { label: `Ride ${mount.name}`, next: () => {
+            mount.mount(player); sound.chime(); hud.flash(`You swing up onto ${mount.name}.`);
+            return null;
+          } },
+          ...(body ? [{ label: 'Work on a nearby carcass', next: () => bodyNode(body) }] : []),
+          { label: 'Leave it in the cart', next: () => null },
+        ],
+      });
+      return true;
+    }
+    if (!body) return false;
+    if (preview) return true;
+    dialogue.start(bodyNode(body));
     return true;
   };
 
@@ -180,5 +252,9 @@ export function campInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { trySkin, tryCamp, fell, onVisitor, age, bodies };
+  const carcassLabel = () => state.shouldering ? 'Carry the carcass' :
+    mount.cargo && mount.near(player.x, player.z) && !mount.riding ? 'Use the loaded cart' :
+    carcasses.nearest(player.x, player.z) ? 'Work on the carcass' : 'Skin the carcass';
+
+  return { trySkin, carcassLabel, tryCamp, fell, onVisitor, age, bodies };
 }

@@ -10,6 +10,8 @@ import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../world/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
+import { spaceNear } from '../entities/entity';
+import type { Manifest } from '../world/manifest';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
@@ -27,6 +29,7 @@ import { BUILDS, buildable, stageAt, type Houses } from './building';
 import type { CommandWorld } from './commands';
 import { installCreatureProbes } from './probesCreatures';
 import { installPeopleProbes } from './probesPeople';
+import { installBaitProbes } from './probesBait';
 import type { Director } from './director';
 import type { Eyrie } from './eyries';
 import type { Plots } from './farming';
@@ -62,6 +65,7 @@ import { whaleAt, type Pod } from './whales';
  */
 export interface Probed {
   seed: number;
+  manifest: Manifest;
   state: GameState;
   player: Player;
   rig: SceneRig;
@@ -207,6 +211,7 @@ export function installProbes(ctx: Probed): void {
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;
+  installBaitProbes(ctx);
   (debug as { __pods?: () => unknown }).__pods = () => pods();
   (debug as { __sailing?: unknown }).__sailing = sailing;
   (debug as { __whaleY?: () => number[] }).__whaleY = () => {
@@ -369,8 +374,8 @@ export function installProbes(ctx: Probed): void {
    * finishing meant arriving: he gives up on a place he cannot reach rather than leaning on the
    * thing in the way of it, so a script never waits on him for ever.
    */
-  (debug as { __walkTo?: (x?: number, z?: number) => unknown }).__walkTo = (x, z) => {
-    player.walkTo(x, z);
+  (debug as { __walkTo?: (x?: number, z?: number, within?: number) => unknown }).__walkTo = (x, z, within) => {
+    player.walkTo(x, z, within);
     return { steering: player.steering, at: [Math.round(player.x), Math.round(player.z)] };
   };
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
@@ -493,6 +498,12 @@ export function installProbes(ctx: Probed): void {
     }
     if (!mount.owned) mount.buy(player.x, player.z, chunks, overworldRenderer);
     else mount.restore(chunks, overworldRenderer);
+    // The playtest can summon an owned horse after teleporting to a hunt site. Place that
+    // horse on ground it can use before boarding; ordinary play still requires proximity.
+    if (mount.entity && !mount.near(player.x, player.z)) {
+      const at = spaceNear(chunks, mount.entity.kind, player.x, player.z);
+      if (at) { mount.entity.x = at.x; mount.entity.z = at.z; mount.entity.y = chunks.heightAt(at.x, at.z) ?? 0; }
+    }
     mount.mount(player);
     return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
   };
@@ -507,6 +518,7 @@ export function installProbes(ctx: Probed): void {
     return {
       hero: { x: player.x, z: player.z },
       horse: horse ? { x: horse.x, z: horse.z } : null,
+      cargo: mount.cargo,
       under: horse ? Math.hypot(player.x - horse.x, player.z - horse.z) : null,
     };
   };
