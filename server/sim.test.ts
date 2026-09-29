@@ -255,15 +255,42 @@ describe('the simulation, hosted by nothing at all', () => {
     const removed = { kind: 'eyrie', anchor, present: false } as const;
 
     rowan.say({ type: 'delta', delta: added });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor });
     expect(wren.of('delta').map((m) => m.delta)).toEqual([added]);
     expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toContainEqual(added);
     rowan.say({ type: 'delta', delta: added });
+    expect(rowan.of('eyrie-state')).toHaveLength(2);
     expect(wren.of('delta')).toHaveLength(1);
 
     rowan.say({ type: 'delta', delta: removed });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
     expect(wren.of('delta').at(-1)?.delta).toEqual(removed);
     expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
       .toContainEqual(removed);
+    rowan.say({ type: 'delta', delta: removed });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
+    expect(wren.of('delta')).toHaveLength(2);
+  });
+
+  it('corrects refused and malformed nest reports without changing the other player or replay', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    const wren = new Pretend(sim).join(7, 'Wren');
+    const far = new Manifest(7).ensure('eyrie:100,100', 'eyrie', 100, 100);
+
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: far, present: true } });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: far.id, anchor: null }]);
+    expect(wren.of('delta')).toEqual([]);
+    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toEqual([]);
+
+    // A malformed attempt against an existing nest must return that nest, not the bad claim.
+    const near = new Manifest(7).ensure('eyrie:0,0', 'eyrie', 0, 0);
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: near, present: true } });
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: { ...near, seed: -1 }, present: false } });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: near.id, anchor: near });
+    expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'eyrie', anchor: near, present: true }]);
+    expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
+      .toContainEqual({ kind: 'eyrie', anchor: near, present: true });
   });
 
   it('sends the server holding daybook to a joining player', () => {
