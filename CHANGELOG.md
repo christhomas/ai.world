@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.0 — 2026-09-29
+
+villages catch illness, carts haul carcasses to the crags, holdings report their income, and the country is a stack of layers you can shape
+
 ## v0.102.6 — 2026-09-29
 
 Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, worlds that start without stalling joins, and releases that trust CI
