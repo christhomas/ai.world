@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import { hexToLinear } from '../world/mesher';
-import type { PropLibrary } from '../render/props';
-import { addPropInstances, disposeInstances } from '../render/instancing';
-import { ITile, type InteriorMap } from './generate';
-import { FLOOR_Y, WALL_HEIGHT } from './world';
+import type { PropLibrary } from './props';
+import { addPropInstances, disposeInstances } from './instancing';
+import { ITile, type InteriorMap } from '../interior/generate';
+import { FLOOR_Y, WALL_HEIGHT } from '../interior/world';
 
 interface Palette { floor: number; floorAlt: number; wall: number; wallTop: number; counter: number; rug: number; light: number }
 

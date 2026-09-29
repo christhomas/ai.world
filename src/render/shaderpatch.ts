@@ -48,6 +48,9 @@ export function patchShader(
   if (at >= 0) all.edits[at] = edit;
   else { all.names.push(name); all.edits.push(edit); }
 
+  // Neutral frame descriptions carry intent, never injected GLSL.
+  material.userData.effects = [...all.names];
+
   material.onBeforeCompile = (shader) => { for (const one of all.edits) one(shader); };
   material.customProgramCacheKey = () => all.names.join('+');
   material.needsUpdate = true;

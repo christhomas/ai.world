@@ -4,6 +4,7 @@ import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
+import { describeFrame, type RecordingPipeline } from './recording';
 
 const SKY = 0x8fc1e6;
 
@@ -295,7 +296,7 @@ export interface SceneRig {
  * pass however the preference reads. See `secondrig.ts` for why this is the only thing that
  * differs between the two paths.
  */
-export function createSceneRig(container: HTMLElement, asked = false): SceneRig {
+export function createSceneRig(container: HTMLElement, asked = false, recording?: RecordingPipeline): SceneRig {
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     // photo mode reads the canvas back after a frame, which needs the buffer kept
@@ -460,6 +461,7 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
     draw(what, camera) {
       if (second) second.draw(what, camera);
       else renderer.render(what, camera);
+      recording?.draw(() => describeFrame(what, camera));
     },
     get canvas() { return renderer.domElement; },
     dispose() {

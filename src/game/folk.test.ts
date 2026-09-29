@@ -5,7 +5,7 @@ import { TerrainSampler } from '../world/terrain';
 import { GroundWorld } from '../world/groundworld';
 import { Register } from '../world/register';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import { Roster } from '../entities/roster';
 import { propFootprints } from '../entities/props';
 import { postsOf } from '../entities/villagers';

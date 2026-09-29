@@ -6,7 +6,7 @@ import { Entity, Herd, canStand, spaceNear, tryMove, type Crowd, type TileWorld 
 import { whatCarriesHim } from './walking';
 import { JUMP, leapHeight } from './leap';
 import { newHero, stride, type Steer } from './stride';
-import type { EntityRenderer } from './pool';
+import type { EntityRenderer } from '../render/entities';
 
 /** The hero: an entity driven by the keyboard, or by anything else when the keyboard is still. */
 export class Player {

@@ -40,6 +40,7 @@ const { chromium } = require('playwright');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const { chooseHouseApproach, chooseGroundedDoors } = require('./playtest-approach.cjs');
+const playCart = require('./playtest-cart.cjs');
 
 const PORT = process.env.PORT || '5173';
 const SEED = process.env.SEED || '3';
@@ -660,6 +661,8 @@ const finish = async () => {
     }));
   }
 
+  // Keep the village checks on their original ground; the hunt leaves the hero in high country.
+  await playCart(page, say, go, face);
   await finish();
 })().catch(async (e) => {
   // A crash halfway is a failed playtest, not a silent one. It is also the run whose account is

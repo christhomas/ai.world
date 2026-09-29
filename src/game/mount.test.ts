@@ -4,7 +4,7 @@ import type { TileWorld } from '../entities/entity';
 import { Player } from '../entities/player';
 import { canStand } from '../entities/entity';
 import { KINDS } from '../entities/animals';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import { Mount } from './mount';
 import { breedOf } from './stables';
 

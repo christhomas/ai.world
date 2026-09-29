@@ -3,7 +3,7 @@ import { WALKING_BAND, type Footprint } from '../world/footprints';
 /**
  * The parts a prop is made of, and how much ground a list of them comes to.
  *
- * A prop used to be a list of `THREE` primitives. That made the drawing and the shape the same
+ * A prop used to be a list of renderer primitives. That made the drawing and the shape the same
  * thing, which was the point — but it also meant that *knowing how big a prop is* required a
  * renderer, so the world server, which draws nothing and owns where everybody is standing, had a
  * 3D library rolled into its container image to measure a cottage with.
@@ -11,10 +11,10 @@ import { WALKING_BAND, type Footprint } from '../world/footprints';
  * Creatures had already solved this: `entities/animals.ts` is part lists — shape, size, offset,
  * colour — and the renderer turns them into geometry, so a wolf's `body` box falls out of the same
  * data the wolf is drawn from and anything at all can read it. This is that vocabulary for props.
- * The renderer builds `THREE` geometry out of these (`render/geometry.ts`); the box below is
+ * The renderer builds geometry out of these (`render/geometry.ts`); the box below is
  * worked out from the same numbers with no renderer in the room.
  *
- * The arguments are in the order the `THREE` constructors took them, deliberately: the catalogue
+ * The arguments retain the old renderer constructor order, deliberately: the catalogue
  * was converted from primitives to data a line at a time, and keeping the numbers in the same
  * order is what made that conversion something a person could check by eye.
  */
@@ -39,7 +39,7 @@ export interface PropPart {
   offset: [number, number, number];
   color: number;
   scale?: [number, number, number];
-  /** Euler angles in radians, applied Z then Y then X — the order `THREE.Euler` defaults to. */
+  /** Euler angles in radians, applied Z then Y then X. */
   rot?: [number, number, number];
 }
 
@@ -178,7 +178,7 @@ function partPieces(p: PropPart): Placed[][] {
   }
 }
 
-/** The corners of a cylinder's two rings, at the angles `THREE` puts them: x on the sine, z on the cosine. */
+/** The corners of a cylinder's two rings: x on the sine, z on the cosine. */
 function ring(rTop: number, rBottom: number, h: number, faces: number): Placed[] {
   const out: Placed[] = [];
   for (let i = 0; i < faces; i++) {

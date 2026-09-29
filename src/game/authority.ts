@@ -2,7 +2,7 @@ import type { CreatureSnap } from '../../server/protocol';
 import type { Entity } from '../entities/entity';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { Sound } from './audio';
 import { spoils } from './combat';
 import { whatAKillMeans } from './consequences';

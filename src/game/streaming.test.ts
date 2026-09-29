@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { streamTheCountry } from './streaming';
 import { packChunk, type Parcel } from '../world/chunkparcel';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { TerrainSampler } from '../world/terrain';
 import { WORLD } from '../core/config';
 

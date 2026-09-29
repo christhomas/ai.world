@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { buildChunkMesh, type WallCut } from '../world/mesher';
-import { addPropInstances, disposeInstances, meshFromData } from '../render/instancing';
-import type { PropLibrary } from '../render/props';
-import type { DungeonWorld } from './world';
+import { addPropInstances, disposeInstances, meshFromData } from './instancing';
+import type { PropLibrary } from './props';
+import type { DungeonWorld } from '../dungeon/world';
 
 const MAX_TORCH_LIGHTS = 10;
 

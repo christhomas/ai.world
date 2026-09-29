@@ -1,7 +1,7 @@
 import { mulberry32, type Rng } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd, canStand, yawFor, type TileWorld } from '../entities/entity';
-import type { EntityRenderer } from '../entities/pool';
+import type { EntityRenderer } from '../render/entities';
 import type { Player } from '../entities/player';
 import { breedOf, type Breed } from './stables';
 import { FUR, type Carcass, type CarriedCarcass } from './furs';

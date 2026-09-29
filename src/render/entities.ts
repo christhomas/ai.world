@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { worldView } from '../render/scene';
-import { HealthBars, heightOf } from '../render/healthbars';
-import type { AnimRole, AnimalKind, PartDef } from './animals';
-import type { Entity } from './entity';
-import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from './motion';
+import type { IsoCamera } from './camera';
+import { worldView } from './scene';
+import { HealthBars, heightOf } from './healthbars';
+import type { AnimRole, AnimalKind, PartDef } from '../entities/animals';
+import type { Entity } from '../entities/entity';
+import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from '../entities/motion';
 
 /**
  * Draws every creature through InstancedMesh pools: one pool per kind, and inside it one mesh for
@@ -298,6 +299,17 @@ export class EntityRenderer {
     const out: THREE.Object3D[] = [];
     for (const p of this.pools.values()) for (const part of p.meshes) if (part.count > 0) out.push(part.mesh);
     return out;
+  }
+
+  /** Resolve a screen pointer entirely inside the rendering implementation. */
+  pick(x: number, y: number, camera: IsoCamera): Entity | null {
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(x, y), camera.camera);
+    for (const hit of ray.intersectObjects(this.pickables(), false)) {
+      const entity = this.entityAt(hit);
+      if (entity) return entity;
+    }
+    return null;
   }
 
   /** Whoever owns the instance a ray hit, or null if the hit was on nothing living. */

@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import type { IsoCamera } from '../render/camera';
 import type { Entity } from './entity';
 
 /**
@@ -14,9 +14,8 @@ export interface EntityView {
   /** Take this creature. False when there is no room, which stops a spawn mid-herd. */
   add(e: Entity): boolean;
   remove(e: Entity): void;
-  /** What a mouse could be pointing at. Empty where there is no mouse. */
-  pickables(): THREE.Object3D[];
-  entityAt(hit: THREE.Intersection): Entity | null;
+  /** Which creature is under a pointer in normalized screen coordinates. */
+  pick(x: number, y: number, camera: IsoCamera): Entity | null;
   readonly count: number;
 }
 
@@ -63,10 +62,8 @@ export class Roster implements EntityView {
     this.alive.delete(e);
   }
 
-  /** Nothing to point at with no mouse in the room. */
-  pickables(): THREE.Object3D[] { return []; }
-
-  entityAt(): Entity | null { return null; }
+  /** Nothing to point at with no renderer in the room. */
+  pick(): Entity | null { return null; }
 
   get count(): number { return this.alive.size; }
 

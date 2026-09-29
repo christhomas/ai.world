@@ -36,6 +36,21 @@ const path = require('node:path');
 const HERE = process.env.SHOTS || 'docs/screenshots';
 const THERE = process.argv[2];
 const ONLY = new Set(process.argv.slice(3));
+/** Optional rectangle omitted from both pictures when comparing the world behind a streaming UI. */
+const EXCLUDE_RECT = process.env.EXCLUDE_RECT ? process.env.EXCLUDE_RECT.split(',').map(Number) : null;
+if (EXCLUDE_RECT && (EXCLUDE_RECT.length !== 4 || EXCLUDE_RECT.some((n) => !Number.isInteger(n))
+  || EXCLUDE_RECT[0] >= EXCLUDE_RECT[2] || EXCLUDE_RECT[1] >= EXCLUDE_RECT[3])) {
+  throw new Error('EXCLUDE_RECT must be x0,y0,x1,y1');
+}
+
+function assertPixelsRemain(width, height, rect) {
+  if (!rect) return;
+  const x0 = Math.max(0, rect[0]), y0 = Math.max(0, rect[1]);
+  const x1 = Math.min(width, rect[2]), y1 = Math.min(height, rect[3]);
+  if (Math.max(0, x1 - x0) * Math.max(0, y1 - y0) >= width * height) {
+    throw new Error('EXCLUDE_RECT leaves no pixels to compare');
+  }
+}
 
 /** The comparison's own rules, read out of the module the tests hold. */
 const rules = () => {
@@ -97,14 +112,21 @@ async function main() {
     };
     const before = await read(path.join(THERE, name));
     const after = await read(path.join(HERE, name));
+    assertPixelsRemain(before.width, before.height, EXCLUDE_RECT);
     if (before.width !== after.width || before.height !== after.height) {
       lines.push(`  SIZE   ${name}: ${before.width}x${before.height} against ${after.width}x${after.height}`);
       told++;
       continue;
     }
     let moved = 0;
-    const of = before.width * before.height;
-    for (let at = 0; at < of; at++) {
+    let of = 0;
+    for (let at = 0; at < before.width * before.height; at++) {
+      if (EXCLUDE_RECT) {
+        const x = at % before.width, y = Math.floor(at / before.width);
+        if (x >= EXCLUDE_RECT[0] && x < EXCLUDE_RECT[2]
+          && y >= EXCLUDE_RECT[1] && y < EXCLUDE_RECT[3]) continue;
+      }
+      of++;
       const px = at * 4;
       const apart = Math.max(
         Math.abs(before.data[px] - after.data[px]),
@@ -125,6 +147,7 @@ async function main() {
     `PICTURES — ${told === 0 ? 'SAME' : 'CHANGED'} — ${new Date().toISOString()}`,
     `  ${mine.length} pictures against ${THERE}, worst ${(worst * 100).toFixed(2)}%,`,
     `  anything past ${(much * 100).toFixed(2)}% of a picture is reported`,
+    ...(EXCLUDE_RECT ? [`  excluded ${EXCLUDE_RECT.join(',')} from both images`] : []),
     ...lines,
   ].join('\n');
   console.log(report);
@@ -134,4 +157,6 @@ async function main() {
   process.exit(told === 0 ? 0 : 1);
 }
 
-main().catch((wrong) => { console.error(wrong); process.exit(1); });
+if (require.main === module) main().catch((wrong) => { console.error(wrong); process.exit(1); });
+
+module.exports = { assertPixelsRemain };

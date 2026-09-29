@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { KINDS, type AnimalKind } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from './entities';
 import { mulberry32 } from '../core/rng';
 import { PropKind } from '../world/biomes';
 import { PropBatch, type PropInstance } from './instancing';

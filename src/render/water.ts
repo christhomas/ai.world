@@ -61,6 +61,7 @@ export class WaterMaterial {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    m.userData.intent = 'water';
     m.customProgramCacheKey = () => 'ai-world-water-2';
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = this.uniforms.uTime;
