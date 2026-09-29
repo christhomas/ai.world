@@ -45,6 +45,8 @@ export interface GameStateJson {
    * by this: that is still an item, still in his pocket, and still lifts the fog off everything.
    */
   charted?: string[];
+  /** Last morning whose holding report the hero marked read, by village. */
+  holdingReadAt?: Record<string, number>;
   /**
    * When this save was last written, as milliseconds since the epoch.
    *
@@ -160,6 +162,7 @@ export class GameState {
   readonly explored = new Set<string>();
   /** The country somebody has paid to be shown, a province at a time. See `cartography.ts`. */
   readonly charted = new Set<ProvinceId>();
+  readonly holdingReadAt = new Map<string, number>();
   readonly quests = new Map<string, QuestStatus>();
   readonly discovered = new Set<string>();
   readonly opened = new Set<string>();
@@ -463,6 +466,7 @@ export class GameState {
       claimedCarts: [...this.claimedCarts],
       explored: [...this.explored],
       charted: [...this.charted],
+      holdingReadAt: Object.fromEntries(this.holdingReadAt),
       quests: Object.fromEntries(this.quests),
       discovered: [...this.discovered],
       opened: [...this.opened],
@@ -513,6 +517,9 @@ export class GameState {
     // nothing here on a save from before maps were country, which reads back as a hero who has
     // bought none — and whose all-seeing trinket, if he has one, is in the inventory above
     for (const k of json.charted ?? []) g.charted.add(k);
+    for (const [village, day] of Object.entries(json.holdingReadAt ?? {})) {
+      if (Number.isSafeInteger(day) && day >= 0) g.holdingReadAt.set(village, day);
+    }
     for (const [k, v] of Object.entries(json.quests ?? {})) g.quests.set(k, v);
     for (const k of json.discovered ?? []) g.discovered.add(k);
     for (const k of json.opened ?? []) g.opened.add(k);
