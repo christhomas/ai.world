@@ -28,13 +28,15 @@ after reviewing a PR description line beginning `Merge guard exception:` with a 
 at least 30 characters after the prefix.
 The exception and the detected changes remain visible in the check log.
 
-The required `playtest` job also compares fresh `map` and `phone-title` captures with their
-checked-in `docs/screenshots/` references. The pixel references were captured on the pinned
-Ubuntu 24.04 runner with the lockfile's Playwright browser. To change one deliberately, download
-the `reference-scenes` artifact from the PR's CI run, inspect its PNGs, and commit the intended
-images to `docs/screenshots/`. The job uploads its captures and a pixel-difference report when the
-comparison fails. A capture from another OS may lay out fonts differently. The moving town scene
-remains a documentation screenshot rather than a pixel baseline.
+The hosted `reference-capture` jobs photograph every scene listed by `tools/shots.cjs` twice, on
+separate pinned Ubuntu 24.04 runners with the lockfile's Playwright Chromium. The required
+`playtest` job waits for both passes, compares each with the checked-in `docs/screenshots/`
+references, and compares the second pass with the first at the same pixel threshold. Artifacts
+`reference-first` and `reference-holdout` retain each pass's PNGs and log; `reference-scenes`
+retains diff PNGs and all three reports even when comparison fails. A baseline change is
+deliberate: inspect those images and reports, then commit the intended PNGs to
+`docs/screenshots/`. A capture from another OS may lay out fonts differently, so use the hosted
+runner's images for reference updates.
 
 **Assume you are not the only thing moving `main`.** Other sessions and the repository's own
 automation land work concurrently. A branch you rebased and pushed ten minutes ago can be behind

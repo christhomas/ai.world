@@ -39,7 +39,10 @@ const wire: Wire = {
 };
 
 const player = sim.attach(wire);
-sim.start();
+const capturing = self.name === 'shots-capture';
+let captureNow = 0;
+if (capturing) sim.captureAt(captureNow);
+else sim.start();
 
 /**
  * Everything the page says, and the two things it says to this thread rather than through it.
@@ -56,6 +59,13 @@ sim.start();
  * background takes one ordinary tick rather than an hour of them at once.
  */
 self.onmessage = (e: MessageEvent<string>) => {
+  if (capturing && e.data.startsWith('shots-step:')) {
+    const count = Number(e.data.slice('shots-step:'.length));
+    if (!Number.isInteger(count) || count < 0 || count > 100) return;
+    for (let i = 0; i < count; i++) sim.tick(captureNow += 100);
+    self.postMessage('shots-step-done');
+    return;
+  }
   if (e.data === WORLD_PAUSE) { sim.stop(); return; }
   if (e.data === WORLD_RESUME) { sim.start(); return; }
   player.receive(e.data);

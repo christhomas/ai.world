@@ -28,6 +28,11 @@ on:
   pull_request:
   # so a failing bench can be re-run without pushing anything
   workflow_dispatch:
+    inputs:
+      scenes:
+        description: Space-separated reference scene names for a focused hosted diagnosis; empty means all scenes
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -247,14 +252,56 @@ jobs:
       - run: flutter build apk --debug
       - run: flutter build ios --simulator --debug
 
-  playtest:
+  # Each full capture gets its own hosted runner. Two passes in one playtest job took over an hour
+  # and hit its timeout before the phone step, leaving the required check cancelled.
+  reference-capture:
     needs: only-once
     if: needs.only-once.outputs.run == 'yes'
+    strategy:
+      fail-fast: false
+      matrix:
+        pass: [first, holdout]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Photograph documented reference scenes
+        env:
+          PORT: '5185'
+          SCENES: ${{ inputs.scenes || '' }}
+        run: |
+          set -uo pipefail
+          capture="$RUNNER_TEMP/reference-scenes/${{ matrix.pass }}"
+          mkdir -p "$capture"
+          read -r -a selected <<< "$SCENES"
+          OUT="$capture" node tools/shots.cjs "${selected[@]}" 2>&1 | tee "$capture/capture.log"
+          result=${PIPESTATUS[0]}
+          exit "$result"
+      - name: Keep captured reference scenes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-${{ matrix.pass }}
+          path: ${{ runner.temp }}/reference-scenes/${{ matrix.pass }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+  playtest:
+    needs: [only-once, reference-capture]
+    if: always() && needs.only-once.outputs.run == 'yes'
     # The checked-in pixel references come from this OS image and the lockfile's Playwright.
     runs-on: ubuntu-24.04
-    # A browser that hangs should cost a quarter of an hour, not the six hours a job is allowed by
-    # default. The run itself is a minute and a half on a laptop.
-    timeout-minutes: 15
+    # The required job compares both hosted capture passes after the gameplay playtest.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -354,19 +401,50 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      # These two scenes were captured twice on the pinned browser with only 0.01% pixel movement.
-      # Compare before `chore phone`, which retakes the checked-in phone-title reference in place.
-      # The town scene has walking people and a live clock, so it remains a README picture rather
-      # than a pixel gate. A baseline changes only in a reviewed commit to docs/screenshots/.
-      - name: Compare stable reference scenes
+      # Compare every documented scene named by shots.cjs. Both capture jobs must have succeeded,
+      # and compare.cjs fails when a requested image is missing or over its threshold.
+      # Baselines change only in a reviewed commit to docs/screenshots/.
+      - name: Download reference captures
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: reference-*
+          path: ${{ runner.temp }}/reference-scenes
+
+      - name: Compare documented reference scenes
         if: always()
         env:
-          PORT: '5185'
-          OUT: ${{ runner.temp }}/reference-scenes
+          SCENES: ${{ inputs.scenes || '' }}
         run: |
-          mkdir -p "$OUT"
-          node tools/shots.cjs map phone-title
-          SHOTS="$OUT" node tools/compare.cjs docs/screenshots map.png phone-title.png
+          set +e
+          scenes_dir="$RUNNER_TEMP/reference-scenes"
+          first="$scenes_dir/reference-first"
+          holdout="$scenes_dir/reference-holdout"
+          read -r -a selected <<< "$SCENES"
+          if [ "${#selected[@]}" -gt 0 ]; then
+            scenes=("${selected[@]/%/.png}")
+          else
+            mapfile -t scenes < <(node tools/shots.cjs --list | awk '{print $1 ".png"}')
+          fi
+          if [ "${#scenes[@]}" -eq 0 ]; then
+            echo 'shots.cjs listed no reference scenes' >&2
+            exit 1
+          fi
+          SHOTS="$first" DIFF_OUT="$scenes_dir/diff-first-reference" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/first-reference.txt" 2>&1
+          first_reference=$?
+          SHOTS="$holdout" DIFF_OUT="$scenes_dir/diff-holdout-reference" node tools/compare.cjs docs/screenshots "${scenes[@]}" > "$scenes_dir/holdout-reference.txt" 2>&1
+          holdout_reference=$?
+          SHOTS="$holdout" DIFF_OUT="$scenes_dir/diff-repeatability" node tools/compare.cjs "$first" "${scenes[@]}" > "$scenes_dir/repeatability.txt" 2>&1
+          repeatability=$?
+          for report in "$scenes_dir"/*.txt; do
+            echo "=== $(basename "$report") ==="
+            cat "$report"
+          done
+          if [ "${{ needs.reference-capture.result }}" != 'success' ] ||
+             [ "$first_reference" -ne 0 ] || [ "$holdout_reference" -ne 0 ] || [ "$repeatability" -ne 0 ]; then
+            echo 'documented reference capture or comparison failed; inspect both capture sets and reports' >&2
+            exit 1
+          fi
 
       - name: Keep reference scenes and diff
         if: always()
@@ -374,7 +452,8 @@ jobs:
         with:
           name: reference-scenes
           path: |
-            ${{ runner.temp }}/reference-scenes/*.png
+            ${{ runner.temp }}/reference-scenes/diff-*/*.png
+            ${{ runner.temp }}/reference-scenes/*.txt
             docs/reports/pictures-report.txt
           if-no-files-found: warn
           retention-days: 30

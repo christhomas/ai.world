@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mulberry32 } from '../core/rng';
 import { Season } from '../game/seasons';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
 import { bindGraphMount } from './graphmount';
@@ -23,17 +24,20 @@ export class Weather {
   private readonly node: Extract<SceneNode, { kind: 'points' }> | null;
   private readonly unmount?: () => void;
 
-  constructor(scene: THREE.Scene, private readonly graph?: SceneGraph) {
+  constructor(scene: THREE.Scene, seed: number, private readonly graph?: SceneGraph) {
     const positions = new Float32Array(COUNT * 3);
     this.node = graph ? graph.add({ kind: 'points', positions, colour: 0xbcd8f0,
       size: 0.16, opacity: 0, visible: false }) as Extract<SceneNode, { kind: 'points' }> : null;
     this.offsets = new Float32Array(COUNT * 3);
     this.speeds = new Float32Array(COUNT);
+    // Cosmetic weather has its own stream: opening the same world twice must place the flakes
+    // alike, without consuming any of the seeded stream that grows the world itself.
+    const random = mulberry32(seed ^ 0x6f27a91d);
     for (let i = 0; i < COUNT; i++) {
-      this.offsets[i * 3] = (Math.random() * 2 - 1) * SPREAD;
-      this.offsets[i * 3 + 1] = Math.random() * HEIGHT;
-      this.offsets[i * 3 + 2] = (Math.random() * 2 - 1) * SPREAD;
-      this.speeds[i] = 0.6 + Math.random() * 0.5;
+      this.offsets[i * 3] = (random() * 2 - 1) * SPREAD;
+      this.offsets[i * 3 + 1] = random() * HEIGHT;
+      this.offsets[i * 3 + 2] = (random() * 2 - 1) * SPREAD;
+      this.speeds[i] = 0.6 + random() * 0.5;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));

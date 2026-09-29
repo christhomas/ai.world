@@ -22,7 +22,7 @@ export function surfaceRenderers(graph: SceneGraph, props: PropLibrary, daycycle
   const scene = sceneForGraph(graph);
   return {
     entities: () => new EntityRenderer(scene, graph),
-    weather: () => new Weather(scene, graph),
+    weather: () => new Weather(scene, seed, graph),
     gear: () => new HeroGear(scene, graph),
     updraughts: () => new Updraughts(scene, seed, graph),
     swallows: () => new Swallows(scene, seed, graph),

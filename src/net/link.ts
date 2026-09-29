@@ -80,9 +80,22 @@ export function socketLink(url: string, events: LinkEvents): Link | null {
  * hears "open" before it has finished connecting is a caller that has to be written twice.
  */
 export function workerLink(events: LinkEvents): Link {
-  const worker = new Worker(new URL('../workers/sim.worker.ts', import.meta.url), { type: 'module' });
+  const capture = (window as Window & {
+    __shotClock?: { worldStep?: (count: number) => Promise<void> };
+  }).__shotClock;
+  const worker = new Worker(new URL('../workers/sim.worker.ts', import.meta.url), {
+    type: 'module', name: capture ? 'shots-capture' : undefined,
+  });
   let up = false;
-  worker.onmessage = (e: MessageEvent<Parcel>) => events.onMessage(e.data);
+  const waiting: Array<() => void> = [];
+  if (capture) capture.worldStep = (count) => new Promise<void>((resolve) => {
+    waiting.push(resolve);
+    worker.postMessage(`shots-step:${count}`);
+  });
+  worker.onmessage = (e: MessageEvent<Parcel>) => {
+    if (capture && e.data === 'shots-step-done') { waiting.shift()?.(); return; }
+    events.onMessage(e.data);
+  };
   worker.onerror = () => events.onClose('The world in this tab stopped.');
   queueMicrotask(() => { up = true; events.onOpen(); });
   return {

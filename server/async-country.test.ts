@@ -81,6 +81,39 @@ describe('a slow first country', () => {
     expect(updates.at(-1)).toMatchObject({ done: updates.at(-1)?.total });
   }, 90_000);
 
+  it('answers chunk requests heard while the first country was being prepared', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'aiworld-slow-country-'));
+    const seed = 271828;
+    const parts = partsOf(growPatch(seed, boundsOf('0,0')));
+    server = await startServer({
+      port: 0, dataDir: directory, durableDb: null, quiet: true,
+      preparePatch: async () => {
+        await new Promise((resume) => setTimeout(resume, 500));
+        return parts;
+      },
+    });
+    const socket = new WebSocket(`ws://localhost:${server.port}`);
+    sockets.push(socket);
+    const seen: ServerMessage[] = [];
+    let parcels = 0;
+    socket.on('message', (raw, binary) => {
+      if (binary) parcels++;
+      else seen.push(JSON.parse(String(raw)) as ServerMessage);
+    });
+    await new Promise<void>((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+    socket.send(JSON.stringify({
+      type: 'join', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 256, z: 256,
+    }));
+    await until(() => seen.find((m) => m.type === 'country-progress'), 3000);
+    // A page asks for each chunk of its opening view in its own message.
+    const view: Array<[number, number]> = [];
+    for (let cz = 3; cz <= 13; cz++) for (let cx = 3; cx <= 13; cx++) view.push([cx, cz]);
+    for (const chunk of view) socket.send(JSON.stringify({ type: 'want-chunks', chunks: [chunk] }));
+    await until(() => seen.find((m) => m.type === 'country'));
+    await until(() => (parcels >= view.length ? true : undefined), 10_000);
+    expect(parcels).toBe(view.length);
+  }, 90_000);
+
   it('does not count server preparation as player silence', async () => {
     const heard: ServerMessage[] = [];
     let open = true;
