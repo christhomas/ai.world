@@ -396,12 +396,17 @@ chore ping         # the same status page the container's own health check reads
 chore down         # stop it; the volume, and every world on it, stays
 ```
 
+For a single-host Docker Compose setup with the signed-in tools portal at `/tools`, persistent
+SQLite storage, generated credentials, and backup/restore steps, follow the
+[self-hosting guide](docs/self-hosting.md). It also explains how those server files differ from
+solo saves held in a browser's IndexedDB.
+
 The image is two stages. The first installs the toolchain and rolls `server/` into one 32 kB
 module with `pnpm vite build --config server/build.config.ts`; the second is node, that module,
 and `ws` — which is the server's only runtime dependency and has none of its own. Nothing that
 compiles anything survives into the image that faces the internet, and it starts in the time node
-takes to read one file. Two knobs, both set for you by the compose file:
-`PORT` (8787) and `DATA_DIR` (`/data`, where the one JSON file per seed lives).
+takes to read one file. The image defaults to `PORT=8787` and `DATA_DIR=/data`; `chore up` publishes
+that port and mounts its named volume there. The Compose example sets both values explicitly.
 
 **On a public host.** Put the server behind a TLS-terminating reverse proxy or ingress, and point
 the game at its `wss://` address. Keep one server replica: each world and its player sockets live
