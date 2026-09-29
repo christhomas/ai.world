@@ -2,9 +2,10 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { allowances, regressions } = require('./mergeguard.cjs') as {
+const { allowances, regressions, usesExpectedBase } = require('./mergeguard.cjs') as {
   allowances: (source: string) => Map<string, number | null>;
   regressions: (base: string, merged: string) => string[];
+  usesExpectedBase: (baseSha: string, mergeParentSha: string, mergeParentParents: string[]) => boolean;
 };
 
 const current = `
@@ -19,6 +20,14 @@ expect(never.length).toBeLessThanOrEqual(NAMED_NOWHERE_ALREADY);
 `;
 
 describe('the PR merge result, rather than a stale branch alone', () => {
+  it('accepts the event base directly or as a parent of a synthetic queue merge', () => {
+    expect(usesExpectedBase('base', 'base', ['base', 'older'])).toBe(true);
+    expect(usesExpectedBase('base', 'queue', ['queue', 'other', 'base'])).toBe(true);
+    expect(usesExpectedBase('base', 'queue', ['queue', 'base', 'other'])).toBe(true);
+    expect(usesExpectedBase('base', 'queue', ['queue', 'older', 'other'])).toBe(false);
+    expect(usesExpectedBase('base', 'descendant', ['descendant', 'base'])).toBe(false);
+  });
+
   it('accepts the current guard unchanged', () => {
     expect(regressions(current, current)).toEqual([]);
   });
