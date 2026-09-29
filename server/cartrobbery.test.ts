@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from '../src/world/register';
-import { cartLoaded, type CartFinished } from '../src/world/carrierbook';
+import { cartLoaded, cartPosition, type CartFinished } from '../src/world/carrierbook';
+import { growPatch } from '../src/world/growworld';
+import { boundsOf } from '../src/world/patchwork';
 import type { RoadGraph } from '../src/world/graph';
 import type { GroundWorld } from '../src/world/groundworld';
 import type { Village } from '../src/world/structures';
@@ -12,6 +14,8 @@ import { carrierOnRoad } from './carrieractor';
 const FROM = 'Barrowgate';
 const TO = 'Stonerock';
 const places = [{ name: FROM, x: 0, z: 0 }, { name: TO, x: 20, z: 0 }];
+const straightRoad = { nodes: places.map(({ x, z }) => ({ x, z })),
+  edges: [{ a: 0, b: 1 }] } as RoadGraph;
 
 function world() {
   const register = new Register(7, 1, () => {}, 'journaled');
@@ -44,6 +48,11 @@ function mealPrice(register: Register, village: string): number {
 function purseTotal(register: Register): number {
   return [FROM, TO].reduce((sum, village) => sum + (register.hallOf(village)?.purse ?? 0)
     + register.living(village).reduce((people, person) => people + person.purse, 0), 0);
+}
+
+function moneyAt(register: Register, village: string): number {
+  return (register.hallOf(village)?.purse ?? 0)
+    + register.living(village).reduce((sum, person) => sum + person.purse, 0);
 }
 
 describe('a player robbing an in-flight cart', () => {
@@ -80,7 +89,7 @@ describe('a player robbing an in-flight cart', () => {
     before.advance(3);
     const written: CartFinished[] = [];
     const robbed = robLoadedCart(forward, 3, 0.5, { x: 10, z: 0 }, places, loaded.day,
-      (fact) => { written.push(fact); return true; }, undefined, 'Rowan',
+      (fact) => { written.push(fact); return true; }, straightRoad, 'Rowan',
       '11111111-1111-4111-8111-111111111111');
     expect(robbed?.outcome).toBe('robbed');
     expect(robbed?.robber).toBe('Rowan');
@@ -121,12 +130,12 @@ describe('a player robbing an in-flight cart', () => {
     const loaded = load(register);
     register.recordCarrier(loaded);
     register.advance(3);
-    const ground = { roadGraphAt: () => ({ nodes: [] }), heightAt: () => 2 } as unknown as GroundWorld;
+    const ground = { roadGraphAt: () => straightRoad, heightAt: () => 2 } as unknown as GroundWorld;
     const villages = places as Village[];
     const seen = carrierOnRoad(register, villages, ground, 3, 0.5);
     expect(seen).toMatchObject({ kind: 'villager', x: 10, z: 0,
       who: { name: `Carrier to ${TO}`, doing: `carrying ${loaded.meals} meals` } });
-    robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, () => true);
+    robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, () => true, straightRoad);
     expect(carrierOnRoad(register, villages, ground, 3, 0.5)).toBeNull();
   });
 
@@ -136,11 +145,54 @@ describe('a player robbing an in-flight cart', () => {
     register.recordCarrier(loaded);
     register.advance(3);
     const write = () => true;
-    expect(robLoadedCart(register, 3, 0.5, { x: 18, z: 0 }, places, 3, write)).toBeNull();
-    expect(robLoadedCart(register, 4, 0.5, { x: 10, z: 0 }, places, 3, write)).toBeNull();
-    expect(robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, () => false)).toBeNull();
+    expect(robLoadedCart(register, 3, 0.5, { x: 18, z: 0 }, places, 3, write, straightRoad)).toBeNull();
+    expect(robLoadedCart(register, 4, 0.5, { x: 10, z: 0 }, places, 3, write, straightRoad)).toBeNull();
+    expect(robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, () => false, straightRoad)).toBeNull();
     expect(register.carrierFacts()).toEqual([loaded]);
-    expect(robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, write)).not.toBeNull();
-    expect(robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, write)).toBeNull();
+    expect(robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, write, straightRoad)).not.toBeNull();
+    expect(robLoadedCart(register, 3, 0.5, { x: 10, z: 0 }, places, 3, write, straightRoad)).toBeNull();
+  });
+
+  it('keeps a cross-patch carrying virtual without a road route and still settles its trade', () => {
+    const west = growPatch(3, boundsOf('0,0'));
+    const east = growPatch(3, boundsOf('1,0'));
+    const from = west.structures.villages.find((v) => v.name === 'Stoneham')!;
+    const to = east.structures.villages.find((v) => v.name === 'Whitewick')!;
+    const register = new Register(3, 3, () => {}, 'journaled');
+    register.theyStandAt([from, to]);
+    register.settle(from.name, 8, ['farmer', 'seller', 'builder', 'innkeeper']);
+    register.settle(to.name, 8, ['builder', 'seller', 'innkeeper', 'doctor']);
+    register.setLarder(from.name, 100);
+    register.setLarder(to.name, 0);
+    for (const person of register.living(to.name)) person.purse = 200;
+    const load = register.prepareCarrier();
+    expect(load).toMatchObject({ from: 'Stoneham', to: 'Whitewick', meals: 20 });
+    const senderFood = register.larderOf(from.name), receiverFood = register.larderOf(to.name);
+    const senderMoney = moneyAt(register, from.name), receiverMoney = moneyAt(register, to.name);
+    expect(register.recordCarrier(load!)).toBe(true);
+    expect(register.larderOf(from.name)).toBeCloseTo(senderFood - load!.meals);
+    expect(register.larderOf(to.name)).toBe(receiverFood);
+    expect(moneyAt(register, from.name)).toBeCloseTo(senderMoney);
+    expect(moneyAt(register, to.name)).toBeCloseTo(receiverMoney - load!.meals * load!.price);
+    const midpoint = { x: (from.x + to.x) / 2, z: (from.z + to.z) / 2 };
+    expect(west.probe(midpoint.x, midpoint.z).roadDist).toBeGreaterThan(30);
+    expect(cartPosition(load!, 0.5, [from, to], west.graph)).toBeNull();
+    const ground = { roadGraphAt: () => west.graph, heightAt: () => 2 } as unknown as GroundWorld;
+    expect(carrierOnRoad(register, [from, to], ground, 3, 0.5)).toBeNull();
+    expect(robLoadedCart(register, 3, 0.5, midpoint, [from, to], 3, () => true, west.graph)).toBeNull();
+    expect(register.carrierFacts()).toEqual([load]);
+    register.advance(4);
+    const beforeDelivery = {
+      senderFood: register.larderOf(from.name), receiverFood: register.larderOf(to.name),
+      senderMoney: moneyAt(register, from.name), receiverMoney: moneyAt(register, to.name),
+    };
+    const delivered = register.finishCarrier(3, 'delivered');
+    expect(delivered?.outcome).toBe('delivered');
+    expect(register.recordCarrier(delivered!)).toBe(true);
+    expect(register.larderOf(from.name)).toBeCloseTo(beforeDelivery.senderFood);
+    expect(register.larderOf(to.name)).toBeCloseTo(beforeDelivery.receiverFood + load!.meals);
+    expect(moneyAt(register, from.name)).toBeCloseTo(beforeDelivery.senderMoney + load!.meals * load!.price);
+    expect(moneyAt(register, to.name)).toBeCloseTo(beforeDelivery.receiverMoney);
+    expect(register.carrierFacts()).toEqual([load, delivered]);
   });
 });
