@@ -3,10 +3,9 @@ import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd, damageEntity, type TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { GameState } from './state';
 import { COMBAT, spoils, swing } from './combat';
-import * as THREE from 'three';
 
 const flat: TileWorld = {
   heightAt: () => 1,
@@ -16,8 +15,7 @@ const flat: TileWorld = {
 };
 
 function setup() {
-  const scene = new THREE.Scene();
-  const renderer = new EntityRenderer(scene);
+  const renderer = offscreenEntityRenderer();
   const manager = new EntityManager(renderer, flat, { getTiles: () => null }, 1);
   return { manager, renderer };
 }

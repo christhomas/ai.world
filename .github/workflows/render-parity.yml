@@ -2,6 +2,9 @@ name: Renderer parity
 
 # Run on demand after the proposed render slice is ready. The two captures use the same
 # Ubuntu runner, browser, seed, camera, world time, and fixed scene setup.
+#
+# Or dispatch with `base` and `head` instead of `pr` to photograph every documented scene on two
+# arbitrary commits, for a change that landed as several pull requests and was never compared whole.
 on:
   pull_request:
     types: [labeled]
@@ -9,11 +12,19 @@ on:
     inputs:
       pr:
         description: Pull request number whose proposed merge is captured
-        required: true
+        required: false
         type: number
       base_sha:
         description: Exact pull request base commit
-        required: true
+        required: false
+        type: string
+      base:
+        description: Any commit or ref photographed as before (with head, instead of pr)
+        required: false
+        type: string
+      head:
+        description: Any commit or ref photographed as after; its shots.cjs drives both
+        required: false
         type: string
 
 permissions:
@@ -21,7 +32,7 @@ permissions:
 
 jobs:
   compare:
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'render-parity'
+    if: (github.event_name == 'workflow_dispatch' && inputs.base == '') || github.event.label.name == 'render-parity'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -100,5 +111,125 @@ jobs:
             ${{ runner.temp }}/render-before/*.png
             ${{ runner.temp }}/render-after/*.png
             ${{ runner.temp }}/render-*-report.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Both trees are photographed by the head's shots.cjs, with the reference-capture job's settings,
+  # so a difference is in the game rather than in how it was driven. The base must already answer
+  # the capture probes that script asks for; anything before #452 has to have them ported first.
+  capture:
+    if: github.event_name == 'workflow_dispatch' && inputs.base != '' && inputs.head != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        side: [base, head]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.head }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Check out and prepare the ${{ matrix.side }} commit
+        env:
+          REF: ${{ matrix.side == 'base' && inputs.base || inputs.head }}
+          TREE: ${{ runner.temp }}/render-tree
+        run: |
+          git fetch --no-tags origin "$REF"
+          git worktree add --detach "$TREE" FETCH_HEAD
+          cd "$TREE"
+          git log -1 --format='photographing %H %s'
+          pnpm install --frozen-lockfile
+
+      - name: Photograph every documented scene
+        env:
+          TREE: ${{ runner.temp }}/render-tree
+          OUT: ${{ runner.temp }}/render-${{ matrix.side }}
+          PORT: '5185'
+        run: |
+          set -uo pipefail
+          mkdir -p "$OUT"
+          cd "$TREE"
+          node "$GITHUB_WORKSPACE/tools/shots.cjs" 2>&1 | tee "$OUT/capture.log"
+          exit "${PIPESTATUS[0]}"
+
+      - name: Keep this side's captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-${{ matrix.side }}
+          path: ${{ runner.temp }}/render-${{ matrix.side }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+  compare-commits:
+    needs: capture
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.base != '' && inputs.head != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.head }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: render-base
+          path: ${{ runner.temp }}/render-base
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: render-head
+          path: ${{ runner.temp }}/render-head
+
+      - name: Compare every documented scene at the strict pixel threshold
+        env:
+          BEFORE: ${{ runner.temp }}/render-base
+          OUT: ${{ runner.temp }}/render-parity
+        run: |
+          # No excluded rectangle: every pixel of every scene, at the unchanged 0.50% threshold.
+          set +e
+          mkdir -p "$OUT"
+          mapfile -t scenes < <(node tools/shots.cjs --list | awk '{print $1 ".png"}')
+          SHOTS="$RUNNER_TEMP/render-head" DIFF_OUT="$OUT/diff" node tools/compare.cjs "$BEFORE" "${scenes[@]}" > "$OUT/render-commits-report.txt" 2>&1
+          compared=$?
+          cat "$OUT/render-commits-report.txt"
+          # compare.cjs names only the scenes past the threshold; say how far every one moved.
+          for scene in "${scenes[@]}"; do
+            share=$(SHOTS="$RUNNER_TEMP/render-head" node tools/compare.cjs "$BEFORE" "$scene" 2>&1 | grep -o 'worst [0-9.]*%\|missing.*')
+            echo "$scene ${share:-no result}"
+          done | tee "$OUT/render-commits-scenes.txt"
+          test "${{ needs.capture.result }}" = success && test "$compared" -eq 0
+
+      - name: Keep the diff and the pixel report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-parity-commits
+          path: ${{ runner.temp }}/render-parity/
           if-no-files-found: warn
           retention-days: 30

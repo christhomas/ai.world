@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import type { TileWorld } from '../entities/entity';
 import { Wildlife } from './wildlife';
 import { GameState } from './state';
@@ -31,8 +30,7 @@ const flat: TileWorld = { heightAt: () => 1, waterAt: () => null, blocked: () =>
 
 /** The client, as much of it as a `killed` message actually touches. */
 function aClient() {
-  const scene = new THREE.Scene();
-  const renderer = new EntityRenderer(scene);
+  const renderer = offscreenEntityRenderer();
   const manager = new EntityManager(renderer, flat, { getTiles: () => null }, 1);
   const wildlife = new Wildlife(renderer, manager, null);
   const state = new GameState();

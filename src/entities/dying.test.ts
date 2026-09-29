@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, type TileWorld } from './entity';
 import { EntityManager } from './manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { DYING_LASTS, bodyMotion, dyingAt } from './motion';
 import { buryTheFallen, startDying } from './dying';
 
@@ -125,7 +124,7 @@ describe('how a body falls', () => {
  */
 describe('a body is not somebody', () => {
   const setup = () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const manager = new EntityManager(renderer, flat, { getTiles: () => null }, 1);
     manager.spawnMonsters([[0, 0]], 1);
     return manager;

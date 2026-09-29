@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import { generateWebGraph } from '../world/roadweb.test.fixture';
 import { TerrainSampler } from '../world/terrain';
 import { GroundWorld } from '../world/groundworld';
 import { Register } from '../world/register';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { Roster } from '../entities/roster';
 import { propFootprints } from '../entities/props';
 import { postsOf } from '../entities/villagers';
@@ -63,7 +62,7 @@ function snapOf(seed: number): { snap: CreatureSnap; where: ReturnType<typeof aV
 
 /** This page's half: a renderer, a crowd to file guests under, and an empty book. */
 function aPage(seed: number, ground: GroundWorld, villages: readonly Village[]) {
-  const renderer = new EntityRenderer(new THREE.Scene());
+  const renderer = offscreenEntityRenderer();
   const manager = new EntityManager(new Roster(), ground, ground, seed);
   const here = new Register(seed, 1);
   return { wildlife: new Wildlife(renderer, manager, bookOf(here, villages)), here, manager };
