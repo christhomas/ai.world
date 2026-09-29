@@ -88,7 +88,7 @@ describe('who the probes see when the hero is indoors', () => {
       iso: { zoom: 18, limitZoom() {}, resize() {}, target: { set() {} } },
       player,
       overworldRenderer,
-      heroGear: { attachTo() {} },
+      heroGear: { attachToGraph() {} },
       register: new Register(4321),
       rng,
       fallen: () => {},

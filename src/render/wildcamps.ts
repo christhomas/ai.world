@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { SceneGraph } from '../core/scenegraph';
+import { ModelGraph } from './modelgraph';
 
 /**
  * Camps out in the country, drawn from a small pool the way the packs are.
@@ -22,12 +24,14 @@ export interface DrawnCamp {
 
 export class CampField {
   private readonly camps: THREE.Group[] = [];
+  private readonly records: ModelGraph[] = [];
 
-  constructor(private readonly scene: THREE.Scene) {
+  constructor(private readonly scene: THREE.Scene, graph?: SceneGraph) {
     for (let i = 0; i < POOL; i++) {
       const camp = buildCamp();
       camp.visible = false;
       scene.add(camp);
+      this.records.push(new ModelGraph(camp, graph));
       this.camps.push(camp);
     }
   }
@@ -56,8 +60,12 @@ export class CampField {
       tent.position.y = camp.ruined ? 0.18 : 0.3;
       pole.rotation.z = camp.ruined ? 0.42 : 0;
       bundle.visible = !emptied(camp);
+      this.records[drawn - 1].sync();
     }
-    for (let i = drawn; i < POOL; i++) this.camps[i].visible = false;
+    for (let i = drawn; i < POOL; i++) {
+      this.camps[i].visible = false;
+      this.records[i].sync();
+    }
   }
 
   dispose(): void {
@@ -70,6 +78,7 @@ export class CampField {
         (mesh.material as THREE.Material).dispose();
       });
     }
+    for (const record of this.records) record.dispose();
   }
 }
 

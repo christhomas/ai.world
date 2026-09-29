@@ -2,14 +2,17 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { SceneGraph } from '../core/scenegraph';
 import { RecordingPipeline } from './recording';
-import { MountedThreePipeline, ThreeFramePipeline, submitGraphFrame } from './pipeline';
+import { MountedThreePipeline, submitGraphFrame } from './pipeline';
+import { ThreeFramePipeline } from './three-frame.test.support';
 import { EntityRenderer } from './entities';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { mulberry32 } from '../core/rng';
-import { addPropInstances, disposeInstances } from './instancing';
+import { PropBatch, addPropInstances, disposeInstances } from './instancing';
 import { PropLibrary } from './props';
 import { PropKind } from '../world/biomes';
+import { applyMeshFrame, bindGraphMount } from './graphmount';
+import { ModelGraph } from './modelgraph';
 
 describe('engine-owned frame submission', () => {
   const camera = {
@@ -68,6 +71,55 @@ describe('engine-owned frame submission', () => {
     expect(recording.last).toEqual(frame);
   });
 
+  it('lets the neutral frame move and hide a retained WebGL mesh', () => {
+    const graph = new SceneGraph(0);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ color: 0xffffff }));
+    scene.add(mesh);
+    const node = graph.add({ kind: 'mesh', material: 'lit-solid', colour: 0x2277aa,
+      geometry: { positions: geometry.getAttribute('position').array as Float32Array,
+        normals: geometry.getAttribute('normal').array as Float32Array },
+      receiveShadow: true, world: new THREE.Matrix4().makeTranslation(8, 3, -2).toArray(),
+      visible: false });
+    const detach = bindGraphMount(graph, node, (frameNode) => applyMeshFrame(mesh, frameNode));
+    const draw = vi.fn();
+    const mounted = new MountedThreePipeline(scene, draw, graph);
+    submitGraphFrame(graph, [mounted]);
+    expect(mesh.position.toArray()).toEqual([8, 3, -2]);
+    expect(mesh.matrixWorld.elements.slice(12, 15)).toEqual([8, 3, -2]);
+    expect(mesh.visible).toBe(false);
+    expect((mesh.material as THREE.MeshLambertMaterial).color.getHex()).toBe(0x2277aa);
+    expect(draw).toHaveBeenCalledOnce();
+    detach();
+    geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  });
+
+  it('keeps a retained model animated after applying its graph frame', () => {
+    const graph = new SceneGraph(0);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const root = new THREE.Group();
+    root.position.x = 5;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial());
+    mesh.position.x = 1;
+    root.add(mesh);
+    scene.add(root);
+    const model = new ModelGraph(root, graph);
+    const mounted = new MountedThreePipeline(scene, () => {}, graph);
+    mounted.draw(graph.frame());
+    expect(mesh.matrixAutoUpdate).toBe(true);
+    mesh.position.x = 3;
+    model.sync();
+    const node = graph.nodes[0];
+    expect(node.kind === 'mesh' && node.world?.[12]).toBe(8);
+    model.dispose();
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  });
+
   it('records and draws the same instanced prop description', () => {
     const graph = new SceneGraph(0x102030);
     graph.camera = camera;
@@ -76,7 +128,8 @@ describe('engine-owned frame submission', () => {
       { x: 4, y: 0, z: 6, rot: 0, tint: 0.5 },
       { x: 8, y: 0, z: 9, rot: 1, tint: 0.8 },
     ];
-    graph.add({ kind: 'prop-batch', parts, placements, castShadow: true, receiveShadow: true });
+    graph.add({ kind: 'prop-batch', parts, glowParts: parts, glowColour: 0xffaabb,
+      placements, castShadow: true, receiveShadow: true });
     const recorder = new RecordingPipeline();
     recorder.captureNext();
     const render = vi.fn();
@@ -89,6 +142,9 @@ describe('engine-owned frame submission', () => {
     const mesh = scene.children[0] as THREE.InstancedMesh;
     expect(mesh.count).toBe(2);
     expect(mesh.castShadow).toBe(true);
+    expect((mesh.children[0] as THREE.InstancedMesh).material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(((mesh.children[0] as THREE.InstancedMesh).material as THREE.MeshBasicMaterial).color.getHex())
+      .toBe(0xffaabb);
     const first = new THREE.Matrix4();
     mesh.getMatrixAt(0, first);
     expect(new THREE.Vector3().setFromMatrixPosition(first).toArray()).toEqual([4, 0, 6]);
@@ -137,6 +193,53 @@ describe('engine-owned frame submission', () => {
     expect(graph.nodes[0]).toMatchObject({ kind: 'prop-batch', placements: [{ x: 1, z: 2 }] });
     disposeInstances(group);
     expect(graph.nodes).toHaveLength(0);
+    props.dispose();
+    glow.dispose();
+  });
+
+  it('re-packs streamed world props from the submitted neutral frame', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const props = new PropLibrary();
+    const glow = new THREE.MeshBasicMaterial();
+    const batch = new PropBatch(scene, props, glow, graph);
+    batch.set('chunk', [{ kind: PropKind.CropRipe, x: 1, y: 0, z: 2, rot: 0 }]);
+    batch.update();
+    const node = graph.nodes[0];
+    if (node.kind !== 'prop-batch') throw new Error('missing streamed prop node');
+    node.placements = [{ x: 8, y: 0, z: 9, rot: 0 }];
+
+    new MountedThreePipeline(scene, () => {}, graph).draw(graph.frame());
+
+    let mesh: THREE.InstancedMesh | undefined;
+    scene.traverse((object) => {
+      if (object instanceof THREE.InstancedMesh && object.geometry === props.geometries.get(PropKind.CropRipe)) mesh = object;
+    });
+    expect(mesh).toBeDefined();
+    const matrix = new THREE.Matrix4();
+    mesh!.getMatrixAt(0, matrix);
+    expect(new THREE.Vector3().setFromMatrixPosition(matrix).toArray()).toEqual([8, 0, 9]);
+    batch.dispose();
+    props.dispose();
+    glow.dispose();
+  });
+
+  it('lets the neutral frame recolour retained prop glows', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const scene = new THREE.Scene();
+    const props = new PropLibrary();
+    const glow = new THREE.MeshBasicMaterial({ color: 0x335577 });
+    addPropInstances(scene, props,
+      [{ kind: PropKind.GreatHearth, x: 1, y: 0, z: 2, rot: 0 }], glow, true, graph);
+    const node = graph.nodes[0];
+    if (node.kind !== 'prop-batch') throw new Error('missing glowing prop node');
+    expect(node.glowColour).toBe(0x335577);
+    node.glowColour = 0xffaa44;
+    new MountedThreePipeline(scene, () => {}, graph).draw(graph.frame());
+    expect(glow.color.getHex()).toBe(0xffaa44);
+    disposeInstances(scene);
     props.dispose();
     glow.dispose();
   });

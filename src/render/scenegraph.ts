@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyMeshFrame, bindGraphMount } from './graphmount';
 
 const mountedScenes = new WeakMap<SceneGraph, THREE.Scene>();
 
@@ -19,6 +20,7 @@ export function attachSceneGraph(graph: SceneGraph, scene: THREE.Scene): () => v
 /** Mount and retire streamed neutral mesh nodes without leaking WebGL objects into their owner. */
 export class ThreeGraphBridge {
   private readonly meshes = new Map<SceneNode, THREE.Mesh>();
+  private readonly unmounts = new Map<SceneNode, () => void>();
 
   constructor(
     private readonly graph: SceneGraph,
@@ -52,6 +54,7 @@ export class ThreeGraphBridge {
     mesh.matrixWorldAutoUpdate = Boolean(node.world);
     this.graph.add(node);
     this.meshes.set(node, mesh);
+    this.unmounts.set(node, bindGraphMount(this.graph, node, (frame) => applyMeshFrame(mesh, frame)));
     this.scene.add(mesh);
     return mesh;
   }
@@ -68,6 +71,8 @@ export class ThreeGraphBridge {
     const mesh = this.meshes.get(node);
     if (!mesh) return;
     this.scene.remove(mesh);
+    this.unmounts.get(node)?.();
+    this.unmounts.delete(node);
     mesh.geometry.dispose();
     this.meshes.delete(node);
     this.graph.remove(node);
@@ -82,16 +87,34 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
   const detach = attachSceneGraph(graph, scene);
   scene.background = new THREE.Color(graph.background);
   const resources: Array<THREE.BufferGeometry | THREE.Material> = [];
+  const unmounts: Array<() => void> = [];
   let litMaterial: THREE.MeshLambertMaterial | null = null;
   for (const node of graph.nodes) {
     if (node.kind === 'ambient') {
-      scene.add(new THREE.AmbientLight(node.colour, node.intensity));
+      const light = new THREE.AmbientLight(node.colour, node.intensity);
+      scene.add(light);
+      unmounts.push(bindGraphMount(graph, node, (frame) => {
+        light.color.setHex(frame.colour ?? 0xffffff); light.intensity = frame.intensity ?? 0;
+      }));
     } else if (node.kind === 'hemisphere') {
-      scene.add(new THREE.HemisphereLight(node.sky, node.ground, node.intensity));
+      const light = new THREE.HemisphereLight(node.sky, node.ground, node.intensity);
+      scene.add(light);
+      unmounts.push(bindGraphMount(graph, node, (frame) => {
+        light.color.setHex(frame.colour ?? 0xffffff);
+        light.groundColor.setHex(frame.groundColour ?? 0xffffff);
+        light.intensity = frame.intensity ?? 0;
+      }));
     } else if (node.kind === 'point') {
       const light = new THREE.PointLight(node.colour, node.intensity, node.distance, node.decay);
       light.position.set(...node.position);
       scene.add(light);
+      unmounts.push(bindGraphMount(graph, node, (frame) => {
+        light.color.setHex(frame.colour ?? 0xffffff);
+        light.intensity = frame.intensity ?? 0;
+        light.distance = frame.distance ?? 0;
+        light.decay = frame.decay ?? 2;
+        light.position.set(frame.world[12], frame.world[13], frame.world[14]);
+      }));
     } else if (node.kind === 'mesh') {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));
@@ -116,8 +139,12 @@ export function mountSceneGraph(graph: SceneGraph, waterMaterial?: THREE.Materia
       mesh.frustumCulled = node.frustumCulled ?? true;
       if (node.world) { mesh.matrixAutoUpdate = false; mesh.matrix.fromArray(node.world); mesh.updateMatrixWorld(true); }
       scene.add(mesh);
+      unmounts.push(bindGraphMount(graph, node, (frame) => applyMeshFrame(mesh, frame)));
       resources.push(geometry);
     }
   }
-  return { scene, dispose: () => { detach(); for (const resource of resources) resource.dispose(); } };
+  return { scene, dispose: () => {
+    detach(); for (const unmount of unmounts) unmount();
+    for (const resource of resources) resource.dispose();
+  } };
 }

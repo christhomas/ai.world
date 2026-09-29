@@ -18,6 +18,9 @@ export interface FrameDescription {
   camera: { projection: number[]; world: number[]; orthographic: boolean; layers?: number };
   background: number | null;
   fog: { colour: number; near: number; far: number } | null;
+  cutaway?: { enabled: boolean; hero: [number, number, number] } | null;
+  /** World-space coast distance field sampled by open water. */
+  coast?: { x0: number; z0: number; span: number; size: number; values: Uint8Array | number[] } | null;
   nodes: Array<{
     parent: number;
     kind: 'group' | 'mesh' | 'instances' | 'prop-batch' | 'points' | 'directional' | 'hemisphere' | 'ambient' | 'point';
@@ -39,6 +42,11 @@ export interface FrameDescription {
       intent: 'lit' | 'unlit' | 'points' | 'water'; colour: number; emissive: number;
       vertexColours: boolean; transparent: boolean; opacity: number;
       depthWrite: boolean; side: 'front' | 'back' | 'double'; effects: string[];
+      size?: number;
+      /** Optional depth-buffer behavior for interface-like instances. */
+      depthTest?: boolean;
+      /** Whether display transforms should affect this material. */
+      toneMapped?: boolean;
     };
     materials?: NonNullable<FrameDescription['nodes'][number]['material']>[];
     groups?: Array<{ start: number; count: number; materialIndex: number }>;
@@ -48,6 +56,7 @@ export interface FrameDescription {
     instanceColours?: number[] | Float32Array;
     parts?: readonly ScenePropPart[];
     glowParts?: readonly ScenePropPart[];
+    glowColour?: number;
     placements?: readonly ScenePlacement[];
   }>;
 }
