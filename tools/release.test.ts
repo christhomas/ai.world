@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { FILES_A_RELEASE_WRITES, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, type Stands } from './release';
+import { FILES_A_RELEASE_WRITES, WAIT_FOR_CI, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, outOfPatience, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, whatWasAsked, whereTheChecksAre, type Stands } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -183,6 +183,84 @@ describe('how the checks stand', () => {
    */
   it('is waiting when no check has been reported yet, not passed', () => {
     expect(howTheChecksStand([])).toBe('waiting');
+  });
+});
+
+/**
+ * How long a release waits for the checks, which v0.103.0 found out was not twenty minutes.
+ *
+ * It died twice on "the checks have not finished in time" with every check on its way to green: a
+ * hosted run takes twenty to seventy minutes once the macOS runner has been queued for. So the wait
+ * keys on the checks moving rather than on a flat clock, with a ceiling over the whole of it.
+ */
+describe('how long the checks are waited for', () => {
+  const minute = 60 * 1000;
+  const run = (name: string, status: string, conclusion: string | null = null) => ({ name, status, conclusion });
+
+  it('outlasts the slowest run the checks have actually taken', () => {
+    // 69 minutes was the slowest successful pull request run when this was written
+    expect(WAIT_FOR_CI.atMost).toBeGreaterThan(69 * minute);
+    // and the quiet limit outlasts the longest job's own timeout-minutes (reference-capture, 50),
+    // so one long job running on its own is never read as a stuck one
+    expect(WAIT_FOR_CI.quiet).toBeGreaterThan(50 * minute);
+  });
+
+  it('keeps waiting past the old twenty minutes while the checks are still moving', () => {
+    const began = 0;
+    // seventy minutes in, and something finished five minutes ago
+    expect(outOfPatience(70 * minute, began, 65 * minute)).toBeNull();
+  });
+
+  it('gives up when nothing about the checks has changed for too long', () => {
+    const why = outOfPatience(WAIT_FOR_CI.quiet + 10 * minute, 0, 10 * minute);
+    expect(why).toMatch(/nothing about the checks has changed/);
+    expect(outOfPatience(WAIT_FOR_CI.quiet - 1, 0, 0)).toBeNull();
+  });
+
+  it('gives up at the ceiling even if the checks never stop moving', () => {
+    const at = WAIT_FOR_CI.atMost;
+    expect(outOfPatience(at, 0, at - minute)).toMatch(/still going after/);
+  });
+
+  it('counts a job being picked up off the queue as movement', () => {
+    // checksAsStates folds both into PENDING, which is why the movement is read from the raw runs
+    const queued = whereTheChecksAre([run('flutter', 'queued'), run('check', 'in_progress')]);
+    const running = whereTheChecksAre([run('flutter', 'in_progress'), run('check', 'in_progress')]);
+    expect(running).not.toBe(queued);
+  });
+
+  it('does not count GitHub reordering the same runs as movement', () => {
+    const one = whereTheChecksAre([run('check', 'completed', 'success'), run('playtest', 'in_progress')]);
+    const two = whereTheChecksAre([run('playtest', 'in_progress'), run('check', 'completed', 'success')]);
+    expect(two).toBe(one);
+  });
+});
+
+/**
+ * `chore release` with nothing after it, which is how `docs/releasing.md` says a killed release is
+ * finished. The chore declares both arguments and quotes them into the command, so an argument that
+ * was not given arrives as `""` — and chore refused the task outright until they had defaults.
+ */
+describe('what the release was asked for', () => {
+  it('reads empty arguments as none, so the resume is a resume', () => {
+    expect(whatWasAsked(['', ''])).toEqual({ asked: undefined, note: '' });
+    expect(whatWasAsked([])).toEqual({ asked: undefined, note: '' });
+    expect(whatWasAsked(['  ', ''])).toEqual({ asked: undefined, note: '' });
+  });
+
+  it('passes a version and a note through as given', () => {
+    expect(whatWasAsked(['patch', ''])).toEqual({ asked: 'patch', note: '' });
+    expect(whatWasAsked(['1.2.3', "the world's own creatures"]))
+      .toEqual({ asked: '1.2.3', note: "the world's own creatures" });
+  });
+
+  it('lets chore run the release task with no arguments at all', () => {
+    // chore refuses a declared argument that has neither a value nor a default in vars
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const chores = readFileSync(join(root, 'chores.yml'), 'utf8');
+    const task = chores.match(/^ {2}release:\n([\s\S]*?)(?=^ {2}\S)/m)?.[1] ?? '';
+    expect(task, 'the release task').toMatch(/^ {6}VERSION: ''$/m);
+    expect(task, 'the release task').toMatch(/^ {6}NOTE: ''$/m);
   });
 });
 

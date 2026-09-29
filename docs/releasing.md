@@ -21,7 +21,12 @@ chore release minor "..."      # or major, or patch
    wrong machine to find out on: a push to `main` runs every required check on hosted runners, so
    the release waits for those checks on the exact commit it is cutting and refuses if any is red,
    rather than running the suite again on whatever it happens to be run from. It refuses, too, a
-   local `main` that is not the one on GitHub.
+   local `main` that is not the one on GitHub. The hosted checks take twenty to seventy minutes
+   once runners are queued for, so the wait is not a flat clock: it keeps waiting while any check
+   is still changing (queued, started, finished), gives up after an hour in which nothing about them
+   has changed, and after three hours whatever they are doing. Giving up tags nothing; run the
+   release again once they are unstuck. The same wait covers the release pull request's checks in
+   step 5.
 3. **Moves all three version numbers together** — the chart's `version`, its `appVersion`, and the
    pin in `deploy/flux/helmrelease.yaml` — and `package.json`'s, which the title screen and console
    read. `server/chart.test.ts` fails the build if the chart, appVersion and pin ever drift, because
@@ -61,6 +66,9 @@ It resumes now. Run the same command again:
 ```
 chore release          # finish whatever was started and not finished
 ```
+
+Both arguments are optional to the chore for exactly this: with nothing given, the tool is handed
+an empty version and an empty note, and reads them as none.
 
 It asks the world rather than remembering anything: is there a `release/vX.Y.Z` branch, a pull
 request for it, a merge commit, a tag, a published release? Each step names its own artefact, so the

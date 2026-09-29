@@ -497,6 +497,13 @@ tasks:
         desc: a version like 0.3.0, or major, minor or patch
       - name: note
         desc: one line about what is in it
+    vars:
+      # Empty defaults, which is what makes both arguments optional: `chore release` alone finishes
+      # a release that was killed part way through (docs/releasing.md), and without these chore
+      # refused it with "needs argument(s) version, note" before the tool could look. The tool reads
+      # an empty version as none and an empty note as "Version X.Y.Z.".
+      VERSION: ''
+      NOTE: ''
     cmds:
       # quoted, because a note is a sentence and a sentence has apostrophes in it
       - 'pnpm exec tsx tools/release.ts "{{.VERSION}}" "{{.NOTE}}"'
