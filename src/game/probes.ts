@@ -337,6 +337,8 @@ export function installProbes(ctx: Probed): void {
     configurable: true,
     get: () => ({ ...streamTally, grown: chunks.grown }),
   });
+  (debug as { __grownDetails?: () => unknown }).__grownDetails = () => chunks.grownDetails();
+  (debug as { __shotChunks?: () => unknown }).__shotChunks = () => chunks.captureProgress();
   Object.defineProperty(debug, '__wire', {
     configurable: true,
     get: () => ({ sent: Object.fromEntries(online.tally.sent), heard: Object.fromEntries(online.tally.heard) }),

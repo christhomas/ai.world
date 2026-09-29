@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mulberry32 } from '../core/rng';
 import { Season } from '../game/seasons';
 
 const COUNT = 900;
@@ -19,15 +20,18 @@ export class Weather {
   private strength = 0;
   private snowy = false;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, seed: number) {
     const positions = new Float32Array(COUNT * 3);
     this.offsets = new Float32Array(COUNT * 3);
     this.speeds = new Float32Array(COUNT);
+    // Cosmetic weather has its own stream: opening the same world twice must place the flakes
+    // alike, without consuming any of the seeded stream that grows the world itself.
+    const random = mulberry32(seed ^ 0x6f27a91d);
     for (let i = 0; i < COUNT; i++) {
-      this.offsets[i * 3] = (Math.random() * 2 - 1) * SPREAD;
-      this.offsets[i * 3 + 1] = Math.random() * HEIGHT;
-      this.offsets[i * 3 + 2] = (Math.random() * 2 - 1) * SPREAD;
-      this.speeds[i] = 0.6 + Math.random() * 0.5;
+      this.offsets[i * 3] = (random() * 2 - 1) * SPREAD;
+      this.offsets[i * 3 + 1] = random() * HEIGHT;
+      this.offsets[i * 3 + 2] = (random() * 2 - 1) * SPREAD;
+      this.speeds[i] = 0.6 + random() * 0.5;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));

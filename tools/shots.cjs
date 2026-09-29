@@ -113,8 +113,98 @@ const CLEAN_FRAME = '#areaName, #toast, #debug, #buildLine { visibility: hidden 
  */
 const PHONE = { width: 844, height: 390 };
 const PHONE_TALL = { width: 420, height: 900 };
-/** How long a fresh page is given to raise a world before anything is asked of it. */
-const LOADING = 18000;
+const CAPTURE_DATE = new Date('2026-01-01T12:00:00Z');
+const FRAME_MS = 100;
+
+/**
+ * The page's game loop and title animation both use animation frames. Intercept them before any
+ * module is loaded, so a slow renderer cannot decide how many world steps happen before a photo.
+ * Worker and network replies may arrive between explicit steps, never during one.
+ */
+async function captureClock(page) {
+  await page.clock.setFixedTime(CAPTURE_DATE);
+  await page.addInitScript(() => {
+    const realRaf = window.requestAnimationFrame.bind(window);
+    const realCancel = window.cancelAnimationFrame.bind(window);
+    const realNow = performance.now.bind(performance);
+    let now = 0, next = 1;
+    let pending = new Map();
+    Object.defineProperty(performance, 'now', { configurable: true, value: () => now });
+    window.requestAnimationFrame = (callback) => {
+      const id = next++;
+      pending.set(id, callback);
+      return id;
+    };
+    window.cancelAnimationFrame = (id) => { pending.delete(id); };
+    window.__shotClock = {
+      newsReady: false,
+      step(frames) {
+        for (let frame = 0; frame < frames; frame++) {
+          now += 100;
+          const due = pending;
+          pending = new Map();
+          for (const callback of due.values()) callback(now);
+        }
+      },
+      /** Screenshot's own stability check uses rAF; the game callback stays in `pending`. */
+      release() {
+        window.requestAnimationFrame = realRaf;
+        window.cancelAnimationFrame = realCancel;
+        Object.defineProperty(performance, 'now', { configurable: true, value: realNow });
+      },
+    };
+  });
+}
+
+/** A fixed number of game frames, with real time left free for chunk and world workers. */
+// Setup pauses are mostly for asynchronous ground and server replies, not world simulation.
+// Thirty frames give the camera and HUD time to settle without running an extra minute of combat
+// merely because the browser was slow to mesh a chunk.
+const framesFor = (ms) => Math.min(30, Math.max(1, Math.ceil(ms / FRAME_MS)));
+async function advance(page, ms) {
+  await page.evaluate((frames) => window.__shotClock.step(frames), framesFor(ms));
+  if (page.url().includes('server=')) {
+    const response = await fetch(`http://localhost:${WORLD_PORT}/__shots/step?count=1`, {
+      method: 'POST', headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    if (!response.ok) throw new Error(`screenshot world tick failed: ${response.status}`);
+  } else {
+    await page.evaluate(() => window.__shotClock.worldStep?.(1));
+  }
+}
+
+
+/** The page may render its next frame only after all requested ground has arrived and been meshed. */
+async function settleCountry(page) {
+  try {
+    await page.waitForFunction(() => {
+      const state = window.__shotChunks?.();
+      return state && state.loaded >= Math.min(60, state.desired)
+        && state.pending === 0 && state.grown === 0;
+    }, null, { timeout: Number(process.env.SHOT_SETTLE_TIMEOUT || Math.max(120_000, PATIENCE)), polling: 100 });
+  } catch (error) {
+    const state = await page.evaluate(() => ({ chunks: window.__shotChunks?.(),
+      world: window.__world, stream: window.__stream,
+      details: (() => { const one = window.__grownDetails?.(); return one && {
+        counted: one.counted, idle: one.idle, paused: one.paused, loaded: one.loaded.slice(0, 5),
+      }; })() }));
+    throw new Error(`country did not settle: ${JSON.stringify(state)}; ${error.message}`);
+  }
+  // The first daily news must read the complete register, not whichever village happened to stream
+  // before the renderer's first frame. Open that gate and draw at one fixed step.
+  await page.evaluate(() => { window.__shotClock.newsReady = true; window.__shotClock.step(1); });
+}
+
+/** Hold the photographed frame's light and HUD while the simulation finishes drawing. */
+const lockSceneClock = (page, time) => page.evaluate((at) => {
+  const state = window.__state;
+  const day = state.day;
+  Object.defineProperties(state, {
+    day: { configurable: true, get: () => day, set: () => {} },
+    time: { configurable: true, get: () => at, set: () => {} },
+  });
+  state.tick = () => {};
+}, time);
 
 /** Midday, dusk, and the dead of night, as the fraction of a day the `time` command wants. */
 const NOON = 0.5, DUSK = 0.78, NIGHT = 0.02;
@@ -178,7 +268,7 @@ const verbs = (page) => ({
   /** Put the hero somewhere. */
   stand: async (x, z, settle = 4000) => {
     await page.evaluate(([x, z]) => window.__teleport(x, z), [x, z]);
-    await page.waitForTimeout(settle);
+    await advance(page, settle);
   },
   /** Point the camera at something, from wherever the hero is standing. */
   face: async (x, z) => {
@@ -186,18 +276,18 @@ const verbs = (page) => ({
       const p = window.__player;
       window.__iso.rotation = Math.atan2(z - p.z, x - p.x) + Math.PI;
     }, [x, z]);
-    await page.waitForTimeout(400);
+    await advance(page, 400);
   },
   /** How far back to stand, in the camera's own units. */
-  zoom: async (n) => { await page.evaluate((n) => window.__zoom(n), n); await page.waitForTimeout(400); },
-  time: async (f) => { await page.evaluate((f) => window.cmd(`time ${f}`), f); await page.waitForTimeout(600); },
-  day: async (d) => { await page.evaluate((d) => window.cmd(`day ${d}`), d); await page.waitForTimeout(1200); },
+  zoom: async (n) => { await page.evaluate((n) => window.__zoom(n), n); await advance(page, 400); },
+  time: async (f) => { await page.evaluate((f) => window.cmd(`time ${f}`), f); await advance(page, 600); },
+  day: async (d) => { await page.evaluate((d) => window.cmd(`day ${d}`), d); await advance(page, 1200); },
   key: async (k, hold = 0) => {
     if (!hold) { await page.keyboard.press(k); }
-    else { await page.keyboard.down(k); await page.waitForTimeout(hold); await page.keyboard.up(k); }
-    await page.waitForTimeout(600);
+    else { await page.keyboard.down(k); await advance(page, hold); await page.keyboard.up(k); }
+    await advance(page, 600);
   },
-  wait: (ms) => page.waitForTimeout(ms),
+  wait: (ms) => advance(page, ms),
   /**
    * The nearest village to the middle of the world, and the hero stood in the middle of it.
    *
@@ -220,7 +310,7 @@ const verbs = (page) => ({
     await page.evaluate(([x, z]) => window.__teleport(x, z), [v.x, v.z]);
     // long enough for the village to fill: the people are streamed in like everything else, and a
     // picture taken the moment the hero lands is a picture of an empty square
-    await page.waitForTimeout(9000);
+    await advance(page, 9000);
     return v;
   },
   /** Whatever is alive nearby, as the world has it rather than as it is drawn. */
@@ -281,9 +371,9 @@ const SHOTS = [
        * Both are the world's own, so this photographs the livelihood rather than a cow put there
        * for the picture — and it looks for a beast that has somebody standing near it, because a
        * field of cattle with no farmer in it is the fault this shot exists to show is fixed.
-       */
+      */
       await time(NOON);
-      await village();
+      const v = await village();
       await zoom(9);
       const spot = await ask(() => {
         const all = window.__entitiesFull().filter((e) => !e.dead);
@@ -297,10 +387,17 @@ const SHOTS = [
         return best;
       });
       if (!spot) return null;
-      // stood a couple of tiles off rather than across the field: the camera follows the hero, so
-      // anything further away than that is a picture of the hero with the subject in the corner
-      await stand(spot.x + 2.5, spot.z + 2.5, 2500);
-      await face(spot.x, spot.z);
+      // The documented road/seed-3 frame looks into the hub's paddock from one fixed tile.
+      // Following whichever cow happens to be closest shifts the entire camera by several tiles
+      // between runs, making every building and patch of ground a false visual diff. Keep the
+      // exploratory seed/world overrides useful by following their herd as before.
+      if ((process.env.WORLD || 'road') === 'road' && Number(process.env.SEED || 3) === 3) {
+        await stand(v.x + 18, v.z - 2, 2500);
+        await face(v.x + 15.5, v.z - 4.5);
+      } else {
+        await stand(spot.x + 2.5, spot.z + 2.5, 2500);
+        await face(spot.x, spot.z);
+      }
       return `${spot.kind}, ${spot.near} people about`;
     },
   },
@@ -400,11 +497,7 @@ const SHOTS = [
       await stand(spot.x, spot.z, 6000);
       // An endless-world teleport can still have its new patch and visible chunks in flight.
       // A picture with a blue floor and zero drawn chunks is a picture of loading, not a mountain.
-      await p.waitForFunction(() => {
-        const readout = document.getElementById('debug')?.textContent ?? '';
-        const match = /chunks\s+(\d+)\/(\d+)\s+queue\s+(\d+)/.exec(readout);
-        return match && Number(match[1]) >= 60 && Number(match[3]) < 60;
-      }, null, { timeout: 180_000 });
+      await settleCountry(p);
       // a mountain will not fit in the zoom a village is photographed at; see `away` above
       await zoom(96);
       await face(peak.x, peak.z);
@@ -583,7 +676,9 @@ const SHOTS = [
       // the token is typed rather than put in the address, exactly as a person would: the page
       // deliberately never remembers one, because a tool that quietly keeps a password leaks it
       await p.fill('#token', TOKEN);
-      await p.click('#ask');
+      // Enter lists the server's worlds, selects the addressed seed, then opens its book. The
+      // button alone asks for whichever world is already chosen, and none is before that list.
+      await p.press('#token', 'Enter');
       await p.waitForSelector('#out table', { timeout: 30000 });
       await wait(1500);
       return p.$eval('#note', (el) => el.textContent.trim());
@@ -670,7 +765,7 @@ const SHOTS = [
      * of the fur trade rather than a picture of the sea.
      */
     name: 'sea', title: 'Your own boat, out on the water', settle: 3000,
-    setup: async (p, { ask, wait, key, zoom, stand }) => {
+    setup: async (p, { ask, wait, key, time, zoom, stand }) => {
       const dock = await ask(() => {
         // a mainland jetty, because an island one is reached by the boat this shot is buying
         const pier = (window.__piers || []).find((one) => one.side === 'mainland') || (window.__piers || [])[0];
@@ -679,12 +774,65 @@ const SHOTS = [
       if (!dock) return null;                       // a world whose coast raised no jetty today
       await ask(() => { window.__state.inventory.gold = 400; window.__state.version++; });
       await stand(dock.x, dock.z, 4000);
-      await key('Enter');                           // read the ferry timetable
-      await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'));
+      const pierState = () => ({
+        player: { x: window.__player.x, z: window.__player.z },
+        speaker: document.querySelector('.dlg-them .dlg-name')?.textContent,
+        dialogue: document.getElementById('dialogue')?.className,
+        choices: [...document.querySelectorAll('#dialogue .dlg-choice')].map((choice) => choice.textContent.trim()),
+        prompt: document.getElementById('interactPrompt')?.textContent,
+      });
+      const pierChoices = async (speaker, firstChoice) => {
+        const before = await ask(pierState);
+        if (before.speaker !== speaker || !before.dialogue?.includes('show')) {
+          throw new Error(`sea: expected ${speaker} dialogue: ${JSON.stringify(before)}`);
+        }
+        // A frozen screenshot clock need not finish the typewriter animation. Enter is the
+        // player's ordinary way to reveal the complete page before choosing an option.
+        if (!before.dialogue.includes('choosing')) await key('Enter');
+        try {
+          await p.waitForFunction(([name, label]) => {
+            const box = document.getElementById('dialogue');
+            return box?.classList.contains('show') && box.classList.contains('choosing')
+              && document.querySelector('.dlg-them .dlg-name')?.textContent === name
+              && box.querySelector('.dlg-choice')?.textContent.includes(label);
+          }, [speaker, firstChoice], { timeout: 3_000, polling: 100 });
+        } catch (error) {
+          throw new Error(`sea: ${speaker} choices missing ${firstChoice}: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
+        }
+      };
+      const landed = await ask(pierState);
+      if (Math.hypot(landed.player.x - dock.x, landed.player.z - dock.z) >= 4) {
+        throw new Error(`sea: pier landing out of boatwright reach: ${JSON.stringify({ dock, landed })}`);
+      }
+      // The ferry sometimes calls at this pier at noon. When it does, Enter talks to its
+      // ferryman and the first choice would board it instead of asking after our own boat.
+      // Try fixed world times until the ferry is away and the timetable offers the boatwright.
+      let timetable = false;
+      for (const phase of [0.5, 0.515, 0.53, 0.545, 0.56, 0.575, 0.59, 0.605, 0.62, 0.635]) {
+        await time(phase);
+        await key('Enter');
+        try {
+          await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('show'),
+            null, { timeout: 5_000, polling: 100 });
+        } catch (error) {
+          throw new Error(`sea: no pier dialogue at phase ${phase}: ${JSON.stringify(await ask(pierState))}; ${error.message}`);
+        }
+        const speaker = await p.locator('.dlg-them .dlg-name').textContent();
+        if (speaker === 'Ferryman') { await key('Escape'); continue; }
+        if (speaker !== 'Timetable') throw new Error(`sea: expected pier timetable or ferryman at ${phase}, got ${speaker}`);
+        await pierChoices('Timetable', 'Ask after a boat of your own');
+        timetable = true;
+        break;
+      }
+      if (!timetable) throw new Error('sea: ferry remained docked through every fixed timetable phase');
       await key('Enter');                           // ask after a boat of your own
       await p.waitForFunction(() => document.querySelector('.dlg-them .dlg-name')?.textContent === 'Boatwright'
-        && document.getElementById('dialogue')?.classList.contains('choosing'));
+        && document.getElementById('dialogue')?.classList.contains('show'), null, { timeout: 5_000, polling: 100 });
+      await pierChoices('Boatwright', 'Buy the boat');
       await key('Enter');                           // buy her
+      if (!(await ask(() => window.__sailing.bought))) {
+        throw new Error(`sea: boat purchase did not complete: ${JSON.stringify(await ask(pierState))}`);
+      }
       await wait(1200);
       await key('Enter');                           // cast off
       await wait(1200);
@@ -716,10 +864,18 @@ const SHOTS = [
       // `grown` counts local chunks still on screen, not a historical total: wait for both views
       // to settle on the server's ground before judging the shared country.
       const settled = () => window.__stream?.arrived > 0 && window.__stream.grown === 0;
-      await Promise.all([
-        p.waitForFunction(settled, null, { timeout: 90_000 }),
-        playing.waitForFunction(settled, null, { timeout: 90_000 }),
-      ]);
+      try {
+        await Promise.all([
+          p.waitForFunction(settled, null, { timeout: 90_000, polling: 100 }),
+          playing.waitForFunction(settled, null, { timeout: 90_000, polling: 100 }),
+        ]);
+      } catch (error) {
+        const [mine, theirs] = await Promise.all([
+          p.evaluate(() => ({ stream: window.__stream ?? null, grown: window.__grownDetails?.() })),
+          playing.evaluate(() => ({ stream: window.__stream ?? null, grown: window.__grownDetails?.() })),
+        ]);
+        throw new Error(`shared stream did not settle: mine=${JSON.stringify(mine)} other=${JSON.stringify(theirs)}; ${error.message}`);
+      }
       const sample = () => ({
         stream: window.__stream,
         mismatch: document.body.textContent.includes('This world grew differently')
@@ -764,7 +920,7 @@ const startWorld = async () => {
     detached: true, stdio: ['ignore', 'ignore', 'inherit'],
     // its own worlds, thrown away with the directory: a screenshot must never be taken of, or write
     // to, the worlds somebody is actually playing
-    env: { ...process.env, PORT: WORLD_PORT, OPERATOR_TOKEN: TOKEN, DATA_DIR: fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'shots-')) },
+    env: { ...process.env, PORT: WORLD_PORT, OPERATOR_TOKEN: TOKEN, SHOTS_CAPTURE: '1', DATA_DIR: fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'shots-')) },
   });
   for (let i = 0; i < 40; i++) {
     await new Promise((r) => setTimeout(r, 500));
@@ -789,17 +945,22 @@ process.on('exit', stopWorld);
  * something to survey — which is also, exactly, what the tool is for.
  */
 async function playerJoins(browser, seed, villages = 3, world = 'endless') {
+  console.log(`raising survey player: ${world}, ${villages} village(s)`);
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
+  await captureClock(page);
   await page.goto(`${origin}/?world=${world}&seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
-  await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
-  await page.waitForTimeout(LOADING);
+  await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE), polling: 100 });
+  await advance(page, FRAME_MS);
   // `?server=` joins automatically. Pressing Connect after that would disconnect back to the
   // private worker, turning a two-player picture into a solo one.
-  await page.waitForFunction(() => window.__online?.away, null, { timeout: Math.max(120000, PATIENCE) });
+  await page.waitForFunction(() => window.__online?.away, null, { timeout: Math.max(120000, PATIENCE), polling: 100 });
+  await advance(page, FRAME_MS);
+  await settleCountry(page);
+  console.log('survey player streamed initial country');
   for (let n = 0; n < villages; n++) {
     await page.evaluate((n) => { const v = window.__villages[n]; if (v) window.__teleport(v.x, v.z); }, n);
-    await page.waitForTimeout(12000);
+    await advance(page, 12000);
   }
   /*
    * And back to the first, which is the one the book lists first.
@@ -810,14 +971,16 @@ async function playerJoins(browser, seed, villages = 3, world = 'endless') {
    * column is half of what the tool is for.
    */
   await page.evaluate(() => { const v = window.__villages[0]; window.__teleport(v.x, v.z); });
-  await page.waitForTimeout(14000);
+  await advance(page, 14000);
   return page;
 }
 
 /** Take one, and say what happened. */
 async function take(browser, shot) {
+  console.log(`raising ${shot.name}`);
   const page = await browser.newPage({ viewport: shot.viewport ?? VIEW });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
+  await captureClock(page);
   if (shot.join) await page.addInitScript(() => localStorage.setItem('ai.world/name', 'Ash'));
   if (RIG) {
     await page.addInitScript((on) => {
@@ -865,12 +1028,17 @@ async function take(browser, shot) {
     if (shot.join) { await startWorld(); playing = await playerJoins(browser, seed, 1, world); }
     const joining = shot.join ? `&server=ws://localhost:${WORLD_PORT}` : '';
     await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}${joining}`, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
-    await page.waitForTimeout(shot.loading ?? LOADING);
+    await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE), polling: 100 });
+    await advance(page, FRAME_MS);
+    await page.waitForFunction(() => window.__world?.online === 'online', null,
+      { timeout: Math.max(120000, PATIENCE), polling: 100 });
+    await advance(page, FRAME_MS);
+    await settleCountry(page);
+    console.log(`${shot.name}: initial country streamed`);
     if (shot.join) {
       // This page also joins automatically from `?server=`. Its saved name was set before boot.
       await page.waitForFunction(() => window.__online?.away && window.__online.count > 0,
-        null, { timeout: Math.max(120000, PATIENCE) });
+        null, { timeout: Math.max(120000, PATIENCE), polling: 100 });
     }
   }
   let note;
@@ -883,6 +1051,8 @@ async function take(browser, shot) {
   try { note = await shot.setup(page, verbs(page), playing); }
   catch (e) { await done(); return { ok: false, why: e.message }; }
   if (note === null) { await done(); return { ok: false, why: 'nothing to photograph in this world today' }; }
+  console.log(`${shot.name}: setup complete (${note ?? 'ready'})`);
+  if (!shot.page) await lockSceneClock(page, ['night', 'phone-night'].includes(shot.name) ? NIGHT : NOON);
   /*
    * Long enough for whatever was asked for to be drawn, and for the notices to clear.
    *
@@ -890,12 +1060,62 @@ async function take(browser, shot) {
    * heard about bears — and they stack up in the corner for a few seconds. A picture taken at two
    * seconds is a picture of the game telling you about itself.
    */
-  await page.waitForTimeout(shot.settle ?? 9000);
+  // Rain strength eases over several seconds after a teleport. Let the lighting converge before
+  // comparing two renderer builds; the usual editorial shots keep their shorter requested delay.
+  await advance(page, process.env.STATIC_SCENE === '1' ? Math.max(shot.settle ?? 9000, 30000) : shot.settle ?? 9000);
+  if (!shot.page && !['interior', 'dungeon'].includes(shot.name)) await settleCountry(page);
+  // Architecture comparisons can omit moving creatures while retaining terrain, props and light.
+  // The scene keeps updating after setup, so changing the camera layer is stable across frames.
+  if (process.env.STATIC_SCENE === '1') {
+    if (shot.name !== 'town' && shot.name !== 'mountain') throw new Error('STATIC_SCENE supports town and mountain');
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.__state.time = 0.5;
+      window.__scene?.traverse((object) => {
+        if (object.userData.pool || object.type === 'Points') object.layers.disable(0);
+      });
+      const hero = window.__player.entity, iso = window.__iso, rig = window.__rig;
+      if (!hero || !iso || !rig) throw new Error('static scene needs the live camera and rig');
+      iso.rotation = Math.PI / 4;
+      iso.lift = 18;
+      iso.target.set(hero.x, hero.y, hero.z);
+      iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 }, 0, false);
+      rig.follow(hero.x, hero.z, iso.zoom);
+      rig.lighting.sun.position = [hero.x, 80, hero.z + 26];
+      rig.lighting.sun.target = [hero.x, 0, hero.z];
+      rig.lighting.sun.intensity = 2.6;
+      rig.lighting.sun.colour = 0xfff3dc;
+      rig.lighting.hemi.intensity = 1;
+      rig.lighting.hemi.sky = 0xcfe6ff;
+      rig.lighting.hemi.ground = 0x6f8f4f;
+      rig.lighting.ambient.intensity = 0.45;
+      rig.lighting.ambient.colour = 0xc9dcff;
+      rig.graph.background = 0x8fc1e6;
+      if (rig.graph.fog) rig.graph.fog.colour = 0x8fc1e6;
+      rig.updateWater(0);
+      rig.fitShadow();
+      rig.redrawShadows();
+      rig.draw(rig.graph, iso);
+    });
+    await page.addStyleTag({ content: '#actionCard, #debug { visibility: hidden !important; }' });
+    const at = await page.evaluate(() => ({
+      hero: [window.__player.entity.x, window.__player.entity.y, window.__player.entity.z],
+      target: window.__iso.target.toArray(), lift: window.__iso.lift,
+      angle: window.__iso.rotation, zoom: window.__iso.zoom,
+      sky: window.__rig.graph.background, sun: window.__rig.lighting.sun.intensity,
+    }));
+    console.log(`static ${shot.name} ${JSON.stringify(at)}`);
+  }
+  console.log(`${shot.name}: final frame ready`);
+  await page.evaluate(() => window.__shotClock.release());
   const file = path.join(OUT, `${shot.name}.png`);
   // Software rendering a wide mountain scene can take longer than Playwright's 30-second default
   // on the small host used to retake references. Keep the same frame; only allow it to finish.
   try {
-    await page.screenshot({ path: file, style: shot.cleanFrame ? CLEAN_FRAME : undefined, timeout: 120_000 });
+    await page.screenshot({ path: file, animations: 'disabled',
+      style: shot.cleanFrame ? CLEAN_FRAME : undefined,
+      timeout: Math.max(120_000, PATIENCE) });
   } catch (error) {
     await done();
     return { ok: false, why: error instanceof Error ? error.message : String(error) };

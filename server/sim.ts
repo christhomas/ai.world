@@ -208,6 +208,8 @@ export class Simulation {
   private readonly patchworks = new Map<number, Patchwork>();
   private readonly warming = new Map<number, Promise<void>>();
   private readonly warmingClients = new Set<Client>();
+  /** Chunk requests heard while a client's first country was still being prepared. */
+  private readonly wantedWhileWarming = new Map<Client, Map<string, [number, number]>>();
   private readonly preparePatch?: SimOptions['preparePatch'];
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
@@ -475,6 +477,12 @@ export class Simulation {
     this.keepTheMinds();
   }
 
+  /** Give a capture harness a fixed origin before it drives explicit ticks. */
+  captureAt(now: number): void {
+    if (this.ticker) throw new Error('a running simulation cannot use the capture clock');
+    this.lastTick = now;
+  }
+
   /**
    * Write down what every villager of every open world holds.
    *
@@ -520,7 +528,21 @@ export class Simulation {
         const room = this.rooms.get(client.seed);
         if (!room) return;
         client.silent = 0;
-        if (this.warmingClients.has(client)) return;
+        if (this.warmingClients.has(client)) {
+          // A page asks for its opening view as soon as it is welcomed. Dropping that ask would
+          // leave it waiting for bytes it believes are coming; answer it once the country is ready.
+          if (message.type === 'want-chunks') {
+            // A page asks for each chunk separately, so hold distinct chunks rather than messages.
+            const held = this.wantedWhileWarming.get(client) ?? new Map<string, [number, number]>();
+            const chunks = Array.isArray(message.chunks) ? message.chunks.slice(0, CHUNKS_AT_ONCE) : [];
+            for (const pair of chunks) {
+              if (held.size >= CHUNKS_AT_ONCE) break;
+              if (Array.isArray(pair) && pair.length === 2) held.set(`${pair[0]},${pair[1]}`, [pair[0], pair[1]]);
+            }
+            this.wantedWhileWarming.set(client, held);
+          }
+          return;
+        }
         // A floor is the one thing a message can ask the simulation to *make*, so it is answered
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
@@ -994,6 +1016,11 @@ export class Simulation {
         wire.close();
       }).finally(() => {
         this.warmingClients.delete(joining);
+        const held = this.wantedWhileWarming.get(joining);
+        this.wantedWhileWarming.delete(joining);
+        if (held?.size && joining.wire.open && this.rooms.get(seed)?.clients.has(joining)) {
+          this.sendChunks(joining, { type: 'want-chunks', chunks: [...held.values()] });
+        }
         if (this.warming.get(seed) === current) this.warming.delete(seed);
       });
       this.warming.set(seed, current);

@@ -165,6 +165,16 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
+  /** Capture waits for the worker queue itself, not a debug label from the previous frame. */
+  captureProgress(): { loaded: number; pending: number; desired: number; grown: number } {
+    return {
+      loaded: this.loaded.size,
+      pending: this.pending.size + this.queue.length,
+      desired: this.offsets.length,
+      grown: this.grown,
+    };
+  }
+
   /**
    * The mountains that can be stood on, when there are any: geometry, not chunks to stream.
    *
@@ -270,6 +280,10 @@ export class ChunkManager implements TileWorld, ChunkSource {
     for (const [k, c] of this.loaded) {
       if (Math.max(Math.abs(c.cx - cx), Math.abs(c.cz - cz)) > WORLD.UNLOAD_RADIUS) {
         this.unload(k, c);
+      } else if (c.grown && this.sent.has(k) && !this.pending.has(k)) {
+        // A focus change clears the queue above. Keep the world's replacement for ground we grew
+        // locally on that queue, or its bytes remain in `sent` and the guess stays on screen.
+        this.queue.push({ cx: c.cx, cz: c.cz, since: 0 });
       }
     }
   }
@@ -402,14 +416,37 @@ export class ChunkManager implements TileWorld, ChunkSource {
     this.pump();
   }
 
-  /** Which chunks this page would like the world to send, of those it is waiting on. */
+  /** Queued chunks and locally grown ground still awaiting the world's answer. */
   wanted(): Array<[number, number]> {
     const out: Array<[number, number]> = [];
+    const seen = new Set<string>();
     for (const job of this.queue) {
-      if (this.sent.has(chunkKey(job.cx, job.cz))) continue;
+      const key = chunkKey(job.cx, job.cz);
+      if (this.sent.has(key) || seen.has(key)) continue;
+      seen.add(key);
       out.push([job.cx, job.cz]);
     }
+    // A local worker can finish before the world answers. That removes the job from the queue,
+    // but the ground on screen is still a guess and must remain requestable. Do not ask again while
+    // the authoritative bytes are waiting to be drawn or are already being meshed.
+    for (const chunk of this.loaded.values()) {
+      const key = chunkKey(chunk.cx, chunk.cz);
+      if (!chunk.grown || this.sent.has(key) || this.pending.has(key) || seen.has(key)) continue;
+      out.push([chunk.cx, chunk.cz]);
+    }
     return out;
+  }
+
+  /** Why a connected page still has locally grown ground, for the streaming probe. */
+  grownDetails(): { counted: number; loaded: Array<{ key: string; sent: boolean; pending: boolean; queued: boolean }>; idle: number; paused: boolean } {
+    const queued = new Set(this.queue.map(({ cx, cz }) => chunkKey(cx, cz)));
+    return {
+      counted: this.grown,
+      loaded: [...this.loaded.entries()].filter(([, chunk]) => chunk.grown).map(([key]) => ({
+        key, sent: this.sent.has(key), pending: this.pending.has(key), queued: queued.has(key),
+      })),
+      idle: this.idle.length, paused: this.paused,
+    };
   }
 
   /**
@@ -442,9 +479,10 @@ export class ChunkManager implements TileWorld, ChunkSource {
     const far = Math.max(Math.abs(msg.cx - this.focusCx), Math.abs(msg.cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) { this.pump(); return; }
 
-    // ground drawn over: whatever was there stops being this page's own opinion
+    // Ground drawn over must leave the scene as well as the loaded map. Keeping its group behind
+    // draws two coplanar terrains with different z-buffer wins on each capture and leaks draw calls.
     const before = this.loaded.get(k);
-    if (before?.grown) this.grown--;
+    if (before) this.unload(k, before);
     if (msg.grown) this.grown++;
     /*
      * And if the world's own ground turned up while this was being drawn, draw it again.
