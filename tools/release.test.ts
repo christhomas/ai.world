@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { FILES_A_RELEASE_WRITES, WAIT_FOR_CI, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, outOfPatience, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, whereTheChecksAre, type Stands } from './release';
+import { FILES_A_RELEASE_WRITES, WAIT_FOR_CI, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, outOfPatience, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, whatWasAsked, whereTheChecksAre, type Stands } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -233,6 +233,34 @@ describe('how long the checks are waited for', () => {
     const one = whereTheChecksAre([run('check', 'completed', 'success'), run('playtest', 'in_progress')]);
     const two = whereTheChecksAre([run('playtest', 'in_progress'), run('check', 'completed', 'success')]);
     expect(two).toBe(one);
+  });
+});
+
+/**
+ * `chore release` with nothing after it, which is how `docs/releasing.md` says a killed release is
+ * finished. The chore declares both arguments and quotes them into the command, so an argument that
+ * was not given arrives as `""` — and chore refused the task outright until they had defaults.
+ */
+describe('what the release was asked for', () => {
+  it('reads empty arguments as none, so the resume is a resume', () => {
+    expect(whatWasAsked(['', ''])).toEqual({ asked: undefined, note: '' });
+    expect(whatWasAsked([])).toEqual({ asked: undefined, note: '' });
+    expect(whatWasAsked(['  ', ''])).toEqual({ asked: undefined, note: '' });
+  });
+
+  it('passes a version and a note through as given', () => {
+    expect(whatWasAsked(['patch', ''])).toEqual({ asked: 'patch', note: '' });
+    expect(whatWasAsked(['1.2.3', "the world's own creatures"]))
+      .toEqual({ asked: '1.2.3', note: "the world's own creatures" });
+  });
+
+  it('lets chore run the release task with no arguments at all', () => {
+    // chore refuses a declared argument that has neither a value nor a default in vars
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const chores = readFileSync(join(root, 'chores.yml'), 'utf8');
+    const task = chores.match(/^ {2}release:\n([\s\S]*?)(?=^ {2}\S)/m)?.[1] ?? '';
+    expect(task, 'the release task').toMatch(/^ {6}VERSION: ''$/m);
+    expect(task, 'the release task').toMatch(/^ {6}NOTE: ''$/m);
   });
 });
 

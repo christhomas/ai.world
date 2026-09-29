@@ -745,6 +745,19 @@ function standsAt(version: string): Stands {
 }
 
 /**
+ * The version and the note, where an empty argument is no argument.
+ *
+ * `chore release` hands both over quoted whether or not they were given — `"{{.VERSION}}"
+ * "{{.NOTE}}"`, with empty defaults so that `chore release` alone is allowed at all — so the resume
+ * `docs/releasing.md` promises arrives here as two empty strings rather than as nothing. Read as a
+ * version, `""` is not "finish what was started"; it is a usage error on a machine with nothing
+ * unfinished and, worse, a truthy-looking `!== undefined` everywhere else.
+ */
+export function whatWasAsked(args: readonly string[]): { asked: string | undefined; note: string } {
+  return { asked: args[0]?.trim() || undefined, note: args[1]?.trim() ?? '' };
+}
+
+/**
  * Cutting a release, or finishing the one that was cut and killed.
  *
  * It looks before it writes. Every step names its own artefact — a branch, a request, a merge
@@ -753,8 +766,7 @@ function standsAt(version: string): Stands {
  * same command again, which is the whole of #344.
  */
 function main(): void {
-  const asked = process.argv[2];
-  const note = process.argv[3] ?? '';
+  const { asked, note } = whatWasAsked(process.argv.slice(2));
 
   const standing = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (standing !== 'main') throw new Error(`releases are cut from main, and this is ${standing}`);
@@ -801,7 +813,7 @@ function main(): void {
       + `Run the release again with no version, or with ${unfinished}, to finish that one first.`,
     );
   }
-  if (unfinished === null && !asked) {
+  if (unfinished === null && asked === undefined) {
     throw new Error('usage: release <version|major|minor|patch> ["what is in it"]');
   }
   const version = unfinished ?? nextVersion(asked as string, now);

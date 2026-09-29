@@ -67,6 +67,9 @@ It resumes now. Run the same command again:
 chore release          # finish whatever was started and not finished
 ```
 
+Both arguments are optional to the chore for exactly this: with nothing given, the tool is handed
+an empty version and an empty note, and reads them as none.
+
 It asks the world rather than remembering anything: is there a `release/vX.Y.Z` branch, a pull
 request for it, a merge commit, a tag, a published release? Each step names its own artefact, so the
 run picks up from the first one that is missing and does the rest in order. A release killed at any
