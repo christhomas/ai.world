@@ -10,6 +10,10 @@ import { growPatch } from '../src/world/growworld';
 import { partsOf } from '../src/world/endless';
 import { Simulation } from './sim';
 import { Forgetful } from './vault';
+import { countryStamp, growWorld, islandsFor } from '../src/world/growworld';
+import { Manifest } from '../src/world/manifest';
+import { TerrainSampler } from '../src/world/terrain';
+import { rebuildRoad, roadPartsOf } from './groundsource';
 
 describe('a slow first country', () => {
   let server: RunningServer | null = null;
@@ -57,9 +61,12 @@ describe('a slow first country', () => {
     const parts = partsOf(growPatch(seed, boundsOf('0,0')));
     server = await startServer({
       port: 0, dataDir: directory, durableDb: null, quiet: true,
-      preparePatch: async () => {
-        await new Promise((resume) => setTimeout(resume, 1500));
-        return parts;
+      prepare: {
+        grow: async () => {
+          await new Promise((resume) => setTimeout(resume, 1500));
+          return parts;
+        },
+        growRoad: async () => { throw new Error('an endless world has no road country'); },
       },
     });
 
@@ -81,15 +88,76 @@ describe('a slow first country', () => {
     expect(updates.at(-1)).toMatchObject({ done: updates.at(-1)?.total });
   }, 90_000);
 
+  it('grows a road world away from the event loop and keeps telling the page', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'aiworld-slow-country-'));
+    const seed = 161803;
+    // The parts a worker hands back: the whole road country, grown here before the server starts
+    // so the growing is not what the lag monitor below measures.
+    const islands = islandsFor(new Manifest(seed), seed);
+    const grown = new TerrainSampler(growWorld(seed, islands));
+    const parts = structuredClone(roadPartsOf(islands, grown));
+    // What crosses the worker boundary has to rebuild the country that was grown, tile for tile.
+    const rebuilt = rebuildRoad(structuredClone(parts));
+    const a = grown.newSample(), b = rebuilt.newSample();
+    let differ = 0, land = 0;
+    for (let x = -600; x <= 600; x += 9) for (let z = -600; z <= 600; z += 9) {
+      grown.sampleTile(x, z, a);
+      rebuilt.sampleTile(x, z, b);
+      if (a.type !== b.type || a.height !== b.height || a.biome !== b.biome || a.roadDist !== b.roadDist) differ++;
+      if (a.height > 0) land++;
+    }
+    expect(land, 'the sampled square has country in it').toBeGreaterThan(1000);
+    expect(differ, 'the rebuilt road country paints what was grown').toBe(0);
+    expect(rebuilt.structures.villages.length).toBe(grown.structures.villages.length);
+    let asked = 0;
+    server = await startServer({
+      port: 0, dataDir: directory, durableDb: null, quiet: true,
+      prepare: {
+        grow: async () => { throw new Error('a road world has no patches'); },
+        growRoad: async (_seed, islands) => {
+          asked++;
+          expect(islands, 'a fresh world has planned no islands yet').toEqual([]);
+          await new Promise((resume) => setTimeout(resume, 1500));
+          return structuredClone(parts);
+        },
+      },
+    });
+    let worst = 0;
+    let last = Date.now();
+    const lag = setInterval(() => { const now = Date.now(); worst = Math.max(worst, now - last); last = now; }, 20);
+    try {
+      const socket = new WebSocket(`ws://localhost:${server.port}`);
+      sockets.push(socket);
+      const seen: ServerMessage[] = [];
+      socket.on('message', (raw, binary) => { if (!binary) seen.push(JSON.parse(String(raw)) as ServerMessage); });
+      await new Promise<void>((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+      socket.send(JSON.stringify({
+        type: 'join', worldName: 'Roadside', kind: 'road', seed, name: 'Rowan',
+        version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 0, z: 0,
+      }));
+      await until(() => seen.find((m) => m.type === 'welcome'), 3000);
+      const country = await until(() => seen.find((m) => m.type === 'country'));
+      expect(asked, 'the road country came from the source rather than this thread').toBe(1);
+      expect(country).toMatchObject({ kind: 'road', stamp: countryStamp(parts.graph) });
+      const updates = seen.filter((m) => m.type === 'country-progress');
+      expect(updates.length, 'progress arrives while the country grows').toBeGreaterThan(2);
+      expect(updates.at(-1)).toMatchObject({ done: updates.at(-1)?.total });
+      expect(worst, 'no one piece of the road country holds the event loop').toBeLessThan(1500);
+    } finally { clearInterval(lag); }
+  }, 120_000);
+
   it('answers chunk requests heard while the first country was being prepared', async () => {
     directory = mkdtempSync(join(tmpdir(), 'aiworld-slow-country-'));
     const seed = 271828;
     const parts = partsOf(growPatch(seed, boundsOf('0,0')));
     server = await startServer({
       port: 0, dataDir: directory, durableDb: null, quiet: true,
-      preparePatch: async () => {
-        await new Promise((resume) => setTimeout(resume, 500));
-        return parts;
+      prepare: {
+        grow: async () => {
+          await new Promise((resume) => setTimeout(resume, 500));
+          return parts;
+        },
+        growRoad: async () => { throw new Error('an endless world has no road country'); },
       },
     });
     const socket = new WebSocket(`ws://localhost:${server.port}`);
@@ -121,7 +189,7 @@ describe('a slow first country', () => {
     const waiting = new Promise<ReturnType<typeof partsOf>>((_resolve, reject) => { stopWaiting = reject; });
     const sim = new Simulation({
       vault: new Forgetful(), ground: true, timeout: 100,
-      preparePatch: async () => waiting,
+      prepare: { grow: async () => waiting, growRoad: async () => { throw new Error('not a road world'); } },
     });
     sim.attach({
       send: (text) => heard.push(JSON.parse(String(text)) as ServerMessage),

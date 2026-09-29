@@ -10,7 +10,8 @@ import { CLOCK_INTERVAL, DAY_LENGTH, type SharedWorld } from './world';
 import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
 import { boundsOf, patchOf, patchOfChunk } from '../src/world/patchwork';
-import { rebuildPatch, type PatchParts } from '../src/world/endless';
+import { rebuildPatch } from '../src/world/endless';
+import { rebuildRoad, type GroundSource, type RoadParts } from './groundsource';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
@@ -70,8 +71,8 @@ export interface SimOptions {
    * players are walking on, which is what owning the creatures in it will need.
    */
   ground?: boolean;
-  /** A server host can grow expensive patches on another thread before admitting the view. */
-  preparePatch?: (seed: number, patch: string, layers: readonly Highland[], terrain: readonly TerrainLayer[]) => Promise<PatchParts>;
+  /** A server host can grow a joining world's expensive ground on another thread before admitting the view. */
+  prepare?: GroundSource;
   /** The private browser worker may accept its page's authored terrain at join. */
   localAuthoring?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
@@ -239,7 +240,7 @@ export class Simulation {
   private readonly warmingClients = new Set<Client>();
   /** Chunk requests heard while a client's first country was still being prepared. */
   private readonly wantedWhileWarming = new Map<Client, Map<string, [number, number]>>();
-  private readonly preparePatch?: SimOptions['preparePatch'];
+  private readonly prepare?: GroundSource;
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
@@ -291,7 +292,7 @@ export class Simulation {
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
-    this.preparePatch = options.preparePatch;
+    this.prepare = options.prepare;
     this.reach = options.reach ?? REACH;
   }
 
@@ -412,7 +413,7 @@ export class Simulation {
    *
    * A world with nobody in it has no ground, and loses it again when the last player leaves.
    */
-  groundOf(seed: number): GroundWorld | null {
+  groundOf(seed: number, road?: RoadParts): GroundWorld | null {
     if (!this.growGround) return null;
     const room = this.rooms.get(seed);
     const kind = room?.kind ?? this.rooms.worldRecordForSeed(seed)?.kind ?? 'endless';
@@ -445,8 +446,15 @@ export class Simulation {
     const patches = kind === 'endless'
       ? (this.patchworks.get(seed) ?? new Patchwork(seed, growPatch, undefined, layers, terrain)) : null;
     if (patches) this.patchworks.set(seed, patches);
-    const roadGraph = patches ? null : growWorld(seed, islandsFor(this.rooms.manifestOf(seed), seed));
-    const country = patches ? patchedCountry(patches) : oneCountry(new TerrainSampler(roadGraph!));
+    // A road country grown on the ground worker comes with the islands it planned, and they are
+    // written down here exactly as `islandsFor` would have written them. See `groundsource.ts`.
+    if (!patches && road) {
+      const manifest = this.rooms.manifestOf(seed);
+      for (const isle of road.islands) manifest.ensure(isle.id, 'island', isle.x, isle.z, isle.parent);
+    }
+    const roadGraph = patches ? null : road?.graph ?? growWorld(seed, islandsFor(this.rooms.manifestOf(seed), seed));
+    const country = patches ? patchedCountry(patches)
+      : oneCountry(road ? rebuildRoad(road) : new TerrainSampler(roadGraph!));
     this.countryStamps.set(seed, roadGraph ? countryStamp(roadGraph, layers, terrain) : endlessStamp(seed, layers, terrain));
     const grown = new GroundWorld(country, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
@@ -1141,7 +1149,7 @@ export class Simulation {
     if (waiting > 0) this.rooms.send(joining, { type: 'mail-here', from: `${waiting} parcel${waiting === 1 ? '' : 's'}` });
 
     this.rooms.broadcast(seed, { type: 'joined', player: joining.presence }, joining);
-    if (this.preparePatch && this.growGround) {
+    if (this.prepare && this.growGround) {
       this.warmingClients.add(joining);
       const previous = this.warming.get(seed) ?? Promise.resolve();
       let current: Promise<void>;
@@ -1180,17 +1188,28 @@ export class Simulation {
     const patches = patchwork
       ? [...new Set([...(this.ground.has(seed) ? [] : [patchOf(0, 0)]), ...chunks])]
         .filter((patch) => !patchwork.has(patch)) : [];
+    // A road country exists all at once, so it is one piece, and the longest: see #479.
+    const growsRoad = kind === 'road' && !(this.ground.has(seed) && this.groundKinds.get(seed) === 'road');
     const totalChunks = standing ? (VIEW * 2 + 1) ** 2 : 0;
-    const total = patches.length + totalChunks;
+    const total = patches.length + (growsRoad ? 1 : 0) + totalChunks;
     let done = 0;
     const progress = () => this.rooms.send(client, { type: 'country-progress', done, total });
     progress();
     const heartbeat = setInterval(progress, 3000);
     try {
-      if (patches.length && this.preparePatch) {
+      let road: RoadParts | undefined;
+      if (growsRoad && this.prepare) {
+        road = await this.prepare.growRoad(seed, this.rooms.manifestOf(seed).byKind('island'));
+        if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+        done++;
+        progress();
+        // The rebuild and the people are the next long piece; let this progress go out first.
+        await new Promise<void>((resume) => setTimeout(resume, 0));
+      }
+      if (patches.length && this.prepare) {
         const layers = this.layersOf(seed), terrain = this.terrainOf(seed);
         for (const patch of patches) {
-          const parts = await this.preparePatch(seed, patch, layers, terrain);
+          const parts = await this.prepare.grow(seed, patch, layers, terrain);
           if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
           patchwork!.put(patch, rebuildPatch(seed, boundsOf(patch), parts));
           done++;
@@ -1199,7 +1218,7 @@ export class Simulation {
       }
       if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
       if (patchwork) this.patchworks.set(seed, patchwork);
-      const ground = this.groundOf(seed);
+      const ground = this.groundOf(seed, road);
       if (ground && standing) {
         const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
         for (let dz = -VIEW; dz <= VIEW; dz++) for (let dx = -VIEW; dx <= VIEW; dx++) {

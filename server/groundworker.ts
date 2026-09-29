@@ -1,20 +1,23 @@
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { growPatch } from '../src/world/growworld';
+import { growPatch, growWorld, islandsFor } from '../src/world/growworld';
 import { boundsOf } from '../src/world/patchwork';
 import { partsOf, type PatchParts } from '../src/world/endless';
 import type { Highland } from '../src/world/highland';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import { terrainPreview } from '../src/ui/terrainpreview';
 import { assessSkyAccess, assessSkyEyrie, type SkyAccessAssessment } from '../src/world/skyaccess';
-import type { Anchor, ManifestJson } from '../src/world/manifest';
+import { Manifest, type Anchor, type ManifestJson } from '../src/world/manifest';
+import { TerrainSampler } from '../src/world/terrain';
+import { roadPartsOf, type GroundSource, type RoadParts } from './groundsource';
 import { assessPlacePins, assessVillageContinuity, type PlacePin } from '../src/world/editimpacts';
 
 type Request = { id: number; seed: number; patch: string; layers: readonly Highland[]; terrain: readonly TerrainLayer[] }
   | { id: number; seed: number; x: number; z: number; size: number; layers: readonly Highland[]; terrain: readonly TerrainLayer[] }
   | { id: number; seed: number; x: number; z: number; reach: number; before: ManifestJson; after: ManifestJson;
     pins: PlacePin[]; villages: string[]; protectAllVillages: boolean }
-  | { id: number; seed: number; manifest: ManifestJson; eyrie: Anchor };
-type Reply = { id: number; parts?: PatchParts; pixels?: Uint8ClampedArray; assessment?: SkyAccessAssessment;
+  | { id: number; seed: number; manifest: ManifestJson; eyrie: Anchor }
+  | { id: number; seed: number; islands: readonly Anchor[] };
+type Reply = { id: number; parts?: PatchParts; road?: RoadParts; pixels?: Uint8ClampedArray; assessment?: SkyAccessAssessment;
   placement?: { conflict: string | null }; error?: string };
 const TASK = 'aiworld-ground';
 
@@ -39,6 +42,8 @@ if (!isMainThread && workerData?.task === TASK) {
           })() }
           : 'eyrie' in request
             ? { id: request.id, placement: { conflict: assessSkyEyrie(request.seed, request.manifest, request.eyrie) } }
+          : 'islands' in request
+            ? { id: request.id, road: grownRoad(request.seed, request.islands) }
           : { id: request.id, pixels: terrainPreview(request.seed, request.terrain,
             request.x, request.z, request.size, request.layers) };
     } catch (error) {
@@ -48,10 +53,21 @@ if (!isMainThread && workerData?.task === TASK) {
   });
 }
 
-export class GroundWorker {
+/**
+ * A whole road country, grown here so the simulation's thread only has to rebuild it. See #479.
+ *
+ * A fresh world has no islands in its manifest yet, and planning them is part of growing it; they
+ * go back with the parts so the simulation can write them down, exactly as `islandsFor` would have.
+ */
+function grownRoad(seed: number, saved: readonly Anchor[]): RoadParts {
+  const islands = saved.length > 0 ? saved : islandsFor(new Manifest(seed), seed);
+  return roadPartsOf(islands, new TerrainSampler(growWorld(seed, islands)));
+}
+
+export class GroundWorker implements GroundSource {
   private readonly worker: Worker;
   private next = 1;
-  private readonly pending = new Map<number, { resolve: (value: PatchParts | Uint8ClampedArray | SkyAccessAssessment | { conflict: string | null }) => void; reject: (error: Error) => void }>();
+  private readonly pending = new Map<number, { resolve: (value: PatchParts | RoadParts | Uint8ClampedArray | SkyAccessAssessment | { conflict: string | null }) => void; reject: (error: Error) => void }>();
 
   constructor() {
     this.worker = new Worker(new URL(import.meta.url), { workerData: { task: TASK } });
@@ -60,6 +76,7 @@ export class GroundWorker {
       if (!waiting) return;
       this.pending.delete(reply.id);
       if (reply.parts) waiting.resolve(reply.parts);
+      else if (reply.road) waiting.resolve(reply.road);
       else if (reply.pixels) waiting.resolve(reply.pixels);
       else if (reply.assessment) waiting.resolve(reply.assessment);
       else if (reply.placement) waiting.resolve(reply.placement);
@@ -80,6 +97,15 @@ export class GroundWorker {
     return new Promise<PatchParts>((resolve, reject) => {
       this.pending.set(id, { resolve: (value) => resolve(value as PatchParts), reject });
       this.worker.postMessage({ id, seed, patch, layers, terrain } satisfies Request);
+    });
+  }
+
+  /** Grow a whole road country, which is seconds of work the event loop must not wait through. */
+  growRoad(seed: number, islands: readonly Anchor[]): Promise<RoadParts> {
+    const id = this.next++;
+    return new Promise<RoadParts>((resolve, reject) => {
+      this.pending.set(id, { resolve: (value) => resolve(value as RoadParts), reject });
+      this.worker.postMessage({ id, seed, islands } satisfies Request);
     });
   }
 

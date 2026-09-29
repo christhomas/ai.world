@@ -79,8 +79,8 @@ export interface ServerOptions {
   captureClock?: boolean;
   /** Grow a joining world's expensive first patches off the HTTP/socket event loop. */
   asyncCountry?: boolean;
-  /** An asynchronous patch source for integration tests and other server hosts. */
-  preparePatch?: SimOptions['preparePatch'];
+  /** An asynchronous ground source for integration tests and other server hosts. */
+  prepare?: SimOptions['prepare'];
 }
 
 export interface RunningServer {
@@ -180,11 +180,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'register', MINDS_SCHEMA);
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
-  const groundWorker = options.asyncCountry && !options.preparePatch ? new GroundWorker() : null;
+  const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;
   const sim = new Simulation({
     dataDir, vault: new FileVault(), ground: true,
-    preparePatch: options.preparePatch
-      ?? (groundWorker ? (seed, patch, layers, terrain) => groundWorker.grow(seed, patch, layers, terrain) : undefined),
+    prepare: options.prepare ?? groundWorker ?? undefined,
     minds: durable ?? undefined, chronicles: durable ?? undefined,
   });
   let captureNow = 0;
