@@ -17,6 +17,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { migrateDomain } from './durable/db';
 import { MINDS_SCHEMA, keepMinds, mindsOf } from './durable/minds';
 import type { Person } from '../src/world/people';
+import { HoldingBook } from '../src/world/holdingbook';
+import { ownerFromSave } from '../src/world/holdings';
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
@@ -184,6 +186,17 @@ describe('the simulation, hosted by nothing at all', () => {
     expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'eyrie', anchor: near, present: true }]);
     expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
       .toContainEqual({ kind: 'eyrie', anchor: near, present: true });
+  });
+
+  it('sends the server holding daybook to a joining player', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    new Pretend(sim).join(7, 'Rowan');
+    const book = new HoldingBook();
+    book.stood('Ashford', 5, [{ day: 5, holding: 'yard-1', kind: 'crew', who: 'Bob',
+      funder: ownerFromSave('Rich'), wage: 12, paid: 12 }], new Map());
+    sim.rooms.get(7)!.world.keepsTheRegister({ compact: () => {}, holdingsBook: book });
+    const wren = new Pretend(sim).join(7, 'Wren');
+    expect(wren.of('welcome')[0].holdingDays).toEqual(book.records());
   });
 
   it('moves the clock and tells everybody where everybody is', () => {

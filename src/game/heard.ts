@@ -1,6 +1,7 @@
 import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, type Presence,
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
+import type { HoldingRecord } from '../world/holdingbook';
 import type { Anchor } from '../world/manifest';
 
 /**
@@ -74,6 +75,8 @@ export interface OnlineEvents {
   onChestOpened: (seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
+  /** Recorded holding mornings from the authoritative shared world. */
+  onHoldingDays: (rows: HoldingRecord[]) => void;
   /** Complete nest state when joining a remote world. */
   onEyries: (anchors: Anchor[]) => void;
   /** The server's answer to this page's own nest report. */
@@ -185,6 +188,7 @@ export function heard(o: Listening, message: ServerMessage): void {
         if (o.local && delta.kind === 'eyrie') continue;
         o.events.onDelta(delta, true);
       }
+      if (message.holdingDays) o.events.onHoldingDays(message.holdingDays);
       if (!o.local) {
         o.events.onSystem(`Joined world ${message.seed} as ${o.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
       }
