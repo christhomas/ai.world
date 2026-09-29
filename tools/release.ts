@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
@@ -224,7 +225,15 @@ export const FILES_A_RELEASE_WRITES: readonly string[] = [
  */
 function notesFor(version: string, body: string): string {
   try {
-    return run('bash', ['.git/hooks/pre-push.d/git-changelog.sh', 'notes', `v${version}`]) || body;
+    /*
+     * Where the hooks are is git's to say, not `.git/hooks` from wherever this was run. In a
+     * worktree `.git` is a file pointing at the real one, so the literal path printed `bash:
+     * .git/hooks/pre-push.d/git-changelog.sh: Not a directory` cutting v0.103.0 and quietly fell
+     * back — and `core.hooksPath`, which the guard may set, was never looked at either.
+     */
+    const extractor = join(run('git', ['rev-parse', '--git-path', 'hooks']), 'pre-push.d', 'git-changelog.sh');
+    if (!existsSync(extractor)) return body;
+    return run('bash', [extractor, 'notes', `v${version}`]) || body;
   } catch {
     return body;
   }
