@@ -50,6 +50,18 @@ describe('the hall report for returning holding owners', () => {
     expect(held.incomeOn('farm-2')).toHaveLength(2);
   });
 
+  it('separates wages from owner takings when the same farm has both', () => {
+    const held = book();
+    held.stood('Ashford', 5, [{ day: 5, holding: 'farm-2', kind: 'crew', who: 'Hand',
+      funder: owner, wage: 8, paid: 8 }], new Map());
+    held.earned('Ashford', [{ type: 'income', day: 5, holding: 'farm-2', owner, cattle: 2, crop: 1 }]);
+    const pages = holdingReport('Ashford', owner, holdings, held, 4, 5, (id) => id).join(' ');
+    expect(pages).toContain('farm-2: 1 morning of work');
+    expect(pages).toContain('3 gold in owner takings');
+    expect(pages).toContain('Owner takings are listed separately below');
+    expect(pages).not.toContain('not crop or shop takings');
+  });
+
   it('shows only unread mornings and keeps a full-history route', () => {
     const held = book();
     const unread = holdingReport('Ashford', owner, holdings, held, 5, 7, (id) => id).join(' ');
