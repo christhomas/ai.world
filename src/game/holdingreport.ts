@@ -25,7 +25,7 @@ export function holdingReport(
     } else {
       const valued = facts.reduce((sum, fact) => sum + fact.wage, 0);
       const paid = facts.reduce((sum, fact) => sum + fact.paid, 0);
-      pages.push(`${holding.kind} ${holding.id}: ${facts.length} morning${facts.length === 1 ? '' : 's'} of work. Workers earned ${gold(valued)} in wages; ${gold(paid)} changed hands. The daybook records work and wages, not crop or shop takings.`);
+      pages.push(`${holding.kind} ${holding.id}: ${facts.length} morning${facts.length === 1 ? '' : 's'} of work. Workers earned ${gold(valued)} in wages; ${gold(paid)} changed hands. Owner takings are listed separately below.`);
       const lines = facts.map((fact) => `Day ${fact.day}: ${fact.kind} — ${nameOf(fact.who)}, ${gold(fact.wage)} earned${fact.paid > 0 ? `, ${gold(fact.paid)} paid` : ', no coin moved'}.`);
       for (let i = 0; i < lines.length; i += 5) pages.push(lines.slice(i, i + 5).join('\n'));
     }
