@@ -77,6 +77,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A feature-based review branch is validated with the final batch PR to main.
+          # Do not spend a full hosted playtest on every intermediate branch push.
+          if [ "${{ github.event_name }}" = 'pull_request' ] && [ "$GITHUB_BASE_REF" != 'main' ]; then
+            echo "pull request targets $GITHUB_BASE_REF — final batch will run checks"
+            echo 'run=no' >> "$GITHUB_OUTPUT"; exit 0
+          fi
           if [ "${{ github.event_name }}" != 'push' ]; then
             echo 'run=yes' >> "$GITHUB_OUTPUT"; exit 0
           fi
@@ -96,13 +102,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # A pull_request checkout is the proposed merge commit. Its first parent is the base
-          # to compare with, so both commits must be present locally for the guard below.
-          fetch-depth: 2
-
-      - name: Guard the proposed merge result
-        if: github.event_name == 'pull_request'
-        run: node tools/mergeguard.cjs
+          # The proposed merge may sit on a synthetic merge of a stacked base. Fetch its
+          # ancestry so the guard can inspect the PR's actual base commit as well.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -114,6 +116,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Guard the proposed merge result
+        if: github.event_name == 'pull_request'
+        run: node tools/mergeguard.cjs
 
       # The same task runner the repository is driven by, pinned. `chores.yml` asks for 0.9.0 or
       # better; this is the version the tasks were last run against by hand.
@@ -237,7 +243,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test test/renderer_smoke_test.dart test/workflow_test.dart
+      - run: flutter test test/renderer_smoke_test.dart test/workflow_test.dart test/scene_frame_test.dart
       - run: flutter build apk --debug
       - run: flutter build ios --simulator --debug
 

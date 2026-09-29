@@ -15,16 +15,8 @@ import { join } from 'node:path';
  * asserted the way `architecture.test.ts` asserts its rules — by reading the source. A behavioural
  * test cannot see a fifth caller being written next week, and a fifth caller is exactly the failure.
  *
- * ## What this deliberately does not do
- *
- * `rig.scene` is still handed to the fifteen-odd classes that build into it, and they still hold
- * `THREE` objects. That is the larger half of #249 and it is not here: reseating it means changing
- * every one of those constructors, and doing it in the same change as the submission point would
- * mean nobody could review either. The acceptance line *"no file outside the render layer names a
- * THREE type"* is not met by this and does not claim to be.
- *
- * What is met is the part #250 needs: a composer replaces `draw`, and there is now exactly one of
- * it.
+ * Surface and country renderers are mounted from their neutral graph by factories in render/.
+ * Gameplay assembly never receives the WebGL scene or its materials.
  */
 
 const sources = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -66,11 +58,15 @@ describe('where a frame is submitted', () => {
     expect(reaching, 'game code is managing render resources through their concrete objects').toEqual([]);
   });
 
-  it('still lets game code build into the scene, which is the half this does not touch', () => {
-    // asserted so that somebody reading the two tests above does not think the seam is finished.
-    // `rig.scene` is still passed around; #249's acceptance line is not met and says so
+  it('keeps the WebGL scene and material handles inside the render layer', () => {
     const building = outside().filter((f) => /\brig\.scene\b/.test(readFileSync(f, 'utf8')));
-    expect(building.length, 'if this is nought, the rest of #249 landed and this test should go')
-      .toBeGreaterThan(0);
+    const materials = outside().filter((f) => /\brig\.water\.material\b/.test(readFileSync(f, 'utf8')));
+    expect(building).toEqual([]);
+    expect(materials).toEqual([]);
+    const rig = readFileSync(join('src', 'render', 'scene.ts'), 'utf8')
+      .split('export interface SceneRig {')[1]?.split('\n}')[0] ?? '';
+    expect(rig).not.toMatch(/\b(?:scene|sun|hemi|ambient|water)\s*:\s*THREE\./);
+    const nativeImports = outside().filter((f) => /from ['"]three['"]/.test(readFileSync(f, 'utf8')));
+    expect(nativeImports).toEqual([]);
   });
 });

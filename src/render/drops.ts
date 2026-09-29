@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { SceneGraph } from '../core/scenegraph';
+import { ModelGraph } from './modelgraph';
 
 /**
  * What is lying in the grass, drawn as the thing it is.
@@ -40,17 +42,21 @@ const HIDE_DEFAULT = 0x8a6f52;
 
 export class DropField {
   private readonly pools = new Map<DropKind, THREE.Group[]>();
+  private readonly records = new Map<DropKind, ModelGraph[]>();
 
-  constructor(private readonly scene: THREE.Scene) {
+  constructor(private readonly scene: THREE.Scene, graph?: SceneGraph) {
     for (const kind of ['carcass', 'hide', 'gold', 'pack'] as DropKind[]) {
       const made: THREE.Group[] = [];
+      const records: ModelGraph[] = [];
       for (let i = 0; i < POOL; i++) {
         const one = build(kind);
         one.visible = false;
         scene.add(one);
+        records.push(new ModelGraph(one, graph));
         made.push(one);
       }
       this.pools.set(kind, made);
+      this.records.set(kind, records);
     }
   }
 
@@ -69,9 +75,13 @@ export class DropField {
       // no two lie the same way, and the same one lies the same way every frame
       one.rotation.y = (drop.x * 7 + drop.z * 13) % Math.PI;
       if (drop.kind === 'hide' || drop.kind === 'carcass') paint(one, FUR[drop.of ?? ''] ?? HIDE_DEFAULT);
+      this.records.get(drop.kind)?.[at].sync();
     }
     for (const [kind, pool] of this.pools) {
-      for (let i = used.get(kind) ?? 0; i < POOL; i++) pool[i].visible = false;
+      for (let i = used.get(kind) ?? 0; i < POOL; i++) {
+        pool[i].visible = false;
+        this.records.get(kind)?.[i].sync();
+      }
     }
   }
 
@@ -87,6 +97,7 @@ export class DropField {
         });
       }
     }
+    for (const records of this.records.values()) for (const record of records) record.dispose();
   }
 }
 

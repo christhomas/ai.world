@@ -4,8 +4,8 @@ import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
 import { QUALITY, createSceneRig } from './render/scene';
+import { surfaceRenderers } from './render/surface';
 import { isOn } from './ui/switches';
-import { DropField } from './render/drops';
 import { Remains } from './game/remains';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
@@ -13,14 +13,12 @@ import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
 import { bookOf, tellingTheWorld, wordOfARobbery } from './game/folk';
 import { Skies } from './game/skies';
-import { putBoatIn } from './render/boat';
 import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
 import { Places } from './game/places';
-import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
 import { Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
@@ -29,11 +27,7 @@ import { Compass } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
-import { CropField } from './render/crops';
-import { BuildingSite } from './render/site';
 import { whatTheVillagesRaised } from './game/villageroofs';
-import { Beam } from './render/beam';
-import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
@@ -51,7 +45,6 @@ import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
-import { EntityRenderer } from './render/entities';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
@@ -71,15 +64,9 @@ import { installProbes } from './game/probes';
 import { openConsole } from './game/console';
 import { createDoorsteps, gatesOf } from './game/doorways';
 import { createBlows } from './game/blows';
-import { Updraughts } from './render/updraughts';
-import { Swallows } from './render/swallows';
-import { Shafts } from './render/shafts';
 import { createWaysIn } from './game/waysin';
 import { openCountry } from './game/shafts';
-import { putFerriesOut } from './render/ferries';
 import { makeFerryLines } from './game/ferry';
-import { WhaleSchool } from './render/whales';
-import { CampField } from './render/wildcamps';
 import { RecordingPipeline } from './render/recording';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
@@ -99,6 +86,7 @@ import { answerDueHighlands } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
+import { returnToTitle, shutDownGame, suspendWhenHidden } from './game/lifecycle';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -118,7 +106,8 @@ export function startGame(
   }
   // Read the preference before setQuality writes one, so automatic setup cannot look like a choice.
   const qualityWasChosen = everChoseQuality();
-  const recording = new URLSearchParams(location.search).has('record-scene') ? new RecordingPipeline() : undefined;
+  const sceneFlags = new URLSearchParams(location.search);
+  const recording = sceneFlags.has('record-scene') || sceneFlags.has('record-only') ? new RecordingPipeline() : undefined;
   if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
   const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);
@@ -172,7 +161,8 @@ export function startGame(
   // screens, so this is the one place the two are introduced
   const kinPanel = new KinPanel();
   const roster = new Roster();          // everybody in the world, read live off the register
-  const entityRenderer = new EntityRenderer(rig.scene, rig.graph);
+  const surface = surfaceRenderers(rig.graph, props, daycycle, seed);
+  const entityRenderer = surface.entities();
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
   const register = new Register(seed, 1, () => {}, 'journaled');
   register.theyStandAt(structures.villages);
@@ -195,25 +185,25 @@ export function startGame(
   );
   // and whoever is standing about, so the roster can say what each of them is presently doing
   roster.reads(() => register, () => structures.villages.length, entities, () => player);
-  // A connected simulation owns wildlife, so every player draws the same creatures.
+  // Shared-world wildlife comes from the authoritative simulation.
   const wildlife = new Wildlife(entityRenderer, entities, bookOf(register, structures.villages));
-  // Dungeon floors have separate creature numbering; null on the surface.
+  // Dungeon floors own separate creature rosters; null on the surface.
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   const sound = new Sound();
-  const weather = new Weather(rig.scene);
+  const weather = surface.weather();
   const fishing = new Fishing();
   const journal = new Journal();
   const clock = new Clock();
   const compass = new Compass();
   const photo = new PhotoMode();
-  const heroGear = new HeroGear(rig.scene);
+  const heroGear = surface.gear();
   // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
-  const updraughts = new Updraughts(rig.scene, seed);   // the warm air, drawn where a glider finds it
-  const seaEyes = new Swallows(rig.scene, seed);        // and the water that goes down, drawn where it turns
-  const holes = new Shafts(rig.scene, seed);            // and the shafts, drawn so they can be walked to
-  const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
+  const updraughts = surface.updraughts();   // the warm air, drawn where a glider finds it
+  const seaEyes = surface.swallows();        // and the water that goes down, drawn where it turns
+  const holes = surface.shafts();            // and the shafts, drawn so they can be walked to
+  const beam = surface.beam(entityRenderer, heroGear);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const chat = new Chat();
@@ -222,11 +212,11 @@ export function startGame(
     ? `${places.underground.poi.name}:${places.underground.floor}`
     : places.indoors ? places.indoors.title : 'surface';
 
-  // Combat breath refills within seconds, so it is not saved.
+  // Combat breath refills quickly, so it is not saved.
   const breath = new Breath();
-  const ownBoat = putBoatIn(rig.scene);
-  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
-  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial, rig.graph);
+  const ownBoat = surface.boat();
+  const cropField = surface.crops();
+  const buildingSite = surface.buildingSite();
   // and on the same sites, the houses the villages built themselves — and, out of the same book and
   // on the same day, the acres they cleared to fields: `game/villageroofs.ts` owns both, because
   // this file is assembly and a feature that needs six lines of it is wired in the wrong place
@@ -271,7 +261,7 @@ export function startGame(
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
-  const ferries = putFerriesOut(makeFerryLines(structures, structures.villages, graph.islands), rig.scene);
+  const ferries = surface.ferries(makeFerryLines(structures, structures.villages, graph.islands));
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
@@ -413,47 +403,15 @@ export function startGame(
     guiltOf: () => standing.guilt,
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
-  /**
-   * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
-   * graph, a socket — and none of it should outlive the moment you leave for the title screen.
-   */
-  const shutDown = (): void => {
-    loop.stop();
-    input.dispose();
-    touch.dispose();
-    online.disconnect();
-    others.clear();
-    sound.dispose();
-    places.dispose();
-    chunks.dispose();
-    entityRenderer.dispose();
-    heroGear.dispose();
-    beam.dispose();
-    weather.dispose();
-    watch.dispose();
-    skyRenderer.dispose();
-    packField.dispose();
-    cropField.dispose();
-    buildingSite.dispose();
-    props.dispose();
-    rig.dispose();
-  };
-
-  const toTitle = () => {
-    persist();
-    shutDown();
-    // the page comes back to a clean title screen: nothing of this world is left running
-    window.setTimeout(() => { window.location.href = window.location.pathname; }, 150);
-  };
-
-  /**
-   * A hidden tab should cost nothing. The frame loop already stops when the browser stops asking
-   * for frames, but the chunk workers and the audio graph do not, so they are stood down too.
-   */
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); }
-    else { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); }
+  const shutDown = (): void => shutDownGame({
+    stop: () => loop.stop(), controls: [input, touch],
+    disconnect: () => online.disconnect(), clear: () => others.clear(),
+    resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
+      skyRenderer, packField, cropField, buildingSite, props, rig],
   });
+
+  const toTitle = () => returnToTitle(persist, shutDown);
+  suspendWhenHidden({ stop: () => loop.stop(), start: () => loop.start() }, chunks, sound, online);
 
   // the panels, and the noises they make
   hud.setVolume(sound.volume);
@@ -481,7 +439,7 @@ export function startGame(
 
   // packs left where people fell, and the bundles that show them
   const remains = new Remains();
-  const packField = new DropField(rig.scene);
+  const packField = surface.drops();
 
   // every memory made on this page goes through one door, and the world is on the far side of it
   const recall = tellingTheWorld((who, what, about) => online.recall(who, what, about));
@@ -575,7 +533,7 @@ export function startGame(
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
-    school: new WhaleSchool(rig.scene), campField: new CampField(rig.scene),
+    school: surface.whales(), campField: surface.camps(),
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     knockOut,
@@ -609,13 +567,7 @@ export function startGame(
     walkedInto: walksIn(register, online),
   });
 
-  /*
-   * The screen, as the game asks for it.
-   *
-   * This is the one place that knows both halves — that "leave whatever I am in" means closing six
-   * particular panels, and that a conversation is a `DialogueBox`. The keyboard is told none of it:
-   * it asks for a journal, and something here knows where the journal is kept.
-   */
+  // The screen coordinates panels and dialogue for input bindings.
   const screen = screenOf({
     hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, roster, playerList, photo, places,
     cutaway,

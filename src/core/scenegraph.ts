@@ -18,12 +18,19 @@ export type SceneNode =
   | { kind: 'point'; colour: number; intensity: number; distance: number; decay: number; position: [number, number, number] }
   | { kind: 'directional'; colour: number; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
   | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
-      placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
+      glowColour?: number; placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
-      matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean }
+      matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean;
+      renderOrder?: number; material?: {
+        intent?: 'lit' | 'unlit'; colour?: number; emissive?: number; vertexColours?: boolean;
+        transparent?: boolean; opacity?: number; depthWrite?: boolean; depthTest?: boolean;
+        toneMapped?: boolean; side?: 'front' | 'back' | 'double'; effects?: string[];
+      } }
+  | { kind: 'points'; positions: Float32Array; colour: number; size: number; opacity: number; visible: boolean }
   | { kind: 'mesh'; geometry: SceneGeometry; material: 'lit-vertex-colours' | 'lit-solid' | 'water'; colour?: number;
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[];
-      frustumCulled?: boolean; effects?: string[] };
+      frustumCulled?: boolean; visible?: boolean; effects?: string[];
+      materialState?: Partial<NonNullable<FrameDescription['nodes'][number]['material']>> };
 
 /** The engine owns these values; a renderer decides how to display them. */
 export class SceneGraph {
@@ -31,6 +38,8 @@ export class SceneGraph {
   /** The camera chosen by the engine for the next submitted frame. */
   camera: FrameDescription['camera'] | null = null;
   fog: FrameDescription['fog'] = null;
+  cutaway: FrameDescription['cutaway'] = null;
+  coast: FrameDescription['coast'] = null;
 
   constructor(public background: number) {}
 
@@ -48,7 +57,9 @@ export class SceneGraph {
       camera: this.camera,
       background: this.background,
       fog: this.fog,
-      nodes: this.nodes.map((node) => {
+      cutaway: this.cutaway,
+      coast: this.coast,
+      nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
         if (node.kind === 'ambient') return { ...base, kind: 'ambient' as const, colour: node.colour, intensity: node.intensity };
         if (node.kind === 'hemisphere') return {
@@ -67,14 +78,14 @@ export class SceneGraph {
         if (node.kind === 'prop-batch') return {
           ...base, kind: 'prop-batch' as const, castShadow: node.castShadow,
           receiveShadow: node.receiveShadow, parts: node.parts,
-          glowParts: node.glowParts, placements: node.placements,
+          glowParts: node.glowParts, glowColour: node.glowColour, placements: node.placements,
         };
         if (node.kind === 'instances') return {
           ...base, kind: 'instances' as const, castShadow: node.castShadow,
-          receiveShadow: node.receiveShadow,
+          receiveShadow: node.receiveShadow, renderOrder: node.renderOrder,
           material: { intent: 'lit' as const, colour: node.colour, emissive: 0,
             vertexColours: false, transparent: false, opacity: 1, depthWrite: true,
-            side: 'front' as const, effects: [] },
+            side: 'front' as const, effects: [], ...node.material },
           attributes: {
             position: { size: 3, values: node.geometry.positions },
             normal: { size: 3, values: node.geometry.normals },
@@ -83,16 +94,25 @@ export class SceneGraph {
           instanceMatrices: node.matrices.subarray(0, node.count * 16),
           instanceColours: node.colours?.subarray(0, node.count * 3),
         };
+        if (node.kind === 'points') return {
+          ...base, kind: 'points' as const, visible: node.visible,
+          material: { intent: 'points' as const, colour: node.colour, emissive: 0,
+            vertexColours: false, transparent: true, opacity: node.opacity,
+            depthWrite: true, side: 'front' as const, effects: [], size: node.size },
+          attributes: { position: { size: 3, values: node.positions } },
+        };
         return {
-          ...base, kind: 'mesh' as const, castShadow: node.castShadow ?? false,
+          ...base, kind: 'mesh' as const, visible: node.visible ?? true, castShadow: node.castShadow ?? false,
           receiveShadow: node.receiveShadow,
           world: node.world ?? IDENTITY,
           renderOrder: node.renderOrder,
           material: {
             intent: node.material === 'water' ? 'water' as const : 'lit' as const,
             colour: node.colour ?? 0xffffff, emissive: 0, vertexColours: node.material !== 'lit-solid',
-            transparent: node.material === 'water', opacity: 1, depthWrite: node.material !== 'water',
-            side: 'front' as const, effects: node.effects ?? [],
+            transparent: node.material === 'water', opacity: node.material === 'water' ? 0.82 : 1,
+            depthWrite: node.material !== 'water',
+            side: node.material === 'water' ? 'double' as const : 'front' as const,
+            effects: node.effects ?? [], ...node.materialState,
           },
           attributes: {
             position: { size: 3, values: node.geometry.positions },

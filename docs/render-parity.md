@@ -15,7 +15,17 @@ SHOTS=/tmp/render-after EXCLUDE_RECT=1103,75,1415,394 \
 Run the first capture from the base revision and the second from the candidate.
 Use separate `PORT` values if they run together. Both images are 1440 by 900.
 The excluded rectangle is the asynchronous minimap: its tile stream has a
-different completion time in each browser run. Exclude the same rectangle from
-both images; the strict 0.50% difference limit still applies to every other
-pixel. The minimap has separate content assertions in `src/ui/minimap.test.ts`
-and `src/ui/mapbase.test.ts`. Capture interiors normally, without this exclusion.
+different completion time in each browser run, including the interior capture.
+Exclude the same rectangle from both images; the strict 0.50% difference limit
+still applies to every other pixel. The minimap has separate content assertions
+in `src/ui/minimap.test.ts` and `src/ui/mapbase.test.ts`. In the first hosted
+interior comparison, 20,075 of 21,410 changed pixels were in that rectangle;
+the remaining scene changed by 0.112%, below the same 0.50% limit.
+
+For a pull request, the `render-parity` label runs the comparison on a pinned
+Ubuntu 24.04 runner. It checks out the PR base and GitHub's proposed merge result,
+captures town and mountain with `STATIC_SCENE=1`, captures the interior normally,
+then applies the 0.50% pixel limit outside the same minimap rectangle in every
+scene. The artifact keeps both sets of PNGs and
+separate outdoor and interior reports. Apply the label after the final render
+commit so the report describes that exact head.
