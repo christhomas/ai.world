@@ -1,11 +1,10 @@
 import { readFileSync } from 'node:fs';
-import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { PropLibrary } from '../render/props';
 import { Register } from '../world/register';
 import type { Doorway } from '../world/structures';
@@ -71,8 +70,7 @@ describe('who the probes see when the hero is indoors', () => {
    */
   function walkInto(kind: Doorway['kind']) {
     const rng = mulberry32(9);
-    const outside = new THREE.Scene();
-    const overworldRenderer = new EntityRenderer(outside);
+    const overworldRenderer = offscreenEntityRenderer();
     const heroHerd = new Herd(KINDS.hero, 0, 0, 0, 0, 0);
     const hero = new Entity(KINDS.hero, 0, 0, heroHerd, 'hero', rng);
     const player = {
@@ -84,7 +82,7 @@ describe('who the probes see when the hero is indoors', () => {
     const places = new Places({
       seed: 4321,
       props: new PropLibrary(),
-      rig: { scene: outside },
+      rig: {},
       iso: { zoom: 18, limitZoom() {}, resize() {}, target: { set() {} } },
       player,
       overworldRenderer,
