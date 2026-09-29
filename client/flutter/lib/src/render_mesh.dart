@@ -4,18 +4,45 @@ import 'dart:typed_data';
 import 'chunk_parcel.dart';
 
 /// Interleaved native vertex: position, normal, linear colour, material,
-/// animation joint and animation pivot.
+/// animation joint, animation pivot, waterfall flow and open-sea mask.
 final class RenderMesh {
-  const RenderMesh({required this.id, required this.vertices, required this.indices});
+  const RenderMesh({
+    required this.id,
+    required this.vertices,
+    required this.indices,
+    this.castShadow = true,
+    this.receiveShadow = true,
+    this.opacity = 1,
+    this.emissive = 0,
+    this.blend = 'opaque',
+    this.depthWrite = true,
+    this.depthTest = true,
+    this.doubleSided = false,
+    this.backSide = false,
+    this.renderOrder = 0,
+    this.transparent = false,
+  });
 
-  static const int floatsPerVertex = 14;
+  static const int floatsPerVertex = 16;
   static const double terrainMaterial = 0;
   static const double cuttableMaterial = 1;
   static const double waterMaterial = 2;
+  static const double unlitMaterial = 3;
 
   final String id;
   final Float32List vertices;
   final Int32List indices;
+  final bool castShadow,
+      receiveShadow,
+      depthWrite,
+      depthTest,
+      doubleSided,
+      backSide;
+  final int renderOrder;
+  final bool transparent;
+  final double opacity;
+  final int emissive;
+  final String blend;
 
   int get vertexCount => vertices.length ~/ floatsPerVertex;
 }
@@ -27,7 +54,14 @@ final class ChunkMeshes {
 }
 
 final class _Palette {
-  const _Palette(this.ground, this.groundAlt, this.cliff, this.road, this.sand, this.high);
+  const _Palette(
+    this.ground,
+    this.groundAlt,
+    this.cliff,
+    this.road,
+    this.sand,
+    this.high,
+  );
   final int ground, groundAlt, cliff, road, sand, high;
 }
 
@@ -51,14 +85,18 @@ final class _MeshBuilder {
     List<double> d,
     List<double> normal,
     List<double> color,
-    double material,
+    double material, {
+    double flow = 0,
+    double sea = 0,
+  }
   ) {
     final ax = b[0] - a[0], ay = b[1] - a[1], az = b[2] - a[2];
     final bx = c[0] - a[0], by = c[1] - a[1], bz = c[2] - a[2];
     final crossX = ay * bz - az * by;
     final crossY = az * bx - ax * bz;
     final crossZ = ax * by - ay * bx;
-    final flipped = crossX * normal[0] + crossY * normal[1] + crossZ * normal[2] < 0;
+    final flipped =
+        crossX * normal[0] + crossY * normal[1] + crossZ * normal[2] < 0;
     final base = vertices.length ~/ RenderMesh.floatsPerVertex;
     for (final point in <List<double>>[a, b, c, d]) {
       vertices.addAll(<double>[
@@ -68,11 +106,15 @@ final class _MeshBuilder {
         material,
         0, // no rig joint
         0, 0, 0, // no pivot
+        flow,
+        sea,
       ]);
     }
-    indices.addAll(flipped
-        ? <int>[base, base + 3, base + 2, base, base + 2, base + 1]
-        : <int>[base, base + 1, base + 2, base, base + 2, base + 3]);
+    indices.addAll(
+      flipped
+          ? <int>[base, base + 3, base + 2, base, base + 2, base + 1]
+          : <int>[base, base + 1, base + 2, base, base + 2, base + 3],
+    );
   }
 
   RenderMesh? finish(String id) => indices.isEmpty
@@ -85,8 +127,20 @@ final class _MeshBuilder {
 }
 
 final class _Side {
-  const _Side(this.dx, this.dz, this.mineA, this.mineB, this.theirA, this.theirB,
-      this.ax, this.az, this.bx, this.bz, this.nx, this.nz);
+  const _Side(
+    this.dx,
+    this.dz,
+    this.mineA,
+    this.mineB,
+    this.theirA,
+    this.theirB,
+    this.ax,
+    this.az,
+    this.bx,
+    this.bz,
+    this.nx,
+    this.nz,
+  );
   final int dx, dz, mineA, mineB, theirA, theirB;
   final double ax, az, bx, bz, nx, nz;
 }
@@ -114,12 +168,18 @@ final class ChunkMesher {
         final i = chunk.index(x, z);
         final kind = chunk.type[i];
         if (kind == TileType.skip.index) continue;
-        final palette = _palettes[chunk.biome[i].clamp(0, _palettes.length - 1)];
+        final palette =
+            _palettes[chunk.biome[i].clamp(0, _palettes.length - 1)];
         final wx = (originX + x).toDouble(), wz = (originZ + z).toDouble();
         final shade = 0.94 + _hash01(seed, originX + x, originZ + z) * 0.12;
-        final top = _linear(_topHex(kind, palette)).map((v) => v * shade).toList(growable: false);
+        final top = _linear(_topHex(kind, palette))
+            .map((v) => v * shade)
+            .toList(growable: false);
         final corners = _corners(chunk, x, z);
-        final normal = (chunk.sloped[i] == 1 || kind == TileType.road.index || kind == TileType.bridge.index)
+        final normal =
+            (chunk.sloped[i] == 1 ||
+                kind == TileType.road.index ||
+                kind == TileType.bridge.index)
             ? _slopeNormal(corners)
             : const <double>[0, 1, 0];
         land.quad(
@@ -127,10 +187,13 @@ final class ChunkMesher {
           <double>[wx, corners[3], wz + 1],
           <double>[wx + 1, corners[2], wz + 1],
           <double>[wx + 1, corners[1], wz],
-          normal, top, RenderMesh.terrainMaterial,
+          normal,
+          top,
+          RenderMesh.terrainMaterial,
         );
 
-        final bridge = kind == TileType.bridge.index || kind == TileType.pier.index;
+        final bridge =
+            kind == TileType.bridge.index || kind == TileType.pier.index;
         final cliff = _linear(bridge ? 0x6e4a2a : palette.cliff);
         for (final side in _sides) {
           final neighbour = _corners(chunk, x + side.dx, z + side.dz);
@@ -138,13 +201,17 @@ final class ChunkMesher {
           final na = neighbour[side.theirA], nb = neighbour[side.theirB];
           if (na >= a - 0.001 && nb >= b - 0.001) continue;
           final lip = math.max(a - na, b - nb) <= 0.3 && !bridge;
-          final color = lip ? top.map((v) => v * 0.8).toList(growable: false) : cliff;
+          final color = lip
+              ? top.map((v) => v * 0.8).toList(growable: false)
+              : cliff;
           land.quad(
             <double>[wx + side.ax, math.min(na, a), wz + side.az],
             <double>[wx + side.bx, math.min(nb, b), wz + side.bz],
             <double>[wx + side.bx, b, wz + side.bz],
             <double>[wx + side.ax, a, wz + side.az],
-            <double>[side.nx, 0, side.nz], color, RenderMesh.terrainMaterial,
+            <double>[side.nx, 0, side.nz],
+            color,
+            RenderMesh.terrainMaterial,
           );
         }
 
@@ -152,21 +219,31 @@ final class ChunkMesher {
         if (surface <= 0) continue;
         if (surface > 0.281) {
           water.quad(
-            <double>[wx, surface, wz], <double>[wx, surface, wz + 1],
-            <double>[wx + 1, surface, wz + 1], <double>[wx + 1, surface, wz],
-            const <double>[0, 1, 0], _linear(0x3fa3da), RenderMesh.waterMaterial,
+            <double>[wx, surface, wz],
+            <double>[wx, surface, wz + 1],
+            <double>[wx + 1, surface, wz + 1],
+            <double>[wx + 1, surface, wz],
+            const <double>[0, 1, 0],
+            _linear(0x3fa3da),
+            RenderMesh.waterMaterial,
+            sea: chunk.type[i] == TileType.water.index ? 1 : 0,
           );
         }
         for (final side in _sides) {
           final neighbourSurface = _surface(chunk, x + side.dx, z + side.dz);
-          if (neighbourSurface < 0 || neighbourSurface >= surface - 0.01) continue;
+          if (neighbourSurface < 0 || neighbourSurface >= surface - 0.01) {
+            continue;
+          }
           final ox = side.nx * 0.02, oz = side.nz * 0.02;
           water.quad(
             <double>[wx + side.ax + ox, neighbourSurface, wz + side.az + oz],
             <double>[wx + side.bx + ox, neighbourSurface, wz + side.bz + oz],
             <double>[wx + side.bx + ox, surface, wz + side.bz + oz],
             <double>[wx + side.ax + ox, surface, wz + side.az + oz],
-            <double>[side.nx, 0, side.nz], _linear(0xd9f0fb), RenderMesh.waterMaterial,
+            <double>[side.nx, 0, side.nz],
+            _linear(0xd9f0fb),
+            RenderMesh.waterMaterial,
+            sea: chunk.type[i] == TileType.water.index ? 1 : 0,
           );
         }
       }
@@ -180,13 +257,21 @@ final class ChunkMesher {
   static List<double> _corners(ChunkParcel chunk, int x, int z) {
     final i = chunk.index(x, z);
     if (chunk.type[i] == TileType.skip.index) return const <double>[0, 0, 0, 0];
-    return List<double>.generate(4, (k) => chunk.corners[i * 4 + k], growable: false);
+    return List<double>.generate(
+      4,
+      (k) => chunk.corners[i * 4 + k],
+      growable: false,
+    );
   }
 
   static double _surface(ChunkParcel chunk, int x, int z) {
     final i = chunk.index(x, z), kind = chunk.type[i];
-    if (kind == TileType.water.index || kind == TileType.bridge.index) return chunk.water[i];
-    if (kind == TileType.seabed.index || kind == TileType.skip.index) return 0.28;
+    if (kind == TileType.water.index || kind == TileType.bridge.index) {
+      return chunk.water[i];
+    }
+    if (kind == TileType.seabed.index || kind == TileType.skip.index) {
+      return 0.28;
+    }
     return -1;
   }
 
@@ -198,23 +283,30 @@ final class ChunkMesher {
   }
 
   static int _topHex(int kind, _Palette p) => switch (kind) {
-        1 || 4 || 7 => p.sand,
-        3 => p.groundAlt,
-        5 => p.road,
-        6 => p.high,
-        8 => 0x9a6a3d,
-        9 => 0x8a7a62,
-        10 => 0xbfb096,
-        11 => 0x9a6a3d,
-        _ => p.ground,
-      };
+    1 || 4 || 7 => p.sand,
+    3 => p.groundAlt,
+    5 => p.road,
+    6 => p.high,
+    8 => 0x9a6a3d,
+    9 => 0x8a7a62,
+    10 => 0xbfb096,
+    11 => 0x9a6a3d,
+    _ => p.ground,
+  };
 
   static List<double> _linear(int hex) {
     double channel(int bits) {
       final value = bits / 255;
-      return value <= 0.04045 ? value / 12.92 : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
+      return value <= 0.04045
+          ? value / 12.92
+          : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
     }
-    return <double>[channel((hex >> 16) & 255), channel((hex >> 8) & 255), channel(hex & 255)];
+
+    return <double>[
+      channel((hex >> 16) & 255),
+      channel((hex >> 8) & 255),
+      channel(hex & 255),
+    ];
   }
 
   static double _hash01(int seed, int x, int z) {

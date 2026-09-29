@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { describeFrame, RecordingPipeline } from './recording';
+import { RecordingPipeline } from './recording';
+import { describeFrame } from './recording.test.support';
 
 describe('recording pipeline', () => {
   it('receives plain mesh, instance, material, light and camera data', () => {

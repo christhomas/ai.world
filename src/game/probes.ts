@@ -209,7 +209,7 @@ export function installProbes(ctx: Probed): void {
     __teleport?: (x: number, z: number) => void; __standAtCounter?: () => void;
   };
   debug.__state = state;
-  (debug as { __scene?: unknown }).__scene = rig.scene;
+  (debug as { __scene?: unknown }).__scene = rig.debugScene();
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { IsoCamera } from './camera';
+import type { SceneGraph } from '../core/scenegraph';
 import { patchShader } from './shaderpatch';
 
 /**
@@ -162,8 +163,9 @@ if (uCutOn > 0.5 && vCutWorld.y > uCutHero.y + uCutAbove) {
     this.uniforms.uCutLook.value.copy(target).sub(camera.position).normalize();
   }
 
-  lookAt(hero: { x: number; y: number; z: number }, camera: IsoCamera): void {
+  lookAt(hero: { x: number; y: number; z: number }, camera: IsoCamera, graph?: SceneGraph): void {
     this.look(new THREE.Vector3(hero.x, hero.y, hero.z), camera.camera, camera.target);
+    if (graph) graph.cutaway = { enabled: this.on, hero: [hero.x, hero.y, hero.z] };
   }
 
   /** Keep the hole open, or stop. Costs a number, not a recompile. */

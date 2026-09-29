@@ -1,0 +1,104 @@
+name: Renderer parity
+
+# Run on demand after the proposed render slice is ready. The two captures use the same
+# Ubuntu runner, browser, seed, camera, world time, and fixed scene setup.
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number whose proposed merge is captured
+        required: true
+        type: number
+      base_sha:
+        description: Exact pull request base commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'render-parity'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/merge', inputs.pr) || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Check out and prepare the exact PR base
+        env:
+          BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event.pull_request.base.sha }}
+          BASE_DIR: ${{ runner.temp }}/render-base
+        run: |
+          git worktree add --detach "$BASE_DIR" "$BASE_SHA"
+          cd "$BASE_DIR"
+          pnpm install --frozen-lockfile
+
+      - name: Capture fixed scenes on the base
+        env:
+          BASE_DIR: ${{ runner.temp }}/render-base
+          OUT: ${{ runner.temp }}/render-before
+          RIG: classic
+          PATIENCE: '120000'
+        run: |
+          mkdir -p "$OUT"
+          cd "$BASE_DIR"
+          PORT=5187 STATIC_SCENE=1 node tools/shots.cjs town mountain
+          PORT=5187 node tools/shots.cjs interior
+
+      - name: Capture the proposed merge on the same runner
+        env:
+          OUT: ${{ runner.temp }}/render-after
+          RIG: classic
+          PATIENCE: '120000'
+        run: |
+          mkdir -p "$OUT"
+          PORT=5188 STATIC_SCENE=1 node tools/shots.cjs town mountain
+          PORT=5188 node tools/shots.cjs interior
+
+      - name: Compare fixed scenery at the strict pixel threshold
+        env:
+          OUT: ${{ runner.temp }}/render-after
+          BEFORE: ${{ runner.temp }}/render-before
+          REPORTS: ${{ runner.temp }}
+          EXCLUDE_RECT: 1103,0,1440,900
+        run: |
+          # The right HUD column contains the live clock, messages, bars and async minimap.
+          # Compare every pixel of the fixed world area at the unchanged 0.50% threshold.
+          set +e
+          SHOTS="$OUT" node tools/compare.cjs "$BEFORE" town.png mountain.png
+          outdoor=$?
+          cp docs/reports/pictures-report.txt "$REPORTS/render-outdoor-report.txt"
+          SHOTS="$OUT" node tools/compare.cjs "$BEFORE" interior.png
+          interior=$?
+          cp docs/reports/pictures-report.txt "$REPORTS/render-interior-report.txt"
+          test "$outdoor" -eq 0 && test "$interior" -eq 0
+
+      - name: Keep both captures and the pixel report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-parity
+          path: |
+            ${{ runner.temp }}/render-before/*.png
+            ${{ runner.temp }}/render-after/*.png
+            ${{ runner.temp }}/render-*-report.txt
+          if-no-files-found: warn
+          retention-days: 30

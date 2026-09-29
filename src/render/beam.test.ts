@@ -5,6 +5,7 @@ import { Entity, Herd } from '../entities/entity';
 import { EntityRenderer } from './entities';
 import { mulberry32 } from '../core/rng';
 import { A_PASSAGE, AWAY, Beam, SCATTER } from './beam';
+import { SceneGraph } from '../core/scenegraph';
 
 /**
  * The beam a teleport leaves behind.
@@ -54,6 +55,25 @@ function blocks(renderer: EntityRenderer): Array<{ x: number; y: number; z: numb
 }
 
 describe('teleporting, as something you can watch', () => {
+  it('submits the moving light with its material and visibility to the neutral frame', () => {
+    const scene = new THREE.Scene();
+    const graph = new SceneGraph(0);
+    const renderer = new EntityRenderer(scene);
+    const beam = new Beam(scene, renderer, new THREE.Object3D(), graph);
+    const who = hero(12, -7);
+    beam.arrives(who);
+    beam.update(0.2);
+    const lit = graph.nodes.filter((node) => node.kind === 'mesh' && node.visible);
+    expect(lit).toHaveLength(2);
+    expect(lit[0]).toMatchObject({ materialState: { intent: 'unlit', transparent: true,
+      depthWrite: false, effects: ['additive-blending'] } });
+    const shaft = scene.children.find((child) => child instanceof THREE.Group &&
+      child.children.length === 2)?.children[0] as THREE.Mesh;
+    scene.updateMatrixWorld(true);
+    expect(lit[0].kind === 'mesh' && lit[0].world).toEqual(shaft.matrixWorld.toArray());
+    beam.dispose();
+    expect(graph.nodes).toHaveLength(0);
+  });
   it('takes the hero apart and puts him back together again', () => {
     const { renderer, beam } = stand();
     const who = hero();

@@ -1080,28 +1080,28 @@ async function take(browser, shot) {
       iso.target.set(hero.x, hero.y, hero.z);
       iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 }, 0, false);
       rig.follow(hero.x, hero.z, iso.zoom);
-      rig.sun.position.set(hero.x, 80, hero.z + 26);
-      rig.sun.target.position.set(hero.x, 0, hero.z);
-      rig.sun.intensity = 2.6;
-      rig.sun.color.setHex(0xfff3dc);
-      rig.hemi.intensity = 1;
-      rig.hemi.color.setHex(0xcfe6ff);
-      rig.hemi.groundColor.setHex(0x6f8f4f);
-      rig.ambient.intensity = 0.45;
-      rig.ambient.color.setHex(0xc9dcff);
-      rig.scene.background.setHex(0x8fc1e6);
-      rig.scene.fog.color.setHex(0x8fc1e6);
+      rig.lighting.sun.position = [hero.x, 80, hero.z + 26];
+      rig.lighting.sun.target = [hero.x, 0, hero.z];
+      rig.lighting.sun.intensity = 2.6;
+      rig.lighting.sun.colour = 0xfff3dc;
+      rig.lighting.hemi.intensity = 1;
+      rig.lighting.hemi.sky = 0xcfe6ff;
+      rig.lighting.hemi.ground = 0x6f8f4f;
+      rig.lighting.ambient.intensity = 0.45;
+      rig.lighting.ambient.colour = 0xc9dcff;
+      rig.graph.background = 0x8fc1e6;
+      if (rig.graph.fog) rig.graph.fog.colour = 0x8fc1e6;
       rig.updateWater(0);
       rig.fitShadow();
       rig.redrawShadows();
-      rig.draw(rig.scene, iso.camera);
+      rig.draw(rig.graph, iso);
     });
     await page.addStyleTag({ content: '#actionCard, #debug { visibility: hidden !important; }' });
     const at = await page.evaluate(() => ({
       hero: [window.__player.entity.x, window.__player.entity.y, window.__player.entity.z],
       target: window.__iso.target.toArray(), lift: window.__iso.lift,
       angle: window.__iso.rotation, zoom: window.__iso.zoom,
-      sky: window.__rig.scene.background.getHex(), sun: window.__rig.sun.intensity,
+      sky: window.__rig.graph.background, sun: window.__rig.lighting.sun.intensity,
     }));
     console.log(`static ${shot.name} ${JSON.stringify(at)}`);
   }

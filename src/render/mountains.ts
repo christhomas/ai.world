@@ -386,7 +386,8 @@ export class Mountains {
       if (!geometry) return;
       this.node = { kind: 'mesh', geometry, material: 'lit-vertex-colours',
         castShadow: true, receiveShadow: true, frustumCulled: false,
-        effects: ['mountain-cutaway'] };
+        effects: ['mountain-cutaway'],
+        materialState: { side: 'double', emissive: 0x23262e } };
       this.mesh = this.bridge.add(this.node);
       this.mesh.name = 'mountains';
       return;
