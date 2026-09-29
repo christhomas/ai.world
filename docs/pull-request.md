@@ -20,6 +20,14 @@ you are, ask; do not assume you may merge because this file exists.
 
 ## Before anything
 
+The `check` job runs `tools/mergeguard.cjs` on GitHub's proposed PR merge commit, comparing its
+reachability guard with the merge commit's first parent (`main`). It rejects restored inline
+excuses, removed assertions, and raised ratchet allowances, including the stale-branch pattern
+from #221. If a guard really must change, a maintainer can apply the `merge-guard-exception` label
+after reviewing a PR description line beginning `Merge guard exception:` with a concrete reason of
+at least 30 characters after the prefix.
+The exception and the detected changes remain visible in the check log.
+
 **Assume you are not the only thing moving `main`.** Other sessions and the repository's own
 automation land work concurrently. A branch you rebased and pushed ten minutes ago can be behind
 again by the time you come back to it, and a plain `git push` on a branch you already pushed can be

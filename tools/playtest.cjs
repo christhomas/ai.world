@@ -63,7 +63,8 @@ const OUT = process.env.OUT || require('node:path').join(REPORTS_DIR, 'playtest-
  * so the line can be drawn from evidence rather than from nerve.
  */
 const DRIFT = Number(process.env.DRIFT || '0.35');
-const DRIFT_SAMPLES = 12;
+const DRIFT_SAMPLES = 24;
+const DRIFT_WINDOW_MS = 30000;
 
 const results = [];
 const errs = [];
@@ -204,11 +205,13 @@ const finish = async () => {
     // The assertion is about steady nearby sync, not the one large correction caused by teleport.
     await page.waitForTimeout(1800);
     await page.evaluate(() => window.__drift);
-    // One or two packets make this average hinge on a single turn. Hold the sample open until it
-    // includes enough updates to describe steady sync, with the same timeout when a quiet world
-    // never supplies them.
-    driftReady = await page.waitForFunction((minimum) => window.__peekDrift.drawnClose.of >= minimum, DRIFT_SAMPLES,
-      { timeout: 15000, polling: 100 }).then(() => true, () => false);
+    // Stop after a fixed span of rendered play, rather than the first burst of updates. CI once
+    // saw its first 12 corrections arrive around a goat's turn and averaged 0.38 against 0.35;
+    // a second run of the same commit passed. A 30-second window samples both the turn and the
+    // steady walk that follows it. Still require enough rendered corrections so quiet animals
+    // cannot make an empty window look like perfect sync.
+    await page.waitForTimeout(DRIFT_WINDOW_MS);
+    driftReady = await page.evaluate((minimum) => window.__peekDrift.drawnClose.of >= minimum, DRIFT_SAMPLES);
   }
   const d = await page.evaluate(() => window.__drift);
   const driftTrace = await page.evaluate(() => window.__driftTrace());
@@ -411,7 +414,7 @@ const finish = async () => {
   say('creatures within reach are drawn where they are', measured && d.drawnClose.mean < DRIFT,
     measured
       ? `${d.drawnClose.of} rendered corrections (${d.wrongClose.of} raw), mean ${d.drawnClose.mean.toFixed(2)}, worst ${d.drawnClose.worst.toFixed(2)} (${d.drawnClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
-      : `nothing was measured: ${d.drawn} creatures drawn, ${d.wrongClose.of} raw corrections, ${beside} — the check found fewer than ${DRIFT_SAMPLES} corrections with a rendered frame between snapshots`);
+      : `nothing was measured: ${d.drawn} creatures drawn, ${d.wrongClose.of} raw corrections, ${beside} — the ${DRIFT_WINDOW_MS / 1000}s window found fewer than ${DRIFT_SAMPLES} corrections with a rendered frame between snapshots`);
 
   // --- and the same wall, at a gallop ---
   /*
