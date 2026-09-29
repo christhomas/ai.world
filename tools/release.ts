@@ -772,8 +772,22 @@ function main(): void {
   const body = note || `Version ${version}.`;
 
   if (left.includes('commit')) {
-    say('running the tests, because a release is the wrong place to find out');
-    execFileSync('pnpm', ['test', '--run'], { stdio: 'inherit' });
+    /*
+     * The tests are GitHub's to run, not this machine's.
+     *
+     * A push to `main` runs every required check — the suite, the extra suites, Flutter and the
+     * playtest — on hosted runners, and `main` only takes a pull request that is up to date, so
+     * that run is of exactly this tree. Running the suite again here used to be the step that
+     * failed: on a Raspberry Pi shared with other builds, single tests took five minutes and timed
+     * out, and a release that CI had already passed could not go out. So a release still refuses
+     * a commit nobody checked, and reads the answer instead of working it out a second time.
+     */
+    const head = run('git', ['rev-parse', 'HEAD']);
+    if (head !== run('git', ['rev-parse', 'origin/main'])) {
+      throw new Error('this main is not the one on GitHub — pull, so the release names the commit CI checked');
+    }
+    say('waiting for the checks on main, because a release is the wrong place to find out');
+    waitForTheChecks(head);
 
     for (const { file, find, write } of WRITTEN) {
       const text = readFileSync(file, 'utf8');
@@ -828,9 +842,9 @@ function main(): void {
      * And then it waits, which is the part worth understanding rather than working around.
      *
      * `main` requires the `playtest` check — a real browser walking through a door and looking at
-     * the furniture from inside, which catches the faults a unit test cannot see. The tests have
-     * already run locally by this point, so this is not the same work twice: it is the one check
-     * that cannot be run on a laptop, on the exact commit that is about to become a release.
+     * the furniture from inside, which catches the faults a unit test cannot see. `main` already
+     * passed every check before anything was written, so this is not the same work twice: it is
+     * the checks on the release's own commit, the version bump and changelog included.
      */
     say('waiting for the checks — the playtest is a browser, and it takes a few minutes');
     waitForTheChecks(branch);
