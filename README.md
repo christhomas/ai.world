@@ -586,6 +586,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.102.6 — 2026-09-29
+
+Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, worlds that start without stalling joins, and releases that trust CI
+
 ### v0.102.5 — 2026-09-28
 
 Fix HTTPS redirect loops behind proxy chains
@@ -621,10 +625,6 @@ The hero's farm earns while he is away, a seed is measured before it is handed o
 ### v0.99.1 — 2026-09-17
 
 A release stops spending a quota it does not need: every call to GitHub goes through REST
-
-### v0.99.0 — 2026-09-17
-
-A teleport is a passage you can watch: the console gets out of the way and the beam takes ten seconds, out and back
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
