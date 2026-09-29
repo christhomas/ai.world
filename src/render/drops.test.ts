@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { dropsFor } from './drops';
+import * as THREE from 'three';
+import { DropField, dropsFor } from './drops';
+import { SceneGraph } from '../core/scenegraph';
 
 /**
  * What you can see is what you would pick up.
@@ -30,5 +32,30 @@ describe('what is lying in the grass', () => {
 
   it('has nothing to say about an empty field', () => {
     expect(dropsFor([], [])).toEqual([]);
+  });
+
+  it('publishes pooled drop geometry, poses, visibility, and fur colour to the neutral graph', () => {
+    const scene = new THREE.Scene();
+    const graph = new SceneGraph(0);
+    const field = new DropField(scene, graph);
+    const meshes = graph.nodes.filter((node) => node.kind === 'mesh');
+    expect(meshes.length).toBeGreaterThan(0);
+    expect(meshes.every((node) => node.kind === 'mesh' && node.visible === false)).toBe(true);
+
+    field.update([{ x: 3, z: 4, kind: 'carcass', of: 'fox' }], () => 2);
+    const active = graph.nodes.filter((node) => node.kind === 'mesh' && node.visible);
+    expect(active.length).toBeGreaterThan(0);
+    expect(active[0]).toMatchObject({ kind: 'mesh' });
+    if (active[0].kind === 'mesh') {
+      expect(active[0].world?.[12]).toBeCloseTo(3);
+      expect(active[0].world?.[13]).toBeCloseTo(2.26);
+      expect(active[0].world?.[14]).toBeCloseTo(4);
+    }
+    expect(active.some((node) => node.kind === 'mesh' && node.colour === 0xb4622c)).toBe(true);
+
+    field.update([], () => 0);
+    expect(graph.nodes.filter((node) => node.kind === 'mesh' && node.visible)).toHaveLength(0);
+    field.dispose();
+    expect(graph.nodes).toHaveLength(0);
   });
 });

@@ -1,10 +1,20 @@
 import * as THREE from 'three';
 import { buildChunkMesh, type WallCut } from '../world/mesher';
-import { addPropInstances, disposeInstances, meshFromData } from './instancing';
+import { addPropInstances, disposeInstances } from './instancing';
 import type { PropLibrary } from './props';
 import type { DungeonWorld } from '../dungeon/world';
+import { SceneGraph, type SceneNode } from '../core/scenegraph';
+import { mountSceneGraph } from './scenegraph';
+import { bindGraphMount } from './graphmount';
+import { nativeRig, type SceneRig } from './scene';
 
 const MAX_TORCH_LIGHTS = 10;
+
+/** Construct the dungeon adapter without handing its WebGL water material to game code. */
+export function dungeonSceneFor(rig: SceneRig, world: DungeonWorld, props: PropLibrary,
+  seed: number, opened: Set<string>): DungeonScene {
+  return new DungeonScene(world, props, nativeRig(rig).water.material, seed, opened);
+}
 
 /**
  * What the walls of each sort of place are made of.
@@ -46,9 +56,12 @@ const DROWNED = { sky: 0x03131a, ambient: 0x2c5a5e, above: 0x3f8a8a, below: 0x0a
 
 /** Builds and owns the three.js scene for one dungeon visit. */
 export class DungeonScene {
-  readonly scene = new THREE.Scene();
+  readonly graph: SceneGraph;
+  readonly scene: THREE.Scene;
   readonly heroLight = new THREE.PointLight(0xffc080, 3, 7, 1.6);
-  private readonly terrain: THREE.Mesh[] = [];
+  private readonly heroLightNode: Extract<SceneNode, { kind: 'point' }>;
+  private readonly unmountHeroLight: () => void;
+  private readonly mounted: ReturnType<typeof mountSceneGraph>;
   private propMeshes: THREE.Object3D[] = [];
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffb040 });
 
@@ -64,13 +77,10 @@ export class DungeonScene {
     const air = world.style === 'thicket' ? WOODED
       : world.style === 'castle' ? KEEP
         : world.style === 'sunken' ? DROWNED : UNDER_ROCK;
-    this.scene.background = new THREE.Color(air.sky);
-    this.scene.add(new THREE.AmbientLight(air.ambient, air.strength));
-    const hemi = new THREE.HemisphereLight(air.above, air.below, 0.7);
-    this.scene.add(hemi);
-    this.scene.add(this.heroLight);
+    this.graph = new SceneGraph(air.sky);
+    this.graph.add({ kind: 'ambient', colour: air.ambient, intensity: air.strength });
+    this.graph.add({ kind: 'hemisphere', sky: air.above, ground: air.below, intensity: 0.7 });
 
-    const landMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     const per = world.chunksPerSide;
     for (let cz = 0; cz < per; cz++) {
       for (let cx = 0; cx < per; cx++) {
@@ -78,17 +88,16 @@ export class DungeonScene {
         if (chunk.empty) continue;
         const meshes = buildChunkMesh(chunk, seed, wallsOf(world.style));
         if (meshes.land) {
-          const land = meshFromData(meshes.land, landMat);
-          land.castShadow = true;
-          land.receiveShadow = true;
-          this.scene.add(land);
-          this.terrain.push(land);
+          this.graph.add({
+            kind: 'mesh', geometry: meshes.land, material: 'lit-vertex-colours',
+            castShadow: true, receiveShadow: true,
+          });
         }
         if (meshes.water) {
-          const water = meshFromData(meshes.water, waterMaterial);
-          water.renderOrder = 2;
-          this.scene.add(water);
-          this.terrain.push(water);
+          this.graph.add({
+            kind: 'mesh', geometry: meshes.water, material: 'water',
+            receiveShadow: false, renderOrder: 2,
+          });
         }
       }
     }
@@ -97,11 +106,32 @@ export class DungeonScene {
     const step = Math.max(1, Math.ceil(torches.length / MAX_TORCH_LIGHTS));
     for (let i = 0; i < torches.length; i += step) {
       const t = torches[i];
-      const light = new THREE.PointLight(0xffa040, 5, 11, 1.5);
-      light.position.set(t.x + 0.5 + Math.cos(t.rot) * 0.8, 2.0, t.z + 0.5 - Math.sin(t.rot) * 0.8);
-      this.scene.add(light);
+      this.graph.add({
+        kind: 'point', colour: 0xffa040, intensity: 5, distance: 11, decay: 1.5,
+        position: [t.x + 0.5 + Math.cos(t.rot) * 0.8, 2.0, t.z + 0.5 - Math.sin(t.rot) * 0.8],
+      });
     }
+    this.mounted = mountSceneGraph(this.graph, waterMaterial);
+    this.scene = this.mounted.scene;
+    // The moving hero light is added after mounting; its retained adapter is the same light
+    // used by WebGL, while the neutral point belongs to every submitted dungeon frame.
+    this.heroLightNode = this.graph.add({ kind: 'point', colour: 0xffc080,
+      intensity: 3, distance: 7, decay: 1.6, position: [0, 0, 0] }) as Extract<SceneNode, { kind: 'point' }>;
+    this.scene.add(this.heroLight);
+    this.unmountHeroLight = bindGraphMount(this.graph, this.heroLightNode, (frame) => {
+      this.heroLight.intensity = frame.intensity ?? 0;
+      this.heroLight.position.set(frame.world[12], frame.world[13], frame.world[14]);
+    });
     this.rebuildProps(opened);
+  }
+
+  setHeroLight(x: number, y: number, z: number, intensity: number): void {
+    this.heroLightNode.position[0] = x;
+    this.heroLightNode.position[1] = y;
+    this.heroLightNode.position[2] = z;
+    this.heroLightNode.intensity = intensity;
+    this.heroLight.position.set(x, y, z);
+    this.heroLight.intensity = intensity;
   }
 
   /** Instanced torches, stairs and chests; called again when a chest opens. */
@@ -109,12 +139,13 @@ export class DungeonScene {
     for (const m of this.propMeshes) { this.scene.remove(m); disposeInstances(m); }
     this.propMeshes = [];
     const before = this.scene.children.length;
-    addPropInstances(this.scene, this.props, this.world.props(opened), this.glowMaterial);
+    addPropInstances(this.scene, this.props, this.world.props(opened), this.glowMaterial, true, this.graph);
     this.propMeshes = this.scene.children.slice(before);
   }
 
   dispose(): void {
-    for (const t of this.terrain) t.geometry.dispose();
+    this.unmountHeroLight();
+    this.mounted.dispose();
     for (const m of this.propMeshes) disposeInstances(m);
     this.glowMaterial.dispose();
   }

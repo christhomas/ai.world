@@ -83,10 +83,9 @@ export function shadowsWorthDrawing(moved: number, since: number): boolean {
 export class DayCycle {
   /** Unlit material shared by every window-glow instance. */
   readonly glowMaterial = new THREE.MeshBasicMaterial({ color: WINDOW_DAY });
-  /** Follows the hero; lit when they carry a lantern at night. */
-  readonly lantern = new THREE.PointLight(0xffb060, 0, 9, 1.6);
   private readonly tmp = new THREE.Color();
   private readonly tmp2 = new THREE.Color();
+  private readonly lightPoint = new THREE.Vector3();
   private daySunIntensity: number;
   private dayHemiIntensity: number;
   private dayAmbientIntensity: number;
@@ -95,10 +94,9 @@ export class DayCycle {
   private drawnAt = 0;
 
   constructor(private readonly rig: SceneRig) {
-    this.daySunIntensity = rig.sun.intensity;
-    this.dayHemiIntensity = rig.hemi.intensity;
-    this.dayAmbientIntensity = rig.ambient.intensity;
-    rig.scene.add(this.lantern);
+    this.daySunIntensity = rig.lighting.sun.intensity;
+    this.dayHemiIntensity = rig.lighting.hemi.intensity;
+    this.dayAmbientIntensity = rig.lighting.ambient.intensity;
   }
 
   /** Call when the options sliders change so the cycle scales the new daytime values. */
@@ -140,51 +138,54 @@ export class DayCycle {
     const night = 1 - day;
     const dusk = (1 - Math.min(1, Math.abs(sunH) / 0.35)) * day;
 
-    const { sun, hemi, ambient, scene } = this.rig;
+    const { graph, lighting } = this.rig;
     // sun orbits east → west; at night it stays low as faint moonlight
     const r = 60;
-    sun.position.set(
+    lighting.sun.position = [
       focusX + Math.cos(ang) * r,
       18 + Math.max(0.1, sunH) * 62,
       focusZ + 26,
-    );
+    ];
     // the rig cut its shadow slab for wherever the sun was when the camera last moved, which was
     // before this; a low sun needs a far deeper slab than a high one, so it is cut again here
     this.rig.fitShadow();
-    this.shadowsIfTheyHaveChanged(sun.position);
+    this.shadowsIfTheyHaveChanged(this.lightPoint.set(...lighting.sun.position));
     // the night floor is moonlight: dark enough to want a lantern, bright enough to walk by
-    sun.intensity = this.daySunIntensity * (0.22 + 0.78 * day) * (1 - wet * 0.45);
+    lighting.sun.intensity = this.daySunIntensity * (0.22 + 0.78 * day) * (1 - wet * 0.45);
     this.tmp.copy(DAY_SUN).lerp(DUSK_SUN, dusk).lerp(NIGHT_SUN, night);
     this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
-    sun.color.copy(this.tmp);
+    lighting.sun.colour = this.tmp.getHex();
 
-    hemi.intensity = this.dayHemiIntensity * (0.55 + 0.45 * day) * (1 - wet * 0.2);
-    hemi.color.copy(this.tmp.copy(DAY_HEMI_SKY).lerp(NIGHT_HEMI_SKY, night));
-    hemi.groundColor.copy(this.tmp.copy(DAY_HEMI_GROUND).lerp(NIGHT_HEMI_GROUND, night));
-    ambient.intensity = this.dayAmbientIntensity * (0.62 + 0.38 * day);
-    ambient.color.copy(this.tmp.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night));
+    lighting.hemi.intensity = this.dayHemiIntensity * (0.55 + 0.45 * day) * (1 - wet * 0.2);
+    lighting.hemi.sky = this.tmp.copy(DAY_HEMI_SKY).lerp(NIGHT_HEMI_SKY, night).getHex();
+    lighting.hemi.ground = this.tmp.copy(DAY_HEMI_GROUND).lerp(NIGHT_HEMI_GROUND, night).getHex();
+    lighting.ambient.intensity = this.dayAmbientIntensity * (0.62 + 0.38 * day);
+    lighting.ambient.colour = this.tmp.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night).getHex();
 
     this.tmp.copy(DAY_SKY).lerp(DUSK_SKY, dusk).lerp(NIGHT_SKY, night);
     this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
     if (wet > 0) this.tmp.lerp(this.tmp2.setHex(0x6a7480), wet * 0.55 * day);
-    (scene.background as THREE.Color).copy(this.tmp);
+    graph.background = this.tmp.getHex();
     // and the far country goes to the same colour it is standing in front of. One reading rather
     // than two: a fog lerped on its own curve would seam against the sky at every hour where the
     // two disagreed, and dusk is exactly where they would
-    if (!scene.fog) scene.fog = new THREE.Fog(this.tmp.getHex(), fogReach().near, fogReach().far);
-    (scene.fog as THREE.Fog).color.copy(this.tmp);
+    graph.fog = { ...(graph.fog ?? fogReach()), colour: graph.background };
 
     // windows warm up as the light fades
     this.glowMaterial.color.copy(this.tmp2.copy(WINDOW_DAY).lerp(WINDOW_NIGHT, smoothstep(0.3, 0.8, night)));
+    const glowColour = this.glowMaterial.color.getHex();
+    for (const node of graph.nodes) {
+      if (node.kind === 'prop-batch' && node.glowParts?.length) node.glowColour = glowColour;
+    }
 
     // the light comes from what the hero is holding, and from his head only where there is nothing
     // in his hand to hold it — which after dark there always is
-    if (flame) this.lantern.position.set(flame.x, flame.y, flame.z);
-    else this.lantern.position.set(heroX, heroY + 1.4, heroZ);
+    lighting.lantern.position = flame
+      ? [flame.x, flame.y, flame.z] : [heroX, heroY + 1.4, heroZ];
     // a torch is worth less than a lantern and more than nothing, and the fire wavers
     const carried = lanternOn ? 14 : flame ? 9 : 3.5;
     const waver = flame ? 1 + Math.sin(time * TORCH_FLICKER) * 0.06 : 1;
-    this.lantern.intensity = carried * waver * smoothstep(0.2, 0.7, night);
+    lighting.lantern.intensity = carried * waver * smoothstep(0.2, 0.7, night);
     return night;
   }
 }

@@ -36,7 +36,7 @@ function shopProbe(hero: { x: number; z: number }) {
   };
   try {
     installProbes({
-    seed: 1, manifest: { byKind: () => [] }, world: undefined, state: { day: 0, time: 0 }, player: hero, rig: { scene: {} }, iso: {},
+    seed: 1, manifest: { byKind: () => [] }, world: undefined, state: { day: 0, time: 0 }, player: hero, rig: { debugScene: () => ({}) }, iso: {},
     sampler: {}, structures, chunks: {}, entities: {}, register: {}, places, online: {}, market: {},
     warband: {}, remains: {}, plots: {}, houses: {}, sailing: {}, skies: {}, skyIsles: [], eyries: [],
     pods: () => [], mines: {}, jail: {}, mount: {}, drawLineage() {}, overworldRenderer: {}, roaming: {},

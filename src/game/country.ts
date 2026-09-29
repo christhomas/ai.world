@@ -1,12 +1,11 @@
 import { WORLD } from '../core/config';
 import { DayCycle } from '../render/daycycle';
-import { MountainMaterial, Mountains } from '../render/mountains';
+import { MountainMaterial } from '../render/mountains';
+import { countryRenderers } from '../render/country-mount';
 import type { PropLibrary } from '../render/props';
 import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
-import { SkyIslands } from '../render/skyisland';
 import { aroundOf, aroundPatches } from '../world/around';
-import { ChunkManager } from '../render/chunkManager';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { viewOf } from '../world/patchview';
@@ -174,9 +173,10 @@ export function growCountry(ctx: Growing) {
   const around = country.store ? aroundPatches(country.store) : aroundOf(sampler.structures);
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
+  const visuals = countryRenderers(rig, props, daycycle);
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
-  const chunks = new ChunkManager(
-    rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, country.store ?? undefined,
+  const chunks = visuals.chunks(
+    sampler, country.store ?? undefined,
     grower ? (patch) => grower.want(patch) : undefined,
   );
   chunks.useSeasonTint(seasonTintMaterials);
@@ -195,7 +195,7 @@ export function growCountry(ctx: Growing) {
    * leaves the scene, its geometry is disposed, the new one is built — and handed the same ranges
    * twice it does nothing, so the endless world can call it on every crossing without asking first.
    */
-  const mountains = new Mountains(rig.scene, rock.material);
+  const mountains = visuals.mountains(rock);
   mountains.show(sampler.ranges);
   // and the camera's own answer to them: it stands further back near a range, because a peak is
   // taller than the picture is and would otherwise be cut off by the top of its own frustum
@@ -210,7 +210,7 @@ export function growCountry(ctx: Growing) {
    * wrong without it, which is the mountains' own failure one layer up — islands over country
    * behind you, and crags that are not there.
    */
-  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
+  const skyRenderer = visuals.skyIslands();
   skyRenderer.useSeasonTint(seasonTintMaterials);
   const high = new HighCountry(seed, manifest, skyRenderer);
   high.standOn(sampler);

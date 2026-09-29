@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
 import type { PropLibrary } from './props';
 import { Solids, boxesFrom, type Body } from '../world/solids';
 import { blocking, type Footprints } from '../world/footprints';
@@ -16,14 +17,15 @@ import { WAIT_FOR_THE_WORLD } from '../world/chunkparcel';
 import type { ChunkSource, ChunkTiles, TileWorld } from '../world/tiles';
 import type { TerrainSampler } from '../world/terrain';
 import { chunkKey } from '../world/spatial';
-import { PropBatch, disposeInstances, meshFromData, type PropInstance } from './instancing';
+import { PropBatch, type PropInstance } from './instancing';
+import { ThreeGraphBridge } from './scenegraph';
 import type { SeasonTintMaterials } from './seasontint';
 import { withoutClearedTrees } from '../world/fields';
 
 interface LoadedChunk {
   cx: number;
   cz: number;
-  group: THREE.Group | null;
+  terrain: SceneNode[];
   tiles: ChunkTiles | null;
   /**
    * Whether this is ground the page grew for itself because the world had not answered yet.
@@ -125,6 +127,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
   private focusCz = Number.NaN;
   private readonly offsets: Array<{ dx: number; dz: number }> = [];
   private readonly terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+  private readonly terrainBridge: ThreeGraphBridge;
   /** Season tint: multiplied into every vertex colour of terrain and props. */
   /** Let a season tint drive the terrain and prop materials. */
   useSeasonTint(tint: SeasonTintMaterials): void {
@@ -188,6 +191,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   constructor(
     private readonly scene: THREE.Scene,
+    graph: SceneGraph,
     sampler: TerrainSampler,
     private readonly props: PropLibrary,
     private readonly waterMaterial: THREE.Material,
@@ -209,7 +213,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
      */
     private readonly wantPatch?: (patch: string) => void,
   ) {
-    this.propBatch = new PropBatch(scene, props, glowMaterial);
+    this.terrainBridge = new ThreeGraphBridge(graph, scene, this.terrainMaterial, waterMaterial);
+    this.propBatch = new PropBatch(scene, props, glowMaterial, graph);
     this.stops = blocking(props.footprints, BLOCKS_WALKING);
     this.ranges = sampler.ranges;
     const R = WORLD.VIEW_RADIUS;
@@ -458,33 +463,29 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
     if (msg.empty) {
       this.loaded.set(k, {
-        cx: msg.cx, cz: msg.cz, group: null, tiles: null, props: [], grown: msg.grown === true,
+        cx: msg.cx, cz: msg.cz, terrain: [], tiles: null, props: [], grown: msg.grown === true,
       });
     } else {
-      const group = new THREE.Group();
-      const land = meshFromData(msg.mesh, this.terrainMaterial);
-      land.castShadow = true;
-      land.receiveShadow = true;
-      group.add(land);
+      const terrain: SceneNode[] = [];
+      const land: Extract<SceneNode, { kind: 'mesh' }> = {
+        kind: 'mesh', geometry: msg.mesh, material: 'lit-vertex-colours', castShadow: true, receiveShadow: true,
+      };
+      this.terrainBridge.add(land);
+      terrain.push(land);
       if (msg.water) {
-        const water = meshFromData(msg.water, this.waterMaterial);
-        water.receiveShadow = true;
-        water.renderOrder = 2;
-        group.add(water);
+        const water: Extract<SceneNode, { kind: 'mesh' }> = {
+          kind: 'mesh', geometry: msg.water, material: 'water', receiveShadow: true, renderOrder: 2,
+        };
+        this.terrainBridge.add(water);
+        terrain.push(water);
       }
       // The generated stream remains intact; the ledger is an overlay shared with the server.
       const props = [...readPropStream(msg.props)];
       const visible = withoutClearedTrees(props, this.clearedFields);
       this.solids.put(k, boxesFrom(visible, this.stops));
       this.propBatch.set(k, visible);
-      this.scene.add(group);
-      // the ground of a chunk never moves once it is down, so the frame need not walk it every
-      // frame asking whether it has: a hundred chunks of that is a hundred chunks of nothing
-      group.matrixAutoUpdate = false;
-      group.updateMatrixWorld(true);
-      group.matrixWorldAutoUpdate = false;
       this.loaded.set(k, {
-        cx: msg.cx, cz: msg.cz, group, grown: msg.grown === true,
+        cx: msg.cx, cz: msg.cz, terrain, grown: msg.grown === true,
         props,
         tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, biomes: msg.biomes },
       });
@@ -503,12 +504,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (c.grown) this.grown--;
     this.propBatch.remove(k);
     this.solids.drop(k);
-    if (c.group) {
-      this.scene.remove(c.group);
-      c.group.traverse((o) => {
-        if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) o.geometry.dispose();
-      });
-      disposeInstances(c.group);
+    if (c.terrain.length) {
+      for (const node of c.terrain) this.terrainBridge.remove(node);
       this.stats.drawn--;
     }
     this.loaded.delete(k);

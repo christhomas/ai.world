@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import type { PropKind } from '../world/biomes';
 import type { PropLibrary } from './props';
 import type { MeshData } from '../world/mesher';
+import type { ScenePlacement } from '../core/scene';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { PROPS } from '../entities/props';
 import { worldView } from './scene';
+import { bindGraphMount } from './graphmount';
 
 /**
  * One prop to draw: which kind, where, facing where, at what size — and the three small
@@ -49,7 +53,7 @@ const SHADOW_VOLUME = 0.5;
  * How light or dark one prop stands against the next. Lighter ones lean a little warmer, as
  * foliage in the sun does; darker ones a little cooler, as foliage in its own shade does.
  */
-const shadeOf = (t: number): THREE.Color => {
+export const shadeOf = (t: number): THREE.Color => {
   const shade = 0.85 + t * 0.3;
   return tint.setRGB(shade * (0.98 + t * 0.06), shade, shade * (1.04 - t * 0.08));
 };
@@ -66,7 +70,7 @@ const worthAShadow = (geometry: THREE.BufferGeometry): boolean => {
  * wants. Both ways of drawing props go through this, so a tree put up by a chunk and the same
  * tree put up by a dungeon are the same tree rather than two things that look alike.
  */
-function composeInstance(inst: PropInstance, out: THREE.Matrix4): THREE.Matrix4 {
+export function composeInstance(inst: ScenePlacement, out: THREE.Matrix4): THREE.Matrix4 {
   quat.setFromAxisAngle(UP, inst.rot);
   // a lean is a small tip away from upright, in whatever direction this one happens to face
   const tipped = (inst.lean ?? 0.5) - 0.5;
@@ -102,12 +106,20 @@ export function addPropInstances(
   instances: Iterable<PropInstance>,
   glowMaterial: THREE.Material,
   shadows = true,
+  graph?: SceneGraph,
 ): void {
   for (const [kind, list] of byKindOf(instances)) {
     const geometry = props.geometries.get(kind);
     if (!geometry) continue;
     const mesh = new THREE.InstancedMesh(geometry, props.material, list.length);
-    list.forEach((inst, i) => {
+    const model = PROPS.get(kind);
+    const node = graph && model ? graph.add({
+      kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+      glowColour: glowMaterial instanceof THREE.MeshBasicMaterial ? glowMaterial.color.getHex() : undefined,
+      placements: list, castShadow: shadows && worthAShadow(geometry), receiveShadow: shadows,
+    }) : null;
+    if (node) { mesh.userData.graphNode = node; mesh.userData.graph = graph; }
+    (node?.kind === 'prop-batch' ? node.placements : list).forEach((inst, i) => {
       mesh.setMatrixAt(i, composeInstance(inst, matrix));
       mesh.setColorAt(i, shadeOf(inst.tint ?? 0.5));
     });
@@ -119,12 +131,35 @@ export function addPropInstances(
     parent.add(mesh);
 
     const glowGeometry = props.glows.get(kind);
-    if (!glowGeometry) continue;
-    const glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, list.length);
-    glow.instanceMatrix.copy(mesh.instanceMatrix);
-    glow.instanceMatrix.needsUpdate = true;
-    glow.computeBoundingSphere();
-    parent.add(glow);
+    let glow: THREE.InstancedMesh | null = null;
+    if (glowGeometry) {
+      glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, list.length);
+      glow.instanceMatrix.copy(mesh.instanceMatrix);
+      glow.instanceMatrix.needsUpdate = true;
+      glow.computeBoundingSphere();
+      parent.add(glow);
+    }
+    if (graph && node?.kind === 'prop-batch') {
+      mesh.userData.unmount = bindGraphMount(graph, node, (frame) => {
+        if (glow && frame.glowColour !== undefined && glow.material instanceof THREE.MeshBasicMaterial) {
+          glow.material.color.setHex(frame.glowColour);
+        }
+        const placements = frame.placements ?? [];
+        mesh.count = placements.length;
+        mesh.castShadow = frame.castShadow;
+        mesh.receiveShadow = frame.receiveShadow;
+        placements.forEach((inst, at) => {
+          mesh.setMatrixAt(at, composeInstance(inst, matrix));
+          mesh.setColorAt(at, shadeOf(inst.tint ?? 0.5));
+        });
+        if (placements.length) mesh.instanceMatrix.needsUpdate = true;
+        if (glow) {
+          glow.count = placements.length;
+          glow.instanceMatrix.copy(mesh.instanceMatrix);
+          if (placements.length) glow.instanceMatrix.needsUpdate = true;
+        }
+      });
+    }
   }
 }
 
@@ -162,6 +197,9 @@ interface KindBatch {
   geometry: THREE.BufferGeometry;
   glowGeometry: THREE.BufferGeometry | undefined;
   parts: Map<string, PackedProps>;
+  nodes: Map<string, SceneNode>;
+  unmounts: Map<string, () => void>;
+  placements: Map<string, readonly ScenePlacement[]>;
   /** Instances held across every part, which is what the buffer has to be big enough for. */
   total: number;
   mesh: THREE.InstancedMesh | null;
@@ -224,6 +262,7 @@ export class PropBatch {
     private readonly scene: THREE.Object3D,
     private readonly props: PropLibrary,
     private readonly glowMaterial: THREE.Material,
+    private readonly graph?: SceneGraph,
   ) {
     scene.add(this.group);
     // nothing in here ever moves, so the frame need not walk it asking whether anything has
@@ -242,11 +281,39 @@ export class PropBatch {
       if (!batch) {
         batch = {
           geometry, glowGeometry: this.props.glows.get(kind),
-          parts: new Map(), total: 0, mesh: null, glow: null, capacity: 0,
+          parts: new Map(), nodes: new Map(), unmounts: new Map(), placements: new Map(),
+          total: 0, mesh: null, glow: null, capacity: 0,
         };
         this.kinds.set(kind, batch);
       }
-      batch.parts.set(key, pack(list));
+      const model = PROPS.get(kind);
+      if (this.graph && model) {
+        const node: Extract<SceneNode, { kind: 'prop-batch' }> = {
+          kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+          glowColour: this.glowMaterial instanceof THREE.MeshBasicMaterial
+            ? this.glowMaterial.color.getHex() : undefined,
+          placements: list, castShadow: worthAShadow(geometry), receiveShadow: true,
+        };
+        this.graph.add(node);
+        batch.nodes.set(key, node);
+        batch.placements.set(key, node.placements);
+        batch.parts.set(key, pack(node.placements as PropInstance[]));
+        batch.unmounts.set(key, bindGraphMount(this.graph, node, (frame) => {
+          if (frame.glowColour !== undefined && this.glowMaterial instanceof THREE.MeshBasicMaterial) {
+            this.glowMaterial.color.setHex(frame.glowColour);
+          }
+          const placements = frame.placements ?? [];
+          if (batch.placements.get(key) === placements) return;
+          const previous = batch.parts.get(key)?.count ?? 0;
+          const packed = pack(placements as PropInstance[]);
+          batch.parts.set(key, packed);
+          batch.placements.set(key, placements);
+          batch.total += packed.count - previous;
+          this.dirty = true;
+          if (batch.total === 0) this.drop(batch);
+          else this.update();
+        }));
+      } else batch.parts.set(key, pack(list));
       batch.total += list.length;
       this.dirty = true;
     }
@@ -258,6 +325,12 @@ export class PropBatch {
       const part = batch.parts.get(key);
       if (!part) continue;
       batch.parts.delete(key);
+      const node = batch.nodes.get(key);
+      batch.unmounts.get(key)?.();
+      batch.unmounts.delete(key);
+      batch.placements.delete(key);
+      if (node) this.graph?.remove(node);
+      batch.nodes.delete(key);
       batch.total -= part.count;
       this.dirty = true;
       // a kind nobody is growing any more keeps no mesh: an InstancedMesh with nothing in it is
@@ -352,7 +425,11 @@ export class PropBatch {
   }
 
   dispose(): void {
-    for (const batch of this.kinds.values()) this.drop(batch);
+    for (const batch of this.kinds.values()) {
+      for (const unmount of batch.unmounts.values()) unmount();
+      for (const node of batch.nodes.values()) this.graph?.remove(node);
+      this.drop(batch);
+    }
     this.kinds.clear();
     this.scene.remove(this.group);
   }
@@ -367,7 +444,14 @@ function uploaded(attribute: THREE.InstancedBufferAttribute, count: number): voi
 
 /** Free the geometries and instance buffers of everything `addPropInstances` put in a group. */
 export function disposeInstances(parent: THREE.Object3D): void {
-  parent.traverse((o) => { if (o instanceof THREE.InstancedMesh) o.dispose(); });
+  parent.traverse((o) => {
+    if (!(o instanceof THREE.InstancedMesh)) return;
+    const graph = o.userData.graph as SceneGraph | undefined;
+    const node = o.userData.graphNode as SceneNode | undefined;
+    (o.userData.unmount as (() => void) | undefined)?.();
+    if (graph && node) graph.remove(node);
+    o.dispose();
+  });
 }
 
 /** A three.js mesh from the flat arrays the mesher and workers produce. */

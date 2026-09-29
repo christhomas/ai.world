@@ -296,7 +296,7 @@ export function createFrame(ctx: Framing) {
     rock.lookAt(heroSpot, iso);
     // and the same hole in whatever is standing in front of him — a cottage, a wall, a wood —
     // when he has asked for one. It costs a uniform whether it is on or off
-    cutaway.lookAt(heroSpot, iso);
+    cutaway.lookAt(heroSpot, iso, rig.graph);
 
     /*
      * Whoever is behind a counter watches whoever is standing at it.
@@ -400,7 +400,7 @@ export function createFrame(ctx: Framing) {
       hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.draw(indoors.scene.scene, iso.camera);
+      rig.draw(indoors.scene.graph, iso);
       endFrame(dt);
       return;
     }
@@ -409,8 +409,8 @@ export function createFrame(ctx: Framing) {
     if (below) {
       countFrame(dt);
       // underground: the hero, the monsters, the lights and the HUD tick
-      below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      below.scene.heroLight.intensity = state.can('light') || magic.lit ? 9 : 3;
+      below.scene.setHeroLight(player.x, player.y + 1.5, player.z,
+        state.can('light') || magic.lit ? 9 : 3);
       // The world runs the monsters on a floor, the way it runs the animals in a field, and this
       // side eases them between what it is told. Where there is no world listening, the same
       // manager thinks for them itself: it holds its own monsters rather than guests, and `update`
@@ -432,7 +432,7 @@ export function createFrame(ctx: Framing) {
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
         `draws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
         `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.draw(below.scene.scene, iso.camera);
+      rig.draw(below.scene.graph, iso);
       endFrame(dt);
       return;
     }
@@ -633,7 +633,7 @@ export function createFrame(ctx: Framing) {
       })());
 
     minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
-    rig.draw(rig.scene, iso.camera);
+    rig.draw(rig.graph, iso);
     endFrame(dt);
   };
 

@@ -7,13 +7,13 @@ import type { ChunkManager } from '../render/chunkManager';
 import type { Manifest } from '../world/manifest';
 import type { Doorway, ShopType } from '../world/structures';
 import { generateDungeon, type DungeonStyle } from '../dungeon/generate';
-import { DungeonScene } from '../render/dungeon';
+import { dungeonSceneFor, type DungeonScene } from '../render/dungeon';
 import { DungeonWorld } from '../dungeon/world';
 import { generateInterior, interiorSeed, interiorTitle, type InteriorKind } from '../interior/generate';
 import { InteriorScene } from '../render/interior';
 import { InteriorWorld } from '../interior/world';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { entityRendererFor, type EntityRenderer } from '../render/entities';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { bodyForTrade } from '../entities/trades';
@@ -319,11 +319,11 @@ export class Places {
     const style: DungeonStyle = kind === 'dungeon' ? 'vault' : kind === 'wreck' ? 'sunken' : kind;
     const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style, props.footprints);
     world.unlocked = state.keys.has(lockFor(anchor.id, floor));
-    const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
-    const renderer = new EntityRenderer(scene.scene);
+    const scene = dungeonSceneFor(rig, world, props, anchor.seed, state.opened);
+    const renderer = entityRendererFor(scene.graph);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
-    this.ctx.heroGear.attachTo(scene.scene);
+    this.ctx.heroGear.attachToGraph(scene.graph);
     player.setWorld(world);
 
     const [ex, ez] = world.map.entrance;
@@ -414,7 +414,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     overworldRenderer.add(player.entity);
-    this.ctx.heroGear.attachTo(this.ctx.rig.scene);
+    this.ctx.heroGear.attachToGraph(this.ctx.rig.graph);
     player.setWorld(overworld);
     const [outX, outZ] = visit.poi.out ?? [visit.poi.x + OUT_OF_THE_HOLE, visit.poi.z + 0.5];
     player.teleport(outX, outZ);
@@ -566,10 +566,10 @@ export class Places {
     const map = generateInterior(room, door.kind as InteriorKind, door.village);
     const world = new InteriorWorld(map, props.footprints);
     const scene = new InteriorScene(map, props);
-    const renderer = new EntityRenderer(scene.scene);
+    const renderer = entityRendererFor(scene.graph);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
-    this.ctx.heroGear.attachTo(scene.scene);
+    this.ctx.heroGear.attachToGraph(scene.graph);
     player.setWorld(world);
     player.teleport(map.entry[0] + 0.5, map.entry[1] + 0.5);
 
@@ -675,7 +675,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     overworldRenderer.add(player.entity);
-    this.ctx.heroGear.attachTo(this.ctx.rig.scene);
+    this.ctx.heroGear.attachToGraph(this.ctx.rig.graph);
     player.setWorld(overworld);
     player.teleport(visit.exit[0], visit.exit[1] + 1);
     iso.limitZoom(CAMERA.MAX_ZOOM);
