@@ -3,10 +3,18 @@ import { buildChunkMesh, type WallCut } from '../world/mesher';
 import { addPropInstances, disposeInstances } from './instancing';
 import type { PropLibrary } from './props';
 import type { DungeonWorld } from '../dungeon/world';
-import { SceneGraph } from '../core/scenegraph';
+import { SceneGraph, type SceneNode } from '../core/scenegraph';
 import { mountSceneGraph } from './scenegraph';
+import { bindGraphMount } from './graphmount';
+import { nativeRig, type SceneRig } from './scene';
 
 const MAX_TORCH_LIGHTS = 10;
+
+/** Construct the dungeon adapter without handing its WebGL water material to game code. */
+export function dungeonSceneFor(rig: SceneRig, world: DungeonWorld, props: PropLibrary,
+  seed: number, opened: Set<string>): DungeonScene {
+  return new DungeonScene(world, props, nativeRig(rig).water.material, seed, opened);
+}
 
 /**
  * What the walls of each sort of place are made of.
@@ -51,6 +59,8 @@ export class DungeonScene {
   readonly graph: SceneGraph;
   readonly scene: THREE.Scene;
   readonly heroLight = new THREE.PointLight(0xffc080, 3, 7, 1.6);
+  private readonly heroLightNode: Extract<SceneNode, { kind: 'point' }>;
+  private readonly unmountHeroLight: () => void;
   private readonly mounted: ReturnType<typeof mountSceneGraph>;
   private propMeshes: THREE.Object3D[] = [];
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffb040 });
@@ -103,8 +113,25 @@ export class DungeonScene {
     }
     this.mounted = mountSceneGraph(this.graph, waterMaterial);
     this.scene = this.mounted.scene;
+    // The moving hero light is added after mounting; its retained adapter is the same light
+    // used by WebGL, while the neutral point belongs to every submitted dungeon frame.
+    this.heroLightNode = this.graph.add({ kind: 'point', colour: 0xffc080,
+      intensity: 3, distance: 7, decay: 1.6, position: [0, 0, 0] }) as Extract<SceneNode, { kind: 'point' }>;
     this.scene.add(this.heroLight);
+    this.unmountHeroLight = bindGraphMount(this.graph, this.heroLightNode, (frame) => {
+      this.heroLight.intensity = frame.intensity ?? 0;
+      this.heroLight.position.set(frame.world[12], frame.world[13], frame.world[14]);
+    });
     this.rebuildProps(opened);
+  }
+
+  setHeroLight(x: number, y: number, z: number, intensity: number): void {
+    this.heroLightNode.position[0] = x;
+    this.heroLightNode.position[1] = y;
+    this.heroLightNode.position[2] = z;
+    this.heroLightNode.intensity = intensity;
+    this.heroLight.position.set(x, y, z);
+    this.heroLight.intensity = intensity;
   }
 
   /** Instanced torches, stairs and chests; called again when a chest opens. */
@@ -117,6 +144,7 @@ export class DungeonScene {
   }
 
   dispose(): void {
+    this.unmountHeroLight();
     this.mounted.dispose();
     for (const m of this.propMeshes) disposeInstances(m);
     this.glowMaterial.dispose();

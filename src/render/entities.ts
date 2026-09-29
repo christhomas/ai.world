@@ -6,6 +6,13 @@ import type { AnimRole, AnimalKind, PartDef } from '../entities/animals';
 import type { Entity } from '../entities/entity';
 import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from '../entities/motion';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { applyInstanceFrame, bindGraphMount } from './graphmount';
+import { sceneForGraph } from './scenegraph';
+
+/** Mount a place's creatures through its neutral scene graph. */
+export function entityRendererFor(graph: SceneGraph): EntityRenderer {
+  return new EntityRenderer(sceneForGraph(graph), graph);
+}
 
 /**
  * Draws every creature through InstancedMesh pools: one pool per kind, and inside it one mesh for
@@ -117,6 +124,7 @@ interface PartRuntime {
 interface PartMesh {
   mesh: THREE.InstancedMesh;
   node?: Extract<SceneNode, { kind: 'instances' }>;
+  unmount?: () => void;
   /** Parts drawn through it, so the buffer holds this many instances for every creature. */
   parts: number;
   /** Instances written this frame; the mesh draws exactly this many. */
@@ -198,6 +206,8 @@ class KindPool {
         mesh, node, parts: defs.length, count: 0,
         drawn: [], hot: new Uint8Array(room), paint: new Int32Array(room).fill(-1), recoloured: false,
       };
+      if (graph && node) part.unmount = bindGraphMount(graph, node,
+        (frame) => applyInstanceFrame(mesh, frame));
       mesh.userData.pool = this;
       mesh.userData.part = part;
       built.set(key, part);
@@ -284,7 +294,7 @@ export class EntityRenderer {
   private readonly bars: HealthBars;
 
   constructor(private readonly scene: THREE.Scene, private readonly graph?: SceneGraph) {
-    this.bars = new HealthBars(scene);
+    this.bars = new HealthBars(scene, graph);
   }
 
   private pool(kind: AnimalKind): KindPool {
@@ -524,6 +534,7 @@ export class EntityRenderer {
   dispose(): void {
     for (const p of this.pools.values()) {
       for (const part of p.meshes) {
+        part.unmount?.();
         if (part.node) this.graph?.remove(part.node);
         this.scene.remove(part.mesh);
         part.mesh.geometry.dispose();
@@ -532,5 +543,6 @@ export class EntityRenderer {
       }
     }
     this.pools.clear();
+    this.bars.dispose();
   }
 }

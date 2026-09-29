@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { MountainMaterial, Mountains, buildMountainMesh } from './mountains';
 import type { Ranges } from '../world/ranges';
 import { SceneGraph } from '../core/scenegraph';
+import { MountedThreePipeline } from './pipeline';
+import { ThreeFramePipeline } from './three-frame.test.support';
 
 /**
  * The rock standing in the scene, when which rock that is can change.
@@ -51,6 +53,28 @@ describe('the mountains in the scene', () => {
     expect(graph.nodes).toHaveLength(0);
     expect(meshesIn(scene)).toHaveLength(0);
     material.dispose();
+  });
+  it('keeps two-sided emissive rock when a neutral frame reaches WebGL', () => {
+    const graph = new SceneGraph(0x8fc1e6);
+    graph.camera = { projection: new THREE.Matrix4().identity().toArray(),
+      world: new THREE.Matrix4().identity().toArray(), orthographic: true };
+    const scene = new THREE.Scene();
+    const rock = new MountainMaterial();
+    const hills = new Mountains(scene, rock.material, graph);
+    hills.show(rockAt(0, 40));
+    new MountedThreePipeline(scene, () => {}, graph).draw(graph.frame());
+    expect(rock.material.side).toBe(THREE.DoubleSide);
+    expect(rock.material.emissive.getHex()).toBe(0x23262e);
+    const draw = vi.fn();
+    const alternate = new ThreeFramePipeline({ render: draw } as unknown as THREE.WebGLRenderer);
+    alternate.draw(graph.frame());
+    const [otherScene] = draw.mock.calls[0] as [THREE.Scene, THREE.Camera];
+    const otherMaterial = (meshesIn(otherScene)[0].material as THREE.MeshLambertMaterial);
+    expect(otherMaterial.side).toBe(THREE.DoubleSide);
+    expect(otherMaterial.emissive.getHex()).toBe(0x23262e);
+    alternate.dispose();
+    hills.show(null);
+    rock.dispose();
   });
   it('stands rock up when it is given some', () => {
     const scene = new THREE.Scene();
