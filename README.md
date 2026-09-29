@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.0 — 2026-09-29
+
+villages catch illness, carts haul carcasses to the crags, holdings report their income, and the country is a stack of layers you can shape
+
 ### v0.102.6 — 2026-09-29
 
 Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, worlds that start without stalling joins, and releases that trust CI
@@ -626,10 +630,6 @@ A carcass on a crag, a holding that pays while you are away, and a country made 
 ### v0.100.0 — 2026-09-18
 
 The hero's farm earns while he is away, a seed is measured before it is handed out, a killed release finishes itself, and the phone stops overlapping itself
-
-### v0.99.1 — 2026-09-17
-
-A release stops spending a quota it does not need: every call to GitHub goes through REST
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
