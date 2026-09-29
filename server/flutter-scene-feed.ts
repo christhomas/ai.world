@@ -7,10 +7,10 @@
  */
 import { chromium } from 'playwright';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import type { FrameDescription } from '../src/core/scene';
-import { expandForFlutter, disposeFlutterFrameGeometry } from '../src/render/flutter-frame';
+import { disposeFlutterFrameGeometry } from '../src/render/flutter-frame';
+import { flutterPacket, plainArrays, unsentTo } from './flutter-packet';
 
 const address = process.env.SCENE_SOURCE ?? 'http://localhost:5173/?seed=3';
 const port = Number(process.env.SCENE_FEED_PORT ?? '8788');
@@ -59,31 +59,12 @@ while (!closing) {
       return JSON.stringify(recording.last, (_key, value: unknown) =>
         ArrayBuffer.isView(value) ? Array.from(value as Float32Array) : value);
     });
-    const frame = expandForFlutter(JSON.parse(raw) as FrameDescription);
-    const allGeometries: Record<string, unknown> = {};
-    const nodes = frame.nodes.map((node) => {
-      if (node.kind !== 'mesh' && node.kind !== 'instances' && node.kind !== 'points') return node;
-      const geometry = { attributes: node.attributes, indices: node.indices };
-      const id = createHash('sha256').update(JSON.stringify(geometry)).digest('hex');
-      allGeometries[id] = geometry;
-      const rest = { ...node };
-      delete rest.attributes;
-      delete rest.indices;
-      return { ...rest, geometryId: id };
-    });
+    const packet = flutterPacket(JSON.parse(raw) as FrameDescription);
     for (const client of server.clients) {
       if (client.readyState !== 1) continue;
       const known = sentGeometry.get(client) ?? new Set<string>();
       sentGeometry.set(client, known);
-      const geometries: Record<string, unknown> = {};
-      for (const [id, geometry] of Object.entries(allGeometries)) {
-        if (known.has(id)) continue;
-        geometries[id] = geometry;
-        known.add(id);
-      }
-      const payload = JSON.stringify({ frame: { ...frame, nodes }, geometries }, (_key, value: unknown) =>
-      ArrayBuffer.isView(value) ? Array.from(value as Float32Array) : value);
-      client.send(gzipSync(payload, { level: 1 }));
+      client.send(gzipSync(JSON.stringify(unsentTo(packet, known), plainArrays), { level: 1 }));
     }
   } catch (error) {
     console.error('scene feed:', error);
