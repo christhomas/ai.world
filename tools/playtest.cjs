@@ -290,9 +290,18 @@ const finish = async () => {
     }
     if (!doorway) return { place: 'surface', restedOnArrival: 0,
       why: `no grounded doorstep after ${candidates.length} loaded candidates` };
+    // A previous doorway may still be resting after backOutside has walked the hero out.
+    // Wait for the game's own latch instead of counting wall-clock seconds on a slow renderer.
+    let armed = await page.waitForFunction(() => window.__doorstep().ready, null,
+      { timeout: 30000, polling: 100 }).then(() => true, () => false);
+    // A slow page can arm on the timeout frame before Playwright polls it once more.
+    if (!armed) armed = await page.evaluate(() => window.__doorstep().ready);
+    if (!armed) return { place: 'surface', restedOnArrival: 0,
+      why: `the outside doorstep did not arm: ${JSON.stringify(await page.evaluate(() => window.__doorstep()))}` };
     /* The outside doorstep faces the centre of its building, square through the door leaf. */
     const door = { x: doorway.bx + 0.5, z: doorway.bz + 0.5 };
     const from = await at();
+    const doorstepAtStart = await page.evaluate(() => window.__doorstep());
     let place = from.place;
     let restedOnArrival = 0;
     let steps = 0;
@@ -326,8 +335,11 @@ const finish = async () => {
     const now = await at();
     const moved = Math.hypot(now.x - from.x, now.z - from.z);
     const short = Math.hypot(now.x - door.x, now.z - door.z);
+    const crowd = place === 'surface' ? await page.evaluate((door) => window.__entitiesFull()
+      .filter((e) => !e.dead && Math.hypot(e.x - door.x, e.z - door.z) < 4)
+      .map((e) => ({ kind: e.kind, role: e.role, x: e.x, z: e.z })), door) : [];
     return { door, place, restedOnArrival,
-      why: `${steps} steps, moved ${moved.toFixed(2)}, ${short.toFixed(2)} from the door; start ${JSON.stringify(from)}, first press ${JSON.stringify(firstPress)}` };
+      why: `${steps} steps, moved ${moved.toFixed(2)}, ${short.toFixed(2)} from the door; start ${JSON.stringify(from)}, candidate ${JSON.stringify(doorway)}, doorstep ${JSON.stringify(doorstepAtStart)} -> ${JSON.stringify(await page.evaluate(() => window.__doorstep()))}, crowd ${JSON.stringify(crowd)}, first press ${JSON.stringify(firstPress)}` };
   };
   // anything with hearts that is not a person and does not fly: something a swing can land on
   // slowest first: a hero can catch a sheep, and cannot catch a deer that has seen him
