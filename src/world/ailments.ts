@@ -16,13 +16,6 @@ import { ableToWork, doctoredBy, WOUND } from './wounds';
  * going wrong while the books are perfectly fine. That is the thing a doctor is for, and it is why
  * a village pays one to stand about in a year when nobody is attacked by anything.
  *
- * ## What is deliberately not here
- *
- * **Spread.** One person's fever does not raise anybody else's chance. It is the largest question
- * in the item that asked for this and it is a different kind of rule — a per-person number becomes
- * something that moves across a map, and a village that can lose half its people in a fortnight
- * needs the balance argument made on purpose rather than as a side effect of adding a die roll.
- *
  * **A door on the register.** `hurt` needs one because violence is *told*: a wolf on somebody's
  * screen is not a thing a re-lived village can work out for itself. A daily roll is not told, it is
  * lived — a village re-founded from its seed falls ill on exactly the same mornings — so there is
@@ -60,6 +53,10 @@ export const AILMENT = {
    * enough that a bathed village still wants a doctor.
    */
   BATHS_SAVE: 0.4,
+  /** Three shared contacts per person each day, sampled from the village's current illness share. */
+  CONTACTS: 3,
+  /** Chance that one contact with a sick person passes the fever. */
+  PASSES: 0.04,
 } as const;
 
 /**
@@ -110,10 +107,18 @@ export function laidUpIll(severity: number, doctor: Person | null): number {
  * could tune.
  */
 export function fallIll(
-  people: readonly Person[], rng: () => number, o: { baths: boolean; day: number },
+  people: readonly Person[], rng: () => number,
+  o: { baths: boolean; day: number; contacts?: boolean },
 ): Map<Owner, number> {
   const doctor = doctoredBy(people);
-  const chance = AILMENT.A_DAY * (o.baths ? 1 - AILMENT.BATHS_SAVE : 1);
+  const hygiene = o.baths ? 1 - AILMENT.BATHS_SAVE : 1;
+  const spontaneous = AILMENT.A_DAY * hygiene;
+  // Freeze the source count before the first roll. A newly sick person can pass it on tomorrow,
+  // never to the next row merely because the register happened to put them first.
+  const sickAtStart = o.contacts === false ? 0 : people.filter((p) => (p.ill ?? 0) > 0).length;
+  const exposed = people.length > 0 ? sickAtStart / people.length : 0;
+  const contact = 1 - Math.pow(1 - AILMENT.PASSES * exposed * hygiene, AILMENT.CONTACTS);
+  const chance = 1 - (1 - spontaneous) * (1 - contact);
   const fees = new Map<Owner, number>();
   for (const person of people) {
     const caught = rng() < chance;
@@ -144,4 +149,13 @@ export function shakeItOff(people: readonly Person[]): void {
     if (ill <= 0) continue;
     person.ill = ill > 1 ? ill - 1 : undefined;
   }
+}
+
+/** Close today's sick leave before rolling tomorrow's cases; even a one-day fever costs work. */
+export function illnessEvening(
+  people: readonly Person[], rng: () => number,
+  options: { baths: boolean; day: number; contacts?: boolean },
+): Map<Owner, number> {
+  shakeItOff(people);
+  return fallIll(people, rng, options);
 }
