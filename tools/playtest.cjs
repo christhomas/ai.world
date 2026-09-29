@@ -401,8 +401,11 @@ const finish = async () => {
     footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
   }
   const off = Math.hypot(footTo.x - house.x, footTo.z - house.z);
-  say('a house stops you at its wall', footMoved > 0.5 && off > 1.1 && off < 3,
-    `closest ${off.toFixed(2)} tiles from its middle; moved ${footMoved.toFixed(2)}; first press ${JSON.stringify(footPress)}; retry ${JSON.stringify(retryPress)}`);
+  // Indoors, x and z are the room's, so distances to the house outside mean nothing.
+  const indoors = footTo.place !== 'surface' ? `went indoors to ${footTo.place}; ` : '';
+  say('a house stops you at its wall', !indoors && footMoved > 0.5 && off > 1.1 && off < 3,
+    `${indoors}closest ${off.toFixed(2)} tiles from its middle; moved ${footMoved.toFixed(2)}; first press ${JSON.stringify(footPress)}; retry ${JSON.stringify(retryPress)}`);
+  if (indoors) await backOutside();
 
   // a tree, which is the thing that always worked, as a control
   const tree = await page.evaluate(() => {
@@ -553,11 +556,22 @@ const finish = async () => {
   if (!first) say('a blow lands on something', false, 'nothing to swing at, and none would be put down');
   else {
     await go(first.x + 2, first.z + 2, 4000);
-    const quarry = first.id;
+    let quarry = first.id;
     await go(first.x + 2, first.z + 2, 4000);
     let landed = false, swings = 0, closest = 99, was = null;
     for (let i = 0; i < 45 && !landed; i++) {
       let near = await quarryNow(quarry);
+      // Gone before any blow was thrown: it wandered out of the streamed ground or something else
+      // killed it, and neither says anything about where a blow lands. Aim at the nearest other one.
+      if (!near && was === null) {
+        const next = await page.evaluate((kind) => {
+          const p = window.__player;
+          return window.__entitiesFull().filter((e) => e.kind === kind && !e.dead && e.hp > 0)
+            .map((e) => ({ id: e.id, d: Math.hypot(e.x - p.x, e.z - p.z) }))
+            .sort((a, b) => a.d - b.d)[0] ?? null;
+        }, first.kind);
+        if (next) { quarry = next.id; near = await quarryNow(quarry); }
+      }
       if (!near) { landed = was !== null; break; }      // gone from the world: it died
       // Put him back within a swing when the chase has lost it, rather than jogging after a deer
       // for forty-five rounds. A hero cannot outrun a deer that has seen him — that is the design,
