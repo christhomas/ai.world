@@ -26,6 +26,9 @@ describe('the shared world', () => {
       firstBook.stood('Ashford', 5, [fact], new Map([
         [ownerFromSave('rich'), -12], [ownerFromSave('bob'), 12],
       ]));
+      const income = { type: 'income' as const, day: 5, holding: 'farm-1',
+        owner: ownerFromSave('rich'), cattle: 2.16, crop: 1.24 };
+      firstBook.earned('Ashford', [income]);
       const first = new SharedWorld(77, path, { day: 5, time: 0 }, dir, kept);
       first.keepsTheRegister({ compact: () => {}, holdingsBook: firstBook });
       first.tick(1);
@@ -36,8 +39,10 @@ describe('the shared world', () => {
       second.keepsTheRegister({ compact: () => {}, holdingsBook: secondBook });
       expect(second.holdingDays).toEqual(first.holdingDays);
       expect(secondBook.paidTo('bob', 5)).toBe(12);
+      expect(secondBook.incomeOn('farm-1')).toEqual([income]);
       secondBook.restore(second.holdingDays);
       expect(secondBook.on('yard-1')).toEqual([fact]);
+      expect(secondBook.incomeOn('farm-1')).toEqual([income]);
       expect(secondBook.paidTo('bob', 5)).toBe(12);
       second.tick(1);
       second.save();

@@ -36,6 +36,32 @@ describe('the hall report for returning holding owners', () => {
     expect(held.on('yard-1'), 'reading the report changed the daybook').toEqual(before);
   });
 
+  it('shows recorded farm takings beside a quiet yard and does not invent shop income', () => {
+    const held = book();
+    held.earned('Ashford', [{ type: 'income', day: 5, holding: 'farm-2', owner, cattle: 2.16, crop: 1.24 }]);
+    held.earned('Ashford', [{ type: 'income', day: 6, holding: 'farm-2', owner, cattle: 0, crop: 0 }]);
+    const pages = holdingReport('Ashford', owner, holdings, held, 4, 7, (id) => id).join(' ');
+    expect(pages).toContain('farm-2: no work was recorded');
+    expect(pages).toContain('3.4 gold in owner takings');
+    expect(pages).toContain('2.16 gold from cattle');
+    expect(pages).toContain('1.24 gold from crops');
+    expect(pages).toContain('Day 5: farm earned');
+    expect(pages).not.toContain('farm-other');
+    expect(held.incomeOn('farm-2')).toHaveLength(2);
+  });
+
+  it('separates wages from owner takings when the same farm has both', () => {
+    const held = book();
+    held.stood('Ashford', 5, [{ day: 5, holding: 'farm-2', kind: 'crew', who: 'Hand',
+      funder: owner, wage: 8, paid: 8 }], new Map());
+    held.earned('Ashford', [{ type: 'income', day: 5, holding: 'farm-2', owner, cattle: 2, crop: 1 }]);
+    const pages = holdingReport('Ashford', owner, holdings, held, 4, 5, (id) => id).join(' ');
+    expect(pages).toContain('farm-2: 1 morning of work');
+    expect(pages).toContain('3 gold in owner takings');
+    expect(pages).toContain('Owner takings are listed separately below');
+    expect(pages).not.toContain('not crop or shop takings');
+  });
+
   it('shows only unread mornings and keeps a full-history route', () => {
     const held = book();
     const unread = holdingReport('Ashford', owner, holdings, held, 5, 7, (id) => id).join(' ');

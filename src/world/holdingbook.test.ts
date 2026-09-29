@@ -51,11 +51,41 @@ describe('the book a village keeps of its holdings', () => {
   const SEED = 7;
   const DAYS = 120;
 
+  it('keeps farm income by day through snapshots without paying again', () => {
+    const book = new HoldingBook();
+    const earned = { type: 'income' as const, day: 5, holding: 'farm-1', owner: ownerFromSave('farmer'), cattle: 2.16, crop: 1.24 };
+    book.earned('Ashford', [earned]);
+    book.earned('Ashford', [earned]);
+    expect(book.incomeOn('farm-1')).toEqual([earned]);
+    const saved = book.records();
+    const restored = new HoldingBook();
+    restored.restore(saved);
+    expect(restored.incomeOn('farm-1')).toEqual([earned]);
+    expect(restored.paidTo('farmer', 5), 'restoring income paid the farmer a second time').toBe(0);
+    restored.forget('Ashford');
+    expect(restored.incomeOn('farm-1')).toEqual([]);
+  });
+
   it('replays identically, whichever way the village was lived', () => {
     const there = wholeBook(livedForward(SEED, DAYS));
     const after = wholeBook(relived(SEED, DAYS));
     expect(there.length, 'nobody stood a post in this village at all').toBeGreaterThan(0);
     expect(after).toEqual(there);
+  });
+
+  it('records the same farm takings on an unattended catch-up and an attended day', () => {
+    const forward = livedForward(SEED, DAYS);
+    const caughtUp = relived(SEED, DAYS);
+    const income = (register: Register) => (register.madeOf('Ashford').holdings ?? [])
+      .flatMap((holding) => register.holdingsBook.incomeOn(holding.id));
+    const there = income(forward);
+    expect(there.length, 'no farm income facts were recorded').toBeGreaterThan(0);
+    expect(there.some((row) => row.cattle > 0), 'no cattle sale was exercised').toBe(true);
+    expect(there.some((row) => row.crop > 0), 'no paid crop was exercised').toBe(true);
+    expect(income(caughtUp)).toEqual(there);
+    const before = forward.living('Ashford').map((person) => person.purse);
+    forward.holdingsBook.restore(forward.holdingsBook.records());
+    expect(forward.living('Ashford').map((person) => person.purse), 'restoring facts paid twice').toEqual(before);
   });
 
   it('keeps a row for each morning rather than a running total', () => {

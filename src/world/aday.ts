@@ -20,6 +20,8 @@ import { whoIsPaidToRaiseIt } from './founding';
 import type { StablePurchase } from './farmbuilds';
 import type { FieldClearing } from './fieldbuilds';
 import { PROSPER } from './prosperity';
+import { holdingIncomeFor } from './holdingincome';
+import type { HoldingIncome } from './holdingbook';
 
 /**
  * One day in one village, from the morning's work to the last funeral.
@@ -69,6 +71,8 @@ stableBought: (village: string, day: number) => StablePurchase | null;
 takeOff: (person: Person, day: number, cause: 'age' | 'violence' | 'hunger') => Change | null;
 /** A farm whose owner can afford to take one local tree into the fields this morning. */
 fieldToClear?: (village: string, settlement: Settlement) => FieldClearing | null;
+/** Record the income already paid for this village's holdings. */
+holdingEarned?: (village: string, facts: readonly HoldingIncome[]) => void;
 }
 
 
@@ -279,11 +283,12 @@ export function theVillageSpends(o: TheDay, name: string, village: Settlement, d
  * matters because a poor village buries people. Whoever cannot pay for what there is goes
  * without, and long enough without is what kills them.
  */
-function dinner(o: TheDay, village: Settlement, day: number, work: Trading): Change[] {
+function dinner(o: TheDay, name: string, village: Settlement, day: number, work: Trading): Change[] {
   const meal = aDaysDinner(village.people, village.food, work);
   village.food = meal.food;
   // what dinner cost goes to whoever's dinner it was: the fields, the woods and the herd
   payAndSweep(village, meal.paid);
+  o.holdingEarned?.(name, holdingIncomeFor(day, village.people, work, meal.paid));
   return meal.starved
     .map((p) => o.takeOff(p, day, 'hunger'))
     .filter((c): c is Change => c !== null);
@@ -388,7 +393,7 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
   const work = aDaysWork(o, village, pressure, day);
   const changes = [
     ...buryTheOld(o, village, day),
-    ...dinner(o, village, day, work),
+    ...dinner(o, name, village, day, work),
   ];
   /*
    * Hall wages settle after dinner. The morning's trading books are written before anybody is

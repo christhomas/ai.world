@@ -176,8 +176,9 @@ export function fieldCrop(
   people: readonly Person[], working: readonly Person[], farmers: readonly Person[],
   farms: readonly Standing[] | null, works: readonly string[],
   grownBy: (worker: Person) => number,
-): { fields: Map<Owner, number>; meals: number } {
+): { fields: Map<Owner, number>; meals: number; byHolding: { holding: string; owner: Owner; meals: number }[] } {
   const fields = new Map<Owner, number>();
+  const byHolding: { holding: string; owner: Owner; meals: number }[] = [];
   let meals = 0;
   const add = (owner: Owner, much: number): void => {
     fields.set(owner, (fields.get(owner) ?? 0) + much);
@@ -190,10 +191,13 @@ export function fieldCrop(
       const worker = byId.get(farm.worker ?? '');
       if (!worker) continue;
       const owner = farm.owner ?? ownedBy(worker);
-      add(here.has(owner) ? owner : ownedBy(worker), grownBy(worker) + foodAt(works, farm.id ?? ''));
+      const paid = here.has(owner) ? owner : ownedBy(worker);
+      const crop = grownBy(worker) + foodAt(works, farm.id ?? '');
+      add(paid, crop);
+      if (farm.id) byHolding.push({ holding: farm.id, owner: paid, meals: crop });
     }
   } else {
     for (const farmer of farmers) add(ownedBy(farmer), grownBy(farmer));
   }
-  return { fields, meals };
+  return { fields, meals, byHolding };
 }
