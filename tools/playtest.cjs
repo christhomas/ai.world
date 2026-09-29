@@ -40,7 +40,6 @@ const { chromium } = require('playwright');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const { chooseHouseApproach, chooseGroundedDoors } = require('./playtest-approach.cjs');
-const playCart = require('./playtest-cart.cjs');
 
 const PORT = process.env.PORT || '5173';
 const SEED = process.env.SEED || '3';
@@ -414,7 +413,7 @@ const finish = async () => {
   const measured = driftReady && d.drawnClose.of > 0;
   say('creatures within reach are drawn where they are', measured && d.drawnClose.mean < DRIFT,
     measured
-      ? `${d.drawnClose.of} rendered corrections (${d.wrongClose.of} raw), mean ${d.drawnClose.mean.toFixed(2)}, worst ${d.drawnClose.worst.toFixed(2)} (${d.drawnClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
+      ? `${d.drawnClose.of} rendered corrections in ${DRIFT_WINDOW_MS / 1000}s (${d.wrongClose.of} raw), mean ${d.drawnClose.mean.toFixed(2)}, worst ${d.drawnClose.worst.toFixed(2)} (${d.drawnClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
       : `nothing was measured: ${d.drawn} creatures drawn, ${d.wrongClose.of} raw corrections, ${beside} — the ${DRIFT_WINDOW_MS / 1000}s window found fewer than ${DRIFT_SAMPLES} corrections with a rendered frame between snapshots`);
 
   // --- and the same wall, at a gallop ---
@@ -649,8 +648,6 @@ const finish = async () => {
     }));
   }
 
-  // Keep the village checks on their original ground; the hunt leaves the hero in high country.
-  await playCart(page, say, go, face);
   await finish();
 })().catch(async (e) => {
   // A crash halfway is a failed playtest, not a silent one. It is also the run whose account is

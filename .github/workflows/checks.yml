@@ -96,9 +96,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # A pull_request checkout is the proposed merge commit. Its first parent is the base
-          # to compare with, so both commits must be present locally for the guard below.
-          fetch-depth: 2
+          # The proposed merge may sit on a synthetic merge of a stacked base. Fetch its
+          # ancestry so the guard can inspect the PR's actual base commit as well.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
