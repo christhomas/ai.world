@@ -401,6 +401,39 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      # And the same game with nothing drawn. Both web pipelines are three.js, so neither can say
+      # whether the scene description leaks it; this plays the game into the recording pipeline
+      # through a village, a shop, a dungeon and the sea, and fails if any place's frame does not
+      # arrive, does not survive JSON, or does not pack into what the Flutter feed sends (#249).
+      - name: Play the game with nothing drawn
+        if: always()
+        run: chore playtest-record
+
+      - name: Show the record-only report
+        if: always()
+        run: |
+          if [ -f docs/reports/record-only-report.txt ]; then
+            {
+              echo '```'
+              cat docs/reports/record-only-report.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The packets themselves, one a place, because a frame the phone could not draw is only
+      # arguable with the frame in hand. `client/flutter/test/fixtures/` is one of these, taken
+      # from a run like this rather than written by anybody.
+      - name: Keep the recorded frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: record-only
+          path: |
+            docs/reports/record-only-report.txt
+            docs/reports/record-only/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
       # Compare every documented scene named by shots.cjs. Both capture jobs must have succeeded,
       # and compare.cjs fails when a requested image is missing or over its threshold.
       # Baselines change only in a reviewed commit to docs/screenshots/.
