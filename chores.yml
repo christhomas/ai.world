@@ -364,6 +364,24 @@ tasks:
       OUT: '{{.REPORT}}'
     cmds: [node tools/playtest.cjs]
 
+  # The same game with nothing drawn: `?record-only` hands every frame to the recording pipeline
+  # instead of WebGL, and this walks it through a village, a shop, a dungeon and the sea asking each
+  # for a frame that JSON carries whole and the Flutter feed can pack. It is the proof #249 wants
+  # that the scene description is the game's and not three.js's. Each place's packet is kept beside
+  # the report; one of them is the fixture the Dart renderer's tests draw.
+  playtest-record:
+    desc: Play the game with nothing drawn, and check every frame is a description Flutter can take
+    vars:
+      REPORT: docs/reports/record-only-report.txt
+      PORT: '{{.WEB_PORT}}'
+    args:
+      - name: port
+        desc: port the page is on — a server already answering there is used as it stands
+    env:
+      PORT: '{{.PORT}}'
+      OUT: '{{.REPORT}}'
+    cmds: [pnpm exec tsx tools/playtest-record.ts]
+
   # The Domesday Book: what a world server is holding, which is the half of a world nobody is
   # standing in. A window and not a door — `GET /registry` changes nothing — so the read-only
   # watch token opens it as well as the operator one.

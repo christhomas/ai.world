@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ai_world_flutter/ai_world_flutter.dart';
@@ -298,6 +300,70 @@ void main() {
     uploads = calls.where((call) => call.method == 'putMesh').toList();
     expect(uploads, hasLength(2));
     expect((uploads.last.arguments as Map)['castShadow'], true);
+    await native.dispose();
+  });
+
+  /*
+   * Every test above draws a frame somebody wrote. This one draws a frame the game wrote.
+   *
+   * `test/fixtures/interior_frame.json` is the general store in Crossroads Town, seed 3, as
+   * `chore playtest-record` recorded it with nothing drawn and packed it through
+   * `server/flutter-packet.ts` — the bytes the Flutter feed would send a new client, before gzip.
+   * It came out of a hosted CI run's `record-only` artifact rather than an editor, so when the
+   * engine's description and this parser disagree, this is where it shows. Retake it the same way.
+   */
+  test('a frame the game really recorded draws natively, and a second draw uploads nothing', () async {
+    const channel = MethodChannel('world.ai/recorded-test');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 10 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    final pipeline = FlutterFramePipeline(native);
+    final cache = SceneGeometryCache();
+    final packet = jsonDecode(File('test/fixtures/interior_frame.json').readAsStringSync())
+        as Map<String, dynamic>;
+    final recorded = packet['frame'] as Map<String, dynamic>;
+    final lights = (recorded['nodes'] as List)
+        .where((node) => const <String>{'ambient', 'hemisphere', 'directional', 'point'}
+            .contains((node as Map)['kind']))
+        .length;
+
+    await pipeline.draw(SceneFrame.fromJson(packet, geometryCache: cache));
+    final scene = calls.singleWhere((call) => call.method == 'sceneFrame').arguments as Map;
+    expect(scene['background'], recorded['background']);
+    expect(scene['lights'] as List, hasLength(lights));
+    expect((scene['projection'] as Float32List).length, 16);
+    expect(calls.where((call) => call.method == 'cutaway'), hasLength(1));
+
+    final uploads = calls
+        .where((call) => call.method == 'putMesh')
+        .map((call) => call.arguments as Map)
+        .toList();
+    // A room: its shell as meshes and its furniture as instanced props, a couple of dozen in all.
+    expect(uploads.length, greaterThan(10));
+    final materials = <double>{};
+    for (final mesh in uploads) {
+      final vertices = mesh['vertices'] as Float32List;
+      final indices = mesh['indices'] as Int32List;
+      expect(vertices.length % RenderMesh.floatsPerVertex, 0);
+      final count = vertices.length ~/ RenderMesh.floatsPerVertex;
+      expect(indices.length % 3, 0);
+      expect(indices.every((i) => i >= 0 && i < count), isTrue, reason: '${mesh['meshId']}');
+      expect(vertices.every((v) => v.isFinite), isTrue, reason: '${mesh['meshId']}');
+      for (var at = 9; at < vertices.length; at += RenderMesh.floatsPerVertex) {
+        materials.add(vertices[at]);
+      }
+    }
+    expect(materials, containsAll(<double>[RenderMesh.terrainMaterial, RenderMesh.cuttableMaterial]));
+
+    // The same frame again, geometry by digest alone: what the feed sends a client that has it.
+    calls.clear();
+    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{'frame': recorded}, geometryCache: cache));
+    expect(calls.where((call) => call.method == 'putMesh'), isEmpty);
+    expect(calls.where((call) => call.method == 'removeMesh'), isEmpty);
     await native.dispose();
   });
 }
