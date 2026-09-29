@@ -10,6 +10,7 @@ import type { Massif } from '../world/mountains';
 import type { Within } from '../world/window';
 import type { SkyIslands } from '../render/skyisland';
 import type { TerrainSampler } from '../world/terrain';
+import { anchoredHighlands } from '../world/anchoredhighlands';
 
 /**
  * What stands on and above the rock: the eagles' crags, and the villages in the clouds.
@@ -79,7 +80,10 @@ export class HighCountry {
     if (sampler === this.standing) return;
     this.standing = sampler;
 
-    const high = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
+    const high = [
+      ...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs),
+      ...anchoredHighlands(this.manifest, sampler.within),
+    ];
     const land = (x: number, z: number): boolean => sampler.probe(x, z).land;
     this.high = high;
     this.land = land;

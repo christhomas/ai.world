@@ -10,6 +10,7 @@ import { villageAt } from '../../world/structures';
 import { AWAY, buy, holds } from '../../world/deeds';
 import { SHRINE_FEE } from '../../world/shrine';
 import type { Surroundings } from './context';
+import { prayerInteractions } from './prayer';
 
 /**
  * What Enter does out in the country: the way underground, a wreck's hold, a campfire to sleep
@@ -35,6 +36,7 @@ export function wildInteractions(ctx: Surroundings) {
    * told about anybody else's hole.
    */
   const digging = new Digging();
+  const prayer = prayerInteractions(ctx);
 
   /** Enter/Space at a shrine or a cave mouth offers the way underground. */
   /**
@@ -109,6 +111,7 @@ export function wildInteractions(ctx: Surroundings) {
         ...(valley !== null && valley.empty
           ? [{ label: `Lay ${SHRINE_FEE} gold in the bowl`, next: () => raiseSomebody(poi, valley) }]
           : []),
+        ...prayer.choicesAt(poi),
         { label: 'Not now', next: () => null },
       ] });
       return true;
@@ -449,5 +452,6 @@ export function wildInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryShrine, shrineLabel, tryWreck, tryCampfire, tryFish, tryDig, tryFarm, tryRemains };
+  return { tryShrine, shrineLabel, tryWreck, tryCampfire, tryFish, tryDig, tryFarm, tryRemains,
+    prayerTick: prayer.tick };
 }

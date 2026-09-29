@@ -125,8 +125,8 @@ export function openTheSave(ctx: Keeping) {
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const mount = Mount.from(saved?.state?.horse ?? null, rng);
 
-  const persist = (): void => {
-    void store.save<SessionSave>(slotKey, {
+  const persistAsync = (): Promise<void> =>
+    store.save<SessionSave>(slotKey, {
       seed,
       world,
       worldName,
@@ -138,10 +138,10 @@ export function openTheSave(ctx: Keeping) {
       roaming: roaming.save(),
       sky: sky(),
     });
-  };
+  const persist = (): void => { void persistAsync(); };
 
   return {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist,
+    plots, houses, sailing, mount, persist, persistAsync,
   };
 }

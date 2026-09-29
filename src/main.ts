@@ -93,13 +93,30 @@ import { growCountry, type GrownPatch } from './game/country';
 import { whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
+import { GameState } from './game/state';
+import { Manifest } from './world/manifest';
+import { answerDueHighlands } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
+import { returnToTitle, shutDownGame, suspendWhenHidden } from './game/lifecycle';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
 ): void {
+  // A due prayer changes the land itself, so resolve it before the generator sees the manifest.
+  // Advance the same saved clock the normal boot path will use, and persist the updated cursor with
+  // the anchor so a reload cannot apply offline days twice.
+  let prayersResolvedAtBoot = false;
+  if (saved) {
+    const bootState = GameState.from(saved.state);
+    bootState.day += daysToLive(bootState.awayFor, url.searchParams.has('server'));
+    const bootManifest = new Manifest(seed, saved.manifest);
+    if (answerDueHighlands(bootManifest, bootState.prayers, bootState.day) > 0) {
+      saved = { ...saved, state: bootState.toJSON(), manifest: bootManifest.toJSON() };
+      prayersResolvedAtBoot = true;
+    }
+  }
   /**
    * Whether the player has ever picked a quality themselves — asked before anything else, because
    * the rig writes the level down every time it is set and the very next line sets it. Ask any
@@ -124,6 +141,7 @@ export function startGame(
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains, stamp: mine,
   } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  const prayedHighlands = manifest.layers().filter((a) => a.id.startsWith('highland:prayer:'));
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
@@ -185,6 +203,7 @@ export function startGame(
     // high country: on a mountain or against its flank, where the goats and the things that climb
     // are. Whichever kind of mountain this world grew — a massif, or a polygon range.
     (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
+    (x, z) => prayedHighlands.some((a) => Math.hypot(x - a.x, z - a.z) < a.layer!.reach),
   );
   // and whoever is standing about, so the roster can say what each of them is presently doing
   roster.reads(() => register, () => structures.villages.length, entities, () => player);
@@ -245,7 +264,7 @@ export function startGame(
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist,
+    plots, houses, sailing, mount, persist, persistAsync,
   } = openTheSave({
     store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
@@ -253,6 +272,9 @@ export function startGame(
     at: () => ({ x: player.x, z: player.z }),
     sky: () => skies.save(),
   });
+  if (prayersResolvedAtBoot) {
+    void persistAsync().catch(() => hud.flash('The answered prayer will be saved when storage is available.'));
+  }
   register.rememberStablePurchases(houses.stablePurchases());
   // the days that passed while the game was shut, which only a world of one has to invent. Asked of
   // the link rather than of `online.connected`, and `daysToLive` says why both of those are so
@@ -421,47 +443,15 @@ export function startGame(
     guiltOf: () => standing.guilt,
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
-  /**
-   * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
-   * graph, a socket — and none of it should outlive the moment you leave for the title screen.
-   */
-  const shutDown = (): void => {
-    loop.stop();
-    input.dispose();
-    touch.dispose();
-    online.disconnect();
-    others.clear();
-    sound.dispose();
-    places.dispose();
-    chunks.dispose();
-    entityRenderer.dispose();
-    heroGear.dispose();
-    beam.dispose();
-    weather.dispose();
-    watch.dispose();
-    skyRenderer.dispose();
-    packField.dispose();
-    cropField.dispose();
-    buildingSite.dispose();
-    props.dispose();
-    rig.dispose();
-  };
-
-  const toTitle = () => {
-    persist();
-    shutDown();
-    // the page comes back to a clean title screen: nothing of this world is left running
-    window.setTimeout(() => { window.location.href = window.location.pathname; }, 150);
-  };
-
-  /**
-   * A hidden tab should cost nothing. The frame loop already stops when the browser stops asking
-   * for frames, but the chunk workers and the audio graph do not, so they are stood down too.
-   */
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); }
-    else { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); }
+  const shutDown = (): void => shutDownGame({
+    stop: () => loop.stop(), controls: [input, touch],
+    disconnect: () => online.disconnect(), clear: () => others.clear(),
+    resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
+      skyRenderer, packField, cropField, buildingSite, props, rig],
   });
+
+  const toTitle = () => returnToTitle(persist, shutDown);
+  suspendWhenHidden({ stop: () => loop.stop(), start: () => loop.start() }, chunks, sound, online);
 
   // the panels, and the noises they make
   hud.setVolume(sound.volume);
@@ -524,7 +514,7 @@ export function startGame(
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
-    raining: () => frames.raining(), discover, persist, startTalk, questLine,
+    raining: () => frames.raining(), discover, persist, persistAsync, startTalk, questLine,
     told: (delta) => online.report(delta),
     // built further down this file, and only ever asked for on a key press: see `waysin.ts`
     craft: () => craft,
@@ -544,7 +534,7 @@ export function startGame(
   // Give old saves their stable multiplayer identity before they can receive replayable player facts.
   if (saved?.state?.playerId !== state.playerId) persist();
   joinAWorld({
-    seed, kind: world, terrain: manifest.terrain, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
+    seed, kind: world, terrain: manifest.terrain, highlands: manifest.layers(), worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),

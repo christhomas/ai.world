@@ -10,6 +10,8 @@ import type { Village } from '../src/world/structures';
 import type { Entity } from '../src/entities/entity';
 import type { Folk, Standing } from './wildlife';
 import type { Change } from '../src/world/settlement';
+import type { Manifest } from '../src/world/manifest';
+import { anchoredHighlands } from '../src/world/anchoredhighlands';
 
 /**
  * Who lives in a world the server is holding, and everything a village needs in order to be a
@@ -55,6 +57,7 @@ export function peopleOf(
     /** A recorded death has removed one person from the living register. */
     onDeparted?: (change: Change) => void;
   },
+  manifest?: Manifest,
 ): Folk & { catchUp: () => void } {
   const country: Country = 'forChunk' in ground ? ground : oneCountry(ground);
   const register = new Register(seed, day, told.onDeparted, 'journaled');
@@ -68,6 +71,8 @@ export function peopleOf(
    */
   const villages: Village[] = [];
   const highPlaces: Massif[] = [];
+  if (manifest) highPlaces.push(...anchoredHighlands(manifest));
+  const prayedHighlands = manifest?.layers().filter((a) => a.id.startsWith('highland:prayer:')) ?? [];
   const mines = new Set<string>();
   const samplerFor = new Map<string, TerrainSampler>();
   const seen = new Set<TerrainSampler>();
@@ -109,6 +114,7 @@ export function peopleOf(
     // because the world's economy and the player's are one economy.
     priceOf: (id) => (ITEMS[id] ? sellPrice(ITEMS[id]) : 2),
     highland: (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
+    prayedHighland: (x, z) => prayedHighlands.some((a) => Math.hypot(x - a.x, z - a.z) < a.layer!.reach),
     onFallen: told.onFallen,
     onArrest: told.onArrest,
   };

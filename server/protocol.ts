@@ -459,7 +459,7 @@ export type ClientMessage =
    * durable handle whose seed the server has already recorded; no terrain discriminator travels
    * because the endless country is the only country the running game can grow.
    */
-  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
+  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[]; highlands?: readonly Anchor[] }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
