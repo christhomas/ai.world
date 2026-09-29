@@ -237,6 +237,8 @@ export class Simulation {
   private readonly patchworks = new Map<number, Patchwork>();
   private readonly warming = new Map<number, Promise<void>>();
   private readonly warmingClients = new Set<Client>();
+  /** Chunk requests heard while a client's first country was still being prepared. */
+  private readonly wantedWhileWarming = new Map<Client, Array<Extract<ClientMessage, { type: 'want-chunks' }>>>();
   private readonly preparePatch?: SimOptions['preparePatch'];
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
@@ -646,7 +648,16 @@ export class Simulation {
         const room = this.rooms.get(client.seed);
         if (!room) return;
         client.silent = 0;
-        if (this.warmingClients.has(client)) return;
+        if (this.warmingClients.has(client)) {
+          // A page asks for its opening view as soon as it is welcomed. Dropping that ask would
+          // leave it waiting for bytes it believes are coming; answer it once the country is ready.
+          if (message.type === 'want-chunks') {
+            const held = this.wantedWhileWarming.get(client) ?? [];
+            if (held.length < 8) held.push(message);
+            this.wantedWhileWarming.set(client, held);
+          }
+          return;
+        }
         // A floor is the one thing a message can ask the simulation to *make*, so it is answered
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
@@ -1134,6 +1145,11 @@ export class Simulation {
         wire.close();
       }).finally(() => {
         this.warmingClients.delete(joining);
+        const held = this.wantedWhileWarming.get(joining) ?? [];
+        this.wantedWhileWarming.delete(joining);
+        if (joining.wire.open && this.rooms.get(seed)?.clients.has(joining)) {
+          for (const asked of held) this.sendChunks(joining, asked);
+        }
         if (this.warming.get(seed) === current) this.warming.delete(seed);
       });
       this.warming.set(seed, current);
