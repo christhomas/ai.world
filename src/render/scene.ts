@@ -9,7 +9,7 @@ import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
 import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
 import { MountedThreePipeline, submitGraphFrame, type FramePipeline } from './pipeline';
-import { bindGraphMount } from './graphmount';
+import { bindLightMount } from './graphmount';
 
 const SKY = 0x8fc1e6;
 
@@ -379,29 +379,10 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   const lantern = new THREE.PointLight(0xffb060, 0, 9, 1.6);
   scene.add(lantern);
   const unmountLights = [
-    bindGraphMount(graph, lighting.ambient, (frame) => {
-      ambient.color.setHex(frame.colour ?? 0xffffff);
-      ambient.intensity = frame.intensity ?? 0;
-    }),
-    bindGraphMount(graph, lighting.hemi, (frame) => {
-      hemi.color.setHex(frame.colour ?? 0xffffff);
-      hemi.groundColor.setHex(frame.groundColour ?? 0xffffff);
-      hemi.intensity = frame.intensity ?? 0;
-    }),
-    bindGraphMount(graph, lighting.sun, (frame) => {
-      sun.color.setHex(frame.colour ?? 0xffffff);
-      sun.intensity = frame.intensity ?? 0;
-      sun.position.set(frame.world[12], frame.world[13], frame.world[14]);
-      sun.target.position.set(...(frame.target ?? [0, 0, 0]));
-      sun.castShadow = frame.castShadow;
-    }),
-    bindGraphMount(graph, lighting.lantern, (frame) => {
-      lantern.color.setHex(frame.colour ?? 0xffffff);
-      lantern.intensity = frame.intensity ?? 0;
-      lantern.distance = frame.distance ?? 0;
-      lantern.decay = frame.decay ?? 2;
-      lantern.position.set(frame.world[12], frame.world[13], frame.world[14]);
-    }),
+    bindLightMount(graph, lighting.ambient, ambient),
+    bindLightMount(graph, lighting.hemi, hemi),
+    bindLightMount(graph, lighting.sun, sun),
+    bindLightMount(graph, lighting.lantern, lantern),
   ];
 
   // Water: one big translucent plane that follows the camera. Seabed shows through near the coast,

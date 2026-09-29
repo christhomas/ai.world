@@ -12,11 +12,20 @@ export interface SceneGeometry {
   sea?: Float32Array;
 }
 
+/**
+ * A light's colour: an authored sRGB hex, as everywhere else, or linear RGB worked out at run time.
+ *
+ * The linear form is there because a computed light can be warmer than white. Autumn multiplies the
+ * sun by a red of 1.04; a hex clamps that channel to one before the intensity is ever applied, and
+ * the whole frame loses its warmth. So the renderer is handed the channels as they were computed.
+ */
+export type LightColour = number | readonly [number, number, number];
+
 export type SceneNode =
-  | { kind: 'ambient'; colour: number; intensity: number }
-  | { kind: 'hemisphere'; sky: number; ground: number; intensity: number }
-  | { kind: 'point'; colour: number; intensity: number; distance: number; decay: number; position: [number, number, number] }
-  | { kind: 'directional'; colour: number; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
+  | { kind: 'ambient'; colour: LightColour; intensity: number }
+  | { kind: 'hemisphere'; sky: LightColour; ground: LightColour; intensity: number }
+  | { kind: 'point'; colour: LightColour; intensity: number; distance: number; decay: number; position: [number, number, number] }
+  | { kind: 'directional'; colour: LightColour; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
   | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
       glowColour?: number; placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
@@ -31,6 +40,22 @@ export type SceneNode =
       castShadow?: boolean; receiveShadow: boolean; renderOrder?: number; world?: number[];
       frustumCulled?: boolean; visible?: boolean; effects?: string[];
       materialState?: Partial<NonNullable<FrameDescription['nodes'][number]['material']>> };
+
+/** Linear to sRGB, as three.js converts it, so a linear light's hex is the one WebGL would report. */
+function srgbChannel(linear: number): number {
+  const c = linear < 0.0031308 ? linear * 12.92 : 1.055 * Math.pow(linear, 0.41666) - 0.055;
+  return Math.round(Math.min(255, Math.max(0, c * 255)));
+}
+
+/**
+ * A light colour as a frame carries it: always the hex, which is all a renderer that reads only a
+ * hex can use, and the unclamped linear channels as well whenever the engine computed them.
+ */
+function lightColour(colour: LightColour): { colour: number; linearColour?: [number, number, number] } {
+  if (typeof colour === 'number') return { colour };
+  const [r, g, b] = colour;
+  return { colour: srgbChannel(r) * 65536 + srgbChannel(g) * 256 + srgbChannel(b), linearColour: [r, g, b] };
+}
 
 /** The engine owns these values; a renderer decides how to display them. */
 export class SceneGraph {
@@ -61,17 +86,24 @@ export class SceneGraph {
       coast: this.coast,
       nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
-        if (node.kind === 'ambient') return { ...base, kind: 'ambient' as const, colour: node.colour, intensity: node.intensity };
-        if (node.kind === 'hemisphere') return {
-          ...base, kind: 'hemisphere' as const, colour: node.sky, groundColour: node.ground, intensity: node.intensity,
+        if (node.kind === 'ambient') return {
+          ...base, kind: 'ambient' as const, ...lightColour(node.colour), intensity: node.intensity,
         };
+        if (node.kind === 'hemisphere') {
+          const ground = lightColour(node.ground);
+          return {
+            ...base, kind: 'hemisphere' as const, ...lightColour(node.sky), groundColour: ground.colour,
+            ...(ground.linearColour ? { linearGroundColour: ground.linearColour } : {}), intensity: node.intensity,
+          };
+        }
         if (node.kind === 'point') return {
-          ...base, kind: 'point' as const, colour: node.colour, intensity: node.intensity,
+          ...base, kind: 'point' as const, ...lightColour(node.colour), intensity: node.intensity,
           distance: node.distance, decay: node.decay,
           world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ...node.position, 1],
         };
         if (node.kind === 'directional') return {
-          ...base, kind: 'directional' as const, colour: node.colour, intensity: node.intensity,
+          ...base, kind: 'directional' as const, ...lightColour(node.colour),
+          intensity: node.intensity,
           castShadow: node.castShadow, target: node.target,
           world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ...node.position, 1],
         };

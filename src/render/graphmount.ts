@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { FrameDescription } from '../core/scene';
-import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import type { LightColour, SceneGraph, SceneNode } from '../core/scenegraph';
 
 type FrameNode = FrameDescription['nodes'][number];
 type Mount = (frame: FrameNode) => void;
@@ -24,8 +24,52 @@ export function applyGraphMounts(graph: SceneGraph, frame: FrameDescription): vo
   graph.nodes.forEach((node, at) => mounted.get(node)?.(frame.nodes[at]));
 }
 
+/** A light colour as three.js holds it: a hex is sRGB, a triple is already linear and unclamped. */
+export function lightColourOf(colour: LightColour, into = new THREE.Color()): THREE.Color {
+  return typeof colour === 'number' ? into.setHex(colour) : into.setRGB(colour[0], colour[1], colour[2]);
+}
+
+type LightNode = Extract<SceneNode, { kind: 'ambient' | 'hemisphere' | 'point' | 'directional' }>;
+
+/**
+ * Keep a retained WebGL light on its neutral node.
+ *
+ * The frame's linear channels are preferred to its hex: the hex is clamped, and a computed light —
+ * the seasonal sun — can be warmer than a hex can say.
+ */
+export function bindLightMount(graph: SceneGraph, node: LightNode, light: THREE.Light): () => void {
+  return bindGraphMount(graph, node, (frame) => {
+    lightColourOf(frame.linearColour ?? frame.colour ?? 0xffffff, light.color);
+    light.intensity = frame.intensity ?? 0;
+    if (light instanceof THREE.HemisphereLight) {
+      lightColourOf(frame.linearGroundColour ?? frame.groundColour ?? 0xffffff, light.groundColor);
+    }
+    if (light instanceof THREE.PointLight) {
+      light.distance = frame.distance ?? 0;
+      light.decay = frame.decay ?? 2;
+    }
+    if (light instanceof THREE.PointLight || light instanceof THREE.DirectionalLight) {
+      light.position.set(frame.world[12], frame.world[13], frame.world[14]);
+    }
+    if (light instanceof THREE.DirectionalLight) {
+      light.target.position.set(...(frame.target ?? [0, 0, 0]));
+      light.castShadow = frame.castShadow;
+    }
+  });
+}
+
+/** Whether everything the object hangs from is shown. */
+function shownAbove(object: THREE.Object3D): boolean {
+  for (let parent = object.parent; parent; parent = parent.parent) if (!parent.visible) return false;
+  return true;
+}
+
 export function applyMeshFrame(mesh: THREE.Mesh, frame: FrameNode): void {
-  mesh.visible = frame.visible;
+  // The frame says whether the mesh is drawn at all, parents included. Under a hidden parent it is
+  // not drawn whatever its own flag says, so that flag is left as its producer set it — the same
+  // way the pose below is taken back relative to the parent. Writing the composed answer into it
+  // kept every pooled camp's tent hidden after the camp itself was shown again.
+  if (frame.visible || shownAbove(mesh)) mesh.visible = frame.visible;
   mesh.castShadow = frame.castShadow;
   mesh.receiveShadow = frame.receiveShadow;
   mesh.renderOrder = frame.renderOrder ?? 0;

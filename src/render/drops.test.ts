@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { DropField, dropsFor } from './drops';
 import { SceneGraph } from '../core/scenegraph';
+import { MountedThreePipeline } from './pipeline';
 
 /**
  * What you can see is what you would pick up.
@@ -57,5 +58,23 @@ describe('what is lying in the grass', () => {
     expect(graph.nodes.filter((node) => node.kind === 'mesh' && node.visible)).toHaveLength(0);
     field.dispose();
     expect(graph.nodes).toHaveLength(0);
+  });
+
+  it('draws every part of a pooled drop that a submitted frame first drew hidden', () => {
+    const scene = new THREE.Scene();
+    const graph = new SceneGraph(0);
+    graph.camera = { projection: new THREE.Matrix4().toArray(), world: new THREE.Matrix4().toArray(), orthographic: true };
+    const webgl = new MountedThreePipeline(scene, () => {}, graph);
+    const field = new DropField(scene, graph);
+    webgl.draw(graph.frame());
+
+    field.update([{ x: 3, z: 4, kind: 'pack' }], () => 2);
+    webgl.draw(graph.frame());
+    const shown = graph.nodes.filter((node) => node.kind === 'mesh' && node.visible).length;
+    const meshes: THREE.Object3D[] = [];
+    scene.traverseVisible((object) => { if ((object as THREE.Mesh).isMesh) meshes.push(object); });
+    expect(shown).toBeGreaterThan(0);
+    expect(meshes).toHaveLength(shown);
+    field.dispose();
   });
 });

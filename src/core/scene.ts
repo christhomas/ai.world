@@ -32,6 +32,14 @@ export interface FrameDescription {
     /** World-space point a directional light shines toward. */
     lightTarget?: [number, number, number];
     groundColour?: number;
+    /**
+     * A light's colour in linear RGB exactly as the engine computed it, channels free to pass one.
+     * Present only for computed lights; it is what `colour` would be if a hex could hold it, and a
+     * renderer that can take it should use it in preference.
+     */
+    linearColour?: [number, number, number];
+    /** The same for a hemisphere light's ground colour. */
+    linearGroundColour?: [number, number, number];
     distance?: number;
     decay?: number;
     target?: [number, number, number];

@@ -26,6 +26,9 @@ const NIGHT_AMBIENT = new THREE.Color(0x26305a);
 const WINDOW_DAY = new THREE.Color(0x9fd4ef);
 const WINDOW_NIGHT = new THREE.Color(0xffc45a);
 
+/** A computed light colour exactly as it was worked out, for the graph to hand to the renderer. */
+const linearOf = (colour: THREE.Color): [number, number, number] => [colour.r, colour.g, colour.b];
+
 export interface DayCycleInput {
   /** Season tint applied to sky and sun. */
   season: SeasonTint;
@@ -154,13 +157,15 @@ export class DayCycle {
     lighting.sun.intensity = this.daySunIntensity * (0.22 + 0.78 * day) * (1 - wet * 0.45);
     this.tmp.copy(DAY_SUN).lerp(DUSK_SUN, dusk).lerp(NIGHT_SUN, night);
     this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
-    lighting.sun.colour = this.tmp.getHex();
+    // as linear channels, not a hex: autumn's red of 1.04 takes a white sun past one, and a hex
+    // would clamp the warmth out of every lit pixel before the intensity was applied
+    lighting.sun.colour = linearOf(this.tmp);
 
     lighting.hemi.intensity = this.dayHemiIntensity * (0.55 + 0.45 * day) * (1 - wet * 0.2);
-    lighting.hemi.sky = this.tmp.copy(DAY_HEMI_SKY).lerp(NIGHT_HEMI_SKY, night).getHex();
-    lighting.hemi.ground = this.tmp.copy(DAY_HEMI_GROUND).lerp(NIGHT_HEMI_GROUND, night).getHex();
+    lighting.hemi.sky = linearOf(this.tmp.copy(DAY_HEMI_SKY).lerp(NIGHT_HEMI_SKY, night));
+    lighting.hemi.ground = linearOf(this.tmp.copy(DAY_HEMI_GROUND).lerp(NIGHT_HEMI_GROUND, night));
     lighting.ambient.intensity = this.dayAmbientIntensity * (0.62 + 0.38 * day);
-    lighting.ambient.colour = this.tmp.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night).getHex();
+    lighting.ambient.colour = linearOf(this.tmp.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night));
 
     this.tmp.copy(DAY_SKY).lerp(DUSK_SKY, dusk).lerp(NIGHT_SKY, night);
     this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));

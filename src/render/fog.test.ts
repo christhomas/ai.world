@@ -5,6 +5,7 @@ import { fogReach, type SceneRig } from './scene';
 import { CAMERA, WORLD } from '../core/config';
 import { SceneGraph } from '../core/scenegraph';
 import { MountedThreePipeline } from './pipeline';
+import { bindLightMount } from './graphmount';
 
 /**
  * Distance reads as distance, which in a terraced country it did not.
@@ -133,5 +134,37 @@ describe('the colour of the fog', () => {
     new DayCycle(one).apply(at(0.5) as never);
     new MountedThreePipeline(one.scene, () => {}, one.graph).draw(one.graph.frame());
     expect((one.scene.fog as THREE.Fog).isFog).toBe(true);
+  });
+});
+
+describe('the light the day cycle hands the renderer', () => {
+  it('keeps a seasonal sun warmer than white all the way to the WebGL light', () => {
+    const one = rig();
+    const sun = new THREE.DirectionalLight();
+    bindLightMount(one.graph, one.lighting.sun, sun);
+    const autumn: [number, number, number] = [1.04, 0.94, 0.86];
+    new DayCycle(one).apply({ ...at(0.5), season: { sky: autumn } } as never);
+    const frame = one.graph.frame();
+    new MountedThreePipeline(one.scene, () => {}, one.graph).draw(frame);
+
+    // noon: no dusk and no night in it, so the sun is the day sun times the season, unclamped
+    const expected = new THREE.Color(0xfff3dc).multiply(new THREE.Color().setRGB(...autumn));
+    expect(expected.r).toBeGreaterThan(1);
+    expect(sun.color.r).toBeCloseTo(expected.r, 6);
+    expect(sun.color.g).toBeCloseTo(expected.g, 6);
+    expect(sun.color.b).toBeCloseTo(expected.b, 6);
+    // and a renderer that can only read a hex still gets the nearest one
+    const light = frame.nodes.find((node) => node.kind === 'directional');
+    expect(light?.colour).toBe(expected.getHex());
+  });
+
+  it('hands the sky and ground light over exactly as they were mixed', () => {
+    const one = rig();
+    const hemi = new THREE.HemisphereLight();
+    bindLightMount(one.graph, one.lighting.hemi, hemi);
+    new DayCycle(one).apply(at(0.78) as never);
+    new MountedThreePipeline(one.scene, () => {}, one.graph).draw(one.graph.frame());
+    const [r, g, b] = one.lighting.hemi.ground as [number, number, number];
+    expect(hemi.groundColor.toArray()).toEqual([r, g, b]);
   });
 });
