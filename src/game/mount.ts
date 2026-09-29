@@ -151,6 +151,10 @@ export class Mount {
 
   mount(player: Player): void {
     if (!this.entity) return;
+    // A rider can stand on a ledge the horse cannot. Board where the parked horse stands;
+    // moving the horse under the rider on the next frame would strand both on that ledge.
+    player.walkTo();
+    player.teleport(this.entity.x, this.entity.z);
     this.rider = player;
     // and from here it is the horse that decides where he may go, not his own legs: a hero paddles
     // and a horse does not, so the sea stops being a road the moment he is on one. `whatCarriesHim`
