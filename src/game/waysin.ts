@@ -3,7 +3,7 @@ import { createCraft } from './craft';
 import { createShafts, openCountry } from './shafts';
 import { createSwallows } from './swallows';
 import { liftAt } from '../world/thermals';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { GameState } from './state';
 import type { Places } from './places';
 import type { Player } from '../entities/player';

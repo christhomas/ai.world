@@ -101,7 +101,7 @@ export class Hud {
     const hemi = $<HTMLInputElement>('hemisphereSlider');
     const sunV = $('sunlightValue');
     const hemiV = $('hemisphereValue');
-    // asked of the rig rather than reached for: a `THREE.DirectionalLight` held out here is a
+    // asked of the rig rather than reached for: a directional light held out here is a
     // light a second rig could not have, and a rig that lit its scene some other way answers this
     // the same way. See `SceneRig.brightness`
     const lit = rig.brightness();

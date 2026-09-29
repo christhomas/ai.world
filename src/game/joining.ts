@@ -3,6 +3,7 @@ import type { Online } from './online';
 import type { GameState } from './state';
 import type { WorldKind } from '../world/countries';
 import type { TerrainLayer } from '../world/terrainlayers';
+import type { Anchor } from '../world/manifest';
 
 /** The world server's own port, which `chore world` also uses. */
 const WORLD_PORT = 8787;
@@ -42,6 +43,7 @@ export interface Joining {
   kind: WorldKind;
   /** Authored land and sea edits for the private world worker. */
   terrain: readonly TerrainLayer[];
+  highlands: readonly Anchor[];
   /** The world's durable, sayable key. Old numeric saves have none until the player names them. */
   worldName?: string;
   /**
@@ -110,9 +112,9 @@ export function inviteTo(here: string, seed: number, address: string, worldName?
 }
 
 export function joinAWorld(ctx: Joining): void {
-  const { seed, kind, terrain, worldName, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  const { seed, kind, terrain, highlands, worldName, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
   /** The acre that must exist before the world puts the hero down. */
-  const here = () => ({ at: where(), kind, terrain });
+  const here = () => ({ at: where(), kind, terrain, highlands });
 
   const serverInput = $('serverInput') as HTMLInputElement;
   const nameInput = $('nameInput') as HTMLInputElement;
@@ -131,12 +133,12 @@ export function joinAWorld(ctx: Joining): void {
    */
   const playAlone = (): void => {
     if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
   };
   // An invite already says whose server this is. Following it is the join; it must not quietly put
   // the guest into a private worker with the right-looking world underneath them.
   if (url.searchParams.has('server')) {
-    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
     showChat();
   } else {
     playAlone();
@@ -159,7 +161,7 @@ export function joinAWorld(ctx: Joining): void {
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
     showChat();
   });
 
@@ -193,7 +195,7 @@ export function joinAWorld(ctx: Joining): void {
      * nothing.
      */
     if (worldName && address && !online.away) {
-      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
+      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName, state.playerId);
       showChat();
       flash(`Claiming “${worldName}” on that server…`);
       if (!await claimed(() => online.away)) {

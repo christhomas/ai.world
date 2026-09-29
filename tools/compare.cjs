@@ -38,6 +38,21 @@ const HERE = process.env.SHOTS || 'docs/screenshots';
 const DIFF_OUT = process.env.DIFF_OUT || '';
 const THERE = process.argv[2];
 const ONLY = new Set(process.argv.slice(3));
+/** Optional rectangle omitted from both pictures when comparing the world behind a streaming UI. */
+const EXCLUDE_RECT = process.env.EXCLUDE_RECT ? process.env.EXCLUDE_RECT.split(',').map(Number) : null;
+if (EXCLUDE_RECT && (EXCLUDE_RECT.length !== 4 || EXCLUDE_RECT.some((n) => !Number.isInteger(n))
+  || EXCLUDE_RECT[0] >= EXCLUDE_RECT[2] || EXCLUDE_RECT[1] >= EXCLUDE_RECT[3])) {
+  throw new Error('EXCLUDE_RECT must be x0,y0,x1,y1');
+}
+
+function assertPixelsRemain(width, height, rect) {
+  if (!rect) return;
+  const x0 = Math.max(0, rect[0]), y0 = Math.max(0, rect[1]);
+  const x1 = Math.min(width, rect[2]), y1 = Math.min(height, rect[3]);
+  if (Math.max(0, x1 - x0) * Math.max(0, y1 - y0) >= width * height) {
+    throw new Error('EXCLUDE_RECT leaves no pixels to compare');
+  }
+}
 
 /** The comparison's own rules, read out of the module the tests hold. */
 const rules = () => {
@@ -87,7 +102,7 @@ async function main() {
     // made a single wide picture take minutes; this job now compares every scripted scene.
     const [reference, capture] = [path.join(THERE, name), path.join(HERE, name)]
       .map((file) => fs.readFileSync(file).toString('base64'));
-    const result = await page.evaluate(async ({ reference, capture, shade, much, drawDiff }) => {
+    const result = await page.evaluate(async ({ reference, capture, shade, much, drawDiff, exclude }) => {
       const read = async (b64) => {
         const img = new Image();
         img.src = `data:image/png;base64,${b64}`;
@@ -103,9 +118,17 @@ async function main() {
       if (before.width !== after.width || before.height !== after.height) {
         return { before: [before.width, before.height], after: [after.width, after.height] };
       }
+      const total = before.width * before.height;
+      const excluded = (at) => {
+        if (!exclude) return false;
+        const x = at % before.width, y = Math.floor(at / before.width);
+        return x >= exclude[0] && x < exclude[2] && y >= exclude[1] && y < exclude[3];
+      };
       let moved = 0;
-      const of = before.width * before.height;
-      for (let at = 0; at < of; at++) {
+      let of = 0;
+      for (let at = 0; at < total; at++) {
+        if (excluded(at)) continue;
+        of++;
         const px = at * 4;
         const apart = Math.max(
           Math.abs(before.data[px] - after.data[px]),
@@ -114,14 +137,15 @@ async function main() {
         );
         if (apart >= shade) moved++;
       }
-      if (!drawDiff || moved / of <= much) return { moved, of };
+      const size = { width: before.width, height: before.height };
+      if (!drawDiff || of === 0 || moved / of <= much) return { moved, of, ...size };
       const canvas = document.createElement('canvas');
       canvas.width = before.width; canvas.height = before.height;
       const context = canvas.getContext('2d');
       const diff = context.createImageData(before.width, before.height);
-      for (let at = 0; at < of; at++) {
+      for (let at = 0; at < total; at++) {
         const px = at * 4;
-        const apart = Math.max(
+        const apart = excluded(at) ? 0 : Math.max(
           Math.abs(before.data[px] - after.data[px]),
           Math.abs(before.data[px + 1] - after.data[px + 1]),
           Math.abs(before.data[px + 2] - after.data[px + 2]),
@@ -135,13 +159,15 @@ async function main() {
         diff.data[px + 3] = 255;
       }
       context.putImageData(diff, 0, 0);
-      return { moved, of, diff: canvas.toDataURL('image/png').split(',')[1] };
-    }, { reference, capture, shade, much, drawDiff: Boolean(DIFF_OUT) });
+      return { moved, of, ...size, diff: canvas.toDataURL('image/png').split(',')[1] };
+    }, { reference, capture, shade, much, drawDiff: Boolean(DIFF_OUT), exclude: EXCLUDE_RECT });
     if (result.before) {
+      assertPixelsRemain(result.before[0], result.before[1], EXCLUDE_RECT);
       lines.push(`  SIZE   ${name}: ${result.before.join('x')} against ${result.after.join('x')}`);
       told++;
       continue;
     }
+    assertPixelsRemain(result.width, result.height, EXCLUDE_RECT);
     const share = result.of === 0 ? 0 : result.moved / result.of;
     worst = Math.max(worst, share);
     if (share > much) {
@@ -161,6 +187,7 @@ async function main() {
     `PICTURES — ${told === 0 ? 'SAME' : 'CHANGED'} — ${new Date().toISOString()}`,
     `  ${mine.length} pictures against ${THERE}, worst ${(worst * 100).toFixed(2)}%,`,
     `  anything past ${(much * 100).toFixed(2)}% of a picture is reported`,
+    ...(EXCLUDE_RECT ? [`  excluded ${EXCLUDE_RECT.join(',')} from both images`] : []),
     ...lines,
   ].join('\n');
   console.log(report);
@@ -170,4 +197,6 @@ async function main() {
   process.exit(told === 0 ? 0 : 1);
 }
 
-main().catch((wrong) => { console.error(wrong); process.exit(1); });
+if (require.main === module) main().catch((wrong) => { console.error(wrong); process.exit(1); });
+
+module.exports = { assertPixelsRemain };

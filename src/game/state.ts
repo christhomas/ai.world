@@ -10,9 +10,11 @@ import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippa
 import { chunkKey } from '../world/spatial';
 import { provinceOf, type ProvinceId } from '../world/provinces';
 import type { HorseSave } from './mount';
+import { hideOf, type CarriedCarcass } from './furs';
 import type { PlotJson } from './farming';
 import type { HouseJson } from './building';
 import type { BoatSave } from './sailing';
+import { PRAYER_WAIT, type HighlandPrayer } from './prayers';
 
 /**
  * Everything about the player that is not position: health, gold and items, time of day,
@@ -22,11 +24,15 @@ import type { BoatSave } from './sailing';
 export type QuestStatus = 'active' | 'done';
 
 export interface GameStateJson {
+  /** Stable identity for replay facts that belong to this save, independent of the display name. */
+  playerId?: string;
   hp: number;
   maxHp: number;
   time: number;
   day: number;
   inventory: InventoryJson;
+  /** Cart loads whose stolen food this hero has already put in their pack. */
+  claimedCarts?: number[];
   explored: string[];
   /**
    * The provinces somebody has bought a map of.
@@ -41,6 +47,8 @@ export interface GameStateJson {
    * by this: that is still an item, still in his pocket, and still lifts the fog off everything.
    */
   charted?: string[];
+  /** Last morning whose holding report the hero marked read, by village. */
+  holdingReadAt?: Record<string, number>;
   /**
    * When this save was last written, as milliseconds since the epoch.
    *
@@ -108,12 +116,16 @@ export interface GameStateJson {
   grudges?: Record<string, Held>;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
+  /** One whole carcass carried on foot for the final climb from a parked cart. */
+  shouldering?: CarriedCarcass | null;
   /** What is planted where. */
   plots?: PlotJson;
   /** The builder you are holding, and every house you have had put up. */
   houses?: HouseJson;
   /** The boat you bought, and where it is moored. */
   boat?: BoatSave | null;
+  /** Shrine requests survive leaving the game while the world's calendar advances. */
+  prayers?: HighlandPrayer[];
 }
 
 /**
@@ -138,22 +150,30 @@ export { DAY_LENGTH };
 /** Time of day at which you wake after resting: 07:12. */
 export const MORNING = 0.3;
 
+function newPlayerId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
 export class GameState {
+  playerId = newPlayerId();
   hp = BASE_MAX_HP;
   maxHp = BASE_MAX_HP;
   /** Fraction of the day, 0 = midnight, 0.5 = noon. */
   time = 0.34;
   day = 1;
   readonly inventory = new Inventory();
+  readonly claimedCarts = new Set<number>();
   /** What is worn where. Items here are not in the rucksack. */
   readonly equipped: Partial<Record<EquipSlot, string>> = {};
   readonly explored = new Set<string>();
   /** The country somebody has paid to be shown, a province at a time. See `cartography.ts`. */
   readonly charted = new Set<ProvinceId>();
+  readonly holdingReadAt = new Map<string, number>();
   readonly quests = new Map<string, QuestStatus>();
   readonly discovered = new Set<string>();
   readonly opened = new Set<string>();
   readonly keys = new Set<string>();
+  readonly prayers: HighlandPrayer[] = [];
   /**
    * Where the hero stands between good and evil. Kept here as a plain number rather than as the
    * Standing object that interprets it, because a save is a picture of the game's state and has
@@ -167,6 +187,7 @@ export class GameState {
    * when an app is swiped away — which is how a game on a phone actually ends.
    */
   lodged = false;
+  shouldering: CarriedCarcass | null = null;
 
   /**
    * World days that passed while the game was shut, worked out once as the save is read.
@@ -446,17 +467,22 @@ export class GameState {
 
   toJSON(): GameStateJson {
     return {
+      playerId: this.playerId,
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
       savedAt: Date.now(), lodged: this.lodged,
       inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
+      claimedCarts: [...this.claimedCarts],
       explored: [...this.explored],
       charted: [...this.charted],
+      holdingReadAt: Object.fromEntries(this.holdingReadAt),
       quests: Object.fromEntries(this.quests),
       discovered: [...this.discovered],
       opened: [...this.opened],
       keys: [...this.keys],
       standing: this.standing,
       practice: this.practice,
+      shouldering: this.shouldering,
+      prayers: this.prayers.map((prayer) => ({ ...prayer })),
     };
   }
 
@@ -472,12 +498,16 @@ export class GameState {
   static from(json: Partial<GameStateJson> | undefined): GameState {
     if (!json) return GameState.fresh();
     const g = new GameState();
+    if (typeof json.playerId === 'string' && /^[0-9a-f-]{36}$/i.test(json.playerId)) g.playerId = json.playerId;
     if (typeof json.hp === 'number') g.hp = json.hp;
     if (typeof json.practice === 'number') g.practice = json.practice;
     if (typeof json.maxHp === 'number') g.maxHp = json.maxHp;
     if (typeof json.time === 'number') g.time = json.time;
     if (typeof json.day === 'number') g.day = json.day;
     g.lodged = json.lodged === true;
+    if (json.shouldering && hideOf(json.shouldering.kind) && json.shouldering.left > 0) {
+      g.shouldering = { ...json.shouldering };
+    }
     /*
      * And the days that passed while nobody was looking.
      *
@@ -494,15 +524,31 @@ export class GameState {
         if (ITEMS[id] && ITEMS[id].slot === slot) g.equipped[slot as EquipSlot] = id;
       }
     }
+    for (const day of json.claimedCarts ?? []) if (Number.isInteger(day) && day >= 2) g.claimedCarts.add(day);
     if (typeof json.standing === 'number') g.standing = json.standing;
     for (const k of json.explored ?? []) g.explored.add(k);
     // nothing here on a save from before maps were country, which reads back as a hero who has
     // bought none — and whose all-seeing trinket, if he has one, is in the inventory above
     for (const k of json.charted ?? []) g.charted.add(k);
+    for (const [village, day] of Object.entries(json.holdingReadAt ?? {})) {
+      if (Number.isSafeInteger(day) && day >= 0) g.holdingReadAt.set(village, day);
+    }
     for (const [k, v] of Object.entries(json.quests ?? {})) g.quests.set(k, v);
     for (const k of json.discovered ?? []) g.discovered.add(k);
     for (const k of json.opened ?? []) g.opened.add(k);
     for (const k of json.keys ?? []) g.keys.add(k);
+    for (const prayer of json.prayers ?? []) {
+      if (prayer && typeof prayer.id === 'string' && prayer.id.startsWith('highland:prayer:')
+        && typeof prayer.name === 'string' && typeof prayer.shrine === 'string'
+        && Number.isSafeInteger(prayer.x) && Number.isSafeInteger(prayer.z)
+        && Math.abs(prayer.x) <= 1_000_000 && Math.abs(prayer.z) <= 1_000_000
+        && Number.isSafeInteger(prayer.asked) && Number.isSafeInteger(prayer.due)
+        && prayer.due === prayer.asked + PRAYER_WAIT && Number.isSafeInteger(prayer.seed)
+        && prayer.seed >= 0 && prayer.seed <= 0xffffffff
+        && typeof prayer.answered === 'boolean') {
+        g.prayers.push({ ...prayer });
+      }
+    }
     g.hp = Math.min(g.hp, g.maxHpTotal);
     return g;
   }

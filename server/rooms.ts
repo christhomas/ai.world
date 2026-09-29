@@ -6,11 +6,13 @@ import type { Village } from '../src/world/structures';
 import type { Blow, Standing } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
-import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldInvite, WorldRecord } from './protocol';
+import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldDelta, WorldInvite, WorldRecord } from './protocol';
 import { worldKey } from './protocol';
 import { Forgetful, type Vault } from './vault';
 import { SharedWorld, manifestIn, worldPath } from './world';
 import { WorldRecordConflict, WorldRecords } from './worldrecords';
+import type { PlacePin } from '../src/world/editimpacts';
+import { provincePath, provincesNear } from '../src/world/provinces';
 
 /**
  * The way to reach one player, whatever they are on the other end of.
@@ -78,6 +80,8 @@ export interface CreatureOwner {
 export interface Client {
   wire: Wire;
   presence: Presence;
+  /** Stable save identity used for replayed player-owned outcomes. Not an authentication credential. */
+  playerId: string;
   seed: number;
   /**
    * How much silence the server has actually *heard* out of them, in milliseconds.
@@ -171,8 +175,12 @@ export interface Client {
    * which is the rule the whole server rests on.
    */
   hero: Entity | null;
+  /** Last surface position established by server-processed walking while on foot. */
+  serverFootAt: { x: number; z: number } | null;
   /** The last steer of theirs the world has run, so an answer can name where it has caught up to. */
   steered: number;
+  /** Today's cart this player has committed to guard while physically near it. */
+  escortingCart: number | null;
 }
 
 /** A handful of players travelling together. A party lives only as long as the people in it. */
@@ -207,7 +215,6 @@ export class Rooms {
   private readonly bySeed = new Map<number, string>();
   private readonly records: WorldRecords;
   private readonly vault: Vault;
-  private nextId = 1;
 
   constructor(private readonly dataDir: string, vault?: Vault) {
     this.vault = vault ?? new Forgetful();
@@ -262,11 +269,78 @@ export class Rooms {
     const record = this.records.find(name);
     if (!record) return undefined;
     const manifest = this.manifestOf(record.seed);
-    return { ...record, kind: record.kind ?? LEGACY_KIND, layers: manifest.layers(), terrain: [...manifest.terrain] };
+    return { ...record, kind: record.kind ?? LEGACY_KIND, layers: manifest.layers(),
+      sites: manifest.byKind('skyisle'),
+      skyEyries: manifest.byKind('eyrie').filter((a) => a.version === 2),
+      terrain: [...manifest.terrain] };
   }
 
   worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }
   worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
+
+  /** Read the persisted fields and village facts an offline terrain edit must leave reachable. */
+  rememberedForEdit(seed: number, x: number, z: number, reach: number): {
+    pins: PlacePin[]; villages: string[];
+  } {
+    const pins: PlacePin[] = [];
+    const villages = new Set<string>();
+    const seen = new Set<string>();
+    const collect = (value: unknown) => {
+      if (!value || typeof value !== 'object') return;
+      const delta = value as Partial<WorldDelta> & { village?: unknown; tile?: unknown };
+      if (typeof delta.village === 'string') villages.add(delta.village);
+      if (delta.kind === 'sow' && typeof delta.tile === 'string' && !seen.has(delta.tile)) {
+        seen.add(delta.tile);
+        const [px, pz] = delta.tile.split(',').map(Number);
+        if (Number.isFinite(px) && Number.isFinite(pz)) pins.push({ x: px, z: pz, label: 'A planted field', footing: 'land' });
+      }
+    };
+    const room = this.get(seed);
+    for (const anchor of this.manifestOf(seed).byKind('eyrie').filter((a) => a.version === 2))
+      pins.push({ x: anchor.x, z: anchor.z,
+        label: `The skyward eyrie at ${Math.round(anchor.x)}, ${Math.round(anchor.z)}`, footing: 'land' });
+    for (const delta of room?.world.log ?? []) collect(delta);
+    const worldFile = this.vault.read(worldPath(this.dataDir, seed));
+    if (worldFile) {
+      let raw: unknown;
+      try { raw = JSON.parse(worldFile); } catch { throw new Error('The saved world could not be checked safely.'); }
+      const file = raw as { deltas?: unknown[]; holdingDays?: Array<{ village?: unknown }> };
+      for (const delta of file.deltas ?? []) collect(delta);
+      for (const row of file.holdingDays ?? []) if (typeof row.village === 'string') villages.add(row.village);
+    }
+    for (const id of provincesNear(x, z, reach + 8)) {
+      const path = provincePath(this.dataDir, seed, id);
+      const text = this.vault.read(path);
+      if (!text) continue;
+      let raw: unknown;
+      try { raw = JSON.parse(text); } catch { throw new Error(`The saved province ${id} could not be checked safely.`); }
+      const deltas = Array.isArray(raw) ? raw : (raw as { deltas?: unknown[] }).deltas;
+      if (!Array.isArray(deltas)) throw new Error(`The saved province ${id} could not be checked safely.`);
+      for (const delta of deltas) collect(delta);
+    }
+    return { pins, villages: [...villages] };
+  }
+
+  /** Every known world, including named records, saved legacy seed files, and open rooms. */
+  knownWorlds(): Array<{ seed: number; name?: string; kind?: WorldKind }> {
+    const worlds = new Map<number, { seed: number; name?: string; kind?: WorldKind }>();
+    for (const record of this.records.all()) worlds.set(record.seed, { ...record, kind: record.kind ?? LEGACY_KIND });
+    for (const path of this.vault.list?.(`${this.dataDir ? `${this.dataDir}/` : ''}`) ?? []) {
+      const file = path.split('/').pop() ?? '';
+      const match = /^(\d+)\.json$/.exec(file);
+      if (!match) continue;
+      const seed = Number(match[1]);
+      if (!Number.isSafeInteger(seed) || seed < 0 || seed > 0xffffffff) continue;
+      const record = this.records.forSeed(seed);
+      worlds.set(seed, { seed, ...(record ? { name: record.name, kind: record.kind ?? LEGACY_KIND } : {}) });
+    }
+    for (const [seed, room] of this.entries()) {
+      const record = this.records.forSeed(seed);
+      worlds.set(seed, { seed, ...(record ? { name: record.name } : {}), kind: room.kind });
+    }
+    return [...worlds.values()].sort((a, b) => Number(!a.name) - Number(!b.name)
+      || (a.name ?? '').localeCompare(b.name ?? '') || a.seed - b.seed);
+  }
 
   /** Resolve or create the durable record presented by a named join. */
   claimWorld(name: unknown, seed: number, kind: WorldKind = LEGACY_KIND): WorldRecord {
@@ -303,7 +377,7 @@ export class Rooms {
   }
 
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
-  admit(wire: Wire, room: Room, seed: number, name: string, at?: { x: number; z: number }): Client {
+  admit(wire: Wire, room: Room, seed: number, name: string, at?: { x: number; z: number }, playerId?: string): Client {
     // The join's coordinates already choose the first country grown for this player. Presence
     // must begin there too, or the first creature snapshot describes the unrelated origin.
     const x = at && Number.isFinite(at.x) ? at.x : 0;
@@ -312,8 +386,11 @@ export class Rooms {
       wire, seed, silent: 0, offers: new Map(), party: null, seeing: new Map(),
       knows: new Map(), standing: { x, z, gear: [], guilt: 0 }, guilt: 0,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
-      hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null, boat: null,
-      presence: { id: `p${this.nextId++}`, name, x, z, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
+      hero: null, serverFootAt: null, playerId: playerId && /^[0-9a-f-]{36}$/i.test(playerId) ? playerId : globalThis.crypto.randomUUID(),
+      steered: 0, escortingCart: null, standingIn: 'surface', leftSurfaceAt: null, boat: null,
+      // This is the server-issued identity for this connection. It also scopes one-time rewards;
+      // a client supplied save id or display name must never authorize a shared-world claim.
+      presence: { id: globalThis.crypto.randomUUID(), name, x, z, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
     return client;

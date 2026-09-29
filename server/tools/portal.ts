@@ -6,6 +6,7 @@ import type { BuilderChannel } from '../builder/channel';
 import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 import registryPage from '../../tools/registry.html?raw';
+import worldEditorPage from '../../tools/world-editor.html?raw';
 
 /**
  * A door in front of the tools, so nobody has to paste an operator token into a page again.
@@ -20,7 +21,7 @@ import registryPage from '../../tools/registry.html?raw';
  *
  * ## What is here and what is not
  *
- * This is the door and the catalogue. Running the Character Builder's Claude half through it is
+ * This is the door and the catalogue. Running the Character Builder's agent half through it is
  * #103 and is deliberately a separate thing, because it wants a worker on another machine with
  * different privileges; putting a command runner behind the same `if` as a login form is how a
  * portal becomes the most dangerous thing in a deployment.
@@ -33,6 +34,7 @@ export type Asked =
   | { want: 'logout' }
   | { want: 'catalogue' }
   | { want: 'registry-data' }
+  | { want: 'world-editor-data' }
   | { want: 'tool'; id: string }
   /** The builder asking the worker to do something, or following what it is doing. */
   | { want: 'build' }
@@ -49,6 +51,7 @@ export type Asked =
 export const CATALOGUE: readonly { id: string; name: string; blurb: string }[] = [
   { id: 'character-builder', name: 'Character Builder', blurb: 'Every creature and prop, and a prompt that changes one.' },
   { id: 'registry', name: 'Domesday Book', blurb: 'A survey of a world: who lives where, and what they hold.' },
+  { id: 'world-editor', name: 'World Editor', blurb: 'Preview and pin mountain layers in a named world.' },
 ];
 
 /**
@@ -68,6 +71,10 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
   if (path === '/tools/registry/data') return { want: 'registry-data' };
+  if (path === '/tools/world-editor/data') return method === 'GET' || method === 'POST'
+    ? { want: 'world-editor-data' } : { want: 'nothing' };
+  if (path === '/tools/world-editor') return method === 'GET'
+    ? { want: 'tool', id: 'world-editor' } : { want: 'nothing' };
   /*
    * The two the builder needs, named rather than inferred.
    *
@@ -184,6 +191,8 @@ export interface PortalOptions {
   trustProxy?: boolean;
   /** The read-only Domesday answer, reached only after this portal has established a session. */
   survey?: (req: IncomingMessage, res: ServerResponse) => void;
+  /** Authenticated named-world editor; the server owns validation and publication. */
+  worldEditor?: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   /** Account-scoped connections from builders on their owners' machines. */
   channel: BuilderChannel;
   /** Where a finished run is written down. See `builder/book.ts`. */
@@ -234,7 +243,7 @@ const cataloguePage = (): string => page('ai.world tools', `
   <h1>ai.world tools</h1>
   ${CATALOGUE.map((tool) => `<a class="card" href="/tools/${tool.id}"><strong>${tool.name}</strong>`
     + `<div class="blurb">${tool.blurb}</div></a>`).join('')}
-  <a class="card" href="/tools/build/pair"><strong>Connect your builder</strong><div class="blurb">Pair Claude on your own machine.</div></a>
+  <a class="card" href="/tools/build/pair"><strong>Connect your builder</strong><div class="blurb">Pair the GPT-6 Sol worker on your own machine.</div></a>
   <form method="post" action="/tools/logout"><button type="submit">Sign out</button></form>`);
 
 /** Read a form body, with a ceiling on it: a login form is small and a megabyte of it is an attack. */
@@ -408,9 +417,16 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
+    if (asked.want === 'world-editor-data') {
+      if (options.worldEditor) await options.worldEditor(req, res);
+      else html(res, 404, page('Not a tool', '<h1>The World Editor is not available.</h1>'));
+      return true;
+    }
+
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
     if (tool.id === 'registry' && options.survey) { html(res, 200, registryThroughPortal); return true; }
+    if (tool.id === 'world-editor' && options.worldEditor) { html(res, 200, worldEditorPage); return true; }
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
       + `<a class="card" href="/tools/">Back</a>`));
     return true;

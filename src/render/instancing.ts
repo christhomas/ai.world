@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import type { PropKind } from '../world/biomes';
 import type { PropLibrary } from './props';
 import type { MeshData } from '../world/mesher';
+import type { ScenePlacement } from '../core/scene';
+import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { PROPS } from '../entities/props';
 import { worldView } from './scene';
 
 /**
@@ -41,7 +44,7 @@ const UP = new THREE.Vector3(0, 1, 0);
  * draw call. A tree or a boulder plainly casts one; a flower, a tuft of grass or a pebble drops
  * a shadow nobody can see, and the shadow pass is the most expensive half of a frame.
  *
- * The same rule creatures use for their parts, in `entities/pool.ts`, at their own scale.
+ * The same rule creatures use for their parts, in `render/entities.ts`, at their own scale.
  */
 const SHADOW_VOLUME = 0.5;
 
@@ -49,7 +52,7 @@ const SHADOW_VOLUME = 0.5;
  * How light or dark one prop stands against the next. Lighter ones lean a little warmer, as
  * foliage in the sun does; darker ones a little cooler, as foliage in its own shade does.
  */
-const shadeOf = (t: number): THREE.Color => {
+export const shadeOf = (t: number): THREE.Color => {
   const shade = 0.85 + t * 0.3;
   return tint.setRGB(shade * (0.98 + t * 0.06), shade, shade * (1.04 - t * 0.08));
 };
@@ -66,7 +69,7 @@ const worthAShadow = (geometry: THREE.BufferGeometry): boolean => {
  * wants. Both ways of drawing props go through this, so a tree put up by a chunk and the same
  * tree put up by a dungeon are the same tree rather than two things that look alike.
  */
-function composeInstance(inst: PropInstance, out: THREE.Matrix4): THREE.Matrix4 {
+export function composeInstance(inst: ScenePlacement, out: THREE.Matrix4): THREE.Matrix4 {
   quat.setFromAxisAngle(UP, inst.rot);
   // a lean is a small tip away from upright, in whatever direction this one happens to face
   const tipped = (inst.lean ?? 0.5) - 0.5;
@@ -102,12 +105,19 @@ export function addPropInstances(
   instances: Iterable<PropInstance>,
   glowMaterial: THREE.Material,
   shadows = true,
+  graph?: SceneGraph,
 ): void {
   for (const [kind, list] of byKindOf(instances)) {
     const geometry = props.geometries.get(kind);
     if (!geometry) continue;
     const mesh = new THREE.InstancedMesh(geometry, props.material, list.length);
-    list.forEach((inst, i) => {
+    const model = PROPS.get(kind);
+    const node = graph && model ? graph.add({
+      kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+      placements: list, castShadow: shadows && worthAShadow(geometry), receiveShadow: shadows,
+    }) : null;
+    if (node) { mesh.userData.graphNode = node; mesh.userData.graph = graph; }
+    (node?.kind === 'prop-batch' ? node.placements : list).forEach((inst, i) => {
       mesh.setMatrixAt(i, composeInstance(inst, matrix));
       mesh.setColorAt(i, shadeOf(inst.tint ?? 0.5));
     });
@@ -162,6 +172,7 @@ interface KindBatch {
   geometry: THREE.BufferGeometry;
   glowGeometry: THREE.BufferGeometry | undefined;
   parts: Map<string, PackedProps>;
+  nodes: Map<string, SceneNode>;
   /** Instances held across every part, which is what the buffer has to be big enough for. */
   total: number;
   mesh: THREE.InstancedMesh | null;
@@ -224,6 +235,7 @@ export class PropBatch {
     private readonly scene: THREE.Object3D,
     private readonly props: PropLibrary,
     private readonly glowMaterial: THREE.Material,
+    private readonly graph?: SceneGraph,
   ) {
     scene.add(this.group);
     // nothing in here ever moves, so the frame need not walk it asking whether anything has
@@ -242,11 +254,20 @@ export class PropBatch {
       if (!batch) {
         batch = {
           geometry, glowGeometry: this.props.glows.get(kind),
-          parts: new Map(), total: 0, mesh: null, glow: null, capacity: 0,
+          parts: new Map(), nodes: new Map(), total: 0, mesh: null, glow: null, capacity: 0,
         };
         this.kinds.set(kind, batch);
       }
-      batch.parts.set(key, pack(list));
+      const model = PROPS.get(kind);
+      if (this.graph && model) {
+        const node: Extract<SceneNode, { kind: 'prop-batch' }> = {
+          kind: 'prop-batch', parts: model.parts, glowParts: model.glow,
+          placements: list, castShadow: worthAShadow(geometry), receiveShadow: true,
+        };
+        this.graph.add(node);
+        batch.nodes.set(key, node);
+        batch.parts.set(key, pack(node.placements as PropInstance[]));
+      } else batch.parts.set(key, pack(list));
       batch.total += list.length;
       this.dirty = true;
     }
@@ -258,6 +279,9 @@ export class PropBatch {
       const part = batch.parts.get(key);
       if (!part) continue;
       batch.parts.delete(key);
+      const node = batch.nodes.get(key);
+      if (node) this.graph?.remove(node);
+      batch.nodes.delete(key);
       batch.total -= part.count;
       this.dirty = true;
       // a kind nobody is growing any more keeps no mesh: an InstancedMesh with nothing in it is
@@ -352,7 +376,10 @@ export class PropBatch {
   }
 
   dispose(): void {
-    for (const batch of this.kinds.values()) this.drop(batch);
+    for (const batch of this.kinds.values()) {
+      for (const node of batch.nodes.values()) this.graph?.remove(node);
+      this.drop(batch);
+    }
     this.kinds.clear();
     this.scene.remove(this.group);
   }
@@ -367,7 +394,13 @@ function uploaded(attribute: THREE.InstancedBufferAttribute, count: number): voi
 
 /** Free the geometries and instance buffers of everything `addPropInstances` put in a group. */
 export function disposeInstances(parent: THREE.Object3D): void {
-  parent.traverse((o) => { if (o instanceof THREE.InstancedMesh) o.dispose(); });
+  parent.traverse((o) => {
+    if (!(o instanceof THREE.InstancedMesh)) return;
+    const graph = o.userData.graph as SceneGraph | undefined;
+    const node = o.userData.graphNode as SceneNode | undefined;
+    if (graph && node) graph.remove(node);
+    o.dispose();
+  });
 }
 
 /** A three.js mesh from the flat arrays the mesher and workers produce. */

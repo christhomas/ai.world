@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import { exposeRenderer } from '../render/probe';
 import { thermalsAround } from '../world/thermals';
 import { maelstromsAround } from '../world/maelstroms';
 import { shaftsAround } from '../world/shafts';
@@ -7,14 +7,20 @@ import { CAMERA } from '../core/config';
 import { PropKind } from '../world/biomes';
 import { nameOfProp } from '../world/catalogue';
 import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
+import { canStand } from '../entities/entity';
+import { KINDS } from '../entities/animals';
+import { rangesAsMassifs } from '../world/ranges';
+import { Manifest } from '../world/manifest';
+import { layTheCarcass } from './baiting';
+import { tilesToVillage } from './camp';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
 import type { Site, Structures } from '../world/structures';
-import type { EntityRenderer } from '../entities/pool';
+import type { EntityRenderer } from '../render/entities';
 import type { Mount } from './mount';
 import { StructureKind } from '../world/structures';
 import type { Jail } from './jail';
@@ -207,13 +213,20 @@ export function installProbes(ctx: Probed): void {
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;
+  (debug as { __canStand?: (kind: string, x: number, z: number) => boolean }).__canStand =
+    (kind, x, z) => !!KINDS[kind] && canStand(chunks, KINDS[kind], x, z);
+  const baitHigh = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
+  (debug as { __baitChance?: (x: number, z: number) => number }).__baitChance = (x, z) =>
+    layTheCarcass(new Manifest(seed), seed, state.day, baitHigh,
+      (tx, tz) => sampler.probe(tx, tz).land,
+      tilesToVillage(structures.villages, x, z), x, z).chance;
   (debug as { __pods?: () => unknown }).__pods = () => pods();
   (debug as { __sailing?: unknown }).__sailing = sailing;
   (debug as { __whaleY?: () => number[] }).__whaleY = () => {
     const now = worldSeconds(state.day, state.time);
     return pods().flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
   };
-  (debug as { __three?: unknown }).__three = THREE;
+  exposeRenderer(debug);
   (debug as { __online?: unknown }).__online = online;
   debug.__doors = structures.doors;
   (debug as { __villages?: unknown }).__villages = structures.villages;
@@ -505,6 +518,7 @@ export function installProbes(ctx: Probed): void {
     return {
       hero: { x: player.x, z: player.z },
       horse: horse ? { x: horse.x, z: horse.z } : null,
+      cargo: mount.cargo,
       under: horse ? Math.hypot(player.x - horse.x, player.z - horse.z) : null,
     };
   };

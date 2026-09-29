@@ -268,20 +268,20 @@ describe('a run somebody is following', () => {
 describe('what the builder is heard saying', () => {
   it('hears text as it is typed', () => {
     expect(readEvent({
-      type: 'stream_event',
-      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'hello' } },
+      type: 'item.updated',
+      item: { id: 'message_1', type: 'agent_message', text: 'hello' },
     }, '/tree')).toEqual([{ k: 'say', text: 'hello' }]);
   });
 
   it('hears a tool, and says what it was used on', () => {
     expect(readEvent({
-      type: 'assistant',
-      message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/tree/src/a.ts' } }] },
-    }, '/tree')).toEqual([{ k: 'tool', name: 'Edit', on: 'src/a.ts' }]);
+      type: 'item.started',
+      item: { id: 'command_1', type: 'command_execution', command: 'edit /tree/src/a.ts' },
+    }, '/tree')).toEqual([{ k: 'tool', name: 'Command', on: 'edit src/a.ts' }]);
   });
 
   it('drops what it does not recognise, because the CLI is free to change its shapes', () => {
-    for (const msg of [{ type: 'system' }, { type: 'stream_event', event: { type: 'ping' } }, {}]) {
+    for (const msg of [{ type: 'system' }, { type: 'item.updated', item: { type: 'ping' } }, {}]) {
       expect(readEvent(msg, '/tree')).toEqual([]);
     }
   });

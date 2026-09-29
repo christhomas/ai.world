@@ -10,10 +10,46 @@ const kept = new FileVault();
 import { describeWorlds } from './worlds';
 import { cleanDelta, cleanLetter, cleanStallItem, deltaKey } from './protocol';
 import { provinceOf, provincePath } from '../src/world/provinces';
+import { HoldingBook, type HoldingDay } from '../src/world/holdingbook';
+import { ownerFromSave } from '../src/world/holdings';
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'aiworld-'));
 
 describe('the shared world', () => {
+  it('saves and restores holding mornings without paying them twice', () => {
+    const dir = scratch();
+    try {
+      const path = worldPath(dir, 77);
+      const fact: HoldingDay = { day: 5, holding: 'yard-1', kind: 'crew', who: 'bob',
+        funder: ownerFromSave('rich'), wage: 12, paid: 12 };
+      const firstBook = new HoldingBook();
+      firstBook.stood('Ashford', 5, [fact], new Map([
+        [ownerFromSave('rich'), -12], [ownerFromSave('bob'), 12],
+      ]));
+      const income = { type: 'income' as const, day: 5, holding: 'farm-1',
+        owner: ownerFromSave('rich'), cattle: 2.16, crop: 1.24 };
+      firstBook.earned('Ashford', [income]);
+      const first = new SharedWorld(77, path, { day: 5, time: 0 }, dir, kept);
+      first.keepsTheRegister({ compact: () => {}, holdingsBook: firstBook });
+      first.tick(1);
+      first.save();
+
+      const second = new SharedWorld(77, path, { day: 1, time: 0 }, dir, kept);
+      const secondBook = new HoldingBook();
+      second.keepsTheRegister({ compact: () => {}, holdingsBook: secondBook });
+      expect(second.holdingDays).toEqual(first.holdingDays);
+      expect(secondBook.paidTo('bob', 5)).toBe(12);
+      expect(secondBook.incomeOn('farm-1')).toEqual([income]);
+      secondBook.restore(second.holdingDays);
+      expect(secondBook.on('yard-1')).toEqual([fact]);
+      expect(secondBook.incomeOn('farm-1')).toEqual([income]);
+      expect(secondBook.paidTo('bob', 5)).toBe(12);
+      second.tick(1);
+      second.save();
+      expect(new SharedWorld(77, path, { day: 1, time: 0 }, dir, kept).holdingDays)
+        .toEqual(first.holdingDays);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   it('keeps its own time and rolls over at midnight', () => {
     const dir = scratch();
     try {

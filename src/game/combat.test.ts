@@ -3,7 +3,7 @@ import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd, damageEntity, type TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from '../render/entities';
 import { GameState } from './state';
 import { COMBAT, spoils, swing } from './combat';
 import * as THREE from 'three';

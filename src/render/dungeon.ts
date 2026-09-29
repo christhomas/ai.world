@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { buildChunkMesh, type WallCut } from '../world/mesher';
-import { addPropInstances, disposeInstances, meshFromData } from '../render/instancing';
-import type { PropLibrary } from '../render/props';
-import type { DungeonWorld } from './world';
+import { addPropInstances, disposeInstances } from './instancing';
+import type { PropLibrary } from './props';
+import type { DungeonWorld } from '../dungeon/world';
+import { SceneGraph } from '../core/scenegraph';
+import { mountSceneGraph } from './scenegraph';
 
 const MAX_TORCH_LIGHTS = 10;
 
@@ -46,9 +48,10 @@ const DROWNED = { sky: 0x03131a, ambient: 0x2c5a5e, above: 0x3f8a8a, below: 0x0a
 
 /** Builds and owns the three.js scene for one dungeon visit. */
 export class DungeonScene {
-  readonly scene = new THREE.Scene();
+  readonly graph: SceneGraph;
+  readonly scene: THREE.Scene;
   readonly heroLight = new THREE.PointLight(0xffc080, 3, 7, 1.6);
-  private readonly terrain: THREE.Mesh[] = [];
+  private readonly mounted: ReturnType<typeof mountSceneGraph>;
   private propMeshes: THREE.Object3D[] = [];
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffb040 });
 
@@ -64,13 +67,10 @@ export class DungeonScene {
     const air = world.style === 'thicket' ? WOODED
       : world.style === 'castle' ? KEEP
         : world.style === 'sunken' ? DROWNED : UNDER_ROCK;
-    this.scene.background = new THREE.Color(air.sky);
-    this.scene.add(new THREE.AmbientLight(air.ambient, air.strength));
-    const hemi = new THREE.HemisphereLight(air.above, air.below, 0.7);
-    this.scene.add(hemi);
-    this.scene.add(this.heroLight);
+    this.graph = new SceneGraph(air.sky);
+    this.graph.add({ kind: 'ambient', colour: air.ambient, intensity: air.strength });
+    this.graph.add({ kind: 'hemisphere', sky: air.above, ground: air.below, intensity: 0.7 });
 
-    const landMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     const per = world.chunksPerSide;
     for (let cz = 0; cz < per; cz++) {
       for (let cx = 0; cx < per; cx++) {
@@ -78,17 +78,16 @@ export class DungeonScene {
         if (chunk.empty) continue;
         const meshes = buildChunkMesh(chunk, seed, wallsOf(world.style));
         if (meshes.land) {
-          const land = meshFromData(meshes.land, landMat);
-          land.castShadow = true;
-          land.receiveShadow = true;
-          this.scene.add(land);
-          this.terrain.push(land);
+          this.graph.add({
+            kind: 'mesh', geometry: meshes.land, material: 'lit-vertex-colours',
+            castShadow: true, receiveShadow: true,
+          });
         }
         if (meshes.water) {
-          const water = meshFromData(meshes.water, waterMaterial);
-          water.renderOrder = 2;
-          this.scene.add(water);
-          this.terrain.push(water);
+          this.graph.add({
+            kind: 'mesh', geometry: meshes.water, material: 'water',
+            receiveShadow: false, renderOrder: 2,
+          });
         }
       }
     }
@@ -97,10 +96,14 @@ export class DungeonScene {
     const step = Math.max(1, Math.ceil(torches.length / MAX_TORCH_LIGHTS));
     for (let i = 0; i < torches.length; i += step) {
       const t = torches[i];
-      const light = new THREE.PointLight(0xffa040, 5, 11, 1.5);
-      light.position.set(t.x + 0.5 + Math.cos(t.rot) * 0.8, 2.0, t.z + 0.5 - Math.sin(t.rot) * 0.8);
-      this.scene.add(light);
+      this.graph.add({
+        kind: 'point', colour: 0xffa040, intensity: 5, distance: 11, decay: 1.5,
+        position: [t.x + 0.5 + Math.cos(t.rot) * 0.8, 2.0, t.z + 0.5 - Math.sin(t.rot) * 0.8],
+      });
     }
+    this.mounted = mountSceneGraph(this.graph, waterMaterial);
+    this.scene = this.mounted.scene;
+    this.scene.add(this.heroLight);
     this.rebuildProps(opened);
   }
 
@@ -109,12 +112,12 @@ export class DungeonScene {
     for (const m of this.propMeshes) { this.scene.remove(m); disposeInstances(m); }
     this.propMeshes = [];
     const before = this.scene.children.length;
-    addPropInstances(this.scene, this.props, this.world.props(opened), this.glowMaterial);
+    addPropInstances(this.scene, this.props, this.world.props(opened), this.glowMaterial, true, this.graph);
     this.propMeshes = this.scene.children.slice(before);
   }
 
   dispose(): void {
-    for (const t of this.terrain) t.geometry.dispose();
+    this.mounted.dispose();
     for (const m of this.propMeshes) disposeInstances(m);
     this.glowMaterial.dispose();
   }

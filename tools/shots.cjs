@@ -1058,8 +1058,53 @@ async function take(browser, shot) {
    * heard about bears — and they stack up in the corner for a few seconds. A picture taken at two
    * seconds is a picture of the game telling you about itself.
    */
-  await advance(page, shot.settle ?? 9000);
+  // Rain strength eases over several seconds after a teleport. Let the lighting converge before
+  // comparing two renderer builds; the usual editorial shots keep their shorter requested delay.
+  await advance(page, process.env.STATIC_SCENE === '1' ? Math.max(shot.settle ?? 9000, 30000) : shot.settle ?? 9000);
   if (!shot.page && !['interior', 'dungeon'].includes(shot.name)) await settleCountry(page);
+  // Architecture comparisons can omit moving creatures while retaining terrain, props and light.
+  // The scene keeps updating after setup, so changing the camera layer is stable across frames.
+  if (process.env.STATIC_SCENE === '1') {
+    if (shot.name !== 'town' && shot.name !== 'mountain') throw new Error('STATIC_SCENE supports town and mountain');
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.__state.time = 0.5;
+      window.__scene?.traverse((object) => {
+        if (object.userData.pool || object.type === 'Points') object.layers.disable(0);
+      });
+      const hero = window.__player.entity, iso = window.__iso, rig = window.__rig;
+      if (!hero || !iso || !rig) throw new Error('static scene needs the live camera and rig');
+      iso.rotation = Math.PI / 4;
+      iso.lift = 18;
+      iso.target.set(hero.x, hero.y, hero.z);
+      iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 }, 0, false);
+      rig.follow(hero.x, hero.z, iso.zoom);
+      rig.sun.position.set(hero.x, 80, hero.z + 26);
+      rig.sun.target.position.set(hero.x, 0, hero.z);
+      rig.sun.intensity = 2.6;
+      rig.sun.color.setHex(0xfff3dc);
+      rig.hemi.intensity = 1;
+      rig.hemi.color.setHex(0xcfe6ff);
+      rig.hemi.groundColor.setHex(0x6f8f4f);
+      rig.ambient.intensity = 0.45;
+      rig.ambient.color.setHex(0xc9dcff);
+      rig.scene.background.setHex(0x8fc1e6);
+      rig.scene.fog.color.setHex(0x8fc1e6);
+      rig.updateWater(0);
+      rig.fitShadow();
+      rig.redrawShadows();
+      rig.draw(rig.scene, iso.camera);
+    });
+    await page.addStyleTag({ content: '#actionCard, #debug { visibility: hidden !important; }' });
+    const at = await page.evaluate(() => ({
+      hero: [window.__player.entity.x, window.__player.entity.y, window.__player.entity.z],
+      target: window.__iso.target.toArray(), lift: window.__iso.lift,
+      angle: window.__iso.rotation, zoom: window.__iso.zoom,
+      sky: window.__rig.scene.background.getHex(), sun: window.__rig.sun.intensity,
+    }));
+    console.log(`static ${shot.name} ${JSON.stringify(at)}`);
+  }
   console.log(`${shot.name}: final frame ready`);
   await page.evaluate(() => window.__shotClock.release());
   const file = path.join(OUT, `${shot.name}.png`);

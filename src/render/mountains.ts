@@ -1,8 +1,11 @@
 import * as THREE from 'three';
+import type { IsoCamera } from './camera';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
 import { hexToLinear } from '../world/mesher';
 import { type Ranges } from '../world/ranges';
+import type { SceneGeometry, SceneGraph, SceneNode } from '../core/scenegraph';
+import { ThreeGraphBridge } from './scenegraph';
 
 /**
  * Drawing the mountains.
@@ -130,7 +133,7 @@ const HOLE = {
  * between faces — the usual economy — would average their normals and round the ridges off, which
  * is precisely the look being got rid of.
  */
-export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THREE.Mesh | null {
+export function buildMountainGeometry(ranges: Ranges): SceneGeometry | null {
   const count = ranges.tris.length / 9;
   if (count === 0) return null;
 
@@ -191,10 +194,17 @@ export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THR
     }
   }
 
+  return { positions, normals, colors };
+}
+
+/** Existing Three mesh adapter for callers that do not mount a graph. */
+export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THREE.Mesh | null {
+  const data = buildMountainGeometry(ranges);
+  if (!data) return null;
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(data.colors!, 3));
   geometry.computeBoundingSphere();
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
@@ -260,6 +270,7 @@ export class MountainMaterial {
   };
 
   constructor() {
+    this.material.userData.effects = ['mountain-cutaway'];
     this.material.customProgramCacheKey = () => 'ai-world-mountain';
     this.material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.uniforms);
@@ -305,6 +316,10 @@ float rockDither(vec2 p) {
     this.uniforms.uLook.value.copy(target).sub(camera.position).normalize();
   }
 
+  lookAt(hero: { x: number; y: number; z: number }, camera: IsoCamera): void {
+    this.look(new THREE.Vector3(hero.x, hero.y, hero.z), camera.camera, camera.target);
+  }
+
   dispose(): void {
     this.material.dispose();
   }
@@ -336,9 +351,13 @@ function mix(a: readonly [number, number, number], b: readonly [number, number, 
  */
 export class Mountains {
   private mesh: THREE.Mesh | null = null;
+  private node: Extract<SceneNode, { kind: 'mesh' }> | null = null;
+  private readonly bridge: ThreeGraphBridge | null;
   private showing: Ranges | null = null;
 
-  constructor(private readonly scene: THREE.Scene, private readonly material: THREE.Material) {}
+  constructor(private readonly scene: THREE.Scene, private readonly material: THREE.Material, graph?: SceneGraph) {
+    this.bridge = graph ? new ThreeGraphBridge(graph, scene, material, material) : null;
+  }
 
   /** What is standing in the scene at the moment, for anything that has to agree with it. */
   get ranges(): Ranges | null {
@@ -356,11 +375,22 @@ export class Mountains {
     if (ranges === this.showing) return;
     this.showing = ranges;
     if (this.mesh) {
-      this.scene.remove(this.mesh);
-      this.mesh.geometry.dispose();
+      if (this.node && this.bridge) this.bridge.remove(this.node);
+      else { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); }
       this.mesh = null;
+      this.node = null;
     }
     if (!ranges) return;
+    if (this.bridge) {
+      const geometry = buildMountainGeometry(ranges);
+      if (!geometry) return;
+      this.node = { kind: 'mesh', geometry, material: 'lit-vertex-colours',
+        castShadow: true, receiveShadow: true, frustumCulled: false,
+        effects: ['mountain-cutaway'] };
+      this.mesh = this.bridge.add(this.node);
+      this.mesh.name = 'mountains';
+      return;
+    }
     const built = buildMountainMesh(ranges, this.material);
     if (!built) return;
     this.scene.add(built);

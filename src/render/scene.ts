@@ -2,10 +2,30 @@ import * as THREE from 'three';
 import { composerFor, worthAComposer } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
+import { SceneGraph, type SceneGeometry, type SceneNode } from '../core/scenegraph';
 import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
+import type { RecordingPipeline } from './recording';
+import type { IsoCamera } from './camera';
+import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
+import { MountedThreePipeline, submitGraphFrame, type FramePipeline } from './pipeline';
 
 const SKY = 0x8fc1e6;
+
+const translated = (x: number, y: number, z: number): number[] =>
+  [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+
+/** Extract a surface once; its typed arrays belong to the graph from then on. */
+function surfaceGeometry(geometry: THREE.BufferGeometry): SceneGeometry {
+  return {
+    positions: geometry.getAttribute('position').array as Float32Array,
+    normals: geometry.getAttribute('normal').array as Float32Array,
+    colors: geometry.getAttribute('color')?.array as Float32Array | undefined,
+    flow: geometry.getAttribute('flow')?.array as Float32Array | undefined,
+    sea: geometry.getAttribute('sea')?.array as Float32Array | undefined,
+    indices: geometry.index?.array as Uint16Array | Uint32Array | undefined,
+  };
+}
 
 /**
  * Half the depth of ground the camera covers, as a fraction of the zoom. The frustum is `zoom`
@@ -200,6 +220,13 @@ export function fogReach(chunks: number = WORLD.VIEW_RADIUS): { near: number; fa
 
 export interface SceneRig {
   scene: THREE.Scene;
+  graph: SceneGraph;
+  lighting: {
+    sun: Extract<SceneNode, { kind: 'directional' }>;
+    hemi: Extract<SceneNode, { kind: 'hemisphere' }>;
+    ambient: Extract<SceneNode, { kind: 'ambient' }>;
+    lantern: Extract<SceneNode, { kind: 'point' }>;
+  };
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
   ambient: THREE.AmbientLight;
@@ -251,7 +278,7 @@ export interface SceneRig {
    * A second rig that draws through an `EffectComposer` (#250) is now a rig with a different
    * `draw`, and nothing that asks for a picture has to know which kind it got.
    */
-  draw(scene: THREE.Scene, camera: THREE.Camera): void;
+  draw(graph: SceneGraph, camera: IsoCamera): void;
   /**
    * The canvas the picture lands on, for the things that legitimately need the element itself:
    * hanging input listeners on it, taking it out of the document, and reading it back for a photo.
@@ -295,7 +322,7 @@ export interface SceneRig {
  * pass however the preference reads. See `secondrig.ts` for why this is the only thing that
  * differs between the two paths.
  */
-export function createSceneRig(container: HTMLElement, asked = false): SceneRig {
+export function createSceneRig(container: HTMLElement, asked = false, recording?: RecordingPipeline): SceneRig {
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     // photo mode reads the canvas back after a frame, which needs the buffer kept
@@ -312,10 +339,13 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY);
+  const graph = new SceneGraph(SKY);
+  const detachGraph = attachSceneGraph(graph, scene);
   // and the same colour again as fog, so far country recedes towards the sky instead of standing at
   // the contrast of the ground underfoot. A `DayCycle` re-tints both together every frame; a rig
   // with no day cycle keeps this pair, which is the sky it was already drawing
   scene.fog = new THREE.Fog(SKY, fogReach().near, fogReach().far);
+  graph.fog = { colour: SKY, ...fogReach() };
 
   const ambient = new THREE.AmbientLight(0xc9dcff, 0.45);
   scene.add(ambient);
@@ -333,6 +363,14 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
   sun.shadow.normalBias = 0.03;
   scene.add(sun);
   scene.add(sun.target);
+  const lighting: SceneRig['lighting'] = {
+    ambient: graph.add({ kind: 'ambient', colour: 0xc9dcff, intensity: 0.45 }) as SceneRig['lighting']['ambient'],
+    hemi: graph.add({ kind: 'hemisphere', sky: 0xcfe6ff, ground: 0x6f8f4f, intensity: 1 }) as SceneRig['lighting']['hemi'],
+    sun: graph.add({ kind: 'directional', colour: 0xfff3dc, intensity: 2.6,
+      position: [38, 72, 22], target: [0, 0, 0], castShadow: true }) as SceneRig['lighting']['sun'],
+    lantern: graph.add({ kind: 'point', colour: 0xffb060, intensity: 0, distance: 9, decay: 1.6,
+      position: [0, 0, 0] }) as SceneRig['lighting']['lantern'],
+  };
 
   // Water: one big translucent plane that follows the camera. Seabed shows through near the coast,
   // the dark "deep" plane underneath makes open water read as depth.
@@ -352,19 +390,21 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
     // a fall, and none of those has a coastline to bend a swell round
     seaGeo.setAttribute('sea', new THREE.BufferAttribute(new Float32Array(n).fill(1), 1));
   }
-  const water = new THREE.Mesh(seaGeo, waterMat.material);
-  water.position.y = WORLD.WATER_Y;
-  water.renderOrder = 1;
-  scene.add(water);
-
-  const deep = new THREE.Mesh(
-    new THREE.PlaneGeometry(900, 900),
-    new THREE.MeshLambertMaterial({ color: 0x1d4f78 }),
-  );
-  deep.rotation.x = -Math.PI / 2;
-  deep.position.y = -0.03;
-  deep.receiveShadow = true;
-  scene.add(deep);
+  const deepMaterial = new THREE.MeshLambertMaterial({ color: 0x1d4f78 });
+  const surfaceBridge = new ThreeGraphBridge(graph, scene, deepMaterial, waterMat.material, deepMaterial);
+  const waterNode: Extract<SceneNode, { kind: 'mesh' }> = {
+    kind: 'mesh', geometry: surfaceGeometry(seaGeo), material: 'water',
+    receiveShadow: false, renderOrder: 1, world: translated(0, WORLD.WATER_Y, 0),
+  };
+  surfaceBridge.add(waterNode);
+  seaGeo.dispose();
+  const deepGeo = new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2);
+  const deepNode: Extract<SceneNode, { kind: 'mesh' }> = {
+    kind: 'mesh', geometry: surfaceGeometry(deepGeo), material: 'lit-solid', colour: 0x1d4f78,
+    receiveShadow: true, world: translated(0, -0.03, 0),
+  };
+  surfaceBridge.add(deepNode);
+  deepGeo.dispose();
 
   const SUN_OFFSET = new THREE.Vector3(38, 72, 22);
 
@@ -383,9 +423,10 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
 
   // the second path, or nothing at all. Built after the quality is known, because `low` refuses it
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
+  const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
 
   return {
-    scene, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
+    scene, graph, lighting, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
     quality: remembered,
     setQuality(level: Quality) {
       const want = QUALITY[level];
@@ -393,6 +434,7 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, want.pixels));
       renderer.shadowMap.enabled = want.shadows;
       sun.castShadow = want.shadows;
+      lighting.sun.castShadow = want.shadows;
       if (sun.shadow.mapSize.x !== want.shadowMap) {
         sun.shadow.mapSize.set(want.shadowMap, want.shadowMap);
         // the old shadow map is the wrong size now; three builds a new one when this is dropped
@@ -412,6 +454,8 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
     follow(x, z, zoom) {
       sun.target.position.set(x, 0, z);
       if (!this.sunDriven) sun.position.set(x + SUN_OFFSET.x, SUN_OFFSET.y, z + SUN_OFFSET.z);
+      lighting.sun.target = [x, 0, z];
+      if (!this.sunDriven) lighting.sun.position = [sun.position.x, sun.position.y, sun.position.z];
       const half = zoom * SHADOW_SPREAD;
       const cam = sun.shadow.camera;
       if (cam.right !== half) {
@@ -419,8 +463,10 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
         cam.updateProjectionMatrix();
       }
       shadowHalf = half;
-      water.position.set(x, WORLD.WATER_Y, z);
-      deep.position.set(x, -0.03, z);
+      waterNode.world = translated(x, WORLD.WATER_Y, z);
+      deepNode.world = translated(x, -0.03, z);
+      surfaceBridge.sync(waterNode);
+      surfaceBridge.sync(deepNode);
       // the ground in shot is a rectangle zoom*aspect across by zoom*GROUND_DEPTH*2 deep, centred
       // on the target; nothing past its half-diagonal can be seen, so nothing there need be drawn
       const size = renderer.getSize(viewSize);
@@ -458,11 +504,24 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
       second?.resize();
     },
     draw(what, camera) {
-      if (second) second.draw(what, camera);
-      else renderer.render(what, camera);
+      what.camera = camera.frameCamera();
+      let pipeline = mountedPipelines.get(what);
+      if (!pipeline) {
+        pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
+          if (second) second.draw(mountedScene, mountedCamera);
+          else renderer.render(mountedScene, mountedCamera);
+        });
+        mountedPipelines.set(what, pipeline);
+      }
+      const sinks: FramePipeline[] = [pipeline];
+      if (recording) sinks.push({ draw: (frame) => recording.draw(() => frame) });
+      submitGraphFrame(what, sinks);
     },
     get canvas() { return renderer.domElement; },
     dispose() {
+      detachGraph();
+      surfaceBridge.dispose();
+      deepMaterial.dispose();
       waterMat.dispose();
       coast.dispose();
       second?.dispose();
@@ -479,8 +538,8 @@ export function createSceneRig(container: HTMLElement, asked = false): SceneRig 
       return describeGpu(renderer);
     },
     setBrightness(of, value) {
-      if (of === 'sun') sun.intensity = value;
-      else hemi.intensity = value;
+      if (of === 'sun') { lighting.sun.intensity = value; sun.intensity = value; }
+      else { lighting.hemi.intensity = value; hemi.intensity = value; }
     },
   };
 }

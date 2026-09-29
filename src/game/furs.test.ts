@@ -92,6 +92,13 @@ describe('what a fur is worth, and where', () => {
 });
 
 describe('the bodies left lying about', () => {
+  it('puts down a carried body with only its remaining lifetime', () => {
+    const ground = new Carcasses();
+    expect(ground.put({ kind: 'goat', left: 8 }, 4, 5)).toEqual({ kind: 'goat', x: 4, z: 5, left: 8 });
+    expect(ground.put({ kind: 'goat', left: 0 }, 4, 5)).toBeNull();
+    ground.age(9);
+    expect(ground.all).toHaveLength(0);
+  });
   it('leaves a body only where there is a hide on it', () => {
     const ground = new Carcasses();
     expect(ground.fell('wolf', 3, 4)).not.toBeNull();

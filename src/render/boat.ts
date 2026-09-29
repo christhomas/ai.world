@@ -25,3 +25,23 @@ export function buildBoat(): THREE.Group {
   g.position.y = WORLD.WATER_Y - 0.12;
   return g;
 }
+
+/** A game-facing boat handle with pose changes owned by the renderer. */
+export interface BoatVisual {
+  visible: boolean;
+  setPose(x: number, y: number, z: number, yaw: number): void;
+}
+
+export function putBoatIn(scene: THREE.Scene): BoatVisual {
+  const mesh = buildBoat();
+  mesh.visible = false;
+  scene.add(mesh);
+  return {
+    get visible() { return mesh.visible; },
+    set visible(on: boolean) { mesh.visible = on; },
+    setPose(x, y, z, yaw) {
+      mesh.position.set(x, y, z);
+      mesh.rotation.y = yaw;
+    },
+  };
+}

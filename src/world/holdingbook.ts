@@ -1,12 +1,11 @@
 import type { Owner } from './holdings';
 
 /**
- * Every morning a holding paid somebody to stand its post, kept for as long as the save lives.
+ * Dated work and income facts about a holding, kept for as long as the save lives.
  *
- * A hero's farm earns while he is asleep — `postings.ts` stands its posts in the register's own
- * day, so a morning nobody watched pays exactly what a morning he watched would have. #264 asks
- * for the record of that, and asks for it in a particular shape, keyed by **holding** and folded
- * nowhere.
+ * A hero's farm earns while he is asleep — `postings.ts` stands its posts and `aday.ts` records
+ * its cattle and crop receipts in the register's own day. Nobody reading this book pays anyone.
+ * #264 asks for facts keyed by **holding** and folded nowhere.
  *
  * ## Why every fact and not a running total
  *
@@ -56,13 +55,26 @@ export interface HoldingDay {
    * And what actually left a purse for it, which is not the same number and cannot be derived.
    *
    * Nought where a man stands his own yard — the two ends of the hand-over are one purse, so the
-   * wage is real work at a real price and no coin moves — and nought where either end is not on
-   * the village's roll. A reader wanting *what this holding cost its owner* wants this; a reader
-   * wanting *what a day on it was worth* wants `wage`. Keeping only one of them would have made
-   * the other unanswerable, which is the whole argument of this file in one field.
+   * wage is real work at a real price and no coin moves. A hall-owned holding instead transfers
+   * from the hall treasury to the worker's purse. A reader wanting *what this holding cost its
+   * owner* wants this; a reader wanting *what a day on it was worth* wants `wage`. Keeping only one
+   * of them would have made the other unanswerable, the argument of this file in one field.
    */
   paid: number;
 }
+
+/** Farm income already allocated by the day's economy; writing it never moves money. */
+export interface HoldingIncome {
+  type: 'income';
+  day: number;
+  holding: string;
+  owner: Owner;
+  cattle: number;
+  crop: number;
+}
+
+/** A daybook fact with the village key needed to restore or send it. */
+export type HoldingRecord = { village: string } & (HoldingDay | HoldingIncome);
 
 export class HoldingBook {
   /**
@@ -80,6 +92,7 @@ export class HoldingBook {
    * it came from. `register.settle` forgets the place before it lives it again.
    */
   private readonly told = new Map<string, Map<string, Map<number, HoldingDay>>>();
+  private readonly income = new Map<string, Map<string, Map<string, HoldingIncome>>>();
 
   /**
    * What a post moved in or out of one person's purse on one morning.
@@ -96,6 +109,68 @@ export class HoldingBook {
   private readonly nets = new Map<string, Map<string, number>>();
 
   private key(id: string, day: number): string { return `${id}:${Math.floor(day)}`; }
+
+  /** A stable, flat snapshot for a world save or a joining client's welcome. */
+  records(): HoldingRecord[] {
+    const rows: HoldingRecord[] = [];
+    for (const [village, here] of this.told) for (const days of here.values()) {
+      for (const fact of days.values()) rows.push({ village, ...fact });
+    }
+    for (const [village, here] of this.income) for (const days of here.values()) {
+      for (const fact of days.values()) rows.push({ village, ...fact });
+    }
+    return rows.sort((a, b) => a.village.localeCompare(b.village)
+      || a.day - b.day || a.holding.localeCompare(b.holding)
+      || ('type' in a ? 1 : 0) - ('type' in b ? 1 : 0));
+  }
+
+  /** Restore facts and their daily net index without transferring a coin. */
+  restore(records: readonly HoldingRecord[]): void {
+    this.told.clear();
+    this.income.clear();
+    this.nets.clear();
+    for (const { village, ...fact } of records) {
+      if ('type' in fact) {
+        this.earned(village, [fact]);
+        continue;
+      }
+      let here = this.told.get(village);
+      if (!here) { here = new Map(); this.told.set(village, here); }
+      let days = here.get(fact.holding);
+      if (!days) { days = new Map(); here.set(fact.holding, days); }
+      days.set(fact.day, fact);
+    }
+    for (const [village, here] of this.told) {
+      const purses = new Map<string, number>();
+      for (const days of here.values()) for (const fact of days.values()) {
+        if (fact.paid <= 0) continue;
+        const funder = this.key(fact.funder, fact.day);
+        const worker = this.key(fact.who, fact.day);
+        purses.set(funder, (purses.get(funder) ?? 0) - fact.paid);
+        purses.set(worker, (purses.get(worker) ?? 0) + fact.paid);
+      }
+      this.nets.set(village, purses);
+    }
+  }
+
+  /** Replace a village's dated attribution with the same fact on replay or restore. */
+  earned(village: string, facts: readonly HoldingIncome[]): void {
+    let here = this.income.get(village);
+    if (!here) { here = new Map(); this.income.set(village, here); }
+    for (const fact of facts) {
+      let days = here.get(fact.holding);
+      if (!days) { days = new Map(); here.set(fact.holding, days); }
+      days.set(this.key(fact.owner, fact.day), { ...fact, day: Math.floor(fact.day) });
+    }
+  }
+
+  incomeOn(holding: string): readonly HoldingIncome[] {
+    for (const here of this.income.values()) {
+      const days = here.get(holding);
+      if (days) return [...days.values()].sort((a, b) => a.day - b.day || a.owner.localeCompare(b.owner));
+    }
+    return [];
+  }
 
   /**
    * One village's morning, written down.
@@ -132,6 +207,7 @@ export class HoldingBook {
    */
   forget(village: string): void {
     this.told.delete(village);
+    this.income.delete(village);
     this.nets.delete(village);
   }
 
@@ -197,8 +273,6 @@ export class HoldingBook {
    * about whether keeping everything is affordable.
    */
   weigh(): number {
-    const rows: HoldingDay[] = [];
-    for (const here of this.told.values()) for (const days of here.values()) rows.push(...days.values());
-    return JSON.stringify(rows).length;
+    return JSON.stringify(this.records()).length;
   }
 }

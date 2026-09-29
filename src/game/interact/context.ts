@@ -1,8 +1,8 @@
 import type { Ore } from '../ore';
 import type { Forge } from '../forge';
-import type { ChunkManager } from '../../world/chunkManager';
+import type { ChunkManager } from '../../render/chunkManager';
 import type { EntityManager } from '../../entities/manager';
-import type { EntityRenderer } from '../../entities/pool';
+import type { EntityRenderer } from '../../render/entities';
 import type { Entity } from '../../entities/entity';
 import type { Flier } from '../craft';
 import type { WorldDelta } from '../../../server/protocol';
@@ -42,7 +42,7 @@ import type { Handover } from '../handover';
 import type { Remains } from '../remains';
 import type { FerryLine } from '../ferry';
 import type { Quest } from '../quests';
-import type * as THREE from 'three';
+import type { FerryVisual } from '../../render/ferries';
 
 /**
  * Everything an interaction can reach. One Enter press has to be able to open a door, buy a
@@ -127,7 +127,7 @@ export interface Surroundings {
   handover: Handover;
   /** Packs left where people fell, for anybody willing to go through them. */
   remains: Remains;
-  ferries: Array<{ line: FerryLine; mesh: THREE.Object3D }>;
+  ferries: Array<{ line: FerryLine; visual: FerryVisual }>;
   /** The crags with eagles on them, empty in a world with no mountains worth flying over. */
   eyries: readonly Eyrie[];
   /**
@@ -163,6 +163,8 @@ export interface Surroundings {
   raining: () => boolean;
   discover: (name: string) => void;
   persist: () => void;
+  /** Finish the save before reloading after a world-shaping prayer. */
+  persistAsync: () => Promise<void>;
   /** Tell everybody else in this world about something the player changed. */
   told: (delta: WorldDelta) => void;
   /**

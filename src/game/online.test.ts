@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WORLD_PAUSE, WORLD_RESUME, type Link, type LinkEvents } from '../net/link';
 import { PROTOCOL_VERSION, type ServerMessage } from '../../server/protocol';
 import { Online, type OnlineEvents } from './online';
+import { ownerFromSave } from '../world/holdings';
 
 /**
  * A world that stops answering.
@@ -59,6 +60,20 @@ const standing = {
 };
 
 describe('a world that goes quiet', () => {
+  it('hands the daybook snapshot in a welcome to the game', () => {
+    const world = deadWorld();
+    const received: unknown[] = [];
+    const events = new Proxy({}, { get: (_target, key) => key === 'onHoldingDays'
+      ? (rows: unknown) => received.push(rows) : () => {} }) as OnlineEvents;
+    const online = new Online(events, world.linkFor);
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 });
+    const holdingDays = [{ village: 'Ashford', day: 5, holding: 'yard-1', kind: 'crew',
+      who: 'Bob', funder: ownerFromSave('Rich'), wage: 12, paid: 12 }];
+    world.say({ type: 'welcome', id: 'p1', seed: 3, players: [],
+      clock: { day: 5, time: 0.4 }, deltas: [], holdingDays });
+    expect(received).toEqual([holdingDays]);
+  });
+
   it('is noticed, said out loud, and joined again', () => {
     const world = deadWorld();
     const game = watching();
@@ -109,10 +124,12 @@ describe('a world that goes quiet', () => {
   it('joins with the version it speaks, so a mismatch is the server\'s to refuse', () => {
     const world = deadWorld();
     const online = new Online(watching().events, world.linkFor);
-    online.connect('ws://somewhere', 7, 'Rowan', { day: 2, time: 0.1 });
+    online.connect('ws://somewhere', 7, 'Rowan', { day: 2, time: 0.1 }, {}, undefined,
+      '11111111-1111-4111-8111-111111111111');
     world.open();
-    const join = JSON.parse(world.sent[0]) as { type: string; version: number; seed: number };
-    expect(join).toMatchObject({ type: 'join', seed: 7, version: PROTOCOL_VERSION });
+    const join = JSON.parse(world.sent[0]) as { type: string; version: number; seed: number; playerId: string };
+    expect(join).toMatchObject({ type: 'join', seed: 7, version: PROTOCOL_VERSION,
+      playerId: '11111111-1111-4111-8111-111111111111' });
   });
 });
 

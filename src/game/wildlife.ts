@@ -1,6 +1,6 @@
 import { KINDS, type AnimalKind } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
-import type { EntityRenderer } from '../entities/pool';
+import type { EntityRenderer } from '../render/entities';
 import type { EntityManager } from '../entities/manager';
 import { mulberry32 } from '../core/rng';
 import type { Register } from '../world/register';

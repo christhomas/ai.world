@@ -1,15 +1,16 @@
 import { TileType } from '../world/terrain';
 import { WORLD } from '../core/config';
 import { rangesAsMassifs } from '../world/ranges';
-import { buildSkyIsland, planSkyIslands, type SkyIsland } from '../world/skyisland';
-import { skyGroundsIn } from '../world/skygrounds';
+import { buildSkyIsland, SKY, type SkyIsland, type SkySite } from '../world/skyisland';
 import { planEyries, type Eyrie } from './eyries';
 import { layTheCarcass, nestsOn, type Bait } from './baiting';
-import type { Manifest } from '../world/manifest';
+import type { Anchor, Manifest } from '../world/manifest';
 import type { Massif } from '../world/mountains';
 import type { Within } from '../world/window';
 import type { SkyIslands } from '../render/skyisland';
 import type { TerrainSampler } from '../world/terrain';
+import { anchoredHighlands } from '../world/anchoredhighlands';
+import { plannedSkySites, siteOf } from '../world/skyaccess';
 
 /**
  * What stands on and above the rock: the eagles' crags, and the villages in the clouds.
@@ -79,7 +80,10 @@ export class HighCountry {
     if (sampler === this.standing) return;
     this.standing = sampler;
 
-    const high = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
+    const high = [
+      ...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs),
+      ...anchoredHighlands(this.manifest, sampler.within),
+    ];
     const land = (x: number, z: number): boolean => sampler.probe(x, z).land;
     this.high = high;
     this.land = land;
@@ -102,11 +106,25 @@ export class HighCountry {
      * places on a stream of its own — see `skygrounds.ts`, which is item 85 and says why an island
      * was never what this actually needed.
      */
-    const grounds = sampler.within
-      ? skyGroundsIn(this.seed, sampler.within, land)
-      : sampler.graph.islands;
-    this.isles.push(...planSkyIslands(this.seed, grounds, high, land).map((site) =>
-      buildSkyIsland(site, this.manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed, land)));
+    const proposed = plannedSkySites(this.seed, sampler, this.manifest);
+    const inThisSquare = (anchor: Anchor): boolean => !sampler.within
+      || (anchor.x >= sampler.within.x0 && anchor.x < sampler.within.x1
+        && anchor.z >= sampler.within.z0 && anchor.z < sampler.within.z1);
+    let pinnedCount = this.manifest.byKind('skyisle').filter(inThisSquare).length;
+    for (const site of proposed) {
+      const existed = this.manifest.get(site.id) !== undefined;
+      if (!existed && pinnedCount >= SKY.MOST) continue;
+      const anchor = this.manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over);
+      anchor.skySite ??= { radius: site.radius, y: site.y };
+      if (!existed) pinnedCount++;
+    }
+    // A saved sky village keeps its site even when later ground edits make the planner choose
+    // differently. The fallback reconstructs older anchors that predate stored site geometry.
+    const pinned: SkySite[] = this.manifest.byKind('skyisle')
+      .filter(inThisSquare)
+      .map(siteOf);
+    this.isles.push(...pinned.map((site) =>
+      buildSkyIsland(site, this.manifest.get(site.id)!.seed, land)));
 
     const sample = sampler.newSample();
     for (const isle of this.isles) {
@@ -137,6 +155,13 @@ export class HighCountry {
     // has watched a bird settle should be able to turn round and see it there
     if (laid.nest) this.perchesBaited();
     return laid;
+  }
+
+  /** Apply the shared world's accepted nest state without rolling bait again. */
+  applyBaited(anchor: Anchor, present: boolean): void {
+    if (present) this.manifest.anchors.set(anchor.id, anchor);
+    else this.manifest.anchors.delete(anchor.id);
+    this.perchesBaited();
   }
 
   /** Rebuild the baited tail of the list, leaving the pairs the world planned exactly where they are. */

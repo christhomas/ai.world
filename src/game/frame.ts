@@ -1,13 +1,13 @@
-import * as THREE from 'three';
 import { GAMEPLAY, WORLD } from '../core/config';
 import type { Input } from '../core/input';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
-import type { EntityRenderer } from '../entities/pool';
+import type { EntityRenderer } from '../render/entities';
 import { QUALITY, type SceneRig } from '../render/scene';
 import { rememberAutoChoice, type AutoQuality } from '../render/autoquality';
 import type { Beam } from '../render/beam';
 import type { IsoCamera } from '../render/camera';
+import type { BoatVisual } from '../render/boat';
 import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
 import type { HeroGear } from '../render/herogear';
@@ -23,7 +23,7 @@ import type { HighCountry } from './highcountry';
 import type { SkyIslands } from '../render/skyisland';
 import type { Weather } from '../render/weather';
 import type { Updraughts } from '../render/updraughts';
-import type { ChunkManager } from '../world/chunkManager';
+import type { ChunkManager } from '../render/chunkManager';
 import type { RoadGraph } from '../world/graph';
 import { chunkKey } from '../world/spatial';
 import type { TerrainSampler } from '../world/terrain';
@@ -48,7 +48,7 @@ import type { Remains } from './remains';
 import { BOAT, type Sailing } from './sailing';
 import { Season, isWet, seasonAffects, seasonOf, seasonTint } from './seasons';
 import type { Skies } from './skies';
-import type { Skyline } from './skyline';
+import type { Skyline } from '../render/skyline';
 import type { GameState } from './state';
 import { goingOf, paceOf, type Going } from './stables';
 import type { Walked } from './walked';
@@ -167,7 +167,7 @@ export interface Framing {
    */
   villageRoofs: (day: number) => readonly Raised[];
   /** The hero's own boat, bobbing wherever he moored it. */
-  ownBoat: THREE.Object3D;
+  ownBoat: BoatVisual;
   minimap: Minimap;
   worldMap: WorldMap;
   hud: Hud;
@@ -228,10 +228,6 @@ export function createFrame(ctx: Framing) {
     reveal, refreshJournal,
   } = ctx;
 
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  /** Where the mountains are told the hero is: his feet plus enough to be his middle. */
-  const heroSpot = new THREE.Vector3();
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
   /** Which houses were standing when the world was last told what to walk into. */
   let wallsBuilt = '';
@@ -296,11 +292,11 @@ export function createFrame(ctx: Framing) {
     // the mountains, twice: how far back the camera stands from them, and the hole they keep open
     // in front of the hero so that being on the far side of one is not being unable to play
     skyline.update(iso, player.entity.x, player.entity.z, dt, !places.indoors && !places.underground);
-    heroSpot.set(player.entity.x, player.entity.y + HERO_EYE, player.entity.z);
-    rock.look(heroSpot, iso.camera, iso.target);
+    const heroSpot = { x: player.entity.x, y: player.entity.y + HERO_EYE, z: player.entity.z };
+    rock.lookAt(heroSpot, iso);
     // and the same hole in whatever is standing in front of him — a cottage, a wall, a wood —
     // when he has asked for one. It costs a uniform whether it is on or off
-    cutaway.look(heroSpot, iso.camera, iso.target);
+    cutaway.lookAt(heroSpot, iso);
 
     /*
      * Whoever is behind a counter watches whoever is standing at it.
@@ -337,7 +333,7 @@ export function createFrame(ctx: Framing) {
       mount.riding ? paceOf(mount.breed, goingUnderfoot()) : 1,
       mount.riding,
       state.count('cart') > 0,
-    ) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
+    ) * (state.shouldering ? 0.55 : 1) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
     if (sailing.sailing && !talking) {
       const tiller = {
         forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),
@@ -404,7 +400,7 @@ export function createFrame(ctx: Framing) {
       hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.draw(indoors.scene.scene, iso.camera);
+      rig.draw(indoors.scene.graph, iso);
       endFrame(dt);
       return;
     }
@@ -436,7 +432,7 @@ export function createFrame(ctx: Framing) {
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
         `draws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
         `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.draw(below.scene.scene, iso.camera);
+      rig.draw(below.scene.graph, iso);
       endFrame(dt);
       return;
     }
@@ -537,8 +533,7 @@ export function createFrame(ctx: Framing) {
     noticeStall();
     ownBoat.visible = sailing.bought && places.outdoors;
     if (ownBoat.visible) {
-      ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);
-      ownBoat.rotation.y = sailing.yaw;
+      ownBoat.setPose(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z, sailing.yaw);
     }
     cropField.update(plots, state.day + state.time, player.x, player.z, (x2, z2) => chunks.heightAt(x2, z2));
     const all = houses.entries();
@@ -614,9 +609,8 @@ export function createFrame(ctx: Framing) {
     musterIn -= dt;
     if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
     if (input.clicked && !talking) {
-      mouse.set((input.clickX / window.innerWidth) * 2 - 1, -(input.clickY / window.innerHeight) * 2 + 1);
-      raycaster.setFromCamera(mouse, iso.camera);
-      const e = entities.pick(raycaster);
+      const e = entities.pick((input.clickX / window.innerWidth) * 2 - 1,
+        -(input.clickY / window.innerHeight) * 2 + 1, iso);
       if (e) {
         if (Math.hypot(e.x - player.x, e.z - player.z) < GAMEPLAY.CLICK_TALK_RANGE) startTalk(e);
         else hud.flash(`${e.name} the ${e.kind.label} is too far away`);
@@ -639,7 +633,7 @@ export function createFrame(ctx: Framing) {
       })());
 
     minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
-    rig.draw(rig.scene, iso.camera);
+    rig.draw(rig.graph, iso);
     endFrame(dt);
   };
 

@@ -25,6 +25,7 @@ import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
 import { stableAt } from '../stables';
 import { KINDS } from '../../entities/animals';
+import { holdingReport } from '../holdingreport';
 
 /**
  * What Enter does inside a settlement: step through a door, read the board, deal at a market
@@ -263,6 +264,28 @@ export function villageInteractions(ctx: Surroundings) {
       const asked = whatTheHallKnows(register, village.name);
       const ballot = village.hall ? register.ballotOf(village.name) : null;
       const choices: DialogueChoice[] = [{ label: 'That is all', next: () => null }];
+      const report = (all: boolean): DialogueNode => {
+        const owner = register.living(village.name)
+          .find((person) => person.deathless && person.name === online.name)?.id ?? '';
+        const after = all ? 0 : (state.holdingReadAt.get(village.name) ?? 0);
+        const through = Math.floor(state.day);
+        return {
+          speaker: `The hall of ${village.name}`, emoji: '📖',
+          pages: holdingReport(village.name, owner, register.madeOf(village.name).holdings ?? [],
+            register.holdingsBook, after, through, (id) => register.find(id)?.name ?? id),
+          choices: all ? [{ label: 'Done', next: () => null }] : [
+            { label: 'Mark through today read', next: () => {
+              state.holdingReadAt.set(village.name, through);
+              state.version++;
+              persist();
+              return null;
+            } },
+            { label: 'Leave unread', next: () => null },
+          ],
+        };
+      };
+      choices.unshift({ label: 'Read my holdings since last visit', next: () => report(false) });
+      choices.unshift({ label: 'Read all my holding history', next: () => report(true) });
       /*
        * Item 24a's other half: a vacancy is something a player can read *and answer*.
        *
@@ -520,7 +543,12 @@ export function villageInteractions(ctx: Surroundings) {
       return true;
     }
     if (mount.near(player.x, player.z)) {
-      if (preview) { horseVerb = `Ride ${mount.name}`; return true; }
+      if (preview) { horseVerb = state.shouldering ? 'Set down the carcass before riding' : `Ride ${mount.name}`; return true; }
+      if (state.shouldering) {
+        hud.flash('Set down the carcass before mounting.');
+        sound.thud();
+        return true;
+      }
       mount.mount(player);
       hud.flash(`You swing up onto ${mount.name}.`);
       sound.chime();

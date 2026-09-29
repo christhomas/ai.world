@@ -51,11 +51,41 @@ describe('the book a village keeps of its holdings', () => {
   const SEED = 7;
   const DAYS = 120;
 
+  it('keeps farm income by day through snapshots without paying again', () => {
+    const book = new HoldingBook();
+    const earned = { type: 'income' as const, day: 5, holding: 'farm-1', owner: ownerFromSave('farmer'), cattle: 2.16, crop: 1.24 };
+    book.earned('Ashford', [earned]);
+    book.earned('Ashford', [earned]);
+    expect(book.incomeOn('farm-1')).toEqual([earned]);
+    const saved = book.records();
+    const restored = new HoldingBook();
+    restored.restore(saved);
+    expect(restored.incomeOn('farm-1')).toEqual([earned]);
+    expect(restored.paidTo('farmer', 5), 'restoring income paid the farmer a second time').toBe(0);
+    restored.forget('Ashford');
+    expect(restored.incomeOn('farm-1')).toEqual([]);
+  });
+
   it('replays identically, whichever way the village was lived', () => {
     const there = wholeBook(livedForward(SEED, DAYS));
     const after = wholeBook(relived(SEED, DAYS));
     expect(there.length, 'nobody stood a post in this village at all').toBeGreaterThan(0);
     expect(after).toEqual(there);
+  });
+
+  it('records the same farm takings on an unattended catch-up and an attended day', () => {
+    const forward = livedForward(SEED, DAYS);
+    const caughtUp = relived(SEED, DAYS);
+    const income = (register: Register) => (register.madeOf('Ashford').holdings ?? [])
+      .flatMap((holding) => register.holdingsBook.incomeOn(holding.id));
+    const there = income(forward);
+    expect(there.length, 'no farm income facts were recorded').toBeGreaterThan(0);
+    expect(there.some((row) => row.cattle > 0), 'no cattle sale was exercised').toBe(true);
+    expect(there.some((row) => row.crop > 0), 'no paid crop was exercised').toBe(true);
+    expect(income(caughtUp)).toEqual(there);
+    const before = forward.living('Ashford').map((person) => person.purse);
+    forward.holdingsBook.restore(forward.holdingsBook.records());
+    expect(forward.living('Ashford').map((person) => person.purse), 'restoring facts paid twice').toEqual(before);
   });
 
   it('keeps a row for each morning rather than a running total', () => {
@@ -109,6 +139,40 @@ describe('the book a village keeps of its holdings', () => {
     book.stood('Ashford', 6, [fact(6, 12)], new Map());
     expect(book.paidTo('bob', 6), 'a morning nothing moved on answered with an older one').toBe(0);
     expect(book.on('y1').map((one) => one.day), 'both mornings are facts about the yard').toEqual([5, 6]);
+  });
+
+  it('restores facts and daily nets without paying or duplicating a morning', () => {
+    const book = new HoldingBook();
+    const fact: HoldingDay = { day: 5, holding: 'yard-1', kind: 'crew', who: 'bob',
+      funder: ownerFromSave('rich'), wage: 12, paid: 12 };
+    book.stood('Ashford', 5, [fact], new Map([
+      [ownerFromSave('rich'), -12], [ownerFromSave('bob'), 12],
+    ]));
+    const rows = book.records();
+    expect(rows).toHaveLength(1);
+    const replay = new HoldingBook();
+    replay.restore(rows);
+    replay.restore(rows);
+    expect(replay.records()).toEqual(rows);
+    expect(replay.paidTo('rich', 5)).toBe(-12);
+    expect(replay.paidTo('bob', 5)).toBe(12);
+    expect(replay.paidTo('bob', 6)).toBe(0);
+    replay.forget('Ashford');
+    expect(replay.records()).toEqual([]);
+  });
+
+  it('re-lives a restored village without changing a purse or multiplying its facts', () => {
+    const first = relived(SEED, DAYS);
+    const restarted = relived(SEED, DAYS);
+    const records = first.holdingsBook.records();
+    expect(records.length).toBeGreaterThan(0);
+    const purses = first.living('Ashford').map((person) => [person.id, person.purse]);
+    restarted.holdingsBook.restore(records);
+    restarted.foundOn('Ashford', 6, [...TRADES, 'fisherman']);
+    restarted.foundOn('Ashford', 6, TRADES);
+    expect(restarted.holdingsBook.records()).toEqual(records);
+    expect(restarted.living('Ashford').map((person) => [person.id, person.purse]))
+      .toEqual(purses);
   });
 
   /*

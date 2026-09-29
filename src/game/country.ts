@@ -6,7 +6,7 @@ import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import { SkyIslands } from '../render/skyisland';
 import { aroundOf, aroundPatches } from '../world/around';
-import { ChunkManager } from '../world/chunkManager';
+import { ChunkManager } from '../render/chunkManager';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { viewOf } from '../world/patchview';
@@ -19,7 +19,8 @@ import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
 import { HighCountry } from './highcountry';
-import { Skyline } from './skyline';
+import { Skyline } from '../render/skyline';
+import { anchoredHighlands } from '../world/anchoredhighlands';
 
 /**
  * The ground this game is played on, and everything standing on it that was settled before
@@ -149,7 +150,10 @@ export function growCountry(ctx: Growing) {
    * polygon world's ranges described in the same terms. Everything that stands something on a
    * mountain — the eagles, the villages in the clouds, the goats — reads this rather than either.
    */
-  const highPlaces = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
+  const highPlaces = [
+    ...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs),
+    ...anchoredHighlands(manifest, sampler.within),
+  ];
   const structures = sampler.structures;
   /*
    * What is near wherever anybody is standing, which is what the game has always meant by asking
@@ -172,7 +176,7 @@ export function growCountry(ctx: Growing) {
   rig.sunDriven = true;
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
   const chunks = new ChunkManager(
-    rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, country.store ?? undefined,
+    rig.scene, rig.graph, sampler, props, rig.water.material, daycycle.glowMaterial, country.store ?? undefined,
     grower ? (patch) => grower.want(patch) : undefined,
   );
   chunks.useSeasonTint(seasonTintMaterials);
@@ -191,7 +195,7 @@ export function growCountry(ctx: Growing) {
    * leaves the scene, its geometry is disposed, the new one is built — and handed the same ranges
    * twice it does nothing, so the endless world can call it on every crossing without asking first.
    */
-  const mountains = new Mountains(rig.scene, rock.material);
+  const mountains = new Mountains(rig.scene, rock.material, rig.graph);
   mountains.show(sampler.ranges);
   // and the camera's own answer to them: it stands further back near a range, because a peak is
   // taller than the picture is and would otherwise be cut off by the top of its own frustum
@@ -206,7 +210,7 @@ export function growCountry(ctx: Growing) {
    * wrong without it, which is the mountains' own failure one layer up — islands over country
    * behind you, and crags that are not there.
    */
-  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
+  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial, rig.graph);
   skyRenderer.useSeasonTint(seasonTintMaterials);
   const high = new HighCountry(seed, manifest, skyRenderer);
   high.standOn(sampler);

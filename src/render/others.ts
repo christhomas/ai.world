@@ -1,7 +1,8 @@
 import * as THREE from 'three';
+import type { IsoCamera } from './camera';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
-import type { EntityRenderer } from '../entities/pool';
+import type { EntityRenderer } from './entities';
 import { mulberry32 } from '../core/rng';
 import { hashString } from '../core/rng';
 import type { Presence } from '../game/online';
@@ -95,12 +96,12 @@ export class OtherPlayers {
   }
 
   /** Put the name plates where their owners are on screen. */
-  project(camera: THREE.Camera, width: number, height: number): void {
+  project(camera: IsoCamera, width: number, height: number): void {
     const point = new THREE.Vector3();
     for (const [id, body] of this.bodies) {
       const el = this.labels.get(id);
       if (!el || el.style.display === 'none') continue;
-      point.set(body.x, body.y + 2.1, body.z).project(camera);
+      point.set(body.x, body.y + 2.1, body.z).project(camera.camera);
       if (point.z > 1) { el.style.display = 'none'; continue; }
       el.style.left = `${(point.x * 0.5 + 0.5) * width}px`;
       el.style.top = `${(-point.y * 0.5 + 0.5) * height}px`;

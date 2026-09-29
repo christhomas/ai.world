@@ -3,6 +3,7 @@ import type { TileWorld } from '../entities/entity';
 import type { Player } from '../entities/player';
 import type { IsoCamera } from '../render/camera';
 import { SKY, onSkyIsland, skyIndex, type SkyIsland } from '../world/skyisland';
+import type { Manifest } from '../world/manifest';
 
 /**
  * Being up there.
@@ -79,7 +80,8 @@ export class Skies {
   /** Where the bird will put them back down, remembered from the crag they left. */
   private home: { x: number; z: number } | null = null;
 
-  constructor(private readonly ctx: SkyContext, readonly isles: readonly SkyIsland[]) {}
+  constructor(private readonly ctx: SkyContext, readonly isles: readonly SkyIsland[],
+    private readonly manifest?: Manifest) {}
 
   get aloft(): SkyIsland | null { return this.visiting; }
 
@@ -152,6 +154,10 @@ export class Skies {
   /** The island whose eagles are standing near enough to be asked, down at the foot of its fall. */
   calledFrom(x: number, z: number): SkyIsland | null {
     if (this.visiting) return null;
+    const placed = this.manifest?.byKind('eyrie').find((anchor) => anchor.version === 2
+      && anchor.parent && Math.hypot(anchor.x - x, anchor.z - z) <= SKY.CALL
+      && this.isles.some((isle) => isle.site.id === anchor.parent));
+    if (placed) return this.byId(placed.parent!);
     return this.isles.find((s) => Math.hypot(s.crag.x - x, s.crag.z - z) <= SKY.CALL) ?? null;
   }
 

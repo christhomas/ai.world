@@ -1,4 +1,4 @@
-import { THE_HALL, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
+import { THE_HALL, THE_HALL_OWNER, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
 import type { HoldingBook, HoldingDay } from './holdingbook';
 import { payAndSweep } from './purses';
 import type { Settlement } from './settlement';
@@ -200,9 +200,20 @@ export function wageForAGuard(pressure: number): number {
  * way this is a decision rather than a subscription.
  */
 export function postsToday(
-  people: readonly Person[], holdings: readonly Held[], pressure: number, day = Infinity,
+  people: readonly Person[], holdings: readonly Held[], pressure: number, day = Infinity, hallPurse = 0,
 ): Post[] {
   const purses = new Map(people.map((person) => [ownedBy(person), person.purse]));
+  purses.set(THE_HALL_OWNER, hallPurse);
+  // A funder lays out at most a fifth of today's purse across all of their posts. Reserving as
+  // posts are chosen also stops several hall holdings from promising more than the treasury has.
+  const budget = new Map([...purses].map(([owner, gold]) => [owner, gold * POST.LAYS_OUT]));
+  const reserve = (owner: Owner, worker: string, price: number): boolean => {
+    const left = budget.get(owner) ?? 0;
+    if (left < price) return false;
+    if (owner === ownerFromSave(worker)) return true; // affordable work on one's own yard moves no coin
+    budget.set(owner, left - price);
+    return true;
+  };
   const byId = (one: Person, two: Person): number => (one.id < two.id ? -1 : 1);
   // grown, because a nine-year-old on a gate with a dragon overhead is not a thing a village does.
   // `Infinity` is "whatever they are now": a caller with no day in its hand is asking about today
@@ -223,21 +234,18 @@ export function postsToday(
   let next = 0;
   for (const holding of wage <= 0 ? [] : holdings) {
     if (holding.kind !== 'farm') continue;
-    const held = purses.get(ownerFromSave(holding.owner));
-    if (held === undefined || held * POST.LAYS_OUT < wage) continue;
     const man = spare[next];
     if (!man) break;                              // nobody left in the village to ask
+    if (!reserve(ownerFromSave(holding.owner), man.id, wage)) continue;
     next++;
     posts.push({ kind: 'guard', holding: holding.id, who: man.id, funder: holding.owner, wage });
   }
   const work: CrewWork[] = [];
   for (const holding of holdings) {
     if (holding.kind !== 'yard') continue;
-    const held = purses.get(ownerFromSave(holding.owner));
-    if (held === undefined || held * POST.LAYS_OUT < POST.BUILDER) continue;
     work.push({ id: holding.id, funder: holding.owner });
   }
-  return [...posts, ...crewsToday(grown, work, posts)];
+  return [...posts, ...crewsToday(grown, work, posts, reserve)];
 }
 
 /**
@@ -270,6 +278,7 @@ export function couldStand(person: Person, posting: Posting): boolean {
  */
 export function crewsToday(
   grown: readonly Person[], work: readonly CrewWork[], already: readonly Post[] = [],
+  reserve: (owner: Owner, worker: string, price: number) => boolean = () => true,
 ): Post[] {
   const taken = new Set(already.map((post) => post.who));
   /*
@@ -290,6 +299,7 @@ export function crewsToday(
   for (const job of work) {
     const hand = hands[next];
     if (!hand) break;
+    if (!reserve(job.funder, hand.id, POST.BUILDER)) continue;
     next++;
     posts.push({ kind: 'crew', holding: job.id, who: hand.id, funder: job.funder, wage: POST.BUILDER });
   }
@@ -327,13 +337,11 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
  * this morning, which is `postings.ts`'s oldest rule: *a post belongs to the holding, not to the
  * person*, so a village re-lived from its founding arrives at the same men in the same fields.
  *
- * ## What is deliberately not changed with it
+ * ## Hall holdings and wages
  *
- * A post whose funder is not a person on the roll is not paid, exactly as it was not before. In
- * practice that is a hall-owned holding, and `payAndSweep` would happily take the wage out of the
- * hall's purse now that the paying goes through it — which would be a change to *what* happens
- * rather than to *where*, on the same morning as a change to where. It is left alone; whether the
- * hall should pay for a man on its own farm is a question for its own issue.
+ * Farm proceeds go to the hall after paying its worker from the take (`shareTheTake`). Guards and
+ * yard crews are paid from the treasury, under the same one-fifth-of-the-purse daily limit as a
+ * personal owner. The hand receives the wage and the transfer goes in the holding daybook. #415.
  *
  * A post somebody stands on their own holding moves no money and is skipped, which is what the
  * two-purse hand-over did before by arriving at the same purse twice.
@@ -389,9 +397,9 @@ export function standPostsIn(
   day: number,
   book: HoldingBook,
 ): readonly Post[] {
-  const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressure, day);
+  const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressure, day, village.hall.purse);
   if (posts.length === 0) return posts;
-  const onTheRoll = new Set(village.people.map((person) => ownedBy(person)));
+  const onTheRoll = new Set<Owner>([THE_HALL_OWNER, ...village.people.map((person) => ownedBy(person))]);
   const owed = new Map<Owner, number>();
   const facts: HoldingDay[] = [];
   for (const post of posts) {
@@ -400,7 +408,7 @@ export function standPostsIn(
      * Whether a coin actually crosses, which is a different question from what the morning was
      * worth and is why the book keeps both. A man standing his own yard is doing a real day at a
      * real price with both ends of the hand-over in one purse, and a funder who is not on this
-     * roll is the hall, which is left alone here on purpose — see above.
+     * roll is the hall, whose treasury pays by the same rule as a personal owner.
      */
     const moves = post.funder !== man && onTheRoll.has(post.funder) && onTheRoll.has(man);
     if (moves) {
@@ -444,7 +452,7 @@ export function whoWouldStand(
   const standing = new Map<string, readonly Post[]>();
   for (const [name, village] of villages) {
     standing.set(name, postsToday(
-      village.people, (village.holdings ?? []) as readonly Held[], pressureOn(name), day,
+      village.people, (village.holdings ?? []) as readonly Held[], pressureOn(name), day, village.hall.purse,
     ));
   }
   return standing;

@@ -3,7 +3,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
 import type { ServerMessage, WorldInvite } from './protocol';
 import { FileVault } from './filevault';
-import { Simulation } from './sim';
+import { Simulation, type SimOptions } from './sim';
+import { GroundWorker } from './groundworker';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
 import { addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
@@ -16,6 +17,7 @@ import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
+import { worldEditor } from './tools/worldeditor';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -75,6 +77,10 @@ export interface ServerOptions {
   replicas?: number;
   /** Explicit ticks for the isolated screenshot server; requires an operator token. */
   captureClock?: boolean;
+  /** Grow a joining world's expensive first patches off the HTTP/socket event loop. */
+  asyncCountry?: boolean;
+  /** An asynchronous patch source for integration tests and other server hosts. */
+  preparePatch?: SimOptions['preparePatch'];
 }
 
 export interface RunningServer {
@@ -111,7 +117,7 @@ function wireFor(socket: WebSocket): Wire {
  */
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
-  sim: Simulation, channel: BuilderChannel,
+  sim: Simulation, channel: BuilderChannel, groundWorker: GroundWorker | null,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
@@ -125,6 +131,7 @@ function openTools(
     // The portal has already proved the session before calling this. No operator token is made,
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
+    worldEditor: worldEditor(sim, groundWorker),
     // written where the durable database is, from what the answer says as it streams past
     record: (run, id) => {
       try { writeDown(db, id, run); } catch (why) {
@@ -173,8 +180,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'register', MINDS_SCHEMA);
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
+  const groundWorker = options.asyncCountry && !options.preparePatch ? new GroundWorker() : null;
   const sim = new Simulation({
     dataDir, vault: new FileVault(), ground: true,
+    preparePatch: options.preparePatch
+      ?? (groundWorker ? (seed, patch, layers, terrain) => groundWorker.grow(seed, patch, layers, terrain) : undefined),
     minds: durable ?? undefined, chronicles: durable ?? undefined,
   });
   let captureNow = 0;
@@ -193,7 +203,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, builderChannel)
+      sim, builderChannel, groundWorker)
     : null;
   const http = createServer((req, res) => {
     if (options.captureClock && req.url?.startsWith('/__shots/step?')) {
@@ -294,6 +304,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       for (const socket of sockets.clients) socket.terminate();
       await new Promise<void>((done) => sockets.close(() => done()));
       await new Promise<void>((done) => http.close(() => done()));
+      await groundWorker?.close();
       // and the database, or a test that opens twenty servers holds twenty write locks
       durable?.close();
     },
@@ -389,6 +400,11 @@ function registry(sim: Simulation, options: ServerOptions | null, req: IncomingM
   }
 
   const query = new URL(req.url ?? '/', 'http://x').searchParams;
+  if (query.has('worlds')) {
+    const worlds = sim.rooms.knownWorlds();
+    say(200, { worlds });
+    return;
+  }
   const asked = query.get('seed');
   if (asked !== null) {
     const seed = Number(asked);

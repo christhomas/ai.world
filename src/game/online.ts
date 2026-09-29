@@ -14,20 +14,14 @@ import type { Memory } from '../world/people';
 import { ITEMS } from './items';
 import type { WorldKind } from '../world/countries';
 import type { TerrainLayer } from '../world/terrainlayers';
+import type { Anchor } from '../world/manifest';
 
 export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
 
-/**
- * How long a world may say nothing at all before it is taken to have gone, in seconds.
- *
- * Presence goes out ten times a second and the creatures three, so a world with anybody in it is
- * never quiet for long. Six seconds is far past any hiccup and well short of a player deciding the
- * game is broken — which is what the alternative looks like, because a frozen world is
- * indistinguishable from a simulation that has stopped.
- */
+/** Six silent seconds means a world is gone: presence and creatures normally arrive much faster. */
 const QUIET = 6;
 
 /**
@@ -62,6 +56,8 @@ export interface CountryHere {
   kind?: WorldKind;
   /** Sent only to the private simulation worker, never to another world's server. */
   terrain?: readonly TerrainLayer[];
+  /** Added highland anchors for the private world worker; never offered to a shared server. */
+  highlands?: readonly Anchor[];
 }
 
 /**
@@ -93,7 +89,7 @@ export class Online {
   private sinceHeard = 0;
   private url = '';
   /** What was joined last, so a world that goes quiet can be rejoined rather than merely mourned. */
-  private joined: { seed: number; clock: Clock; country: CountryHere; worldName?: string } | null = null;
+  private joined: { seed: number; clock: Clock; country: CountryHere; worldName?: string; playerId: string } | null = null;
   /** Other people in this world, by id. */
   readonly players = new Map<string, Presence>();
   id = '';
@@ -164,7 +160,7 @@ export class Online {
    * world's player was walked about on a land he could not see — see the note on `join` in
    * `server/protocol.ts`.
    */
-  connect(url: string, seed: number, name: string, clock: Clock, country: CountryHere = {}, worldName?: string): void {
+  connect(url: string, seed: number, name: string, clock: Clock, country: CountryHere = {}, worldName?: string, savedPlayerId?: string): void {
     this.drop();
     this.wanted = true;
     this.retryIn = 0;
@@ -174,13 +170,16 @@ export class Online {
     this.name = cleanName(name);
     this.status = 'connecting';
     this.sinceHeard = 0;
-    this.joined = { seed, clock, country, worldName };
+    const playerId = savedPlayerId && /^[0-9a-f-]{36}$/i.test(savedPlayerId)
+      ? savedPlayerId : globalThis.crypto.randomUUID();
+    this.joined = { seed, clock, country, worldName, playerId };
 
     const events: LinkEvents = {
       onOpen: () => this.send({
-        type: 'join', worldName, seed, kind: country.kind, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
+        type: 'join', worldName, seed, kind: country.kind, name: this.name, playerId, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
         x: country.at?.x, z: country.at?.z,
         terrain: this.local ? country.terrain : undefined,
+        highlands: this.local ? country.highlands : undefined,
       }),
       onMessage: (parcel) => {
         this.sinceHeard = 0;
@@ -333,7 +332,7 @@ export class Online {
       this.retryIn -= dt;
       if (this.retryIn > 0) return;
       const again = this.joined;
-      this.connect(this.url, again.seed, this.name, again.clock, again.country, again.worldName);
+      this.connect(this.url, again.seed, this.name, again.clock, again.country, again.worldName, again.playerId);
       return;
     }
     // A world that has stopped talking has gone, whatever the socket says about itself. Noticed
@@ -366,7 +365,7 @@ export class Online {
       ? 'The world in this tab stopped answering. Starting it again.'
       : 'The world went quiet. Trying it again.');
     this.drop();
-    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock, rejoin.country, rejoin.worldName);
+    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock, rejoin.country, rejoin.worldName, rejoin.playerId);
     else this.wanted = false;
   }
 
@@ -502,6 +501,8 @@ export class Online {
     if (this.connected) this.send({ type: 'swear', village, trade });
   }
 
+  /** Ask the world to settle a nearby in-flight cart as robbed. */
+  cartAction(type: 'rob-cart' | 'escort-cart', loadedOn: number): void { if (this.connected) this.send({ type, loadedOn }); }
   /** Stand on the roll of the village the hero has walked into. Asked, like an oath. */
   arrive(village: string): void {
     if (this.connected) this.send({ type: 'arrive', village });

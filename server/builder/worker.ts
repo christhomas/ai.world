@@ -10,10 +10,10 @@ import { Runs, type Told } from './runs';
 import { dialBuilder } from './channel';
 
 /**
- * The thing that actually runs Claude, on the machine with the checkout, and nowhere near the game.
+ * The thing that actually runs Codex, on the machine with the checkout, and nowhere near the game.
  *
  * `tools/askclaude.ts` does this on a dev server and says what it is trusted with: anything that
- * can post to it can ask Claude for whatever Claude's permissions on that machine allow. It is
+ * can post to it can ask an agent for whatever its permissions on that machine allow. It is
  * honest about being acceptable *"here and nowhere else — a development tool, on the owner's own
  * machine"*.
  *
@@ -25,11 +25,11 @@ import { dialBuilder } from './channel';
  *     rule somebody has to remember. The outbound connection reaches this loopback listener.
  *   **It wants a local secret.** Loopback is not enough on a host with anything else on it, so
  *     every forwarded request carries a secret checked in constant time. A page never sees it.
- *   **It works in a worktree, not the checkout.** `--permission-mode acceptEdits` means edits land
+ *   **It works in a worktree, not the checkout.** `--sandbox workspace-write` means edits land
  *     without asking, which is the point, so what they land in must not be the branch anybody
  *     deploys from. A worktree is a checkout of its own that shares the repository, which is
  *     exactly the shape wanted: the changes are real, reviewable, on a branch, and not on main.
- *   **One at a time.** Two `acceptEdits` runs in one tree is two processes editing the same files
+ *   **One at a time.** Two agent runs in one tree is two processes editing the same files
  *     with no idea the other exists — and the result is not a conflict anybody is shown, it is one
  *     of them writing over the other and reporting success.
  *   **No shell, ever.** The prompt is one element of an argv array, so there is no quoting to get
@@ -44,7 +44,7 @@ import { dialBuilder } from './channel';
 const nameFor = (now: number): string => `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export interface WorkerOptions {
-  /** The worktree Claude works in. Never the checkout anybody deploys from. */
+  /** The worktree Codex works in. Never the checkout anybody deploys from. */
   worktree: string;
   /** What the portal must present. Without one, the worker refuses to start. */
   secret: string;
@@ -57,7 +57,7 @@ export interface WorkerOptions {
   /** Told when a run ends, so the portal's database can write down what happened. */
   onFinished?: (id: string, record: Recorded) => void;
   quiet?: boolean;
-  /** For tests: run this instead of `claude`, so the worker can be driven without one. */
+  /** For tests: run this instead of `codex`, so the worker can be driven without one. */
   command?: { run: string; args: (prompt: string) => string[] };
   /** For tests: make a tiny fixture instead of asking Vite to build a temporary repository. */
   buildPage?: (worktree: string, out: string) => Promise<void>;
@@ -110,32 +110,29 @@ function about(input: unknown, root: string): string {
   return '';
 }
 
-/**
- * One line of `--output-format stream-json`, turned into what a follower is told, or nothing.
- *
- * Most of what comes down that pipe is bookkeeping and none of it belongs on screen. Anything
- * unrecognised is dropped rather than guessed at: the CLI's shapes are free to change, and a
- * builder that fell over when they did would be worse than one that occasionally says less.
- */
-export function readEvent(msg: Record<string, unknown>, root: string): Told[] {
-  if (msg.type === 'stream_event') {
-    const event = msg.event as { type?: string; delta?: { type?: string; text?: string } } | undefined;
-    const delta = event?.delta;
-    if (event?.type === 'content_block_delta' && delta?.type === 'text_delta' && delta.text) {
-      return [{ k: 'say', text: delta.text }];
-    }
-    return [];
+/** Convert the public `codex exec --json` item stream into the portal's small transcript format. */
+export function readEvent(msg: Record<string, unknown>, root: string, spoken = new Map<string, string>()): Told[] {
+  if (msg.type !== 'item.started' && msg.type !== 'item.updated' && msg.type !== 'item.completed') return [];
+  const item = msg.item;
+  if (typeof item !== 'object' || item === null) return [];
+  const event = item as Record<string, unknown>;
+  if (event.type === 'agent_message' && typeof event.text === 'string') {
+    const id = typeof event.id === 'string' ? event.id : '';
+    const previous = spoken.get(id) ?? '';
+    const delta = event.text.startsWith(previous) ? event.text.slice(previous.length) : event.text;
+    spoken.set(id, event.text);
+    if (msg.type === 'item.completed') spoken.delete(id);
+    return delta ? [{ k: 'say', text: delta }] : [];
   }
-  if (msg.type === 'assistant') {
-    const message = msg.message as { content?: Array<Record<string, unknown>> } | undefined;
-    const tools: Told[] = [];
-    for (const block of message?.content ?? []) {
-      if (block.type === 'tool_use' && typeof block.name === 'string') {
-        tools.push({ k: 'tool', name: block.name, on: about(block.input, root) });
-      }
-    }
-    return tools;
+  if (msg.type !== 'item.started') return [];
+  if (event.type === 'command_execution') {
+    return [{ k: 'tool', name: 'Command', on: about({ command: event.command }, root) }];
   }
+  if (event.type === 'mcp_tool_call') {
+    const name = typeof event.tool === 'string' ? event.tool : 'MCP tool';
+    return [{ k: 'tool', name, on: about(event.arguments, root) }];
+  }
+  if (event.type === 'web_search') return [{ k: 'tool', name: 'Web search', on: about({ pattern: event.query }, root) }];
   return [];
 }
 
@@ -201,21 +198,11 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
       })();
     };
 
-    /*
-     * `--include-partial-messages` is what makes this stream a sentence at a time rather than a
-     * paragraph at the end, and it only works alongside `--output-format stream-json`, which in
-     * turn only works with `--verbose`. All three or none of them.
-     *
-     * No shell: `spawn` with an argv array, so the prompt is one argument whatever is in it.
-     */
+    // No shell: the prompt is one argv element, regardless of its contents.
     const how = options.command ?? {
-      run: 'claude',
+      run: 'codex',
       args: (prompt: string) => [
-        '-p', prompt,
-        '--output-format', 'stream-json',
-        '--include-partial-messages',
-        '--verbose',
-        '--permission-mode', 'acceptEdits',
+        'exec', '--model', 'gpt-6-sol', '--sandbox', 'workspace-write', '--json', prompt,
       ],
     };
     const child = spawn(how.run, how.args(asked.prompt), { cwd: worktree, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -227,7 +214,10 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
 
     // one object a line, but a pipe hands them over in whatever sized pieces it likes
     let rest = '';
-    let said = false;
+    const spoken = new Map<string, string>();
+    let turnFailed = false;
+    let turnCompleted = false;
+    let failure = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
       rest += chunk;
@@ -237,17 +227,14 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
         if (!line.trim()) continue;
         let msg: Record<string, unknown>;
         try { msg = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
-        for (const told of readEvent(msg, worktree)) {
-          if (told.k === 'say') said = true;
-          runs.tell(run, told);
-        }
-        if (msg.type === 'result') {
-          // the summary carries the answer whole; said again only when nothing was streamed at all,
-          // which is what happens when the work was done by a subagent
-          if (!said && typeof msg.result === 'string') runs.tell(run, { k: 'say', text: msg.result });
-          clearTimeout(timer);
-          const seconds = typeof msg.duration_ms === 'number' ? `${Math.round(msg.duration_ms / 1000)}s` : 'done';
-          done(msg.is_error !== true, seconds);
+        for (const told of readEvent(msg, worktree, spoken)) runs.tell(run, told);
+        if (msg.type === 'turn.completed') turnCompleted = true;
+        if (msg.type === 'turn.failed' || msg.type === 'error') {
+          turnFailed = true;
+          const error = msg.error;
+          if (typeof error === 'object' && error !== null && typeof (error as { message?: unknown }).message === 'string')
+            failure = (error as { message: string }).message;
+          else if (typeof msg.message === 'string') failure = msg.message;
         }
       }
     });
@@ -262,7 +249,8 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
     });
     child.on('close', (code) => {
       clearTimeout(timer);
-      done(code === 0, code === 0 ? 'done' : `exited ${code}: ${complaint.trim().slice(0, 400)}`);
+      const ok = code === 0 && turnCompleted && !turnFailed;
+      done(ok, ok ? 'done' : (failure || complaint.trim() || `codex exited ${code ?? 'without a code'}${turnCompleted ? '' : ' before completing the turn'}`).slice(0, 400));
     });
   };
 

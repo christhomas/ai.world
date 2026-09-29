@@ -2,12 +2,16 @@ import { IndexedDbStore } from './save/store';
 import { serverOf } from './game/joining';
 import { kindOf, type SessionSave, type WorldKind } from './save/store';
 import type { WorldInvite } from '../server/protocol';
-import { joinedManifest } from './world/manifest';
+import { joinedManifest, Manifest } from './world/manifest';
+import { GameState } from './game/state';
+import { daysToLive } from './world/awaytime';
+import { answerHighland } from './game/prayers';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { startGame } from './main';
 import type { GrownPatch } from './world/endless';
 import { installThemePicker } from './ui/themes';
+import { impactOnReturningSave } from './world/editimpacts';
 
 /**
  * Getting from an opened page to a world, which is a different job from playing one.
@@ -87,10 +91,23 @@ export async function boot(): Promise<void> {
      * the one that counts; `joinedManifest` is where that is argued and where the page's own
      * anchors are kept out of it.
      */
+    const joined = joinedManifest(seed, saved?.manifest, named.layers, named.terrain,
+      named.sites, named.skyEyries);
+    if (saved) {
+      let conflict: string | null;
+      try { conflict = await returningWorldConflict(saved, joined); }
+      catch { conflict = 'The edited ground could not be checked safely.'; }
+      if (conflict) {
+        const loading = $('loading');
+        loading.classList.add('blocked');
+        loading.textContent = `${conflict} Your saved progress is unchanged. You cannot enter this world until its ground is made safe for your saved places.`;
+        return;
+      }
+    }
     saved = {
       ...(saved ?? { seed, cam: { x: 0, z: 0, rot: 0, zoom: 1 } }),
       seed, world, worldName,
-      manifest: joinedManifest(seed, saved?.manifest, named.layers, named.terrain),
+      manifest: joined,
     };
   } else if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
     // Old seed links and saves remain valid: a name is an added handle, not a new generator.
@@ -108,7 +125,36 @@ export async function boot(): Promise<void> {
     home = choice.home;
     $('loading').style.display = 'block';
   }
+  // A private world's two-month answer is applied before either the page or its worker grows a
+  // square. Reopening after time away therefore sees one country, with the recorded anchor roll.
+  if (saved && !url.searchParams.has('server') && world === 'endless') {
+    const prayerState = GameState.from(saved.state);
+    const today = prayerState.day + daysToLive(prayerState.awayFor, false);
+    const manifest = new Manifest(seed, saved.manifest);
+    let answered = false;
+    for (const prayer of prayerState.prayers) {
+      if (!prayer.answered && answerHighland(manifest, prayer, today)) answered = true;
+    }
+    if (answered) {
+      saved = { ...saved, manifest: manifest.toJSON(),
+        state: { ...saved.state, prayers: prayerState.prayers } };
+      await store.save(slotKey, saved);
+    }
+  }
   startGame(store, slotKey, saved, seed, worldName, url, world, home);
+}
+
+/** Compare a returning browser's private places against the server's edited ground off-thread. */
+export function returningWorldConflict(save: SessionSave, joined: ReturnType<typeof joinedManifest>): Promise<string | null> {
+  if (typeof Worker === 'undefined') return Promise.resolve(impactOnReturningSave(save, joined));
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./ui/editworker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (event: MessageEvent<{ conflict: string | null }>) => {
+      worker.terminate(); resolve(event.data.conflict);
+    };
+    worker.onerror = (event) => { worker.terminate(); reject(new Error(event.message)); };
+    worker.postMessage({ kind: 'returning', save, joined });
+  });
 }
 
 /**

@@ -108,16 +108,49 @@ describe('the tools portal, served', () => {
     const cookie = cookieOut(await signIn('chris', 'a long enough password'));
     const page = await get('/tools/registry', cookie);
     const shown = await page.text();
-    expect(shown, 'the card must not end at a placeholder').toContain('DOMESDAY BOOK');
+    expect(shown, 'the card must not end at a placeholder').toContain('Domesday Book');
+    expect(shown, 'the Domesday Book shares the tools title bar').toContain('class="tool-header"');
+    expect(shown).toContain('← Back to tools');
+    expect(shown).toContain('href="/tools/"');
     expect(shown, 'an authenticated page must not ask the operator to paste another secret')
       .not.toContain('operator or watch token');
 
     const answer = await get('/tools/registry/data?seed=7', cookie);
     expect(answer.status).toBe(200);
     expect(await answer.json()).toMatchObject({ seed: 7 });
+    server!.rooms.claimWorld('Ashford', 7, 'road');
+    const listed = await get('/tools/registry/data?worlds=1', cookie);
+    expect(await listed.json()).toMatchObject({ worlds: [{ seed: 7, name: 'Ashford', kind: 'road' }] });
+    expect((await get('/tools/registry/data?worlds=1')).status).toBe(303);
     const outside = await get('/tools/registry/data?seed=7');
     expect(outside.status).toBe(303);
     expect(outside.headers.get('location')).toBe('/tools/login');
+  });
+
+  it('guards the named-world editor and durably appends a previewed mountain', async () => {
+    server!.rooms.claimWorld('Old Vale', 322, 'endless');
+    const cookie = cookieOut(await signIn('chris', 'a long enough password'));
+    expect((await get('/tools/world-editor/data?name=Old%20Vale')).status).toBe(303);
+    const page = await get('/tools/world-editor', cookie);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('Pin this layer or eyrie');
+    const before = await (await get('/tools/world-editor/data?name=Old%20Vale', cookie)).json() as {
+      revision: string; layers: unknown[]; pixels: number[];
+    };
+    expect(before.layers).toHaveLength(0);
+    expect(before.pixels).toHaveLength(64 * 64 * 4);
+    const post = (body: unknown, signed = true) => fetch(at('/tools/world-editor/data'), {
+      method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json', ...(signed ? { cookie } : {}) },
+      body: JSON.stringify(body),
+    });
+    const draft = { x: 256, z: 256, reach: 80, lift: 12, roughness: 0.4, seed: 7 };
+    expect((await post({ name: 'Old Vale', revision: before.revision, mode: 'mountain', draft }, false)).status).toBe(303);
+    expect((await post({ name: 'Old Vale', revision: before.revision, mode: 'mountain', draft: { ...draft, lift: -1 } })).status).toBe(400);
+    const committed = await post({ name: 'Old Vale', revision: before.revision, mode: 'mountain', draft });
+    expect(committed.status, await committed.text()).toBe(200);
+    expect((await post({ name: 'Old Vale', revision: before.revision, mode: 'mountain', draft })).status).toBe(409);
+    const after = await (await get('/tools/world-editor/data?name=Old%20Vale', cookie)).json() as { layers: unknown[] };
+    expect(after.layers).toHaveLength(1);
   });
 
   it('turns malformed cookie encoding into an ordinary login redirect', async () => {

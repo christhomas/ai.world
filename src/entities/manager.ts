@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import type { IsoCamera } from '../render/camera';
 import { WORLD } from '../core/config';
 import { hash3, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
@@ -169,12 +169,12 @@ export class EntityManager {
     private readonly onArrest: (by: Entity) => void = () => {},
     /**
      * Whether this point is high country — on or against a massif.
-     *
      * Asked rather than worked out, because what counts as a mountain belongs to the world's
      * generator and this layer only wants to know which list to spawn from. False everywhere in a
      * world with no mountains in it, which is the old one.
      */
     private readonly highland: (x: number, z: number) => boolean = () => false,
+    private readonly prayedHighland: (x: number, z: number) => boolean = () => false,
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -520,13 +520,8 @@ export class EntityManager {
     return within(this.spawned.values(), this.guests, x, z, r);
   }
 
-  pick(raycaster: THREE.Raycaster): Entity | null {
-    const hits = raycaster.intersectObjects(this.renderer.pickables(), false);
-    for (const h of hits) {
-      const e = this.renderer.entityAt(h);
-      if (e) return e;
-    }
-    return null;
+  pick(x: number, y: number, camera: IsoCamera): Entity | null {
+    return this.renderer.pick(x, y, camera);
   }
 
   private despawn(key: string, list: Entity[]): void {
@@ -620,6 +615,7 @@ export class EntityManager {
     }, ctx);
     spawnWildlife({
       world: this.world, night: this.night, highland: this.highland,
+      prayedHighland: this.prayedHighland,
       awayFromVillages: (x, z) => {
         let nearest = Infinity;
         for (const v of this.villages) nearest = Math.min(nearest, Math.hypot(v.x - x, v.z - z));
@@ -696,4 +692,3 @@ export class EntityManager {
 }
 
 export interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[]; seed: number }
-

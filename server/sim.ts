@@ -6,15 +6,18 @@ import {
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import { WorldRecordConflict } from './worldrecords';
 import type { Vault } from './vault';
-import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
+import { CLOCK_INTERVAL, DAY_LENGTH, type SharedWorld } from './world';
 import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
+import { boundsOf, patchOf, patchOfChunk } from '../src/world/patchwork';
+import { rebuildPatch, type PatchParts } from '../src/world/endless';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { isTold, replayTold } from '../src/world/telling';
 import type { CarrierFact } from '../src/world/carrierbook';
 import { advanceWorldCarriers } from './carrierflow';
+import { carrierOnRoad } from './carrieractor';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
@@ -33,8 +36,10 @@ import { WORLD } from '../src/core/config';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
 import { lidLifted } from './chests';
 import { DungeonWorld } from '../src/dungeon/world';
-import { Manifest } from '../src/world/manifest';
+import { Manifest, type Anchor } from '../src/world/manifest';
 import { provinceOfHome } from '../src/world/provinces';
+import { hashString } from '../src/core/rng';
+import { authoredMountain, authoredTerrain, authoredSkyEyrie } from '../src/world/worldediting';
 
 /**
  * The simulation: everything the shared world does, and nothing about where it is running.
@@ -65,6 +70,8 @@ export interface SimOptions {
    * players are walking on, which is what owning the creatures in it will need.
    */
   ground?: boolean;
+  /** A server host can grow expensive patches on another thread before admitting the view. */
+  preparePatch?: (seed: number, patch: string, layers: readonly Highland[], terrain: readonly TerrainLayer[]) => Promise<PatchParts>;
   /** The private browser worker may accept its page's authored terrain at join. */
   localAuthoring?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
@@ -189,6 +196,33 @@ function localTerrain(value: unknown): TerrainLayer[] | null {
   return layers;
 }
 
+/** A private worker accepts only complete, bounded highland anchors. */
+const MAX_LOCAL_HIGHLANDS = 16_384;
+export function localHighlands(value: unknown): Anchor[] | null {
+  if (!Array.isArray(value) || value.length > MAX_LOCAL_HIGHLANDS) return null;
+  const layers: Anchor[] = [];
+  const ids = new Set<string>();
+  for (const row of value) {
+    if (!row || typeof row !== 'object') return null;
+    const a = row as Partial<Anchor>;
+    if (a.kind !== 'highland' || typeof a.id !== 'string' || a.id.length === 0
+      || a.id.length > 180 || ids.has(a.id) || a.parent !== null
+      || (a.version !== 1 && a.version !== 2)
+      || !Number.isSafeInteger(a.x) || !Number.isSafeInteger(a.z)
+      || Math.abs(a.x!) > 1_000_000 || Math.abs(a.z!) > 1_000_000
+      || !Number.isSafeInteger(a.seed) || a.seed! < 0 || a.seed! > 0xffffffff
+      || !a.layer || !Number.isSafeInteger(a.layer.reach) || !Number.isSafeInteger(a.layer.lift)
+      || (a.layer.roughness !== undefined && (!Number.isFinite(a.layer.roughness)
+        || a.layer.roughness < 0 || a.layer.roughness > 1))
+      || (a.version === 1 && a.layer.roughness !== undefined)
+      || (a.version === 2 && a.layer.roughness === undefined)
+      || a.layer.reach < 1 || a.layer.reach > 2048 || a.layer.lift < 1 || a.layer.lift > 100) return null;
+    ids.add(a.id);
+    layers.push(a as Anchor);
+  }
+  return layers;
+}
+
 /** The deepest floor anybody may claim to be standing on, so a number is not a way to spend memory. */
 const FLOORS = 40;
 
@@ -200,6 +234,10 @@ export class Simulation {
   private readonly reach: number;
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
+  private readonly patchworks = new Map<number, Patchwork>();
+  private readonly warming = new Map<number, Promise<void>>();
+  private readonly warmingClients = new Set<Client>();
+  private readonly preparePatch?: SimOptions['preparePatch'];
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
@@ -251,6 +289,7 @@ export class Simulation {
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
+    this.preparePatch = options.preparePatch;
     this.reach = options.reach ?? REACH;
   }
 
@@ -268,6 +307,96 @@ export class Simulation {
 
   private terrainOf(seed: number): readonly TerrainLayer[] {
     return terrainFor(this.rooms.manifestOf(seed));
+  }
+
+  /** The manifest revision shown to an editor before it proposes an addition. */
+  namedWorldRevision(name: string): string | null {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') return null;
+    return hashString(JSON.stringify(this.rooms.manifestOf(record.seed).toJSON())).toString(16);
+  }
+
+  namedWorldReminders(name: string, x: number, z: number, reach: number) {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') throw new Error('Choose an existing endless world.');
+    const history = this.rooms.rememberedForEdit(record.seed, x, z, reach);
+    const held = this.minds ? mindsOf(this.minds, record.seed) : null;
+    return { ...history, protectAllVillages: !!held && (held.minds.size > 0 || held.unreadable.length > 0) };
+  }
+
+  /** Commit one prepared mountain while nobody is using this world, then discard every old sampler. */
+  authorNamedMountain(name: string, expected: string, candidate: unknown, sites: readonly Anchor[] = []): string {
+    const anchor = authoredMountain(candidate);
+    if (!anchor) throw new Error('The mountain parameters are invalid.');
+    return this.authorNamedEdit(name, expected, sites, (world) => {
+      if (!world.authorMountain(anchor)) throw new Error('This mountain already exists or the world has 32 mountains.');
+      return () => { world.manifest.anchors.delete(anchor.id); };
+    });
+  }
+
+  authorNamedTerrain(name: string, expected: string, candidate: unknown, sites: readonly Anchor[] = []): string {
+    const layer = authoredTerrain(candidate);
+    if (!layer) throw new Error('The land or sea parameters are invalid.');
+    return this.authorNamedEdit(name, expected, sites, (world) => {
+      if (world.manifest.terrain.length >= 32) throw new Error('This world already has 32 land and sea edits.');
+      world.appendTerrain(layer);
+      return () => { world.manifest.terrain.pop(); };
+    });
+  }
+
+  authorNamedSkyEyrie(name: string, expected: string, candidate: unknown): string {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') throw new Error('Choose an existing endless world.');
+    const anchor = authoredSkyEyrie(this.rooms.manifestOf(record.seed), candidate);
+    if (!anchor) throw new Error('The skyward eyrie is invalid.');
+    return this.authorNamedEdit(name, expected, [], (world) => {
+      if (!world.authorSkyEyrie(anchor)) throw new Error('This eyrie is already placed.');
+      return () => { world.manifest.anchors.delete(anchor.id); };
+    });
+  }
+
+  private authorNamedEdit(name: string, expected: string, sites: readonly Anchor[],
+    edit: (world: SharedWorld) => () => void): string {
+    const record = this.rooms.worldRecord(name);
+    if (!record || record.kind === 'road') throw new Error('Choose an existing endless world.');
+    const seed = record.seed;
+    const active = this.rooms.get(seed);
+    if (active?.clients.size || this.warming.has(seed)) throw new Error('Leave this world before editing its ground.');
+    const current = this.namedWorldRevision(name);
+    if (current !== expected) throw new Error('This world changed. Reload its map before saving.');
+    const room = active ?? this.rooms.open(seed, { day: 1, time: 0.3 }, record, 'endless');
+    const pinned: string[] = [];
+    const upgraded: string[] = [];
+    for (const site of sites) {
+      if (site.kind !== 'skyisle' || !site.skySite) continue;
+      const currentSite = room.world.manifest.get(site.id);
+      if (currentSite) {
+        if (!currentSite.skySite) { currentSite.skySite = site.skySite; upgraded.push(site.id); }
+      } else { room.world.manifest.anchors.set(site.id, site); pinned.push(site.id); }
+    }
+    try {
+      const undo = edit(room.world);
+      try {
+        room.world.keepNear([], true);
+        this.keepMindsOf(seed, true);
+        room.world.save(true);
+      } catch (error) { undo(); throw error; }
+    } catch (error) {
+      for (const id of pinned) room.world.manifest.anchors.delete(id);
+      for (const id of upgraded) delete room.world.manifest.get(id)!.skySite;
+      throw error;
+    }
+    this.rooms.close(seed);
+    this.keepMindsOf(seed);
+    this.ground.delete(seed);
+    this.patchworks.delete(seed);
+    this.groundKinds.delete(seed);
+    this.countryStamps.delete(seed);
+    this.folk.delete(seed);
+    this.held.delete(seed);
+    this.wildlife.delete(seed);
+    this.rooms.forgetGround(seed);
+    return this.namedWorldRevision(name)!;
   }
 
   /**
@@ -290,6 +419,7 @@ export class Simulation {
     // A read-only survey can precede the first road join. Replace its provisional endless ground.
     if (held) {
       this.ground.delete(seed);
+      this.patchworks.delete(seed);
       this.countryStamps.delete(seed);
       this.folk.delete(seed);
       this.wildlife.delete(seed);
@@ -310,7 +440,9 @@ export class Simulation {
      */
     const layers = this.layersOf(seed);
     const terrain = this.terrainOf(seed);
-    const patches = kind === 'endless' ? new Patchwork(seed, growPatch, undefined, layers, terrain) : null;
+    const patches = kind === 'endless'
+      ? (this.patchworks.get(seed) ?? new Patchwork(seed, growPatch, undefined, layers, terrain)) : null;
+    if (patches) this.patchworks.set(seed, patches);
     const roadGraph = patches ? null : growWorld(seed, islandsFor(this.rooms.manifestOf(seed), seed));
     const country = patches ? patchedCountry(patches) : oneCountry(new TerrainSampler(roadGraph!));
     this.countryStamps.set(seed, roadGraph ? countryStamp(roadGraph, layers, terrain) : endlessStamp(seed, layers, terrain));
@@ -334,7 +466,7 @@ export class Simulation {
       onFallen: (who, id) => this.buried(seed, who, id),
       onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
       onDeparted: (change) => this.forgetTheMind(seed, change.id),
-    });
+    }, room?.world.manifest);
     this.folk.set(seed, folk);
     const alive = new Wildlife(seed, grown, grown, folk);
     // and the book goes to the world, which is the one thing that knows when a place has stopped
@@ -481,11 +613,12 @@ export class Simulation {
   }
 
   /** Save one live register, shared by shutdown, timeout teardown, and an orderly final leave. */
-  private keepMindsOf(seed: number): void {
+  private keepMindsOf(seed: number, strict = false): void {
     const folk = this.folk.get(seed);
     if (!this.minds || !folk) return;
     try { keepMinds(this.minds, seed, everybodyIn(folk.register)); }
     catch (why) {
+      if (strict) throw why;
       // a save that throws must not prevent the room and its sockets from being closed
       console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
     }
@@ -513,6 +646,7 @@ export class Simulation {
         const room = this.rooms.get(client.seed);
         if (!room) return;
         client.silent = 0;
+        if (this.warmingClients.has(client)) return;
         // A floor is the one thing a message can ask the simulation to *make*, so it is answered
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
@@ -551,6 +685,7 @@ export class Simulation {
 
     for (const [seed, room] of this.rooms.entries()) {
       for (const client of room.clients) {
+        if (this.warmingClients.has(client)) { client.silent = 0; continue; }
         client.silent += heard;
         if (client.silent > this.timeout) { client.wire.close(); this.rooms.leave(client); }
       }
@@ -564,6 +699,7 @@ export class Simulation {
         this.rooms.close(seed);
         this.keepMindsOf(seed);
         this.ground.delete(seed);
+        this.patchworks.delete(seed);
         this.groundKinds.delete(seed);
         this.countryStamps.delete(seed);
         this.folk.delete(seed);
@@ -605,7 +741,7 @@ export class Simulation {
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
       // who is where. A world is several worlds at once — the country, and a floor under every
       // staircase somebody is standing on — and each of them is stepped for the people in it.
-      const above = [...room.clients].filter((c) => c.standingIn === 'surface');
+      const above = [...room.clients].filter((c) => c.standingIn === 'surface' && !this.warmingClients.has(c));
       const players = above.map((c) => c.presence);
       this.sinceCreatures += TICK;
       const tellNow = this.sinceCreatures >= CREATURE_INTERVAL;
@@ -625,7 +761,7 @@ export class Simulation {
       room.world.keepNear(players);
       // the ground exists where somebody is standing, and nowhere else: a chunk nobody is near is a
       // chunk with nobody to tell about it
-      const ground = this.groundOf(seed);
+      const ground = this.ground.get(seed) ?? (this.warming.has(seed) ? null : this.groundOf(seed));
       if (ground && players.length > 0) {
         // First the country they can see, then the country they can be bitten in. In that order
         // because the second is a subset of the first and is taken out of it for nothing: a chunk
@@ -642,7 +778,8 @@ export class Simulation {
             // before `tellAboutCreatures` introduces the people to a client, which is the first
             // moment that client can know an id well enough to change its mind.
             if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
-          });
+          }, alive.register ? carrierOnRoad(alive.register, alive.villages, ground,
+            Math.floor(room.world.clock.day), room.world.clock.time) : null);
         }
       }
       this.stepFloors(seed, room, creatureSeconds, tellNow);
@@ -670,7 +807,7 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
-    beforeTell?: () => void,
+    beforeTell?: () => void, carrier?: CreatureSnap | null,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -692,8 +829,8 @@ export class Simulation {
     beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
-    if (tell) this.tellAboutCreatures(alive, place, who, null);
-    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT);
+    if (tell) this.tellAboutCreatures(alive, place, who, null, carrier);
+    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT, carrier);
   }
 
   /**
@@ -774,9 +911,12 @@ export class Simulation {
    * gone — this is the frequent pass over what the player is close enough to fight, and a creature
    * that has merely walked out of arm's reach has not walked out of sight.
    */
-  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null): void {
+  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null,
+    carrier?: CreatureSnap | null): void {
     for (const client of who) {
       const near = alive.inSightOf(client.presence.x, client.presence.z, within ?? undefined);
+      if (carrier && Math.hypot(carrier.x - client.presence.x, carrier.z - client.presence.z)
+        <= (within ?? 60)) near.push({ ...carrier, who: { ...carrier.who! } });
       const changed: CreatureSnap[] = [];
       const now = new Map<number, string>();
       for (const c of near) {
@@ -825,6 +965,7 @@ export class Simulation {
    * it on, and the answer to both is the same: as many as anybody could want at once, and no more.
    */
   private sendChunks(client: Client, message: Extract<ClientMessage, { type: 'want-chunks' }>): void {
+    if (this.warmingClients.has(client)) return;
     const ground = this.groundOf(client.seed);
     if (!ground) return;
     const wanted = Array.isArray(message.chunks) ? message.chunks.slice(0, CHUNKS_AT_ONCE) : [];
@@ -949,15 +1090,30 @@ export class Simulation {
       }
       if (JSON.stringify(room.world.manifest.terrain) !== JSON.stringify(terrain)) room.world.authorTerrain(terrain);
     }
+    if (this.localAuthoring && message.highlands !== undefined) {
+      const highlands = localHighlands(message.highlands);
+      const changed = highlands?.some((a) => !room.world.manifest.get(a.id));
+      const conflicting = highlands?.some((a) => {
+        const known = room.world.manifest.get(a.id);
+        return known && JSON.stringify(known) !== JSON.stringify(a);
+      });
+      if (!highlands || conflicting || (changed && (this.ground.has(seed) || room.clients.size > 0))) {
+        wire.send(JSON.stringify({ type: 'error', reason: 'This world could not accept that highland prayer.' } satisfies ServerMessage));
+        wire.close();
+        return null;
+      }
+      room.world.authorHighlands(highlands);
+    }
     const x = Number(message.x), z = Number(message.z);
     const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;
-    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at);
+    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at, message.playerId);
 
     this.rooms.send(joining, {
       type: 'welcome', id: joining.presence.id, seed, world: record,
       players: [...room.clients].filter((c) => c !== joining).map((c) => c.presence),
       clock: room.world.clock,
       deltas: room.world.log,
+      holdingDays: room.world.holdingDays,
     });
     this.rooms.send(joining, { type: 'stalls', stalls: room.world.stalls });
 
@@ -969,8 +1125,75 @@ export class Simulation {
     if (waiting > 0) this.rooms.send(joining, { type: 'mail-here', from: `${waiting} parcel${waiting === 1 ? '' : 's'}` });
 
     this.rooms.broadcast(seed, { type: 'joined', player: joining.presence }, joining);
-    this.readyFor(joining, message);
+    if (this.preparePatch && this.growGround) {
+      this.warmingClients.add(joining);
+      const previous = this.warming.get(seed) ?? Promise.resolve();
+      let current: Promise<void>;
+      current = previous.then(() => this.readyForAsync(joining, message)).catch((error: unknown) => {
+        this.rooms.send(joining, { type: 'error', reason: error instanceof Error ? error.message : 'The country could not be grown.' });
+        wire.close();
+      }).finally(() => {
+        this.warmingClients.delete(joining);
+        if (this.warming.get(seed) === current) this.warming.delete(seed);
+      });
+      this.warming.set(seed, current);
+    } else this.readyFor(joining, message);
     return joining;
+  }
+
+  /** Prepare the first view without making the HTTP and socket event loop grow its patches. */
+  private async readyForAsync(client: Client, message: Extract<ClientMessage, { type: 'join' }>): Promise<void> {
+    const seed = client.seed;
+    const x = Number(message.x), z = Number(message.z);
+    const standing = Number.isFinite(x) && Number.isFinite(z);
+    const kind = this.rooms.get(seed)?.kind ?? 'endless';
+    const chunks = new Set<string>();
+    if (standing) {
+      const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
+      for (let dz = -VIEW; dz <= VIEW; dz++) for (let dx = -VIEW; dx <= VIEW; dx++) {
+        chunks.add(patchOfChunk(cx + dx, cz + dz));
+      }
+    }
+    const patchwork = kind === 'endless' ? (this.patchworks.get(seed)
+      ?? new Patchwork(seed, growPatch, undefined, this.layersOf(seed), this.terrainOf(seed))) : null;
+    const patches = patchwork
+      ? [...new Set([...(this.ground.has(seed) ? [] : [patchOf(0, 0)]), ...chunks])]
+        .filter((patch) => !patchwork.has(patch)) : [];
+    const totalChunks = standing ? (VIEW * 2 + 1) ** 2 : 0;
+    const total = patches.length + totalChunks;
+    let done = 0;
+    const progress = () => this.rooms.send(client, { type: 'country-progress', done, total });
+    progress();
+    const heartbeat = setInterval(progress, 3000);
+    try {
+      if (patches.length && this.preparePatch) {
+        const layers = this.layersOf(seed), terrain = this.terrainOf(seed);
+        for (const patch of patches) {
+          const parts = await this.preparePatch(seed, patch, layers, terrain);
+          if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+          patchwork!.put(patch, rebuildPatch(seed, boundsOf(patch), parts));
+          done++;
+          progress();
+        }
+      }
+      if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+      if (patchwork) this.patchworks.set(seed, patchwork);
+      const ground = this.groundOf(seed);
+      if (ground && standing) {
+        const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
+        for (let dz = -VIEW; dz <= VIEW; dz++) for (let dx = -VIEW; dx <= VIEW; dx++) {
+          ground.ready((cx + dx) * WORLD.CHUNK_SIZE, (cz + dz) * WORLD.CHUNK_SIZE, 0);
+          done++;
+          if (done % 8 === 0) progress();
+          // One chunk is short work; hand the loop back to other players between groups.
+          if (done % 8 === 0) await new Promise<void>((resume) => setTimeout(resume, 0));
+        }
+      }
+      progress();
+      this.rooms.send(client, { type: 'country', stamp: ground ? this.countryStamps.get(seed) ?? '' : '', kind });
+    } finally {
+      clearInterval(heartbeat);
+    }
   }
 
   /**

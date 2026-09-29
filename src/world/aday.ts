@@ -4,7 +4,7 @@ import { fillTheGaps as whoIsBorn } from './births';
 import { taxedForTheHall } from './hall';
 import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
-import { fallIll, shakeItOff } from './ailments';
+import { illnessEvening } from './ailments';
 import { whatIsPaidBack } from './debts';
 import { aDaysPractice } from './mastery';
 import { raiseWhoIsDue } from './shrine';
@@ -20,6 +20,8 @@ import { whoIsPaidToRaiseIt } from './founding';
 import type { StablePurchase } from './farmbuilds';
 import type { FieldClearing } from './fieldbuilds';
 import { PROSPER } from './prosperity';
+import { holdingIncomeFor } from './holdingincome';
+import type { HoldingIncome } from './holdingbook';
 
 /**
  * One day in one village, from the morning's work to the last funeral.
@@ -51,6 +53,8 @@ import { PROSPER } from './prosperity';
  */
 export interface TheDay {
 seed: number;
+/** Benchmark counterfactual; production always enables contact transmission. */
+illnessContacts?: boolean;
 /** The day the register has reached, which is not the day being lived. See above. */
 today: number;
 /** How hard something is leaning on this village this morning. */
@@ -67,6 +71,8 @@ stableBought: (village: string, day: number) => StablePurchase | null;
 takeOff: (person: Person, day: number, cause: 'age' | 'violence' | 'hunger') => Change | null;
 /** A farm whose owner can afford to take one local tree into the fields this morning. */
 fieldToClear?: (village: string, settlement: Settlement) => FieldClearing | null;
+/** Record the income already paid for this village's holdings. */
+holdingEarned?: (village: string, facts: readonly HoldingIncome[]) => void;
 }
 
 
@@ -277,11 +283,12 @@ export function theVillageSpends(o: TheDay, name: string, village: Settlement, d
  * matters because a poor village buries people. Whoever cannot pay for what there is goes
  * without, and long enough without is what kills them.
  */
-function dinner(o: TheDay, village: Settlement, day: number, work: Trading): Change[] {
+function dinner(o: TheDay, name: string, village: Settlement, day: number, work: Trading): Change[] {
   const meal = aDaysDinner(village.people, village.food, work);
   village.food = meal.food;
   // what dinner cost goes to whoever's dinner it was: the fields, the woods and the herd
   payAndSweep(village, meal.paid);
+  o.holdingEarned?.(name, holdingIncomeFor(day, village.people, work, meal.paid));
   return meal.starved
     .map((p) => o.takeOff(p, day, 'hunger'))
     .filter((c): c is Change => c !== null);
@@ -304,9 +311,9 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
 /**
  * A day of falling ill, mending, and getting better — and what the doctor was owed for it.
  *
- * Four things, and the order is the argument. Somebody who wakes up ill is ill *today*, not
- * tomorrow, so `fallIll` comes first; somebody whose last day of a fever this is gets up and goes
- * to work, so `shakeItOff` comes last. Between them the doctor is paid what the patient has, and
+ * Four things, and the order is the argument. A sick villager misses today's work; tonight their
+ * remaining days count down and tomorrow's new cases are rolled. Even a one-day fever therefore
+ * costs a day of work. The doctor is paid what the patient has, and
  * what the patient has not is written down rather than dropped — he does not refuse, so the rest is
  * a claim against the man and is paid off out of the mornings after.
  *
@@ -318,8 +325,8 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
  * in every world from that morning on.
  */
 function mendThePeople(o: TheDay, name: string, village: Settlement, day: number): Change[] {
-  payAndSweep(village, fallIll(village.people, streamFor(o.seed, `${name}:ill`, day),
-                               { baths: village.works.includes('bathhouse'), day }));
+  payAndSweep(village, illnessEvening(village.people, streamFor(o.seed, `${name}:ill`, day),
+    { baths: village.works.includes('bathhouse'), day, contacts: o.illnessContacts }));
   const { fees, owed } = mendThem(village.people);
   payAndSweep(village, fees);
   for (const debt of owed) {
@@ -329,7 +336,6 @@ function mendThePeople(o: TheDay, name: string, village: Settlement, day: number
     if (already) already.much = Math.round((already.much + debt.much) * 100) / 100;
     else village.debts = [...(village.debts ?? []), debt];
   }
-  shakeItOff(village.people);
   return [];
 }
 
@@ -387,7 +393,7 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
   const work = aDaysWork(o, village, pressure, day);
   const changes = [
     ...buryTheOld(o, village, day),
-    ...dinner(o, village, day, work),
+    ...dinner(o, name, village, day, work),
   ];
   /*
    * Hall wages settle after dinner. The morning's trading books are written before anybody is

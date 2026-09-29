@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
-import { EntityRenderer } from '../entities/pool';
+import { EntityRenderer } from './entities';
 import { mulberry32 } from '../core/rng';
 import { A_PASSAGE, AWAY, Beam, SCATTER } from './beam';
 

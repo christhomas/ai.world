@@ -492,8 +492,9 @@ export const A_DAYS_HIRE = PROSPER.A_DAY;
  */
 export function shareTheTake(
   holdings: readonly Standing[], gold: number, people: readonly Person[],
-): { purses: Map<Owner, number>; toTheHall: number } {
+): { purses: Map<Owner, number>; toTheHall: number; byHolding: { holding: string; owner: Owner; take: number }[] } {
   const purses = new Map<Owner, number>();
+  const byHolding: { holding: string; owner: Owner; take: number }[] = [];
   const add = (who: Owner, much: number): void => {
     purses.set(who, Math.round(((purses.get(who) ?? 0) + much) * 100) / 100);
   };
@@ -506,13 +507,18 @@ export function shareTheTake(
     const took = shareOf(gold, holdings.length, at);
     const worker = ownerFromSave(holding.worker ?? '');
     const owner: Owner = living.has(holding.owner ?? '') ? holding.owner! : THE_HALL_OWNER;
-    if (owner === worker) { add(worker, took); continue; }
+    if (owner === worker) {
+      add(worker, took);
+      if (holding.id) byHolding.push({ holding: holding.id, owner, take: took });
+      continue;
+    }
     const wage = Math.min(A_DAYS_HIRE, took);
     add(worker, wage);
     if (isTheHall(owner)) toTheHall = Math.round((toTheHall + took - wage) * 100) / 100;
     else add(owner, took - wage);
+    if (holding.id) byHolding.push({ holding: holding.id, owner, take: took - wage });
   }
-  return { purses, toTheHall };
+  return { purses, toTheHall, byHolding };
 }
 
 /** One holding's share of a pool, to the coin, with the remainder on the last of them. */

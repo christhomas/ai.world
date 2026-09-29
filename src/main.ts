@@ -13,7 +13,7 @@ import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
 import { bookOf, tellingTheWorld, wordOfARobbery } from './game/folk';
 import { Skies } from './game/skies';
-import { buildBoat } from './render/boat';
+import { putBoatIn } from './render/boat';
 import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
@@ -51,7 +51,7 @@ import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
-import { EntityRenderer } from './entities/pool';
+import { EntityRenderer } from './render/entities';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
@@ -76,7 +76,11 @@ import { Swallows } from './render/swallows';
 import { Shafts } from './render/shafts';
 import { createWaysIn } from './game/waysin';
 import { openCountry } from './game/shafts';
-import { putFerriesOut } from './game/ferry';
+import { putFerriesOut } from './render/ferries';
+import { makeFerryLines } from './game/ferry';
+import { WhaleSchool } from './render/whales';
+import { CampField } from './render/wildcamps';
+import { RecordingPipeline } from './render/recording';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
 import { createFrame } from './game/frame';
@@ -90,6 +94,9 @@ import { growCountry, type GrownPatch } from './game/country';
 import { whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
+import { GameState } from './game/state';
+import { Manifest } from './world/manifest';
+import { answerDueHighlands } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
@@ -97,14 +104,24 @@ export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
 ): void {
-  /**
-   * Whether the player has ever picked a quality themselves — asked before anything else, because
-   * the rig writes the level down every time it is set and the very next line sets it. Ask any
-   * later and the game's own start-up looks exactly like somebody making a choice, so nothing
-   * would ever be adjusted for anybody.
-   */
+  // A due prayer changes the land itself, so resolve it before the generator sees the manifest.
+  // Advance the same saved clock the normal boot path will use, and persist the updated cursor with
+  // the anchor so a reload cannot apply offline days twice.
+  let prayersResolvedAtBoot = false;
+  if (saved) {
+    const bootState = GameState.from(saved.state);
+    bootState.day += daysToLive(bootState.awayFor, url.searchParams.has('server'));
+    const bootManifest = new Manifest(seed, saved.manifest);
+    if (answerDueHighlands(bootManifest, bootState.prayers, bootState.day) > 0) {
+      saved = { ...saved, state: bootState.toJSON(), manifest: bootManifest.toJSON() };
+      prayersResolvedAtBoot = true;
+    }
+  }
+  // Read the preference before setQuality writes one, so automatic setup cannot look like a choice.
   const qualityWasChosen = everChoseQuality();
-  const rig = createSceneRig($('gameContainer'), isOn('composer'));
+  const recording = new URLSearchParams(location.search).has('record-scene') ? new RecordingPipeline() : undefined;
+  if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
+  const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);
   const iso = new IsoCamera();
   const input = new Input(rig.canvas);
@@ -119,17 +136,12 @@ export function startGame(
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains, stamp: mine,
   } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  const prayedHighlands = manifest.layers().filter((a) => a.id.startsWith('highland:prayer:'));
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
   });
-  /*
-   * The hole in front of the hero, off unless he has asked for it.
-   *
-   * Attached to the props once, here, so that the shader is compiled with it whether it is on or
-   * not: the switch is a uniform and a uniform costs nothing, where recompiling a material as
-   * somebody ticks a box is a stutter they would blame on the game.
-   */
+  // Attach cutaway before shader compilation; its uniform toggles without recompiling materials.
   const cutaway = new Cutaway();
   chunks.seeThrough(cutaway);
   cutaway.show(wantsCutaway());
@@ -161,7 +173,7 @@ export function startGame(
   // screens, so this is the one place the two are introduced
   const kinPanel = new KinPanel();
   const roster = new Roster();          // everybody in the world, read live off the register
-  const entityRenderer = new EntityRenderer(rig.scene);
+  const entityRenderer = new EntityRenderer(rig.scene, rig.graph);
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
   const register = new Register(seed, 1, () => {}, 'journaled');
   register.theyStandAt(structures.villages);
@@ -180,24 +192,13 @@ export function startGame(
     // high country: on a mountain or against its flank, where the goats and the things that climb
     // are. Whichever kind of mountain this world grew — a massif, or a polygon range.
     (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
+    (x, z) => prayedHighlands.some((a) => Math.hypot(x - a.x, z - a.z) < a.layer!.reach),
   );
   // and whoever is standing about, so the roster can say what each of them is presently doing
   roster.reads(() => register, () => structures.villages.length, entities, () => player);
-  /**
-   * The creatures the world says are there.
-   *
-   * When the simulation owns the wildlife — which it does the moment this client is connected to
-   * one, whether that is a server or the thread next door — the game stops inventing its own and
-   * draws what it is told. Two players in one field then see the same deer, which is the whole of
-   * what phase three of docs/server-authority.md is for.
-   */
+  // A connected simulation owns wildlife, so every player draws the same creatures.
   const wildlife = new Wildlife(entityRenderer, entities, bookOf(register, structures.villages));
-  /**
-   * And the world's creatures on whatever floor the hero is standing on, when he is standing on one.
-   *
-   * A floor is a world of its own with its own monsters and its own numbering, so it gets its own
-   * telling rather than sharing the country's. Null above ground, which is most of the time.
-   */
+  // Dungeon floors have separate creature numbering; null on the surface.
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   const sound = new Sound();
@@ -222,19 +223,11 @@ export function startGame(
     ? `${places.underground.poi.name}:${places.underground.floor}`
     : places.indoors ? places.indoors.title : 'surface';
 
-  /**
-   * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
-   * swinging spends it, holding a guard drains it, and it only comes back when you are doing
-   * neither — so there is now a reason to stop pressing the button.
-   *
-   * Not saved: it refills in seconds, so a save that remembered it would be remembering nothing.
-   */
+  // Combat breath refills within seconds, so it is not saved.
   const breath = new Breath();
-  const ownBoat = buildBoat();
-  ownBoat.visible = false;
-  rig.scene.add(ownBoat);
-  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
-  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
+  const ownBoat = putBoatIn(rig.scene);
+  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial, rig.graph);
+  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial, rig.graph);
   // and on the same sites, the houses the villages built themselves — and, out of the same book and
   // on the same day, the acres they cleared to fields: `game/villageroofs.ts` owns both, because
   // this file is assembly and a feature that needs six lines of it is wired in the wrong place
@@ -242,7 +235,7 @@ export function startGame(
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist,
+    plots, houses, sailing, mount, persist, persistAsync,
   } = openTheSave({
     store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
@@ -250,6 +243,9 @@ export function startGame(
     at: () => ({ x: player.x, z: player.z }),
     sky: () => skies.save(),
   });
+  if (prayersResolvedAtBoot) {
+    void persistAsync().catch(() => hud.flash('The answered prayer will be saved when storage is available.'));
+  }
   register.rememberStablePurchases(houses.stablePurchases());
   // the days that passed while the game was shut, which only a world of one has to invent. Asked of
   // the link rather than of `online.connected`, and `daysToLive` says why both of those are so
@@ -276,8 +272,7 @@ export function startGame(
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
-  // the boats that run between the islands, each with a hull in the scene to sail it
-  const ferries = putFerriesOut(structures, graph.islands, rig.scene);
+  const ferries = putFerriesOut(makeFerryLines(structures, structures.villages, graph.islands), rig.scene);
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
@@ -375,10 +370,11 @@ export function startGame(
   /** What a village you saved does for you, filled in once the interactions exist. */
   let villageWelcome: (village: string) => Kindness | null = () => null;
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
+  let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
     register, hires,
-    player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso.camera,
-    dialogue, hud, chat, sound, questList, discovered, seed,
+    player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso,
+    dialogue, hud, chat, sound, questList, discovered, high, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
     ...heeding,
@@ -391,23 +387,18 @@ export function startGame(
      */
     onParcel,
     /*
-     * A world is standing this country up, and then: it has, and here is its fingerprint.
-     *
-     * The first stops the page drawing ground it is about to be sent — a new world takes several
-     * times a page's patience to grow its first view, and without this every new country opened on
-     * the page's own guess.
-     *
-     * The second is the only check there is on everything that still does not travel. Chunks come
-     * down the wire, so the two halves cannot disagree about the height of a tile; the villages,
-     * the doors, the eyries and who lives where are worked out on each side from its own copy of
-     * the country. The shared patch generator makes those the same country and this proves it, at
-     * the one moment it can be proved for the price of eight characters. A page that hears a
-     * different answer is a page whose people come from one world and whose houses come from
-     * another, which is a thing this game has actually shipped — so it is said out loud rather
-     * than left to be discovered as a hero standing in a named village in an empty field.
+     * Hold local chunk generation while the world grows. Its final stamp checks what chunks
+     * cannot: villages, doors, eyries and creatures derived independently on both sides.
+     * A mismatch once shipped people into another country's houses, so report it explicitly.
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
+    onCountryProgress: (done, total) => {
+      preparingRemoteCountry = true;
+      chunks.aWorldIsGrowingIt();
+      hud.setLoading(`Preparing world — ${done} of ${total} pieces ready`);
+    },
     onCountryGrown: (stamp, theirKind) => {
+      if (preparingRemoteCountry) { hud.hideLoading(); preparingRemoteCountry = false; }
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`, and
       // `growCountry` for why the country takes its own rather than this taking one of it
@@ -511,7 +502,7 @@ export function startGame(
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     discover, persist: () => persist(),
-  }, skyIsles);
+  }, skyIsles, manifest);
   // a world put away while the hero was up in the clouds opens with them still up there. Without
   // it they come back at the same coordinates with the island no longer under their feet, which
   // is a spawn over open sea and a save that cannot be walked out of.
@@ -526,7 +517,7 @@ export function startGame(
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
-    raining: () => frames.raining(), discover, persist, startTalk, questLine,
+    raining: () => frames.raining(), discover, persist, persistAsync, startTalk, questLine,
     told: (delta) => online.report(delta),
     // built further down this file, and only ever asked for on a key press: see `waysin.ts`
     craft: () => craft,
@@ -543,8 +534,10 @@ export function startGame(
   putOfferToPlayer = interactions.showOffer;
 
   // whose world this is: the one in the next thread until somebody asks for another
+  // Give old saves their stable multiplayer identity before they can receive replayable player facts.
+  if (saved?.state?.playerId !== state.playerId) persist();
   joinAWorld({
-    seed, kind: world, terrain: manifest.terrain, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
+    seed, kind: world, terrain: manifest.terrain, highlands: manifest.layers(), worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),
@@ -583,7 +576,7 @@ export function startGame(
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
-    scene: rig.scene,
+    school: new WhaleSchool(rig.scene), campField: new CampField(rig.scene),
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     knockOut,

@@ -6,8 +6,10 @@ import {
 import {
   KEEP_READY, provinceOf, provincePath, provincesNear, type ProvinceId,
 } from '../src/world/provinces';
-import { Manifest, type ManifestJson } from '../src/world/manifest';
+import { Manifest, type Anchor, type ManifestJson } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
+import type { HoldingBook, HoldingRecord } from '../src/world/holdingbook';
+import { addMountain } from '../src/world/worldediting';
 
 /** One province's leavings, while somebody is near enough for them to matter. */
 interface Province {
@@ -85,6 +87,8 @@ export interface WorldFile {
    * in the registry and it was not there; the seed file is the one thing every world has.
    */
   manifest?: ManifestJson;
+  /** Recorded holding mornings, with village keys for replay after a restart. */
+  holdingDays?: HoldingRecord[];
 }
 
 /** What a stall did with what it was asked, and what the asker should be told. */
@@ -145,6 +149,38 @@ export class SharedWorld {
     this.scheduleSave();
   }
 
+  /** Accept new, versioned highland answers from this tab's private world only. */
+  authorHighlands(layers: readonly Anchor[]): void {
+    let added = false;
+    for (const layer of layers) {
+      if (this.manifest.get(layer.id)) continue;
+      this.manifest.anchors.set(layer.id, { ...layer, layer: { ...layer.layer! } });
+      added = true;
+    }
+    if (added) this.scheduleSave();
+  }
+
+  /** An editor appends an immutable mountain, then requests a strict durable save. */
+  authorMountain(anchor: Anchor): boolean {
+    if (!addMountain(this.manifest, anchor)) return false;
+    this.scheduleSave();
+    return true;
+  }
+
+  /** Append a validated land/sea brush to this world's saved manifest. */
+  appendTerrain(layer: TerrainLayer): void {
+    this.manifest.terrain.push(layer);
+    this.scheduleSave();
+  }
+
+  /** Pin a skyward eagle at an editor-chosen crag. */
+  authorSkyEyrie(anchor: Anchor): boolean {
+    if (this.manifest.get(anchor.id)) return false;
+    this.manifest.anchors.set(anchor.id, anchor);
+    this.scheduleSave();
+    return true;
+  }
+
   constructor(
     readonly seed: number,
     private readonly path: string,
@@ -166,15 +202,27 @@ export class SharedWorld {
      * them is. So the simulation hands one over afterwards, and a test that only wants to watch the
      * compaction happen can pass one in.
      */
-    private register: { compact(day: number): void } | null = null,
+    private register: { compact(day: number): void; holdingsBook?: HoldingBook } | null = null,
   ) {
     const loaded = this.load();
     this.manifest = new Manifest(seed, loaded?.manifest);
     this.clock = loaded?.clock ?? start;
     for (const delta of loaded?.deltas ?? []) this.remember(delta);
+    // Worlds saved before nests travelled may have the anchor but no replay row yet.
+    for (const anchor of this.manifest.byKind('eyrie')) {
+      this.remember({ kind: 'eyrie', anchor, present: true });
+    }
     for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
     this.letters = loaded?.letters ?? [];
     for (const name of loaded?.folk ?? []) this.seen.add(name);
+    this.savedHoldingDays = loaded?.holdingDays;
+  }
+
+  private readonly savedHoldingDays: HoldingRecord[] | undefined;
+
+  /** The server's daybook, or the saved copy before its register has been grown. */
+  get holdingDays(): HoldingRecord[] {
+    return this.register?.holdingsBook?.records() ?? this.savedHoldingDays ?? [];
   }
 
   /** Everyone this world has ever seen. */
@@ -190,8 +238,9 @@ export class SharedWorld {
    * wants a register *for* is the one moment it is the only thing that knows about — a province
    * being written out with nobody near it, which is when ten slights become one opinion.
    */
-  keepsTheRegister(register: { compact(day: number): void }): void {
+  keepsTheRegister(register: { compact(day: number): void; holdingsBook?: HoldingBook }): void {
     this.register = register;
+    if (this.savedHoldingDays) register.holdingsBook?.restore(this.savedHoldingDays);
   }
 
   /**
@@ -373,6 +422,10 @@ export class SharedWorld {
     } else {
       kept.set(key, delta);
     }
+    if (delta.kind === 'eyrie') {
+      if (delta.present) this.manifest.anchors.set(delta.anchor.id, delta.anchor);
+      else this.manifest.anchors.delete(delta.anchor.id);
+    }
     if (where) this.province(provinceOf(where.x, where.z)).dirty = true;
     return true;
   }
@@ -435,14 +488,14 @@ export class SharedWorld {
    * is not on it, the square they came down in is read back in a millisecond when they climb out,
    * and the hour they spent below is an hour the country above them was honestly asleep.
    */
-  keepNear(people: ReadonlyArray<{ x: number; z: number }>): void {
+  keepNear(people: ReadonlyArray<{ x: number; z: number }>, strict = false): void {
     const wanted = new Set<ProvinceId>();
     for (const one of people) for (const id of provincesNear(one.x, one.z, KEEP_READY)) wanted.add(id);
     for (const id of wanted) this.province(id);
     let anyLetGo = false;
     for (const [id, province] of this.provinces) {
       if (wanted.has(id)) continue;
-      this.writeProvince(id, province, true);
+      this.writeProvince(id, province, true, strict);
       this.provinces.delete(id);
       anyLetGo = true;
     }
@@ -483,14 +536,16 @@ export class SharedWorld {
    *
    * @param leaving the last of them has walked out of it, so the stamp has to be brought up to date
    */
-  private writeProvince(id: ProvinceId, province: Province, leaving = false): void {
+  private writeProvince(id: ProvinceId, province: Province, leaving = false, strict = false): void {
     if (!province.dirty && !leaving) return;
-    province.dirty = false;
     const file: ProvinceFile = { when: this.today, deltas: [...province.deltas.values()] };
     try {
       this.vault.write(provincePath(this.dataDir, this.seed, id), JSON.stringify(file, null, 2));
+      province.dirty = false;
     } catch (error) {
+      province.dirty = true;
       console.error(`could not save province ${id} of world ${this.seed}:`, error);
+      if (strict) throw error;
     }
   }
 
@@ -500,8 +555,8 @@ export class SharedWorld {
     this.saveTimer = setTimeout(() => { this.saveTimer = null; this.save(); }, SAVE_DEBOUNCE);
   }
 
-  save(): void {
-    for (const [id, province] of this.provinces) this.writeProvince(id, province);
+  save(strict = false): void {
+    for (const [id, province] of this.provinces) this.writeProvince(id, province, false, strict);
     if (!this.dirty) return;
     this.dirty = false;
     const file: WorldFile = {
@@ -512,11 +567,14 @@ export class SharedWorld {
       // written back rather than merely read: this rewrites the whole file, and a manifest left
       // out of it would be a world whose authored ground quietly vanished on the next save
       manifest: this.manifest.toJSON(),
+      holdingDays: this.holdingDays,
     };
     try {
       this.vault.write(this.path, JSON.stringify(file, null, 2));
     } catch (error) {
+      this.dirty = true;
       console.error(`could not save world ${this.seed}:`, error);
+      if (strict) throw error;
     }
   }
 
