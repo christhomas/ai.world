@@ -340,8 +340,8 @@ export class Rooms {
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       hero: null, serverFootAt: null, playerId: playerId && /^[0-9a-f-]{36}$/i.test(playerId) ? playerId : globalThis.crypto.randomUUID(),
       steered: 0, escortingCart: null, standingIn: 'surface', leftSurfaceAt: null, boat: null,
-      // This is the server-issued identity for this connection. It also scopes one-time rewards;
-      // a client supplied save id or display name must never authorize a shared-world claim.
+      // This is the server-issued identity for this connection only; it changes on every reconnect,
+      // so one-time rewards (a robbed cart's meals) are keyed to the save's `playerId` above instead.
       presence: { id: globalThis.crypto.randomUUID(), name, x, z, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
