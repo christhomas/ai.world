@@ -60,6 +60,10 @@ export interface WorldInvite extends WorldRecord {
    * the generator that reads it changes, which a bare centre-and-shape would have thrown away.
    */
   layers?: Anchor[];
+  /** Authored sky sites kept at their original coordinates through later terrain edits. */
+  sites?: Anchor[];
+  /** Hand-placed eagles that provide another route to a pinned sky village. */
+  skyEyries?: Anchor[];
   /** Authored land and sea edits, in the order the world's generator applies them. */
   terrain?: TerrainLayer[];
 }

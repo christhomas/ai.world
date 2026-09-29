@@ -20,14 +20,7 @@ export { applyTrade, tradableItems } from './trade';
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
 
-/**
- * How long a world may say nothing at all before it is taken to have gone, in seconds.
- *
- * Presence goes out ten times a second and the creatures three, so a world with anybody in it is
- * never quiet for long. Six seconds is far past any hiccup and well short of a player deciding the
- * game is broken — which is what the alternative looks like, because a frozen world is
- * indistinguishable from a simulation that has stopped.
- */
+/** Six silent seconds means a world is gone: presence and creatures normally arrive much faster. */
 const QUIET = 6;
 
 /**

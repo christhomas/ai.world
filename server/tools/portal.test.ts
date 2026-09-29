@@ -50,6 +50,14 @@ describe('what the portal is being asked for', () => {
     expect(whatIsAsked('GET', '/tools/..')).toEqual({ want: 'nothing' });
   });
 
+  it('offers the world editor page as GET and sends only GET or POST to its authenticated data route', () => {
+    expect(whatIsAsked('GET', '/tools/world-editor')).toEqual({ want: 'tool', id: 'world-editor' });
+    expect(whatIsAsked('POST', '/tools/world-editor')).toEqual({ want: 'nothing' });
+    expect(whatIsAsked('GET', '/tools/world-editor/data?name=Vale')).toEqual({ want: 'world-editor-data' });
+    expect(whatIsAsked('POST', '/tools/world-editor/data')).toEqual({ want: 'world-editor-data' });
+    expect(whatIsAsked('DELETE', '/tools/world-editor/data')).toEqual({ want: 'nothing' });
+  });
+
   it('names the builder page, its built assets and its audit book explicitly', () => {
     expect(whatIsAsked('GET', '/tools/character-builder')).toEqual({
       want: 'builder-page', path: 'tools/character-builder.html',

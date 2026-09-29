@@ -238,8 +238,8 @@
             <input id="worldSeedInput" type="text" inputmode="numeric" autocomplete="off" placeholder="random" />
           </details>
           <details id="terrainEditor">
-            <summary>Shape land and sea</summary>
-            <p>For a new endless world. Layers apply in the order listed.</p>
+            <summary>Shape land, sea, and mountains</summary>
+            <p>For an endless world. Choose a map point, tune a mountain, and preview before saving.</p>
             <div class="terrain-fields">
               <select id="terrainKind" aria-label="Terrain kind"><option value="land">Land</option><option value="sea">Sea</option></select>
               <input id="terrainX" type="number" step="1" value="0" aria-label="Centre X" />
@@ -249,10 +249,28 @@
               <button id="terrainAdd" type="button">Add layer</button>
             </div>
             <ol id="terrainLayers"></ol>
+            <div class="terrain-fields">
+              <input id="mountainX" type="number" step="1" value="0" aria-label="Mountain centre X" />
+              <input id="mountainZ" type="number" step="1" value="0" aria-label="Mountain centre Z" />
+              <input id="mountainReach" type="number" min="1" max="2048" step="1" value="96" aria-label="Mountain reach in tiles" />
+              <input id="mountainLift" type="number" min="1" max="100" step="1" value="24" aria-label="Mountain lift in terraces" />
+              <input id="mountainRoughness" type="number" min="0" max="1" step="0.1" value="0.6" aria-label="Mountain ridge roughness" />
+              <input id="mountainSeed" type="number" min="0" max="4294967295" step="1" placeholder="random shape seed" aria-label="Mountain shape seed" />
+              <button id="mountainAdd" type="button">Pin mountain</button>
+            </div>
+            <ol id="mountainLayers"></ol>
+            <div class="terrain-fields">
+              <select id="skyEyrieTarget" aria-label="Sky village for the eagle"></select>
+              <input id="skyEyrieX" type="number" step="1" value="0" aria-label="Eyrie X" />
+              <input id="skyEyrieZ" type="number" step="1" value="0" aria-label="Eyrie Z" />
+              <button id="skyEyrieAdd" type="button">Place skyward eyrie</button>
+            </div>
+            <ol id="skyEyries"></ol>
             <button id="terrainPreviewButton" type="button">Preview this seed and layers</button>
             <p id="terrainPreviewStatus" role="status">Preview uses the seed above. Select a point on the map to set a layer centre.</p>
-            <canvas id="terrainPreviewCanvas" width="96" height="96" aria-label="Land and sea preview"></canvas>
+            <canvas id="terrainPreviewCanvas" width="96" height="96" aria-label="Land, sea, and mountain preview"></canvas>
             <p id="terrainError" role="alert"></p>
+            <button id="saveWorldEdits" type="button" hidden>Save edits to selected world</button>
           </details>
           <p id="titleWorldError" role="alert"></p>
         </div>

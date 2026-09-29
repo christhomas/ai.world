@@ -313,7 +313,8 @@ describe('the page assembles a named world from what it was told', () => {
   it('grows a named join from the invite rather than from its own storage', () => {
     const boot = readFileSync('src/boot.ts', 'utf8');
     expect(boot, 'a named join no longer builds its manifest from what it was handed')
-      .toContain('joinedManifest(seed, saved?.manifest, named.layers, named.terrain)');
+      .toContain('joinedManifest(seed, saved?.manifest, named.layers, named.terrain,');
+    expect(boot).toContain('named.sites, named.skyEyries');
     expect(boot, 'the page is choosing a country again instead of being told one')
       .toContain('world = kindOf(named.kind)');
     // and the save key is still scoped by server and name, which is what stops a list arriving for

@@ -104,12 +104,7 @@ export function startGame(
       prayersResolvedAtBoot = true;
     }
   }
-  /**
-   * Whether the player has ever picked a quality themselves — asked before anything else, because
-   * the rig writes the level down every time it is set and the very next line sets it. Ask any
-   * later and the game's own start-up looks exactly like somebody making a choice, so nothing
-   * would ever be adjusted for anybody.
-   */
+  // Read the preference before setQuality writes one, so automatic setup cannot look like a choice.
   const qualityWasChosen = everChoseQuality();
   const sceneFlags = new URLSearchParams(location.search);
   const recording = sceneFlags.has('record-scene') || sceneFlags.has('record-only') ? new RecordingPipeline() : undefined;
@@ -134,13 +129,7 @@ export function startGame(
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
   });
-  /*
-   * The hole in front of the hero, off unless he has asked for it.
-   *
-   * Attached to the props once, here, so that the shader is compiled with it whether it is on or
-   * not: the switch is a uniform and a uniform costs nothing, where recompiling a material as
-   * somebody ticks a box is a stutter they would blame on the game.
-   */
+  // Attach cutaway before shader compilation; its uniform toggles without recompiling materials.
   const cutaway = new Cutaway();
   chunks.seeThrough(cutaway);
   cutaway.show(wantsCutaway());
@@ -470,7 +459,7 @@ export function startGame(
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     discover, persist: () => persist(),
-  }, skyIsles);
+  }, skyIsles, manifest);
   // a world put away while the hero was up in the clouds opens with them still up there. Without
   // it they come back at the same coordinates with the island no longer under their feet, which
   // is a spawn over open sea and a save that cannot be walked out of.

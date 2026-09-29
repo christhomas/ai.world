@@ -9,6 +9,7 @@ import {
 import { Manifest, type Anchor, type ManifestJson } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { HoldingBook, HoldingRecord } from '../src/world/holdingbook';
+import { addMountain } from '../src/world/worldediting';
 
 /** One province's leavings, while somebody is near enough for them to matter. */
 interface Province {
@@ -157,6 +158,27 @@ export class SharedWorld {
       added = true;
     }
     if (added) this.scheduleSave();
+  }
+
+  /** An editor appends an immutable mountain, then requests a strict durable save. */
+  authorMountain(anchor: Anchor): boolean {
+    if (!addMountain(this.manifest, anchor)) return false;
+    this.scheduleSave();
+    return true;
+  }
+
+  /** Append a validated land/sea brush to this world's saved manifest. */
+  appendTerrain(layer: TerrainLayer): void {
+    this.manifest.terrain.push(layer);
+    this.scheduleSave();
+  }
+
+  /** Pin a skyward eagle at an editor-chosen crag. */
+  authorSkyEyrie(anchor: Anchor): boolean {
+    if (this.manifest.get(anchor.id)) return false;
+    this.manifest.anchors.set(anchor.id, anchor);
+    this.scheduleSave();
+    return true;
   }
 
   constructor(
@@ -466,14 +488,14 @@ export class SharedWorld {
    * is not on it, the square they came down in is read back in a millisecond when they climb out,
    * and the hour they spent below is an hour the country above them was honestly asleep.
    */
-  keepNear(people: ReadonlyArray<{ x: number; z: number }>): void {
+  keepNear(people: ReadonlyArray<{ x: number; z: number }>, strict = false): void {
     const wanted = new Set<ProvinceId>();
     for (const one of people) for (const id of provincesNear(one.x, one.z, KEEP_READY)) wanted.add(id);
     for (const id of wanted) this.province(id);
     let anyLetGo = false;
     for (const [id, province] of this.provinces) {
       if (wanted.has(id)) continue;
-      this.writeProvince(id, province, true);
+      this.writeProvince(id, province, true, strict);
       this.provinces.delete(id);
       anyLetGo = true;
     }
@@ -514,14 +536,16 @@ export class SharedWorld {
    *
    * @param leaving the last of them has walked out of it, so the stamp has to be brought up to date
    */
-  private writeProvince(id: ProvinceId, province: Province, leaving = false): void {
+  private writeProvince(id: ProvinceId, province: Province, leaving = false, strict = false): void {
     if (!province.dirty && !leaving) return;
-    province.dirty = false;
     const file: ProvinceFile = { when: this.today, deltas: [...province.deltas.values()] };
     try {
       this.vault.write(provincePath(this.dataDir, this.seed, id), JSON.stringify(file, null, 2));
+      province.dirty = false;
     } catch (error) {
+      province.dirty = true;
       console.error(`could not save province ${id} of world ${this.seed}:`, error);
+      if (strict) throw error;
     }
   }
 
@@ -531,8 +555,8 @@ export class SharedWorld {
     this.saveTimer = setTimeout(() => { this.saveTimer = null; this.save(); }, SAVE_DEBOUNCE);
   }
 
-  save(): void {
-    for (const [id, province] of this.provinces) this.writeProvince(id, province);
+  save(strict = false): void {
+    for (const [id, province] of this.provinces) this.writeProvince(id, province, false, strict);
     if (!this.dirty) return;
     this.dirty = false;
     const file: WorldFile = {
@@ -548,7 +572,9 @@ export class SharedWorld {
     try {
       this.vault.write(this.path, JSON.stringify(file, null, 2));
     } catch (error) {
+      this.dirty = true;
       console.error(`could not save world ${this.seed}:`, error);
+      if (strict) throw error;
     }
   }
 

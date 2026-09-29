@@ -17,6 +17,7 @@ import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
+import { worldEditor } from './tools/worldeditor';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -114,7 +115,7 @@ function wireFor(socket: WebSocket): Wire {
  */
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
-  sim: Simulation, channel: BuilderChannel,
+  sim: Simulation, channel: BuilderChannel, groundWorker: GroundWorker | null,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
@@ -128,6 +129,7 @@ function openTools(
     // The portal has already proved the session before calling this. No operator token is made,
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
+    worldEditor: worldEditor(sim, groundWorker),
     // written where the durable database is, from what the answer says as it streams past
     record: (run, id) => {
       try { writeDown(db, id, run); } catch (why) {
@@ -194,7 +196,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, builderChannel)
+      sim, builderChannel, groundWorker)
     : null;
   const http = createServer((req, res) => {
     // A missing portal configuration used to look like a healthy but empty game server here,

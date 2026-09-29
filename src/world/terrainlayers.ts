@@ -14,6 +14,12 @@ const CELL = 128;
 const WIDE = CELL * 16;
 const FEW = 8;
 
+/** Maximum authored face radius, including the layer's full noise variation. */
+export function terrainLayerRadius(reach: number): number { return reach * 1.1; }
+
+/** Radius to inspect for terrain edits, including a face centre on the far side of a tile edge. */
+export function terrainEditFootprint(reach: number): number { return terrainLayerRadius(reach) + 1; }
+
 /** The authored terrain list, indexed by the faces it can affect. */
 export class TerrainLayers {
   static readonly none = new TerrainLayers([]);
@@ -29,7 +35,7 @@ export class TerrainLayers {
     if (!this.cells) return;
     layers.forEach((layer, i) => {
       if (layer.reach > WIDE) { this.wide.push(i); return; }
-      const radius = layer.reach * 1.1;
+      const radius = terrainLayerRadius(layer.reach);
       const x0 = Math.floor((layer.x - radius) / CELL), x1 = Math.floor((layer.x + radius) / CELL);
       const z0 = Math.floor((layer.z - radius) / CELL), z1 = Math.floor((layer.z + radius) / CELL);
       for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) {
