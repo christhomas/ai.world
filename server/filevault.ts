@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Vault } from './vault';
 
@@ -11,6 +11,17 @@ import type { Vault } from './vault';
  * game somebody is playing alone. See `docs/server-authority.md`.
  */
 export class FileVault implements Vault {
+  list(prefix: string): string[] {
+    const slash = prefix.lastIndexOf('/');
+    const directory = slash < 0 ? '.' : prefix.slice(0, slash) || '/';
+    const base = slash < 0 ? '' : prefix.slice(slash + 1);
+    try {
+      return readdirSync(directory).filter((name) => name.startsWith(base)).map((name) => `${directory}/${name}`);
+    } catch {
+      return [];
+    }
+  }
+
   read(name: string): string | null {
     try {
       return readFileSync(name, 'utf8');

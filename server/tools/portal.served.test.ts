@@ -118,6 +118,10 @@ describe('the tools portal, served', () => {
     const answer = await get('/tools/registry/data?seed=7', cookie);
     expect(answer.status).toBe(200);
     expect(await answer.json()).toMatchObject({ seed: 7 });
+    server!.rooms.claimWorld('Ashford', 7, 'road');
+    const listed = await get('/tools/registry/data?worlds=1', cookie);
+    expect(await listed.json()).toMatchObject({ worlds: [{ seed: 7, name: 'Ashford', kind: 'road' }] });
+    expect((await get('/tools/registry/data?worlds=1')).status).toBe(303);
     const outside = await get('/tools/registry/data?seed=7');
     expect(outside.status).toBe(303);
     expect(outside.headers.get('location')).toBe('/tools/login');

@@ -32,6 +32,20 @@ class Visitor {
 }
 
 describe('named world records', () => {
+  it('lists named worlds and legacy saved seeds without opening or changing them', () => {
+    const vault = new Forgetful();
+    vault.write('worlds/77.json', JSON.stringify({ seed: 77, clock: { day: 3, time: 0.2 }, deltas: [] }));
+    const rooms = new Rooms('worlds', vault);
+    rooms.claimWorld('Ashford', 12, 'road');
+
+    expect(rooms.knownWorlds()).toEqual([
+      { seed: 12, name: 'Ashford', kind: 'road' },
+      { seed: 77 },
+    ]);
+    expect(rooms.worldCount).toBe(0);
+    expect(vault.read('worlds/77.json')).toContain('"seed":77');
+  });
+
   it('case-folds and trims one durable record without changing its chosen spelling', () => {
     const vault = new Forgetful();
     const records = new WorldRecords('worlds', vault);

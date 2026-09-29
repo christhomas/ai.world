@@ -273,6 +273,27 @@ export class Rooms {
   worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }
   worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
 
+  /** Every known world, including named records, saved legacy seed files, and open rooms. */
+  knownWorlds(): Array<{ seed: number; name?: string; kind?: WorldKind }> {
+    const worlds = new Map<number, { seed: number; name?: string; kind?: WorldKind }>();
+    for (const record of this.records.all()) worlds.set(record.seed, { ...record, kind: record.kind ?? LEGACY_KIND });
+    for (const path of this.vault.list?.(`${this.dataDir ? `${this.dataDir}/` : ''}`) ?? []) {
+      const file = path.split('/').pop() ?? '';
+      const match = /^(\d+)\.json$/.exec(file);
+      if (!match) continue;
+      const seed = Number(match[1]);
+      if (!Number.isSafeInteger(seed) || seed < 0 || seed > 0xffffffff) continue;
+      const record = this.records.forSeed(seed);
+      worlds.set(seed, { seed, ...(record ? { name: record.name, kind: record.kind ?? LEGACY_KIND } : {}) });
+    }
+    for (const [seed, room] of this.entries()) {
+      const record = this.records.forSeed(seed);
+      worlds.set(seed, { seed, ...(record ? { name: record.name } : {}), kind: room.kind });
+    }
+    return [...worlds.values()].sort((a, b) => Number(!a.name) - Number(!b.name)
+      || (a.name ?? '').localeCompare(b.name ?? '') || a.seed - b.seed);
+  }
+
   /** Resolve or create the durable record presented by a named join. */
   claimWorld(name: unknown, seed: number, kind: WorldKind = LEGACY_KIND): WorldRecord {
     const open = this.get(seed);
