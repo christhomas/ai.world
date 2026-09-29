@@ -40,6 +40,8 @@ export interface Place {
 export interface Around {
   /** Villages within `reach` tiles of a point, nearest first. */
   villages(x: number, z: number, reach: number): Village[];
+  /** A one-off terrain warning may grow intersecting patches so it names every affected village. */
+  surveyVillages(x: number, z: number, reach: number): Village[];
   /**
    * The nearest village within `reach`, or nothing.
    *
@@ -85,6 +87,7 @@ const within = <T extends { x: number; z: number }>(all: readonly T[], x: number
 function aroundStructures(structures: Structures): Around {
   return {
     villages: (x, z, reach) => within(structures.villages, x, z, reach),
+    surveyVillages: (x, z, reach) => within(structures.villages, x, z, reach),
     nearestVillage: (x, z, reach) => within(structures.villages, x, z, reach)[0] ?? null,
     places: (x, z, reach) => within([...structures.pois, ...structures.caves, ...structures.wrecks], x, z, reach),
     // measured from the tile a hull ties up at, which is the end of it that is out in the water and
@@ -135,6 +138,19 @@ export function aroundPatches(patches: Patchwork): Around {
 
   return {
     villages: (x, z, reach) => within(all(x, z, reach).flatMap((s) => s.villages), x, z, reach),
+    surveyVillages: (x, z, reach) => {
+      const villages: Village[] = [];
+      for (let pz = Math.floor((z - reach) / PATCH); pz <= Math.floor((z + reach) / PATCH); pz++) {
+        for (let px = Math.floor((x - reach) / PATCH); px <= Math.floor((x + reach) / PATCH); px++) {
+          const x0 = px * PATCH, z0 = pz * PATCH;
+          const dx = Math.max(x0 - x, 0, x - (x0 + PATCH));
+          const dz = Math.max(z0 - z, 0, z - (z0 + PATCH));
+          if (Math.hypot(dx, dz) > reach) continue;
+          villages.push(...patches.patch(`${px},${pz}`).structures.villages);
+        }
+      }
+      return within(villages, x, z, reach);
+    },
     nearestVillage: (x, z, reach) =>
       within(all(x, z, reach).flatMap((s) => s.villages), x, z, reach)[0] ?? null,
     places: (x, z, reach) => within(
