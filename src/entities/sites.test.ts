@@ -150,7 +150,7 @@ describe('a building site on the mornings before it is finished', () => {
   it('draws the same boat on the stocks as the one that floats away', () => {
     /*
      * A player who watched her being built should recognise her in the water. The afloat hull is a
-     * `THREE` group in `render/boat.ts` and cannot be compared to a part list directly, so what is
+     * three.js group in `render/boat.ts` and cannot be compared to a part list directly, so what is
      * held here is the thing that would actually go wrong: her timbers and her sail are the exact
      * colours that one is drawn in, rather than the builder's palette in roughly the same browns.
      */

@@ -1,8 +1,7 @@
-import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import type { CreatureSnap } from '../../server/protocol';
 import { Wildlife } from './wildlife';
 
@@ -28,13 +27,13 @@ const snap = (id: number, kind: string, x: number, z: number): CreatureSnap => (
 });
 
 const world = (): Wildlife => {
-  const renderer = new EntityRenderer(new THREE.Scene());
+  const renderer = offscreenEntityRenderer();
   const manager = new EntityManager(renderer, flat, { getTiles: () => null }, 1);
   return new Wildlife(renderer, manager, null);
 };
 
 const worldAndCrowd = (): { wildlife: Wildlife; manager: EntityManager } => {
-  const renderer = new EntityRenderer(new THREE.Scene());
+  const renderer = offscreenEntityRenderer();
   const manager = new EntityManager(renderer, flat, { getTiles: () => null }, 1);
   return { wildlife: new Wildlife(renderer, manager, null), manager };
 };
