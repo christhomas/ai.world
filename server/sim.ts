@@ -11,7 +11,7 @@ import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworl
 import { Patchwork } from '../src/world/patchwork';
 import { boundsOf, patchOf, patchOfChunk } from '../src/world/patchwork';
 import { rebuildPatch } from '../src/world/endless';
-import { rebuildRoad, type GroundSource, type RoadParts } from './groundsource';
+import { Preparations, rebuildRoad, type GroundSource, type RoadParts } from './groundsource';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
@@ -73,6 +73,8 @@ export interface SimOptions {
   ground?: boolean;
   /** A server host can grow a joining world's expensive ground on another thread before admitting the view. */
   prepare?: GroundSource;
+  /** How long a preparing page waits on one answer from `prepare`, in milliseconds. See `Preparations`. */
+  prepareTimeout?: number;
   /** The private browser worker may accept its page's authored terrain at join. */
   localAuthoring?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
@@ -241,6 +243,7 @@ export class Simulation {
   /** Chunk requests heard while a client's first country was still being prepared. */
   private readonly wantedWhileWarming = new Map<Client, Map<string, [number, number]>>();
   private readonly prepare?: GroundSource;
+  private readonly preparations: Preparations;
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
@@ -293,6 +296,7 @@ export class Simulation {
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
     this.prepare = options.prepare;
+    this.preparations = new Preparations(options.prepareTimeout);
     this.reach = options.reach ?? REACH;
   }
 
@@ -685,6 +689,7 @@ export class Simulation {
       },
       leave: () => {
         if (!client) return;
+        this.preparations.left(client);
         if (this.rooms.get(client.seed)?.clients.size === 1) this.keepMindsOf(client.seed);
         this.rooms.leave(client);
         client = null;
@@ -1199,7 +1204,8 @@ export class Simulation {
     try {
       let road: RoadParts | undefined;
       if (growsRoad && this.prepare) {
-        road = await this.prepare.growRoad(seed, this.rooms.manifestOf(seed).byKind('island'));
+        road = await this.preparations.wait(client,
+          this.prepare.growRoad(seed, this.rooms.manifestOf(seed).byKind('island')));
         if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
         done++;
         progress();
@@ -1209,7 +1215,7 @@ export class Simulation {
       if (patches.length && this.prepare) {
         const layers = this.layersOf(seed), terrain = this.terrainOf(seed);
         for (const patch of patches) {
-          const parts = await this.prepare.grow(seed, patch, layers, terrain);
+          const parts = await this.preparations.wait(client, this.prepare.grow(seed, patch, layers, terrain));
           if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
           patchwork!.put(patch, rebuildPatch(seed, boundsOf(patch), parts));
           done++;

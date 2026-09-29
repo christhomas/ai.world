@@ -182,6 +182,73 @@ describe('a slow first country', () => {
     expect(parcels).toBe(view.length);
   }, 90_000);
 
+  /** A page on a simulation with no server around it; closing its wire leaves, as a socket does. */
+  function joinSim(sim: Simulation, seed: number) {
+    const page = { heard: [] as ServerMessage[], open: true };
+    const attached = sim.attach({
+      send: (text) => page.heard.push(JSON.parse(String(text)) as ServerMessage),
+      get open() { return page.open; },
+      close: () => { if (page.open) { page.open = false; attached.leave(); } },
+    });
+    attached.receive(JSON.stringify({
+      type: 'join', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 256, z: 256,
+    }));
+    return { ...page, get open() { return page.open; }, leave: () => { page.open = false; attached.leave(); } };
+  }
+
+  describe('a ground source that never answers', () => {
+    const seed = 57721;
+    let grown: ReturnType<typeof partsOf> | null = null;
+    const parts = () => (grown ??= partsOf(growPatch(seed, boundsOf('0,0'))));
+    const never = <T>() => new Promise<T>(() => {});
+
+    it('tells the preparing page it failed after a limit, and the next join tries again', async () => {
+      const answer = parts();
+      let asked = 0;
+      const sim = new Simulation({
+        vault: new Forgetful(), ground: true, prepareTimeout: 200,
+        prepare: {
+          grow: () => (++asked === 1 ? never() : Promise.resolve(answer)),
+          growRoad: never,
+        },
+      });
+      try {
+        const first = joinSim(sim, seed);
+        await until(() => first.heard.find((m) => m.type === 'country-progress'), 1000);
+        const refused = await until(() => first.heard.find((m) => m.type === 'error'), 3000);
+        expect(refused).toMatchObject({ reason: expect.stringMatching(/too long/) });
+        expect(first.open, 'the page that was refused is let go').toBe(false);
+        expect(first.heard.some((m) => m.type === 'country')).toBe(false);
+
+        const second = joinSim(sim, seed);
+        await until(() => second.heard.find((m) => m.type === 'country'), 20_000);
+        expect(asked, 'the second join asked the source again rather than waiting on the first').toBe(2);
+      } finally { sim.stop(); }
+    }, 60_000);
+
+    it('does not keep the next join waiting on a page that has already left', async () => {
+      const answer = parts();
+      let asked = 0;
+      const sim = new Simulation({
+        vault: new Forgetful(), ground: true,
+        prepare: {
+          grow: () => (++asked === 1 ? never() : Promise.resolve(answer)),
+          growRoad: never,
+        },
+      });
+      try {
+        const first = joinSim(sim, seed);
+        await new Promise((resume) => setTimeout(resume, 50));
+        expect(asked, 'the first join is waiting on the source').toBe(1);
+        first.leave();
+        const second = joinSim(sim, seed);
+        await until(() => second.heard.find((m) => m.type === 'country'), 20_000);
+        expect(second.heard.filter((m) => m.type === 'country-progress').length).toBeGreaterThan(0);
+        expect(asked).toBe(2);
+      } finally { sim.stop(); }
+    }, 60_000);
+  });
+
   it('does not count server preparation as player silence', async () => {
     const heard: ServerMessage[] = [];
     let open = true;

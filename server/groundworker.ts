@@ -64,80 +64,120 @@ function grownRoad(seed: number, saved: readonly Anchor[]): RoadParts {
   return roadPartsOf(islands, new TerrainSampler(growWorld(seed, islands)));
 }
 
-export class GroundWorker implements GroundSource {
-  private readonly worker: Worker;
-  private next = 1;
-  private readonly pending = new Map<number, { resolve: (value: PatchParts | RoadParts | Uint8ClampedArray | SkyAccessAssessment | { conflict: string | null }) => void; reject: (error: Error) => void }>();
+/** How long one request may take, from being sent, before its thread is presumed stuck. */
+const REQUEST_TIMEOUT = 120_000;
 
-  constructor() {
-    this.worker = new Worker(new URL(import.meta.url), { workerData: { task: TASK } });
-    this.worker.on('message', (reply: Reply) => {
+export interface GroundWorkerOptions {
+  /** How a thread is started. The published bundle by default; a test hands in one that misbehaves. */
+  start?: () => Worker;
+  /** Milliseconds one request may take before its thread is replaced. See `REQUEST_TIMEOUT`. */
+  timeout?: number;
+}
+
+type Answer = PatchParts | RoadParts | Uint8ClampedArray | SkyAccessAssessment | { conflict: string | null };
+
+/**
+ * The thread the server grows ground on, and what happens when it goes wrong.
+ *
+ * A thread that died used to be posted to for ever: every request after it sat in a promise nothing
+ * would settle, and a page preparing that world waited with it (#480). Now a dead thread is
+ * forgotten, whatever it was asked is refused, and the next request starts a new one. A thread that
+ * has not answered in `timeout` is treated the same way, because a request that late is a thread
+ * stuck inside it and everything queued behind it is stuck too.
+ *
+ * The clock starts when a request is sent, so time spent queued behind other requests counts. Two
+ * minutes is room for several road countries (eight seconds each on the Pi) ahead of it.
+ */
+export class GroundWorker implements GroundSource {
+  private readonly start: () => Worker;
+  private readonly timeout: number;
+  private worker: Worker | null = null;
+  private closed = false;
+  private next = 1;
+  private readonly pending = new Map<number, {
+    resolve: (value: Answer) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout>;
+  }>();
+
+  constructor(options: GroundWorkerOptions = {}) {
+    this.start = options.start ?? (() => new Worker(new URL(import.meta.url), { workerData: { task: TASK } }));
+    this.timeout = options.timeout ?? REQUEST_TIMEOUT;
+  }
+
+  /** The thread requests go to, started if there is none because the last one was lost. */
+  private live(): Worker {
+    if (this.worker) return this.worker;
+    const worker = this.start();
+    worker.on('message', (reply: Reply) => {
       const waiting = this.pending.get(reply.id);
       if (!waiting) return;
       this.pending.delete(reply.id);
-      if (reply.parts) waiting.resolve(reply.parts);
-      else if (reply.road) waiting.resolve(reply.road);
-      else if (reply.pixels) waiting.resolve(reply.pixels);
-      else if (reply.assessment) waiting.resolve(reply.assessment);
-      else if (reply.placement) waiting.resolve(reply.placement);
-      else waiting.reject(new Error(reply.error ?? 'The ground worker sent no patch.'));
+      clearTimeout(waiting.timer);
+      const answer = reply.parts ?? reply.road ?? reply.pixels ?? reply.assessment ?? reply.placement;
+      if (answer) waiting.resolve(answer);
+      else waiting.reject(new Error(reply.error ?? 'The ground worker sent no answer.'));
     });
-    const failed = (error: Error) => {
-      for (const waiting of this.pending.values()) waiting.reject(error);
-      this.pending.clear();
-    };
-    this.worker.on('error', failed);
-    this.worker.on('exit', (code) => {
-      if (this.pending.size) failed(new Error(`The ground worker stopped with code ${code}.`));
+    worker.on('error', (error: Error) => this.lost(worker, error));
+    worker.on('exit', (code) => this.lost(worker, new Error(`The ground worker stopped with code ${code}.`)));
+    this.worker = worker;
+    return worker;
+  }
+
+  /** Forget a thread and refuse everything it was asked; the next request starts another. */
+  private lost(worker: Worker, error: Error): void {
+    if (this.worker !== worker) return;
+    this.worker = null;
+    for (const waiting of this.pending.values()) {
+      clearTimeout(waiting.timer);
+      waiting.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  private ask<T extends Answer>(request: (id: number) => Request): Promise<T> {
+    if (this.closed) return Promise.reject(new Error('The ground worker has been closed.'));
+    const worker = this.live();
+    const id = this.next++;
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.lost(worker, new Error(`The ground worker took longer than ${this.timeout} ms and was replaced.`));
+        void worker.terminate();
+      }, this.timeout);
+      this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
+      worker.postMessage(request(id));
     });
   }
 
   grow(seed: number, patch: string, layers: readonly Highland[], terrain: readonly TerrainLayer[]): Promise<PatchParts> {
-    const id = this.next++;
-    return new Promise<PatchParts>((resolve, reject) => {
-      this.pending.set(id, { resolve: (value) => resolve(value as PatchParts), reject });
-      this.worker.postMessage({ id, seed, patch, layers, terrain } satisfies Request);
-    });
+    return this.ask((id) => ({ id, seed, patch, layers, terrain }));
   }
 
   /** Grow a whole road country, which is seconds of work the event loop must not wait through. */
   growRoad(seed: number, islands: readonly Anchor[]): Promise<RoadParts> {
-    const id = this.next++;
-    return new Promise<RoadParts>((resolve, reject) => {
-      this.pending.set(id, { resolve: (value) => resolve(value as RoadParts), reject });
-      this.worker.postMessage({ id, seed, islands } satisfies Request);
-    });
+    return this.ask((id) => ({ id, seed, islands }));
   }
 
   /** Build a small authored map away from HTTP and WebSocket event handling. */
   preview(seed: number, x: number, z: number, size: number,
     layers: readonly Highland[], terrain: readonly TerrainLayer[]): Promise<Uint8ClampedArray> {
-    const id = this.next++;
-    return new Promise<Uint8ClampedArray>((resolve, reject) => {
-      this.pending.set(id, { resolve: (value) => resolve(value as Uint8ClampedArray), reject });
-      this.worker.postMessage({ id, seed, x, z, size, layers, terrain } satisfies Request);
-    });
+    return this.ask((id) => ({ id, seed, x, z, size, layers, terrain }));
   }
 
   /** Check changed country and pin its existing sky villages away from the HTTP event loop. */
   assess(seed: number, before: ManifestJson, after: ManifestJson,
     x: number, z: number, reach: number, pins: PlacePin[], villages: string[],
     protectAllVillages: boolean): Promise<SkyAccessAssessment> {
-    const id = this.next++;
-    return new Promise<SkyAccessAssessment>((resolve, reject) => {
-      this.pending.set(id, { resolve: (value) => resolve(value as SkyAccessAssessment), reject });
-      this.worker.postMessage({ id, seed, before, after, x, z, reach,
-        pins, villages, protectAllVillages } satisfies Request);
-    });
+    return this.ask((id) => ({ id, seed, before, after, x, z, reach, pins, villages, protectAllVillages }));
   }
 
   placeEyrie(seed: number, manifest: ManifestJson, eyrie: Anchor): Promise<{ conflict: string | null }> {
-    const id = this.next++;
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve: (value) => resolve(value as { conflict: string | null }), reject });
-      this.worker.postMessage({ id, seed, manifest, eyrie } satisfies Request);
-    });
+    return this.ask((id) => ({ id, seed, manifest, eyrie }));
   }
 
-  async close(): Promise<void> { await this.worker.terminate(); }
+  async close(): Promise<void> {
+    this.closed = true;
+    const worker = this.worker;
+    if (!worker) return;
+    this.lost(worker, new Error('The ground worker has been closed.'));
+    await worker.terminate();
+  }
 }
