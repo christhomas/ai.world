@@ -17,7 +17,11 @@ chore release minor "..."      # or major, or patch
 1. **Refuses to start** off `main`, or on a dirty tree that is somebody's work. A release names a
    commit; there has to be one. A tree dirtied by a *killed release* — those five files and nothing
    else — is put back rather than refused, because that is wreckage rather than work.
-2. **Runs the tests.** A release is the wrong place to find out.
+2. **Waits for the tests on GitHub.** A release is the wrong place to find out, but it is also the
+   wrong machine to find out on: a push to `main` runs every required check on hosted runners, so
+   the release waits for those checks on the exact commit it is cutting and refuses if any is red,
+   rather than running the suite again on whatever it happens to be run from. It refuses, too, a
+   local `main` that is not the one on GitHub.
 3. **Moves all three version numbers together** — the chart's `version`, its `appVersion`, and the
    pin in `deploy/flux/helmrelease.yaml` — and `package.json`'s, which the title screen and console
    read. `server/chart.test.ts` fails the build if the chart, appVersion and pin ever drift, because
