@@ -17,6 +17,7 @@ import { callTownVote } from './voting';
 import { cartActionPosition, cartGuarded, robLoadedCart } from './cartrobbery';
 import { carrierOnRoad } from './carrieractor';
 import type { CartLoaded } from '../src/world/carrierbook';
+import { mayChangeEyrie } from './eyries';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -754,11 +755,21 @@ function civicVote(rooms: Rooms, me: Client, room: Room, message: Extract<Client
 function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
   if (message.type !== 'delta') return;
   const delta = cleanDelta(message.delta);
-  if (!delta) return;
+  if (!delta) {
+    if (message.delta?.kind === 'eyrie') answerEyrie(rooms, me, room, message.delta.anchor?.id);
+    return;
+  }
   // a change that has a command of its own cannot also be announced as a fact, or the command is a
   // suggestion rather than a check: see `mayReport`
   if (!mayReport(delta)) return;
-  if (!room.world.apply(delta)) return;
+  if (delta.kind === 'eyrie' && (me.presence.place !== 'surface'
+    || !mayChangeEyrie(room.world.manifest, me.hero ?? me.presence, delta))) {
+    answerEyrie(rooms, me, room, delta.anchor.id);
+    return;
+  }
+  const changed = room.world.apply(delta);
+  if (delta.kind === 'eyrie') answerEyrie(rooms, me, room, delta.anchor.id);
+  if (!changed) return;
   /*
    * A death is not only a row in a log any more.
    *
@@ -777,6 +788,13 @@ function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessag
     });
   }
   rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
+}
+
+/** Reply with the stored nest even when the report was stale, duplicate, or malformed. */
+function answerEyrie(rooms: Rooms, me: Client, room: Room, id: unknown): void {
+  if (typeof id !== 'string' || id.length > LIMITS.THING_ID || !/^eyrie:-?\d+,-?\d+$/.test(id)) return;
+  const current = room.world.manifest.get(id);
+  rooms.send(me, { type: 'eyrie-state', id, anchor: current?.kind === 'eyrie' ? current : null });
 }
 
 /** Market pitches: rented, stocked, bought from, collected, given up. */

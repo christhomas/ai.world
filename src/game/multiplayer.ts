@@ -32,6 +32,7 @@ import type { Chat } from '../ui/chat';
 import type { Sound } from './audio';
 import type { MapMarker } from '../ui/mapbase';
 import type { Register } from '../world/register';
+import type { HighCountry } from './highcountry';
 import { HIRE, type Hires } from './hire';
 import {
   WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
@@ -48,6 +49,7 @@ import { claimCartCargo } from './cartloot';
  * objects sits there costing nothing until somebody joins.
  */
 export interface MultiplayerContext {
+  high: HighCountry;
   player: Player;
   state: GameState;
   /** What the hero has left to swing and guard with, so a bout obeys the same rules a fight does. */
@@ -128,7 +130,7 @@ export interface MultiplayerContext {
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera,
-    dialogue, hud, chat, sound, questList, discovered, register, hires, seed, placeName, persist, showOffer,
+    dialogue, hud, chat, sound, questList, discovered, register, hires, high, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
   const duelBar = $('duelbar');
@@ -166,6 +168,8 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
+    onEyries: (anchors) => { high.reconcileBaited(anchors); state.version++; persist(); },
+    onEyrieState: (id, anchor) => { high.setBaited(id, anchor); state.version++; persist(); },
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
     onParcel: (bytes) => ctx.onParcel?.(bytes),
@@ -441,6 +445,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
    */
   const applyWorldDelta = (delta: WorldDelta, catchingUp: boolean): void => {
     switch (delta.kind) {
+      case 'eyrie':
+        high.applyBaited(delta.anchor, delta.present);
+        break;
       case 'chest':
         state.opened.add(delta.id);
         places.underground?.scene.rebuildProps(state.opened);

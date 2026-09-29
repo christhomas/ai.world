@@ -11,7 +11,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
 
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
@@ -142,6 +142,8 @@ export interface SwornIn {
 
 export type WorldDelta =
   | CarrierFact
+  /** The current state of a player-baited eagle nest, keyed by its anchor. */
+  | { kind: 'eyrie'; anchor: Anchor; present: boolean }
   | { kind: 'chest'; id: string }
   | { kind: 'key'; id: string }
   | { kind: 'sow'; tile: string; crop: string; day: number }
@@ -869,6 +871,8 @@ export type ServerMessage =
   /** Whether the seed took. `ok: false` means the page lifts it back out and returns the seed. */
   | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
+  /** The authoritative state after this client's eyrie report, including a refused report. */
+  | { type: 'eyrie-state'; id: string; anchor: Anchor | null }
   | { type: 'cart-robbed'; loadedOn: number; ok: boolean }
   | { type: 'cart-escorted'; loadedOn: number; ok: boolean; escorting: boolean }
   | { type: 'said'; id: string; name: string; text: string }
@@ -1105,6 +1109,7 @@ export function mayReport(delta: WorldDelta): boolean {
 
 export function deltaKey(delta: WorldDelta): string {
   switch (delta.kind) {
+    case 'eyrie': return `eyrie:${delta.anchor.id}`;
     case 'chest': return `chest:${delta.id}`;
     case 'key': return `key:${delta.id}`;
     case 'sow': return `sow:${delta.tile}`;
@@ -1195,6 +1200,17 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
     return new Set(rows.map(([owner]) => owner)).size === rows.length ? rows : null;
   };
   switch (delta?.kind) {
+    case 'eyrie': {
+      const a = delta.anchor;
+      if (!a || a.kind !== 'eyrie' || typeof a.id !== 'string' || a.id.length > LIMITS.THING_ID
+        || !Number.isSafeInteger(a.x) || !Number.isSafeInteger(a.z)
+        || a.id !== `eyrie:${a.x},${a.z}` || a.parent !== null
+        || !Number.isInteger(a.seed) || a.seed < 0 || a.seed > 0xffffffff
+        || !Number.isSafeInteger(a.version) || a.version < 1
+        || typeof delta.present !== 'boolean') return null;
+      return { kind: 'eyrie', anchor: { id: a.id, kind: 'eyrie', x: a.x, z: a.z,
+        seed: a.seed, parent: null, version: a.version }, present: delta.present };
+    }
     case 'cart-loaded': {
       const paying = entries(delta.paying, -1), paid = entries(delta.paid, 1);
       if (!Number.isInteger(delta.day) || delta.day < 2
