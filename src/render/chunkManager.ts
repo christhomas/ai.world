@@ -128,11 +128,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
   private readonly offsets: Array<{ dx: number; dz: number }> = [];
   private readonly terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
   private readonly terrainBridge: ThreeGraphBridge;
-  /** Season tint: multiplied into every vertex colour of terrain and props. */
+  /** The ground nodes' `'season'` effect, so a renderer drawing the frame knows it is tinted. */
+  private landEffects: string[] = [];
   /** Let a season tint drive the terrain and prop materials. */
   useSeasonTint(tint: SeasonTintMaterials): void {
     tint.attach(this.terrainMaterial);
     tint.attach(this.props.material);
+    this.landEffects = ['season'];
   }
 
   /**
@@ -507,6 +509,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       const terrain: SceneNode[] = [];
       const land: Extract<SceneNode, { kind: 'mesh' }> = {
         kind: 'mesh', geometry: msg.mesh, material: 'lit-vertex-colours', castShadow: true, receiveShadow: true,
+        effects: this.landEffects,
       };
       this.terrainBridge.add(land);
       terrain.push(land);

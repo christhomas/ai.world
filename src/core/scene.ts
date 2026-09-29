@@ -13,12 +13,26 @@ export interface ScenePlacement {
   scale?: number; stretch?: number; lean?: number; tint?: number;
 }
 
+/** How a season colours the country: see `FrameDescription.season`. */
+export interface SeasonLook {
+  multiply: [number, number, number];
+  frost: number;
+  snow: number;
+}
+
 /** A scene description independent of the graphics API that displays it. */
 export interface FrameDescription {
   camera: { projection: number[]; world: number[]; orthographic: boolean; layers?: number };
   background: number | null;
   fog: { colour: number; near: number; far: number } | null;
   cutaway?: { enabled: boolean; hero: [number, number, number] } | null;
+  /**
+   * The season's tint, for every material whose `effects` name `'season'`: its colour becomes
+   * `mix(colour * multiply, snow, frost)` before it is lit. `multiply` is linear and may pass one,
+   * `snow` is an sRGB hex like every other authored colour, and `frost` runs from nought to one.
+   * Null where no season is drawn — a desert, a snowfield, or before the game has said.
+   */
+  season?: SeasonLook | null;
   /** World-space coast distance field sampled by open water. */
   coast?: { x0: number; z0: number; span: number; size: number; values: Uint8Array | number[] } | null;
   nodes: Array<{
