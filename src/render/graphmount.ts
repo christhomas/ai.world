@@ -101,15 +101,27 @@ export function applyMeshFrame(mesh: THREE.Mesh, frame: FrameNode): void {
   }
 }
 
+/**
+ * Whether a frame's instance values are already in the attribute: a view of its own array.
+ *
+ * The frame carries `subarray` views, which are never the attribute's array object however much
+ * of it they share. Compared by identity, every pool was marked for upload on every draw — and an
+ * empty pool, with no update ranges, sends its whole buffer.
+ */
+function alreadyIn(values: ArrayLike<number>, attribute: THREE.BufferAttribute): boolean {
+  const own = attribute.array;
+  return ArrayBuffer.isView(values) && values.buffer === own.buffer && values.byteOffset === own.byteOffset;
+}
+
 export function applyInstanceFrame(mesh: THREE.InstancedMesh, frame: FrameNode): void {
   applyMeshFrame(mesh, frame);
   const matrices = frame.instanceMatrices;
   mesh.count = (matrices?.length ?? 0) / 16;
-  if (matrices && matrices !== mesh.instanceMatrix.array) {
+  if (matrices && !alreadyIn(matrices, mesh.instanceMatrix)) {
     mesh.instanceMatrix.array.set(matrices);
     mesh.instanceMatrix.needsUpdate = true;
   }
-  if (frame.instanceColours && mesh.instanceColor && frame.instanceColours !== mesh.instanceColor.array) {
+  if (frame.instanceColours && mesh.instanceColor && !alreadyIn(frame.instanceColours, mesh.instanceColor)) {
     mesh.instanceColor.array.set(frame.instanceColours);
     mesh.instanceColor.needsUpdate = true;
   }

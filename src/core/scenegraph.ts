@@ -113,7 +113,7 @@ export class SceneGraph {
           glowParts: node.glowParts, glowColour: node.glowColour, placements: node.placements,
         };
         if (node.kind === 'instances') return {
-          ...base, kind: 'instances' as const, castShadow: node.castShadow,
+          ...base, kind: 'instances' as const, visible: node.count > 0, castShadow: node.castShadow,
           receiveShadow: node.receiveShadow, renderOrder: node.renderOrder,
           material: { intent: 'lit' as const, colour: node.colour, emissive: 0,
             vertexColours: false, transparent: false, opacity: 1, depthWrite: true,
