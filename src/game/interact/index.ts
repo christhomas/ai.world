@@ -64,7 +64,7 @@ export function createInteractions(ctx: Surroundings) {
     { verb: 'Skin the carcass', attempt: camp.trySkin },
     { verb: travel.ferryLabel, attempt: travel.tryFerry },
     { verb: () => ctx.sailing.sailing ? 'Step ashore' : 'Use the boat', attempt: travel.tryBoat },
-    { verb: 'Fly over the mountains', attempt: travel.tryEagle },
+    { verb: travel.eagleLabel, attempt: travel.tryEagle },
     { verb: 'Fly to the sky island', attempt: travel.trySkyward },
     { verb: village.horseLabel, attempt: village.tryHorse },
     { verb: 'Open the chest', attempt: builder.tryChest },
