@@ -5,19 +5,30 @@ name: Renderer parity
 on:
   pull_request:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number whose proposed merge is captured
+        required: true
+        type: number
+      base_sha:
+        description: Exact pull request base commit
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   compare:
-    if: github.event.label.name == 'render-parity'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'render-parity'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/merge', inputs.pr) || github.ref }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -33,7 +44,7 @@ jobs:
 
       - name: Check out and prepare the exact PR base
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event.pull_request.base.sha }}
           BASE_DIR: ${{ runner.temp }}/render-base
         run: |
           git worktree add --detach "$BASE_DIR" "$BASE_SHA"
