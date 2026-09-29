@@ -244,7 +244,8 @@ jobs:
   playtest:
     needs: only-once
     if: needs.only-once.outputs.run == 'yes'
-    runs-on: ubuntu-latest
+    # The checked-in pixel references come from this OS image and the lockfile's Playwright.
+    runs-on: ubuntu-24.04
     # A browser that hangs should cost a quarter of an hour, not the six hours a job is allowed by
     # default. The run itself is a minute and a half on a laptop.
     timeout-minutes: 15
@@ -344,6 +345,31 @@ jobs:
         with:
           name: playtest
           path: docs/reports/playtest-report.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      # These two scenes were captured twice on the pinned browser with only 0.01% pixel movement.
+      # Compare before `chore phone`, which retakes the checked-in phone-title reference in place.
+      # The town scene has walking people and a live clock, so it remains a README picture rather
+      # than a pixel gate. A baseline changes only in a reviewed commit to docs/screenshots/.
+      - name: Compare stable reference scenes
+        if: always()
+        env:
+          PORT: '5185'
+          OUT: ${{ runner.temp }}/reference-scenes
+        run: |
+          mkdir -p "$OUT"
+          node tools/shots.cjs map phone-title
+          SHOTS="$OUT" node tools/compare.cjs docs/screenshots map.png phone-title.png
+
+      - name: Keep reference scenes and diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-scenes
+          path: |
+            ${{ runner.temp }}/reference-scenes/*.png
+            docs/reports/pictures-report.txt
           if-no-files-found: warn
           retention-days: 30
 

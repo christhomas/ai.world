@@ -27,7 +27,7 @@
  * hour is not a reason to lose the other twenty pictures.
  */
 const { chromium } = require('playwright');
-const { spawn } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -98,7 +98,7 @@ const origin = `http://localhost:${PORT}`;
 /** The shape of the pictures in the README: wide enough to show a street, short enough to scroll past. */
 const VIEW = { width: 1440, height: 900 };
 /** Hide transient capture clutter without changing the running page or the rest of its HUD. */
-const CLEAN_FRAME = '#areaName, #toast, #debug { visibility: hidden !important; }';
+const CLEAN_FRAME = '#areaName, #toast, #debug, #buildLine { visibility: hidden !important; }';
 /** A phone held upright, for the one shot that is about the touch controls. */
 /*
  * A phone, at the size the design is drawn at.
@@ -398,6 +398,13 @@ const SHOTS = [
       }, [peak, away, sides]);
       if (!spot) return null;                    // a mountain standing in the sea: not this one
       await stand(spot.x, spot.z, 6000);
+      // An endless-world teleport can still have its new patch and visible chunks in flight.
+      // A picture with a blue floor and zero drawn chunks is a picture of loading, not a mountain.
+      await p.waitForFunction(() => {
+        const readout = document.getElementById('debug')?.textContent ?? '';
+        const match = /chunks\s+(\d+)\/(\d+)\s+queue\s+(\d+)/.exec(readout);
+        return match && Number(match[1]) >= 60 && Number(match[3]) < 60;
+      }, null, { timeout: 180_000 });
       // a mountain will not fit in the zoom a village is photographed at; see `away` above
       await zoom(96);
       await face(peak.x, peak.z);
@@ -525,12 +532,16 @@ const SHOTS = [
   },
   {
     name: 'map', title: 'The full-screen map',
-    setup: async (p, { village, time, key, wait }) => {
+    setup: async (p, { village, time, key, wait, ask }) => {
       await time(NOON);
       await village();
+      // The revealed-cell fog depends on which tile the hero crossed while the browser booted.
+      // Equip the real Grand Survey so this reference judges the road map itself, whose pixels
+      // are stable, instead of a race-dependent exploration mask around the player.
+      await ask(() => { window.__state.give('map'); window.__state.equip('map'); });
       await key('m');
       await wait(1500);
-      return 'open';
+      return 'open with the Grand Survey';
     },
   },
   {
@@ -602,7 +613,7 @@ const SHOTS = [
   },
   {
     name: 'phone-title', title: 'The title screen on a phone', viewport: PHONE, touch: true,
-    page: '/',
+    page: '/', cleanFrame: true,
     setup: async () => 'the three slots, before a world is opened',
   },
   {
@@ -694,14 +705,36 @@ const SHOTS = [
      * in one world who cannot see each other is exactly the fault this picture exists to disprove.
      */
     name: 'shared', title: 'Two players in one world', server: true, join: true, settle: 7000,
-    setup: async (p, { ask, wait, village, time, zoom }) => {
+    setup: async (p, { ask, wait, village, time, zoom }, playing) => {
       await time(NOON);
       const here = await village();
       await wait(4000);
       await zoom(18);
       const others = await ask(() => (window.__online ? window.__online.count : 0));
       if (!others) return null;                     // nobody else arrived: not a shared world today
-      return `${here.name}, ${others} other player${others > 1 ? 's' : ''}`;
+      // A newly teleported page may briefly draw a chunk while its server answer is in flight.
+      // `grown` counts local chunks still on screen, not a historical total: wait for both views
+      // to settle on the server's ground before judging the shared country.
+      const settled = () => window.__stream?.arrived > 0 && window.__stream.grown === 0;
+      await Promise.all([
+        p.waitForFunction(settled, null, { timeout: 90_000 }),
+        playing.waitForFunction(settled, null, { timeout: 90_000 }),
+      ]);
+      const sample = () => ({
+        stream: window.__stream,
+        mismatch: document.body.textContent.includes('This world grew differently')
+          || document.body.textContent.includes('This world does not match'),
+        creatures: window.__entitiesFull().filter((one) => one.id !== null && !one.dead)
+          .map((one) => ({ id: one.id, kind: one.kind, x: one.x, z: one.z })),
+      });
+      const [mine, theirs] = await Promise.all([p.evaluate(sample), playing.evaluate(sample)]);
+      if ([mine, theirs].some((one) => one.mismatch || one.stream.arrived === 0 || one.stream.grown !== 0)) {
+        throw new Error(`road clients did not agree on streamed country: ${JSON.stringify([mine.stream, theirs.stream])}`);
+      }
+      const same = mine.creatures.find((one) => theirs.creatures.some((other) =>
+        one.id === other.id && Math.hypot(one.x - other.x, one.z - other.z) < 2));
+      if (!same) throw new Error('the two road clients saw no shared creature in the same place');
+      return `${here.name}, ${others} other player${others > 1 ? 's' : ''}; ${mine.stream.arrived}/${theirs.stream.arrived} chunks arrived, none locally grown; both saw ${same.kind} ${same.id}`;
     },
   },
 ];
@@ -724,7 +757,10 @@ const startWorld = async () => {
     catch { return false; }
   };
   if (await answers()) throw new Error(`something is already on port ${WORLD_PORT} — set WORLD_PORT`);
-  serving = spawn('pnpm', ['tsx', 'server/index.ts'], {
+  // The server imports portal HTML through Vite's ?raw loader. Build the same bundle used by the
+  // published image; tsx cannot load that import when a shared or Domesday shot needs a server.
+  execFileSync('pnpm', ['exec', 'vite', 'build', '--config', 'server/build.config.ts'], { stdio: 'inherit' });
+  serving = spawn('node', ['server/dist/server.mjs'], {
     detached: true, stdio: ['ignore', 'ignore', 'inherit'],
     // its own worlds, thrown away with the directory: a screenshot must never be taken of, or write
     // to, the worlds somebody is actually playing
@@ -752,16 +788,15 @@ process.on('exit', stopWorld);
  * book is photographed with a game open beside it, touring a few villages to give the survey
  * something to survey — which is also, exactly, what the tool is for.
  */
-async function playerJoins(browser, seed, villages = 3) {
+async function playerJoins(browser, seed, villages = 3, world = 'endless') {
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
-  await page.goto(`${origin}/?seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
+  await page.goto(`${origin}/?world=${world}&seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
   await page.waitForTimeout(LOADING);
-  // the address is in the box already — `?server=` fills it — and pressing connect is what leaves
-  // the world in this tab for the one on the server
-  await page.evaluate(() => document.getElementById('connectButton').click());
-  await page.waitForTimeout(6000);
+  // `?server=` joins automatically. Pressing Connect after that would disconnect back to the
+  // private worker, turning a two-player picture into a solo one.
+  await page.waitForFunction(() => window.__online?.away, null, { timeout: Math.max(120000, PATIENCE) });
   for (let n = 0; n < villages; n++) {
     await page.evaluate((n) => { const v = window.__villages[n]; if (v) window.__teleport(v.x, v.z); }, n);
     await page.waitForTimeout(12000);
@@ -783,6 +818,7 @@ async function playerJoins(browser, seed, villages = 3) {
 async function take(browser, shot) {
   const page = await browser.newPage({ viewport: shot.viewport ?? VIEW });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
+  if (shot.join) await page.addInitScript(() => localStorage.setItem('ai.world/name', 'Ash'));
   if (RIG) {
     await page.addInitScript((on) => {
       try { localStorage.setItem('ai.world/new/composer', on); } catch { /* no storage, no switch */ }
@@ -826,20 +862,15 @@ async function take(browser, shot) {
      * knocks, so a page that joins an empty world and photographs itself has photographed single
      * player with a socket attached.
      */
-    if (shot.join) { await startWorld(); playing = await playerJoins(browser, seed, 1); }
+    if (shot.join) { await startWorld(); playing = await playerJoins(browser, seed, 1, world); }
     const joining = shot.join ? `&server=ws://localhost:${WORLD_PORT}` : '';
     await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}${joining}`, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
     await page.waitForTimeout(shot.loading ?? LOADING);
     if (shot.join) {
-      // `?server=` only fills the box. The button is what leaves the world in this tab for the one
-      // on the server, and the name is what puts something other than a blank in the roster.
-      await page.evaluate(() => {
-        const name = document.getElementById('nameInput');
-        if (name) name.value = 'Ash';
-        document.getElementById('connectButton').click();
-      });
-      await page.waitForTimeout(8000);
+      // This page also joins automatically from `?server=`. Its saved name was set before boot.
+      await page.waitForFunction(() => window.__online?.away && window.__online.count > 0,
+        null, { timeout: Math.max(120000, PATIENCE) });
     }
   }
   let note;
@@ -849,7 +880,7 @@ async function take(browser, shot) {
     await page.close();
     if (playing) await playing.close();
   };
-  try { note = await shot.setup(page, verbs(page)); }
+  try { note = await shot.setup(page, verbs(page), playing); }
   catch (e) { await done(); return { ok: false, why: e.message }; }
   if (note === null) { await done(); return { ok: false, why: 'nothing to photograph in this world today' }; }
   /*
@@ -861,7 +892,14 @@ async function take(browser, shot) {
    */
   await page.waitForTimeout(shot.settle ?? 9000);
   const file = path.join(OUT, `${shot.name}.png`);
-  await page.screenshot({ path: file, style: shot.cleanFrame ? CLEAN_FRAME : undefined });
+  // Software rendering a wide mountain scene can take longer than Playwright's 30-second default
+  // on the small host used to retake references. Keep the same frame; only allow it to finish.
+  try {
+    await page.screenshot({ path: file, style: shot.cleanFrame ? CLEAN_FRAME : undefined, timeout: 120_000 });
+  } catch (error) {
+    await done();
+    return { ok: false, why: error instanceof Error ? error.message : String(error) };
+  }
   await done();
   return { ok: true, file, note, errs: errs.length };
 }

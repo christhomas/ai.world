@@ -54,6 +54,8 @@ and stay out of the way of a mouse — `?touch=1` and `?touch=0` settle any argu
 Three save slots on the title screen. Give a new world a name; open **Choose a seed** only when you
 want a particular number underneath it. Old `?seed=123` links and saves still open unchanged.
 
+![The title screen on a phone](docs/screenshots/phone-title.png)
+
 ---
 
 ## What is out there
@@ -199,7 +201,7 @@ your own and let you go wherever you like.
 
 | An island town | Under sail |
 |---|---|
-| ![Island](docs/screenshots/island.png) | ![Sailing](docs/screenshots/sailing.png) |
+| ![Island](docs/screenshots/island.png) | ![Sailing](docs/screenshots/sea.png) |
 
 ### Under the shrines
 
@@ -215,6 +217,8 @@ searched once for salvage.
 ### The map
 
 ![The full-screen map](docs/screenshots/map.png)
+
+This reference shows the road country at seed 3, captured by `node tools/shots.cjs map`.
 
 Towns are always named. Landmarks, caves and wrecks are named once you have found them, ferries
 show live, and your errand is ringed in green. The fog lifts as you walk, or all at once if you
@@ -256,7 +260,7 @@ anybody who deliberately chooses one. If the page is on https and the address in
 plain `ws://`, the button says so instead of handing out a link that a browser will refuse to open
 — see [a server other people can reach](#a-server-other-people-can-reach).
 
-![Two travellers in one world](docs/screenshots/multiplayer.png)
+![Two travellers in one world](docs/screenshots/shared.png)
 
 Everyone in a world keeps the same clock, so dawn breaks for all of you at once, and the few
 things players change about the world are shared: a chest opened stays opened, a vault unlocked
