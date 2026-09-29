@@ -29,7 +29,7 @@ export function prayerInteractions(ctx: Surroundings) {
               const refused = mayPray(state.prayers, manifest, site.id, state.day);
               if (refused) return { speaker: shrine.name, emoji: '⛩️', pages: [refused],
                 choices: [{ label: 'Leave it', next: () => null }] };
-              const places = affectedPlaces(site, around.villages(site.x, site.z, PRAYER_REACH));
+              const places = affectedPlaces(site, around.surveyVillages(site.x, site.z, PRAYER_REACH));
               const warning = places.length
                 ? `This rise may change the ground beneath ${places.join(', ')}. Homes, fields, roads and people there may be harmed.`
                 : 'No known village is within its reach, but paths and people in the country may still be harmed.';

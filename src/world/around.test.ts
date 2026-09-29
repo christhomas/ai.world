@@ -44,6 +44,17 @@ describe('what is near a point', () => {
   });
 });
 
+it('surveys an unheld neighboring patch before warning about a terrain change', () => {
+  const asked: string[] = [];
+  const patches = { patch: (name: string) => {
+    asked.push(name);
+    return { structures: { villages: name === '1,0' ? [village('East', 520, 256)] : [] } };
+  } } as unknown as Patchwork;
+  const found = aroundPatches(patches).surveyVillages(508, 256, 96);
+  expect(found.map((place) => place.name)).toEqual(['East']);
+  expect(asked).toContain('1,0');
+});
+
 describe('somewhere worth walking to', () => {
   it('is far enough to be a journey and near enough to be this village’s business', () => {
     const around = aroundOf(country);
