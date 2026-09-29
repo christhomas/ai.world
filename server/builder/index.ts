@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
  * Running the builder worker on the machine that has the checkout.
  *
  * It goes on the source host and nowhere near the game container: the game server has no compiler,
- * no repository and no Claude, and it should stay that way. This is the one process that has all
+ * no repository and no Codex, and it should stay that way. This is the one process that has all
  * three, and the only thing that may speak to it is the portal.
  *
  *     BUILDER_PORTAL=https://example.org BUILDER_PAIR_TOKEN=... \
@@ -15,7 +15,7 @@ import { randomBytes } from 'node:crypto';
  *
  *     git worktree add ../ai.world-builder -b builder origin/main
  *
- * That is what makes `--permission-mode acceptEdits` safe to hand to a web page. The edits are
+ * That is what makes `codex exec --sandbox workspace-write` safe to hand to a web page. The edits are
  * real, they are on a branch, and somebody looks at them before they are anywhere near a release —
  * which is #103's "changed model files can be reviewed before they enter the release branch", and
  * it is a property of the worktree rather than of any code here.

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import WebSocket from 'ws';
-import { startWorker, changedIn, type RunningWorker } from './worker';
+import { startWorker, changedIn, readEvent, type RunningWorker } from './worker';
 import { startServer, type RunningServer } from '../serve';
 import { COOKIE } from '../tools/portal';
 import { addAccount } from '../tools/accounts';
@@ -16,12 +16,12 @@ import type { Recorded } from './asked';
  * The builder, end to end: a portal that knows who you are, a worker that does not, and a shared
  * secret between them.
  *
- * Claude is stood in for. What is being tested is the arrangement — who may ask, what the worker
+ * Codex is stood in for. What is being tested is the arrangement — who may ask, what the worker
  * refuses, what is written down, and that a page can follow a run and pick it up again after a
  * reload — and standing in for the thing that edits files makes all of that testable without a
  * login, an API key, or twenty minutes.
  *
- * The stand-in is a real child process speaking real `stream-json`, so the parsing, the streaming,
+ * The stand-in is a real child process speaking Codex JSONL, so the parsing, the streaming,
  * the argv and the exit codes are all the ones production uses. The only thing it does not do is
  * think.
  */
@@ -32,14 +32,37 @@ const PRETEND = `
 const say = (o) => process.stdout.write(JSON.stringify(o) + '\\n');
 const prompt = process.argv[process.argv.length - 1] ?? '';
 if (prompt.includes('fail')) { process.stderr.write('it did not work\\n'); process.exit(2); }
-say({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'working on ' } } });
-say({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: prompt } } });
+if (prompt.includes('turn error')) {
+  say({ type: 'turn.failed', error: { message: 'the model turn failed' } });
+  process.exit(0);
+}
+say({ type: 'thread.started', thread_id: 'fixture' });
+say({ type: 'turn.started' });
+say({ type: 'item.updated', item: { id: 'message_1', type: 'agent_message', text: 'working on ' } });
+say({ type: 'item.completed', item: { id: 'message_1', type: 'agent_message', text: 'working on ' + prompt } });
 // a run long enough to still be in hand when a second one arrives, for the one test that needs it
 if (prompt.includes('slowly')) { const until = Date.now() + 1500; while (Date.now() < until); }
-say({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: 'src/entities/animals.ts' } }] } });
+say({ type: 'item.started', item: { id: 'command_1', type: 'command_execution', command: 'edit src/entities/animals.ts' } });
 require('node:fs').writeFileSync('changed.txt', prompt);
-say({ type: 'result', is_error: false, duration_ms: 1200, result: 'done' });
+say({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 20 } });
 `;
+
+describe('Codex JSONL events', () => {
+  const root = '/workspace/tree';
+
+  it('streams only new message text and reports started commands', () => {
+    const spoken = new Map<string, string>();
+    expect(readEvent({ type: 'thread.started', thread_id: 'fixture' }, root, spoken)).toEqual([]);
+    expect(readEvent({ type: 'item.updated', item: { id: 'm1', type: 'agent_message', text: 'making ' } }, root, spoken))
+      .toEqual([{ k: 'say', text: 'making ' }]);
+    expect(readEvent({ type: 'item.completed', item: { id: 'm1', type: 'agent_message', text: 'making a wolf' } }, root, spoken))
+      .toEqual([{ k: 'say', text: 'a wolf' }]);
+    expect(readEvent({ type: 'item.started', item: { id: 'c1', type: 'command_execution', command: 'edit /workspace/tree/src/wolf.ts' } }, root, spoken))
+      .toEqual([{ k: 'tool', name: 'Command', on: 'edit src/wolf.ts' }]);
+    expect(readEvent({ type: 'item.completed', item: { id: 'c1', type: 'command_execution', command: 'edit /workspace/tree/src/wolf.ts' } }, root, spoken))
+      .toEqual([]);
+  });
+});
 
 /** A build small enough for this test, but still made from the worker's actual worktree. */
 const BUILD_PAGE = async (worktree: string, out: string): Promise<void> => {
@@ -131,7 +154,7 @@ describe('the builder worker', () => {
     const said = await res.text();
     expect(said).toContain('working on ');
     expect(said).toContain('make the wolf bigger');
-    expect(said, 'the tool line is what makes watching it happen literally true').toContain('"name":"Edit"');
+    expect(said, 'the tool line is what makes watching it happen literally true').toContain('"name":"Command"');
     expect(said).toContain('"k":"end"');
   }, PATIENCE);
 
@@ -149,6 +172,11 @@ describe('the builder worker', () => {
     expect(written[0].record.note).toContain('it did not work');
   }, PATIENCE);
 
+  it('treats a failed Codex turn as a failure even when the process exits zero', async () => {
+    await (await ask({ prompt: 'turn error' })).text();
+    expect(written[0].record).toMatchObject({ ok: false, note: 'the model turn failed' });
+  }, PATIENCE);
+
   it('refuses an empty prompt and one longer than a person would type', async () => {
     expect((await ask({ prompt: '  ' })).status).toBe(400);
     expect((await ask({ prompt: 'x'.repeat(5000) })).status).toBe(413);
@@ -156,7 +184,7 @@ describe('the builder worker', () => {
   });
 
   /*
-   * Two `acceptEdits` runs in one tree is two processes editing the same files with no idea the
+   * Two agent runs in one tree is two processes editing the same files with no idea the
    * other exists, and the result is one of them writing over the other and reporting success.
    */
   it('refuses a second run while one is in hand, rather than queueing it', async () => {
