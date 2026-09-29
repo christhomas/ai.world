@@ -317,8 +317,70 @@ export function howTheChecksStand(
   return checks.every((check) => IN.has(check.state)) ? 'passed' : 'waiting';
 }
 
+/**
+ * How long the checks may take, and it is two limits rather than one clock.
+ *
+ * It was a flat twenty minutes, and v0.103.0 died on it twice with nothing wrong: a hosted run of
+ * `check`, `flutter`, `reference-capture` and `playtest` takes twenty to seventy minutes wall clock
+ * once a macOS runner has been queued for, and the successful pull request runs around it took 20,
+ * 21, 22, 23, 29, 37, 38, 39, 42, 49, 51, 60 and 69. A flat limit that is right for today is wrong
+ * the week the playtest grows another scene, and the release is the last place to find that out.
+ *
+ * So what it waits on is *movement*. While any check changes — queued to running, running to
+ * done, a new one appearing — the checks are working and the release waits. `quiet` is how long
+ * nothing may change before it says so: longer than the slowest job's own `timeout-minutes`
+ * (`reference-capture`, fifty), so one long job running is never mistaken for a stuck one, and
+ * short enough that a runner that never picks the work up is reported within the hour rather than
+ * never. `atMost` is the ceiling over all of it, so a run that keeps twitching without finishing
+ * still ends. Either way nothing is tagged, and running the release again picks up where it was.
+ */
+export const WAIT_FOR_CI = { quiet: 60 * 60 * 1000, atMost: 3 * 60 * 60 * 1000 } as const;
+
+type CheckRun = { name: string; status: string; conclusion: string | null };
+
+/**
+ * Where the checks are, as one string that changes whenever any of them moves.
+ *
+ * Read from the raw runs rather than from `checksAsStates`, which folds queued and in progress
+ * into one `PENDING` — and a job going from queued to running is exactly the movement that says a
+ * runner has picked it up. Sorted, because GitHub does not promise an order and a reshuffle is not
+ * progress.
+ */
+export function whereTheChecksAre(runs: ReadonlyArray<CheckRun>): string {
+  return runs.map((one) => `${one.name}\t${one.status}\t${one.conclusion ?? ''}`).sort().join('\n');
+}
+
+/**
+ * Whether the wait has run out, and why: `null` while it has not.
+ *
+ * `began` is when the wait started and `moved` the last time `whereTheChecksAre` changed (or
+ * `began`, if it never has). Both limits are in `WAIT_FOR_CI`.
+ */
+export function outOfPatience(now: number, began: number, moved: number): string | null {
+  if (now - began >= WAIT_FOR_CI.atMost) {
+    return `the checks are still going after ${minutes(WAIT_FOR_CI.atMost)}`;
+  }
+  if (now - moved >= WAIT_FOR_CI.quiet) {
+    return `nothing about the checks has changed for ${minutes(WAIT_FOR_CI.quiet)}`;
+  }
+  return null;
+}
+
+const minutes = (ms: number): string => `${Math.round(ms / 60_000)} minutes`;
+
+/** How long until `outOfPatience` would say so, which bounds a single poll. */
+function patienceLeft(now: number, began: number, moved: number): number {
+  return Math.min(began + WAIT_FOR_CI.atMost, moved + WAIT_FOR_CI.quiet) - now;
+}
+
 function waitForTheChecks(branch: string): void {
-  const until = Date.now() + WAIT_FOR_CI;
+  const began = Date.now();
+  let moved = began;
+  let where: string | null = null;
+  const giveUp = (why: string): never => {
+    throw new Error(`${why}. Nothing is broken and nothing is tagged:`
+      + ' look at what is holding them up, then run the same release again.');
+  };
   for (;;) {
     /*
      * Asked rather than watched, and the difference is the whole of item 126.
@@ -326,29 +388,26 @@ function waitForTheChecks(branch: string): void {
      * `gh pr checks --watch` blocks until the checks finish, so the deadline around it was
      * evaluated once, before anything had happened, and never again: a stuck runner meant a release
      * that waited for ever with no message. Polling on the same rhythm as the merge wait below
-     * makes one loop shape cover both, and makes the twenty minutes mean twenty minutes.
+     * makes one loop shape cover both, and makes the limits in `WAIT_FOR_CI` mean what they say.
      *
-     * `gh pr checks` exits non-zero while anything is pending or red — which is the state this is
-     * *asking about* — so its complaint is not an error here; what matters is what it printed.
-     * Each poll is bounded by the time left before the release deadline, so a hung CLI cannot bypass
-     * the deadline either.
+     * Each poll is bounded by the patience left, so a hung CLI cannot bypass the limits either.
      */
-    const remaining = until - Date.now();
-    if (remaining <= 0) {
-      throw new Error('the checks have not finished in time. Nothing is broken and nothing is tagged:'
-        + ` look at what is holding them up, then run the same release again.`);
+    const before = outOfPatience(Date.now(), began, moved);
+    if (before !== null) giveUp(before);
+    const runs = rest<{ check_runs?: CheckRun[] }>(
+      [`repos/${REPO}/commits/${branch}/check-runs`, '--paginate'], patienceLeft(Date.now(), began, moved),
+    )?.check_runs ?? [];
+    const seen = whereTheChecksAre(runs);
+    if (seen !== where) {
+      where = seen;
+      moved = Date.now();
     }
-    const runs = rest<{ check_runs?: Array<{ name: string; status: string; conclusion: string | null }> }>(
-      [`repos/${REPO}/commits/${branch}/check-runs`, '--paginate'], remaining,
-    );
-    const stand = howTheChecksStand(checksAsStates(runs?.check_runs ?? []));
+    const stand = howTheChecksStand(checksAsStates(runs));
     if (stand === 'passed') return;
     if (stand === 'failed') throw new Error('a check failed — the release is not going out on a red commit');
-    if (Date.now() >= until) {
-      throw new Error('the checks have not finished in time. Nothing is broken and nothing is tagged:'
-        + ` look at what is holding them up, then run the same release again.`);
-    }
-    execFileSync('sleep', [String(Math.min(15, (until - Date.now()) / 1000))]);
+    const after = outOfPatience(Date.now(), began, moved);
+    if (after !== null) giveUp(after);
+    execFileSync('sleep', [String(Math.max(1, Math.min(15, patienceLeft(Date.now(), began, moved) / 1000)))]);
   }
 }
 
@@ -359,9 +418,6 @@ function waitForTheChecks(branch: string): void {
  * clock — so the tag had nothing to go on until something said it had. The REST merge answers with
  * the squash commit in the same call, so there is no gap to wait across and nothing left to poll.
  */
-
-/** How long to wait on the checks before saying so. The playtest is a browser and is the slow one. */
-const WAIT_FOR_CI = 20 * 60 * 1000;
 
 /** Today, as the changelog dates things: the day the release went out, not the day it was written. */
 function today(): string {
