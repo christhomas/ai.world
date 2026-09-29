@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.1 — 2026-09-29
+
+autumn light, wild-camp tents and amber night windows are back, and the game can be played with nothing drawn
+
 ### v0.103.0 — 2026-09-29
 
 villages catch illness, carts haul carcasses to the crags, holdings report their income, and the country is a stack of layers you can shape
@@ -626,10 +630,6 @@ A title screen that opens the world it measured, a door the world can refuse, an
 ### v0.101.0 — 2026-09-19
 
 A carcass on a crag, a holding that pays while you are away, and a country made of layers
-
-### v0.100.0 — 2026-09-18
-
-The hero's farm earns while he is away, a seed is measured before it is handed out, a killed release finishes itself, and the phone stops overlapping itself
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
