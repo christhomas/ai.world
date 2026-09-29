@@ -109,10 +109,12 @@ describe('a world that goes quiet', () => {
   it('joins with the version it speaks, so a mismatch is the server\'s to refuse', () => {
     const world = deadWorld();
     const online = new Online(watching().events, world.linkFor);
-    online.connect('ws://somewhere', 7, 'Rowan', { day: 2, time: 0.1 });
+    online.connect('ws://somewhere', 7, 'Rowan', { day: 2, time: 0.1 }, {}, undefined,
+      '11111111-1111-4111-8111-111111111111');
     world.open();
-    const join = JSON.parse(world.sent[0]) as { type: string; version: number; seed: number };
-    expect(join).toMatchObject({ type: 'join', seed: 7, version: PROTOCOL_VERSION });
+    const join = JSON.parse(world.sent[0]) as { type: string; version: number; seed: number; playerId: string };
+    expect(join).toMatchObject({ type: 'join', seed: 7, version: PROTOCOL_VERSION,
+      playerId: '11111111-1111-4111-8111-111111111111' });
   });
 });
 

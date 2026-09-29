@@ -22,11 +22,15 @@ import type { BoatSave } from './sailing';
 export type QuestStatus = 'active' | 'done';
 
 export interface GameStateJson {
+  /** Stable identity for replay facts that belong to this save, independent of the display name. */
+  playerId?: string;
   hp: number;
   maxHp: number;
   time: number;
   day: number;
   inventory: InventoryJson;
+  /** Cart loads whose stolen food this hero has already put in their pack. */
+  claimedCarts?: number[];
   explored: string[];
   /**
    * The provinces somebody has bought a map of.
@@ -138,13 +142,19 @@ export { DAY_LENGTH };
 /** Time of day at which you wake after resting: 07:12. */
 export const MORNING = 0.3;
 
+function newPlayerId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
 export class GameState {
+  playerId = newPlayerId();
   hp = BASE_MAX_HP;
   maxHp = BASE_MAX_HP;
   /** Fraction of the day, 0 = midnight, 0.5 = noon. */
   time = 0.34;
   day = 1;
   readonly inventory = new Inventory();
+  readonly claimedCarts = new Set<number>();
   /** What is worn where. Items here are not in the rucksack. */
   readonly equipped: Partial<Record<EquipSlot, string>> = {};
   readonly explored = new Set<string>();
@@ -446,9 +456,11 @@ export class GameState {
 
   toJSON(): GameStateJson {
     return {
+      playerId: this.playerId,
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
       savedAt: Date.now(), lodged: this.lodged,
       inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
+      claimedCarts: [...this.claimedCarts],
       explored: [...this.explored],
       charted: [...this.charted],
       quests: Object.fromEntries(this.quests),
@@ -472,6 +484,7 @@ export class GameState {
   static from(json: Partial<GameStateJson> | undefined): GameState {
     if (!json) return GameState.fresh();
     const g = new GameState();
+    if (typeof json.playerId === 'string' && /^[0-9a-f-]{36}$/i.test(json.playerId)) g.playerId = json.playerId;
     if (typeof json.hp === 'number') g.hp = json.hp;
     if (typeof json.practice === 'number') g.practice = json.practice;
     if (typeof json.maxHp === 'number') g.maxHp = json.maxHp;
@@ -494,6 +507,7 @@ export class GameState {
         if (ITEMS[id] && ITEMS[id].slot === slot) g.equipped[slot as EquipSlot] = id;
       }
     }
+    for (const day of json.claimedCarts ?? []) if (Number.isInteger(day) && day >= 2) g.claimedCarts.add(day);
     if (typeof json.standing === 'number') g.standing = json.standing;
     for (const k of json.explored ?? []) g.explored.add(k);
     // nothing here on a save from before maps were country, which reads back as a hero who has

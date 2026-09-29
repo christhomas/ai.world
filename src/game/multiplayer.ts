@@ -37,6 +37,7 @@ import {
   WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
 } from './warband';
 import { Enterings } from './entering';
+import { claimCartCargo } from './cartloot';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -461,7 +462,20 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         break;
       case 'cart-loaded':
       case 'cart-finished':
-        register.recordCarrier(delta);
+        {
+          const recorded = register.recordCarrier(delta);
+          if (recorded && delta.kind === 'cart-finished' && delta.outcome === 'robbed' && !catchingUp) {
+            const load = register.carrierFacts().find((fact) => fact.kind === 'cart-loaded'
+              && fact.day === delta.loadedOn);
+            if (load?.kind === 'cart-loaded') chat.line(
+              `The carrier from ${load.from} to ${load.to} was robbed. The food is gone and the buyers pay nothing.`, 'sys');
+          }
+          const meals = claimCartCargo(state, online.name, register.carrierFacts());
+          if (meals > 0) {
+            hud.flash(`Took ${meals} meals from the cart`);
+            persist();
+          }
+        }
         break;
       case 'built':
         // a village is a house bigger, whoever paid for it. What stage the work has reached is

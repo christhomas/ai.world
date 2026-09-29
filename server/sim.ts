@@ -15,6 +15,7 @@ import { blocking } from '../src/world/footprints';
 import { isTold, replayTold } from '../src/world/telling';
 import type { CarrierFact } from '../src/world/carrierbook';
 import { advanceWorldCarriers } from './carrierflow';
+import { carrierOnRoad } from './carrieractor';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
@@ -636,7 +637,8 @@ export class Simulation {
             // before `tellAboutCreatures` introduces the people to a client, which is the first
             // moment that client can know an id well enough to change its mind.
             if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
-          });
+          }, alive.register ? carrierOnRoad(alive.register, alive.villages, ground,
+            Math.floor(room.world.clock.day), room.world.clock.time) : null);
         }
       }
       this.stepFloors(seed, room, creatureSeconds, tellNow);
@@ -664,7 +666,7 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
-    beforeTell?: () => void,
+    beforeTell?: () => void, carrier?: CreatureSnap | null,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -686,8 +688,8 @@ export class Simulation {
     beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
-    if (tell) this.tellAboutCreatures(alive, place, who, null);
-    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT);
+    if (tell) this.tellAboutCreatures(alive, place, who, null, carrier);
+    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT, carrier);
   }
 
   /**
@@ -768,9 +770,12 @@ export class Simulation {
    * gone — this is the frequent pass over what the player is close enough to fight, and a creature
    * that has merely walked out of arm's reach has not walked out of sight.
    */
-  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null): void {
+  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null,
+    carrier?: CreatureSnap | null): void {
     for (const client of who) {
       const near = alive.inSightOf(client.presence.x, client.presence.z, within ?? undefined);
+      if (carrier && Math.hypot(carrier.x - client.presence.x, carrier.z - client.presence.z)
+        <= (within ?? 60)) near.push({ ...carrier, who: { ...carrier.who! } });
       const changed: CreatureSnap[] = [];
       const now = new Map<number, string>();
       for (const c of near) {
@@ -945,7 +950,7 @@ export class Simulation {
     }
     const x = Number(message.x), z = Number(message.z);
     const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;
-    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at);
+    const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at, message.playerId);
 
     this.rooms.send(joining, {
       type: 'welcome', id: joining.presence.id, seed, world: record,

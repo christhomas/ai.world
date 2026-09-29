@@ -14,6 +14,9 @@ import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
 import { callTownVote } from './voting';
+import { cartActionPosition, cartGuarded, robLoadedCart } from './cartrobbery';
+import { carrierOnRoad } from './carrieractor';
+import type { CartLoaded } from '../src/world/carrierbook';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -57,6 +60,12 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'swear':
       takeTheWork(rooms, me, room, message);
+      return;
+    case 'rob-cart':
+      robTheCart(rooms, me, room, message);
+      return;
+    case 'escort-cart':
+      escortTheCart(rooms, me, room, message);
       return;
     case 'arrive':
       walkIntoTheVillage(rooms, me, room, message);
@@ -168,6 +177,7 @@ const AT_A_PIER = 12;
 function sailed(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'helm' }>): void {
   const water = rooms.groundOf(me.seed);
   if (!water || me.presence.riding !== 'boat') return;
+  me.serverFootAt = null;
   const seq = Math.floor(Number(message.seq) || 0);
   if (seq <= me.steered) return;
   me.steered = seq;
@@ -234,6 +244,9 @@ function itHasADoorThere(rooms: Rooms, me: Client, step: { x: number; z: number 
 }
 
 function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'stood' }>): void {
+  // A client-authorized transition (door, ride, teleport or being carried) breaks the chain of
+  // server-walked foot positions until a later steer establishes one again.
+  me.serverFootAt = null;
   const p = me.presence;
   const x = Number(message.x) || 0;
   const z = Number(message.z) || 0;
@@ -508,6 +521,8 @@ function walked(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
   }, rooms.worldOf(me.seed, 'surface')?.crowd);
   settleOnto(ground, hero);
   p.x = hero.x; p.z = hero.z; p.yaw = hero.yaw;
+  me.serverFootAt = p.riding === 'foot' && me.standingIn === 'surface'
+    ? { x: hero.x, z: hero.z } : null;
   rooms.send(me, { type: 'youAre', seq, x: hero.x, z: hero.z, y: hero.y, yaw: hero.yaw });
 }
 
@@ -531,7 +546,11 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
       const outside = String(message.place) === 'surface' && message.riding === 'foot';
       const standing = walked !== null && ground !== null && ground.heightAt(walked.x, walked.z) !== null;
       const theirs = !outside || !standing;
-      if (theirs && walked) { walked.x = message.x; walked.z = message.z; }
+      if (theirs) me.serverFootAt = null;
+      // A horse is client-moved, but its coordinates are not a server-verified foot position.
+      // Keep the last walked hero pose so mounting and dismounting cannot teleport a later robbery.
+      const surfaceRide = p.place === 'surface' && String(message.place) === 'surface';
+      if (theirs && walked && !surfaceRide) { walked.x = message.x; walked.z = message.z; }
       if (theirs) { p.x = message.x; p.z = message.z; }
       p.yaw = message.yaw; p.walk = message.walk;
       p.place = String(message.place).slice(0, LIMITS.PLACE);
@@ -604,6 +623,50 @@ function aboutAVillager(rooms: Rooms, me: Client, room: Room, message: ClientMes
   const said = cleanRecall(message);
   if (!said) return;
   world.register?.recall(said.who, said.what, said.about, room.world.clock.day);
+}
+
+function robTheCart(
+  rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'rob-cart' }>,
+): void {
+  const world = me.standingIn === 'surface' ? rooms.worldOf(me.seed, 'surface') : null;
+  const register = world?.register;
+  const load = register?.carrierFacts().find((fact): fact is CartLoaded =>
+    fact.kind === 'cart-loaded' && fact.day === message.loadedOn);
+  const from = world?.villages.find((village) => village.name === load?.from);
+  const ground = rooms.groundOf(me.seed);
+  const footAt = cartActionPosition(me, ground);
+  const carrier = register && ground instanceof GroundWorld
+    ? carrierOnRoad(register, world.villages, ground, Math.floor(room.world.clock.day), room.world.clock.time) : null;
+  const guards = [...room.clients].filter((client) => client === me || cartActionPosition(client, ground));
+  const guarded = cartGuarded(guards, me, message.loadedOn, carrier);
+  const robbed = !guarded && register && footAt && robLoadedCart(
+    register, Math.floor(room.world.clock.day), room.world.clock.time,
+    footAt, world.villages, message.loadedOn, (fact) => room.world.apply(fact),
+    from && ground instanceof GroundWorld ? ground.roadGraphAt(from.x, from.z) : undefined,
+    me.presence.name, me.playerId,
+  );
+  if (robbed) rooms.broadcast(me.seed, { type: 'delta', delta: robbed, from: '' });
+  rooms.send(me, { type: 'cart-robbed', loadedOn: message.loadedOn, ok: !!robbed });
+}
+
+function escortTheCart(
+  rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'escort-cart' }>,
+): void {
+  if (me.escortingCart === message.loadedOn) {
+    me.escortingCart = null;
+    rooms.send(me, { type: 'cart-escorted', loadedOn: message.loadedOn, ok: true, escorting: false });
+    return;
+  }
+  const world = me.standingIn === 'surface' ? rooms.worldOf(me.seed, 'surface') : null;
+  const ground = rooms.groundOf(me.seed);
+  const footAt = cartActionPosition(me, ground);
+  const carrier = world?.register && ground instanceof GroundWorld
+    ? carrierOnRoad(world.register, world.villages, ground,
+      Math.floor(room.world.clock.day), room.world.clock.time) : null;
+  const ok = !!(carrier && footAt && message.loadedOn === Math.floor(room.world.clock.day)
+    && Math.hypot(footAt.x - carrier.x, footAt.z - carrier.z) <= 4);
+  if (ok) me.escortingCart = message.loadedOn;
+  rooms.send(me, { type: 'cart-escorted', loadedOn: message.loadedOn, ok, escorting: ok });
 }
 
 /**

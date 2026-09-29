@@ -11,7 +11,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
 
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 24;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
@@ -456,7 +456,7 @@ export type ClientMessage =
    * durable handle whose seed the server has already recorded; no terrain discriminator travels
    * because the endless country is the only country the running game can grow.
    */
-  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
+  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[] }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -504,6 +504,10 @@ export type ClientMessage =
    * into somebody else's village. The trade is named and the world decides whether it is vacant.
    */
   | { type: 'swear'; village: string; trade: string }
+  /** Intercept a loaded cart; the world checks the hero's position and writes the outcome. */
+  | { type: 'rob-cart'; loadedOn: number }
+  /** Guard this cart while staying beside it, or stop guarding if already enlisted. */
+  | { type: 'escort-cart'; loadedOn: number }
   /**
    * Stand on the roll of the village the hero is in.
    *
@@ -863,6 +867,8 @@ export type ServerMessage =
   /** Whether the seed took. `ok: false` means the page lifts it back out and returns the seed. */
   | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
+  | { type: 'cart-robbed'; loadedOn: number; ok: boolean }
+  | { type: 'cart-escorted'; loadedOn: number; ok: boolean; escorting: boolean }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }
@@ -1204,9 +1210,16 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const receiving = entries(delta.receiving, 1);
       if (!Number.isInteger(delta.day) || !Number.isInteger(delta.loadedOn)
         || delta.loadedOn < 2 || delta.day < delta.loadedOn
-        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving) return null;
+        || (delta.outcome !== 'delivered' && delta.outcome !== 'robbed') || !receiving
+        || (delta.robber !== undefined && (delta.outcome !== 'robbed'
+          || typeof delta.robber !== 'string' || delta.robber.length < 1
+          || delta.robber.length > LIMITS.NAME))
+        || (delta.robberId !== undefined && (delta.outcome !== 'robbed'
+          || typeof delta.robberId !== 'string' || !/^[0-9a-f-]{36}$/i.test(delta.robberId)))) return null;
       return { kind: 'cart-finished', day: delta.day, loadedOn: delta.loadedOn,
-        outcome: delta.outcome, receiving };
+        outcome: delta.outcome, receiving,
+        ...(delta.robber === undefined ? {} : { robber: delta.robber }),
+        ...(delta.robberId === undefined ? {} : { robberId: delta.robberId }) };
     }
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };

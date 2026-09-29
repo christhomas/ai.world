@@ -9,6 +9,7 @@ import { BIOMES, biomeAnswersTo } from '../world/biomes';
 import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
 import { compassDir } from '../world/landmarks';
+import { cartPosition, type CartLoaded } from '../world/carrierbook';
 import { StructureKind, placeKindName, type Structures } from '../world/structures';
 import type { TerrainSampler } from '../world/terrain';
 import { registerCommands, type CommandWorld } from './commands';
@@ -304,7 +305,30 @@ export function openConsole(ctx: Consoled) {
    */
   let bound: Bound | null = null;
 
+  const activeCart = (): CartLoaded | undefined => register.carrierFacts().find(
+    (fact): fact is CartLoaded => fact.kind === 'cart-loaded' && fact.day === state.day
+      && !register.carrierFacts().some((end) => end.kind === 'cart-finished' && end.loadedOn === fact.day));
+
   const commandWorld: CommandWorld = {
+    carts: () => register.carrierFacts()
+      .filter((fact): fact is CartLoaded => fact.kind === 'cart-loaded' && fact.day === state.day
+        && !register.carrierFacts().some((end) => end.kind === 'cart-finished' && end.loadedOn === fact.day))
+      .map((load) => ({ from: load.from, to: load.to, meals: load.meals,
+        at: cartPosition(load, state.time, structures.villages, sampler.graph) })),
+    robCart: () => {
+      if (!online.connected) return 'Join a world before robbing a cart.';
+      const load = activeCart();
+      if (!load) return 'No cart is in flight today.';
+      online.cartAction('rob-cart', load.day);
+      return 'Attempting to rob the cart.';
+    },
+    escortCart: () => {
+      if (!online.connected) return 'Join a world before escorting a cart.';
+      const load = activeCart();
+      if (!load) return 'No cart is in flight today.';
+      online.cartAction('escort-cart', load.day);
+      return 'Asking to guard the cart.';
+    },
     /*
      * A teleport, and the two halves of what it looks like.
      *
