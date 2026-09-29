@@ -644,7 +644,7 @@ function robTheCart(
     register, Math.floor(room.world.clock.day), room.world.clock.time,
     footAt, world.villages, message.loadedOn, (fact) => room.world.apply(fact),
     from && ground instanceof GroundWorld ? ground.roadGraphAt(from.x, from.z) : undefined,
-    me.presence.name, me.presence.id,
+    me.presence.name, me.playerId,
   );
   if (robbed) rooms.broadcast(me.seed, { type: 'delta', delta: robbed, from: '' });
   rooms.send(me, { type: 'cart-robbed', loadedOn: message.loadedOn, ok: !!robbed });
