@@ -15,7 +15,7 @@ import type { ChunkData } from './ground';
  * What is checked here is the *data*, not the picture. The mesher hands out plain typed arrays and
  * the darkening is baked into the colours in them, so "is the foot of that wall darker than its
  * top" is a question about a `Float32Array` and can be asked without a renderer in the room — which
- * is the same reason `world/mesher.ts` has no `THREE` import in it.
+ * is the same reason `world/mesher.ts` has no three.js import in it.
  */
 
 /** A real chunk: `CHUNK_SIZE` tiles with a one-tile apron each side, which is what the mesher walks. */

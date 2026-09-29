@@ -31,7 +31,7 @@ describe('the footprints worked out from the props', () => {
 
   it('agrees with the mesh, prop by prop', () => {
     // The two halves of the same fact: `entities/shapes.ts` places the corners of each primitive
-    // from its own arithmetic, and `THREE` places them by building one. A hexagonal trunk is 0.87
+    // from its own arithmetic, and three.js places them by building one. A hexagonal trunk is 0.87
     // of its radius across one way and the full radius the other, a detail-0 icosahedron reaches
     // 0.851 of its radius and a detail-1 one reaches all of it — get any of that wrong and the box
     // stops agreeing with the tree. The tolerance is float32 and nothing else: the mesh keeps its

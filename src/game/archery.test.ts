@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import type { Entity, TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { BOW, canShoot, markFor, quiver, shoot } from './archery';
 import { COMBAT, swing } from './combat';
 import { GameState } from './state';
@@ -19,8 +18,7 @@ const flat: TileWorld = {
 const GROUND = 1;
 
 function setup() {
-  const scene = new THREE.Scene();
-  const renderer = new EntityRenderer(scene);
+  const renderer = offscreenEntityRenderer();
   return new EntityManager(renderer, flat, { getTiles: () => null }, 1);
 }
 
