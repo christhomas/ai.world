@@ -96,9 +96,10 @@ export function cartPosition(
   const to = villages.find((village) => village.name === load.to);
   if (!from || !to || !Number.isFinite(time)) return null;
   const progress = Math.max(0, Math.min(1, time));
+  // A carrying still settles between markets without a connected road, but has no traveller
+  // to draw or intercept across open country.
   const points = graph ? roadRoute(graph, from, to) : null;
-  if (!points) return { x: from.x + (to.x - from.x) * progress,
-    z: from.z + (to.z - from.z) * progress };
+  if (!points) return null;
   const lengths = points.slice(1).map((point, i) => Math.hypot(point.x - points[i].x, point.z - points[i].z));
   let left = lengths.reduce((sum, length) => sum + length, 0) * progress;
   for (let i = 0; i < lengths.length; i++) {
