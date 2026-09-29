@@ -110,7 +110,8 @@ export function startGame(
    * would ever be adjusted for anybody.
    */
   const qualityWasChosen = everChoseQuality();
-  const recording = new URLSearchParams(location.search).has('record-scene') ? new RecordingPipeline() : undefined;
+  const sceneFlags = new URLSearchParams(location.search);
+  const recording = sceneFlags.has('record-scene') || sceneFlags.has('record-only') ? new RecordingPipeline() : undefined;
   if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
   const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);

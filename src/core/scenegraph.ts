@@ -38,6 +38,8 @@ export class SceneGraph {
   /** The camera chosen by the engine for the next submitted frame. */
   camera: FrameDescription['camera'] | null = null;
   fog: FrameDescription['fog'] = null;
+  cutaway: FrameDescription['cutaway'] = null;
+  coast: FrameDescription['coast'] = null;
 
   constructor(public background: number) {}
 
@@ -55,6 +57,8 @@ export class SceneGraph {
       camera: this.camera,
       background: this.background,
       fog: this.fog,
+      cutaway: this.cutaway,
+      coast: this.coast,
       nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
         if (node.kind === 'ambient') return { ...base, kind: 'ambient' as const, colour: node.colour, intensity: node.intensity };
@@ -105,8 +109,10 @@ export class SceneGraph {
           material: {
             intent: node.material === 'water' ? 'water' as const : 'lit' as const,
             colour: node.colour ?? 0xffffff, emissive: 0, vertexColours: node.material !== 'lit-solid',
-            transparent: node.material === 'water', opacity: 1, depthWrite: node.material !== 'water',
-            side: 'front' as const, effects: node.effects ?? [], ...node.materialState,
+            transparent: node.material === 'water', opacity: node.material === 'water' ? 0.82 : 1,
+            depthWrite: node.material !== 'water',
+            side: node.material === 'water' ? 'double' as const : 'front' as const,
+            effects: node.effects ?? [], ...node.materialState,
           },
           attributes: {
             position: { size: 3, values: node.geometry.positions },
