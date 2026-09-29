@@ -32,7 +32,7 @@ import { nearestVillageTill } from '../tills';
 const PIER_TILL_REACH = 160;
 
 export function travelInteractions(ctx: Surroundings) {
-  const { player, state, structures, around, chunks, dialogue, hud, sound, sailing, ferries, eyries, persist, discover } = ctx;
+  const { player, state, structures, around, chunks, dialogue, hud, sound, sailing, ferries, eyries, high, online, persist, discover } = ctx;
 
   /** How near the hull you have to be for Enter to mean it, in tiles. It is a big thing to miss. */
   const DERELICT_REACH = 4.5;
@@ -267,26 +267,33 @@ export function travelInteractions(ctx: Surroundings) {
     }
   };
 
-  /**
-   * A crag with an eagle on it. It will carry you over the range and put you down on the far
-   * side, which is the only way across a mountain that is not a day's walk round it.
-   */
+  /** A baited nest may be tended even when its eagle has no crossing to offer. */
+  const eagleLabel = (): string => {
+    const here = eyrieAt(eyries, player.x, player.z);
+    return here && eyries.some((e) => e.id === here.partner)
+      ? 'Fly over the mountains' : 'Inspect the eagle nest';
+  };
+
+  /** A crag offers a flight, a baited nest to take down, or both. */
   const tryEagle = (preview = false): boolean => {
     const here = eyrieAt(eyries, player.x, player.z);
-    if (!here) return false;
-    const there = eyries.find((e) => e.id === here.partner);
-    if (!there) return false;
+    const baited = high.baitedAt(player.x, player.z);
+    const there = here ? eyries.find((e) => e.id === here.partner) : null;
+    if (!there && !baited) return false;
     if (preview) return true;
 
-    if (state.inventory.gold < here.fare) {
+    if (there && here && state.inventory.gold < here.fare && !baited) {
       dialogue.start({ speaker: 'Eagle', emoji: '🦅', pages: [tooDear(here, state.inventory.gold)] });
       return true;
     }
     dialogue.start({
       speaker: 'Eagle', emoji: '🦅',
-      pages: [`It is bigger than a horse and it has been watching you climb. Over the range to ${there.name}, ${here.fare} gold?`],
+      pages: [there && here
+        ? state.inventory.gold < here.fare ? tooDear(here, state.inventory.gold)
+          : `It is bigger than a horse and it has been watching you climb. Over the range to ${there.name}, ${here.fare} gold?`
+        : 'The eagle has built a nest on this ledge.'],
       choices: [
-        {
+        ...(there && here && state.inventory.gold >= here.fare ? [{
           label: `Fly (${here.fare}g)`,
           next: () => {
             // an eagle keeps no purse. This is one of the few places money honestly leaves the
@@ -299,8 +306,18 @@ export function travelInteractions(ctx: Surroundings) {
             persist();
             return null;
           },
-        },
-        { label: 'Walk round', next: () => null },
+        }] : []),
+        ...(baited ? [{ label: 'Take down the baited nest', next: () => {
+          const removed = high.removeBaitedAt(player.x, player.z);
+          if (!removed) return null;
+          online.report({ kind: 'eyrie', anchor: removed, present: false });
+          state.version++;
+          sound.select();
+          hud.flash('You take down the nest.');
+          persist();
+          return null;
+        } }] : []),
+        { label: there ? 'Walk round' : 'Leave it', next: () => null },
       ],
     });
     return true;
@@ -450,5 +467,5 @@ export function travelInteractions(ctx: Surroundings) {
     });
   };
 
-  return { tryFerry, ferryLabel, tryBoat, tryDerelict, tryEagle, trySkyward, trySky, sailFerries, aboard };
+  return { tryFerry, ferryLabel, tryBoat, tryDerelict, tryEagle, eagleLabel, trySkyward, trySky, sailFerries, aboard };
 }
