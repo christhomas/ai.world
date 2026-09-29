@@ -86,6 +86,7 @@ import { answerDueHighlands } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
+import { returnToTitle, shutDownGame, suspendWhenHidden } from './game/lifecycle';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -413,47 +414,15 @@ export function startGame(
     guiltOf: () => standing.guilt,
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
-  /**
-   * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
-   * graph, a socket — and none of it should outlive the moment you leave for the title screen.
-   */
-  const shutDown = (): void => {
-    loop.stop();
-    input.dispose();
-    touch.dispose();
-    online.disconnect();
-    others.clear();
-    sound.dispose();
-    places.dispose();
-    chunks.dispose();
-    entityRenderer.dispose();
-    heroGear.dispose();
-    beam.dispose();
-    weather.dispose();
-    watch.dispose();
-    skyRenderer.dispose();
-    packField.dispose();
-    cropField.dispose();
-    buildingSite.dispose();
-    props.dispose();
-    rig.dispose();
-  };
-
-  const toTitle = () => {
-    persist();
-    shutDown();
-    // the page comes back to a clean title screen: nothing of this world is left running
-    window.setTimeout(() => { window.location.href = window.location.pathname; }, 150);
-  };
-
-  /**
-   * A hidden tab should cost nothing. The frame loop already stops when the browser stops asking
-   * for frames, but the chunk workers and the audio graph do not, so they are stood down too.
-   */
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); }
-    else { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); }
+  const shutDown = (): void => shutDownGame({
+    stop: () => loop.stop(), controls: [input, touch],
+    disconnect: () => online.disconnect(), clear: () => others.clear(),
+    resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
+      skyRenderer, packField, cropField, buildingSite, props, rig],
   });
+
+  const toTitle = () => returnToTitle(persist, shutDown);
+  suspendWhenHidden({ stop: () => loop.stop(), start: () => loop.start() }, chunks, sound, online);
 
   // the panels, and the noises they make
   hud.setVolume(sound.volume);

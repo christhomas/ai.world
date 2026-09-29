@@ -15,7 +15,7 @@ import type { TerrainLayer } from '../world/terrainlayers';
 import type { Anchor } from '../world/manifest';
 
 export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
-export { applyTrade, tradableItems } from './trading';
+export { applyTrade, tradableItems } from './trade';
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -509,7 +509,6 @@ export class Online {
 
   /** Ask the world to settle a nearby in-flight cart as robbed. */
   cartAction(type: 'rob-cart' | 'escort-cart', loadedOn: number): void { if (this.connected) this.send({ type, loadedOn }); }
-
   /** Stand on the roll of the village the hero has walked into. Asked, like an oath. */
   arrive(village: string): void {
     if (this.connected) this.send({ type: 'arrive', village });

@@ -414,7 +414,7 @@ const finish = async () => {
   const measured = driftReady && d.drawnClose.of > 0;
   say('creatures within reach are drawn where they are', measured && d.drawnClose.mean < DRIFT,
     measured
-      ? `${d.drawnClose.of} rendered corrections (${d.wrongClose.of} raw), mean ${d.drawnClose.mean.toFixed(2)}, worst ${d.drawnClose.worst.toFixed(2)} (${d.drawnClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
+      ? `${d.drawnClose.of} rendered corrections in ${DRIFT_WINDOW_MS / 1000}s (${d.wrongClose.of} raw), mean ${d.drawnClose.mean.toFixed(2)}, worst ${d.drawnClose.worst.toFixed(2)} (${d.drawnClose.worstIs}), against ${DRIFT}; stood by ${beside}; large corrections ${JSON.stringify(largeCorrections)}`
       : `nothing was measured: ${d.drawn} creatures drawn, ${d.wrongClose.of} raw corrections, ${beside} — the ${DRIFT_WINDOW_MS / 1000}s window found fewer than ${DRIFT_SAMPLES} corrections with a rendered frame between snapshots`);
 
   // --- and the same wall, at a gallop ---
