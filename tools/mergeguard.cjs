@@ -125,15 +125,24 @@ function regressions(base, merged) {
   return found;
 }
 
+function usesExpectedBase(baseSha, mergeParentSha, mergeParentParents) {
+  return mergeParentSha === baseSha
+    || (mergeParentParents.length === 3 && mergeParentParents.slice(1).includes(baseSha));
+}
+
 function run() {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   if (!event.pull_request) throw new Error('merge guard only runs for pull requests');
   const parents = execFileSync('git', ['rev-list', '--parents', '-n', '1', 'HEAD'], { encoding: 'utf8' }).trim().split(' ');
   if (parents.length !== 3) throw new Error('checkout is not GitHub’s synthetic two-parent PR merge commit');
   const baseSha = event.pull_request.base.sha;
-  if (parents[1] !== baseSha) throw new Error(`merge result uses base ${parents[1]}, expected ${baseSha}; rerun on current main`);
+  const mergeParentParents = execFileSync('git', ['rev-list', '--parents', '-n', '1', parents[1]],
+    { encoding: 'utf8' }).trim().split(' ');
+  if (!usesExpectedBase(baseSha, parents[1], mergeParentParents)) {
+    throw new Error(`merge result uses base ${parents[1]}, expected ${baseSha} directly or as a parent of its synthetic base; rerun on current base`);
+  }
   const path = 'src/world/reachable.test.ts';
-  const base = execFileSync('git', ['show', `${parents[1]}:${path}`], { encoding: 'utf8' });
+  const base = execFileSync('git', ['show', `${baseSha}:${path}`], { encoding: 'utf8' });
   const merged = readFileSync(path, 'utf8');
   const faults = regressions(base, merged);
   if (!faults.length) { console.log('Merge result keeps the reachability guards and their ratchets.'); return; }
@@ -151,4 +160,4 @@ if (require.main === module) {
   try { run(); } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
 
-module.exports = { allowances, regressions };
+module.exports = { allowances, regressions, usesExpectedBase };
