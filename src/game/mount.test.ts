@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import type { TileWorld } from '../entities/entity';
 import { Player } from '../entities/player';
 import { canStand } from '../entities/entity';
 import { KINDS } from '../entities/animals';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { Mount } from './mount';
 import { breedOf } from './stables';
 
@@ -17,7 +16,7 @@ const meadow: TileWorld = {
 
 describe('putting a rider down', () => {
   it('boards at the parked horse instead of moving it onto the dismount ledge', () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const ledge: TileWorld = { ...meadow, blocked: (x) => x > 0.8 };
     const player = new Player(ledge, renderer, 1.2, 0);
     const mount = new Mount(() => 0.5);
@@ -34,7 +33,7 @@ describe('putting a rider down', () => {
   });
 
   it('clears the traversal carrier whenever the mount leaves the world', () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const player = new Player(meadow, renderer, 0, 0);
     const mount = new Mount(() => 0.5);
     mount.buy(0, 0, meadow, renderer);
@@ -49,7 +48,7 @@ describe('putting a rider down', () => {
   });
 
   it('stops riding when another path clears the traversal carrier', () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const player = new Player(meadow, renderer, 0, 0);
     const mount = new Mount(() => 0.5);
     mount.buy(0, 0, meadow, renderer);
@@ -64,7 +63,7 @@ describe('putting a rider down', () => {
 
 describe('a carcass in a horse cart', () => {
   it('requires an owned horse, a cart, dismounting and close ground access, and holds one body', () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const player = new Player(meadow, renderer, 0, 0);
     const mount = new Mount(() => 0.5);
     const body = { kind: 'goat', x: 1, z: 0, left: 200 };
@@ -86,14 +85,14 @@ describe('a carcass in a horse cart', () => {
   });
 
   it('will not hitch a carcass cart to a goat', () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const mount = new Mount(() => 0.5);
     mount.buy(0, 0, meadow, renderer, breedOf('goat'));
     expect(mount.load({ kind: 'deer', x: 0, z: 0, left: 100 }, true, 0, 0)).toBe(false);
   });
 
   it('keeps cargo with a parked horse through save, but loses it with a replaced horse', () => {
-    const renderer = new EntityRenderer(new THREE.Scene());
+    const renderer = offscreenEntityRenderer();
     const mount = new Mount(() => 0.5);
     mount.buy(0, 0, meadow, renderer);
     expect(mount.load({ kind: 'deer', x: 0, z: 0, left: 100 }, true, 0, 0)).toBe(true);

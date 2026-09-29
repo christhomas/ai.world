@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import type { Entity, TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
-import { EntityRenderer } from '../render/entities';
+import { offscreenEntityRenderer } from '../render/entities.test.support';
 import { BOW, markFor } from './archery';
 import { CRAFT } from './craft';
 import { GUN, fire } from './gun';
@@ -30,8 +29,7 @@ const GROUND = 1;
 let packs = 0;
 
 function setup(): EntityManager {
-  const scene = new THREE.Scene();
-  const renderer = new EntityRenderer(scene);
+  const renderer = offscreenEntityRenderer();
   return new EntityManager(renderer, flat, { getTiles: () => null }, 1);
 }
 
