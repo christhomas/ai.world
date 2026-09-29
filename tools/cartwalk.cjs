@@ -12,7 +12,7 @@ const playCart = require('./playtest-cart.cjs');
     await page.goto(process.env.ADDRESS || 'http://localhost:5177/?seed=3');
     console.log('cartwalk page loaded');
     await page.waitForFunction(() => window.__world?.world === 'endless' && window.__entitiesFull,
-      null, { timeout: 60000 }).catch(async (error) => {
+      null, { timeout: 60000, polling: 100 }).catch(async (error) => {
         console.error('WORLD STATE', await page.evaluate(() => ({ world: window.__world, probes: !!window.__entitiesFull })));
         throw error;
       });
