@@ -51,19 +51,39 @@ describe('the book a village keeps of its holdings', () => {
   const SEED = 7;
   const DAYS = 120;
 
-  it('keeps farm income by day through snapshots without paying again', () => {
+  it('keeps farm income by the morning, so writing a morning twice writes it once', () => {
     const book = new HoldingBook();
     const earned = { type: 'income' as const, day: 5, holding: 'farm-1', owner: ownerFromSave('farmer'), cattle: 2.16, crop: 1.24 };
     book.earned('Ashford', [earned]);
-    book.earned('Ashford', [earned]);
-    expect(book.incomeOn('farm-1')).toEqual([earned]);
-    const saved = book.records();
-    const restored = new HoldingBook();
-    restored.restore(saved);
-    expect(restored.incomeOn('farm-1')).toEqual([earned]);
-    expect(restored.paidTo('farmer', 5), 'restoring income paid the farmer a second time').toBe(0);
-    restored.forget('Ashford');
-    expect(restored.incomeOn('farm-1')).toEqual([]);
+    book.earned('Ashford', [{ ...earned, cattle: 3 }]);
+    expect(book.incomeOn('farm-1'), 'a morning written twice was kept twice or kept the first').toEqual([{ ...earned, cattle: 3 }]);
+    expect(book.paidTo('farmer', 5), 'writing an owner\'s takings paid him through the post ledger').toBe(0);
+    book.forget('Ashford');
+    expect(book.incomeOn('farm-1')).toEqual([]);
+  });
+
+  /*
+   * `facts` is the number the economy bench reports as the size of this book, and since #442 the
+   * book has had two kinds of row. A farm writes an income row every morning it is manned, which on
+   * seed 7 is most of what the book holds — so a count of post rows alone reported a fraction of it.
+   */
+  it('counts the income rows as well as the post rows', () => {
+    const book = new HoldingBook();
+    book.stood('Ashford', 5, [{ day: 5, holding: 'yard-1', kind: 'crew', who: 'bob',
+      funder: ownerFromSave('rich'), wage: 12, paid: 12 }], new Map());
+    book.earned('Ashford', [
+      { type: 'income', day: 5, holding: 'farm-1', owner: ownerFromSave('rich'), cattle: 1, crop: 1 },
+      { type: 'income', day: 6, holding: 'farm-1', owner: ownerFromSave('rich'), cattle: 1, crop: 1 },
+    ]);
+    expect(book.facts()).toBe(3);
+
+    // and over a lived village, where the rows can be counted another way
+    const register = livedForward(SEED, DAYS);
+    const holdings = register.madeOf('Ashford').holdings ?? [];
+    const posts = holdings.reduce((sum, one) => sum + register.holdingsBook.on(one.id).length, 0);
+    const income = holdings.reduce((sum, one) => sum + register.holdingsBook.incomeOn(one.id).length, 0);
+    expect(income, 'no farm wrote an income row, so this cannot tell the two counts apart').toBeGreaterThan(0);
+    expect(register.holdingsBook.facts()).toBe(posts + income);
   });
 
   it('replays identically, whichever way the village was lived', () => {
@@ -83,9 +103,6 @@ describe('the book a village keeps of its holdings', () => {
     expect(there.some((row) => row.cattle > 0), 'no cattle sale was exercised').toBe(true);
     expect(there.some((row) => row.crop > 0), 'no paid crop was exercised').toBe(true);
     expect(income(caughtUp)).toEqual(there);
-    const before = forward.living('Ashford').map((person) => person.purse);
-    forward.holdingsBook.restore(forward.holdingsBook.records());
-    expect(forward.living('Ashford').map((person) => person.purse), 'restoring facts paid twice').toEqual(before);
   });
 
   it('keeps a row for each morning rather than a running total', () => {
@@ -141,38 +158,22 @@ describe('the book a village keeps of its holdings', () => {
     expect(book.on('y1').map((one) => one.day), 'both mornings are facts about the yard').toEqual([5, 6]);
   });
 
-  it('restores facts and daily nets without paying or duplicating a morning', () => {
-    const book = new HoldingBook();
-    const fact: HoldingDay = { day: 5, holding: 'yard-1', kind: 'crew', who: 'bob',
-      funder: ownerFromSave('rich'), wage: 12, paid: 12 };
-    book.stood('Ashford', 5, [fact], new Map([
-      [ownerFromSave('rich'), -12], [ownerFromSave('bob'), 12],
-    ]));
-    const rows = book.records();
-    expect(rows).toHaveLength(1);
-    const replay = new HoldingBook();
-    replay.restore(rows);
-    replay.restore(rows);
-    expect(replay.records()).toEqual(rows);
-    expect(replay.paidTo('rich', 5)).toBe(-12);
-    expect(replay.paidTo('bob', 5)).toBe(12);
-    expect(replay.paidTo('bob', 6)).toBe(0);
-    replay.forget('Ashford');
-    expect(replay.records()).toEqual([]);
-  });
-
-  it('re-lives a restored village without changing a purse or multiplying its facts', () => {
-    const first = relived(SEED, DAYS);
-    const restarted = relived(SEED, DAYS);
-    const records = first.holdingsBook.records();
-    expect(records.length).toBeGreaterThan(0);
-    const purses = first.living('Ashford').map((person) => [person.id, person.purse]);
-    restarted.holdingsBook.restore(records);
-    restarted.foundOn('Ashford', 6, [...TRADES, 'fisherman']);
-    restarted.foundOn('Ashford', 6, TRADES);
-    expect(restarted.holdingsBook.records()).toEqual(records);
-    expect(restarted.living('Ashford').map((person) => [person.id, person.purse]))
-      .toEqual(purses);
+  /*
+   * A village is only ever forgotten by its own re-founding. The daybook used to be replaced whole by
+   * a snapshot on every welcome, which took with it every village the snapshot did not name — a
+   * client that had settled Ashford and Brook, joining a server that had only grown Ashford, lost
+   * Brook's history and never rebuilt it, because `settle` returns early for a village it has.
+   * Nothing restores the book any more, and this holds the property that restore broke: founding a
+   * second village leaves the first one's mornings exactly where they were.
+   */
+  it('keeps one village\'s mornings when another is founded beside it', () => {
+    const register = livedForward(SEED, 60);
+    const before = wholeBook(register);
+    expect(before.length, 'Ashford kept no mornings to lose').toBeGreaterThan(0);
+    register.settle('Brook', 6, TRADES);
+    const brook = (register.madeOf('Brook').holdings ?? []).flatMap((one) => register.holdingsBook.on(one.id));
+    expect(brook.length, 'Brook lived sixty days and stood nobody, so it wrote nothing that could clash').toBeGreaterThan(0);
+    expect(wholeBook(register)).toEqual(before);
   });
 
   /*

@@ -3,6 +3,7 @@ import { HoldingBook } from '../world/holdingbook';
 import { ownerFromSave, type Holding } from '../world/holdings';
 import { holdingReport } from './holdingreport';
 import { GameState } from './state';
+import { Register } from '../world/register';
 
 const owner = ownerFromSave('Ashford:arrived:Rowan');
 const holdings: Holding[] = [
@@ -90,5 +91,39 @@ describe('the hall report for returning holding owners', () => {
     expect(resumed.holdingReadAt.get('Ashford')).toBe(7);
     expect(resumed.holdingReadAt.get('Blackby')).toBeUndefined();
     expect(resumed.inventory.gold).toBe(state.inventory.gold);
+  });
+
+  /*
+   * Everything above hands the report a book written by hand, so none of it can see whether the
+   * register ever writes a row the report would find. This is the whole road instead: a hero walks
+   * into a village with a vacancy, swears to farming, is founded a farm by the ordinary morning's
+   * work, lives a month on it, and asks the hall — with the owner found the way `interact/village.ts`
+   * finds him and the holdings and the book read off the register the way it reads them. #484.
+   *
+   * Seed 11 and these trades are `heroholdings.test.ts`'s, which already holds that the farm is
+   * founded and is his: a two-house village naming more trades than it has people to fill.
+   */
+  it('reads a sworn farmer\'s own farm out of the register that lived it', () => {
+    const register = new Register(11, 1);
+    register.settle('Ashford', 2, ['farmer', 'seller', 'doctor', 'smith', 'miner', 'sailor', 'builder', 'fisherman']);
+    register.arrive('Ashford', 'Rowan', 'man', 40);
+    expect(register.swearIn('Ashford', 'farmer', 'Rowan'), 'farming was not vacant').not.toBeNull();
+    for (let day = 2; day <= 30; day++) register.advance(day);
+
+    const hero = register.living('Ashford').find((person) => person.name === 'Rowan');
+    expect(hero, 'the hero is not on the roll').toBeDefined();
+    const holdings = register.madeOf('Ashford').holdings ?? [];
+    const farm = holdings.find((one) => one.kind === 'farm' && one.owner === hero!.id);
+    expect(farm, 'no farm was founded in the hero\'s name').toBeDefined();
+    const takings = register.holdingsBook.incomeOn(farm!.id).filter((row) => row.owner === hero!.id);
+    expect(takings.length, 'the register wrote no income for his farm').toBeGreaterThan(0);
+    const total = takings.reduce((sum, row) => sum + row.cattle + row.crop, 0);
+    expect(total, 'his farm earned him nothing in a month').toBeGreaterThan(0);
+
+    const pages = holdingReport('Ashford', hero!.id, holdings, register.holdingsBook, 0, 30,
+      (id) => register.find(id)?.name ?? id).join(' ');
+    expect(pages).toContain('1 holding in your name in Ashford');
+    expect(pages).toContain(`farm ${farm!.id}: ${Math.round(total * 100) / 100} gold in owner takings`);
+    expect(pages).not.toContain(`farm ${farm!.id}: no owner income was recorded`);
   });
 });
