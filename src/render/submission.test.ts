@@ -59,6 +59,14 @@ describe('where a frame is submitted', () => {
     expect(outside().filter((f) => /\bdescribeGpu\b/.test(readFileSync(f, 'utf8')))).toEqual([]);
   });
 
+  it('hands every frame to one presenter, chosen when the rig was built', () => {
+    // the canvas or the composer: which one is fixed for the rig's life, so the WebGL sink should
+    // not be choosing again on every frame with a submission call on each side of an `if`
+    const scene = readFileSync(join('src', 'render', 'scene.ts'), 'utf8');
+    expect(scene, 'the rig draws at the canvas itself').not.toMatch(/\brenderer\s*\.\s*render\s*\(/);
+    expect(scene.match(/\bpresenter\s*\.\s*draw\s*\(/g), 'the WebGL sink submits once, to its presenter').toHaveLength(1);
+  });
+
   it('does not reach into the lights from outside, but asks the rig', () => {
     const reaching = outside().filter((f) => /\brig\.(sun|hemi|ambient)\b/.test(readFileSync(f, 'utf8')));
     expect(reaching, 'a light held by name outside the render layer is a light a second rig cannot have')
