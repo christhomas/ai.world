@@ -332,19 +332,41 @@ export function nativeRig(rig: SceneRig): { scene: THREE.Scene; water: WaterMate
  * differs between the two paths.
  */
 export function createSceneRig(container: HTMLElement, asked = false, recording?: RecordingPipeline): SceneRig {
-  const renderer = new THREE.WebGLRenderer({
+  // the page's address does not change under a running game, so it is read once and not per draw
+  const recordOnly = new URLSearchParams(location.search).has('record-only');
+  /*
+   * No WebGL at all when only the recorder is drawing (#529).
+   *
+   * `record-only` used to swap the frame sink and still build the renderer, so a page with no WebGL
+   * context to be had — no GPU and no software GL — never reached its first frame, for want of a
+   * pipeline it was not using. Everything below that is three.js without a context (the scene the
+   * bridges mount into, the water material, the coast texture) is only memory and stays; what
+   * needs a context is the renderer and the presenter over it, and they are not made.
+   */
+  const renderer = recordOnly ? null : new THREE.WebGLRenderer({
     antialias: true,
     // photo mode reads the canvas back after a frame, which needs the buffer kept
     preserveDrawingBuffer: true,
     // on a machine with two graphics chips, ask for the quick one
     powerPreference: 'high-performance',
   });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  // and drawn when something has changed rather than on every frame: see `redrawShadows`
-  renderer.shadowMap.autoUpdate = false;
-  renderer.shadowMap.needsUpdate = true;
-  container.appendChild(renderer.domElement);
+  // the surface input binds to and the page lays out, whichever is drawing
+  const canvas = renderer?.domElement ?? document.createElement('canvas');
+  const sizeCanvas = () => {
+    if (renderer) { renderer.setSize(window.innerWidth, window.innerHeight); return; }
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.width = `${window.innerWidth}px`;
+    canvas.style.height = `${window.innerHeight}px`;
+  };
+  sizeCanvas();
+  if (renderer) {
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    // and drawn when something has changed rather than on every frame: see `redrawShadows`
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
+  }
+  container.appendChild(canvas);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY);
@@ -441,10 +463,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
 
   // straight at the canvas or through a composer, chosen once for the rig's life. Built after the
   // quality is known, because `low` refuses the composer
-  const presenter = presenterFor(renderer, asked, remembered);
+  const presenter = renderer ? presenterFor(renderer, asked, remembered) : null;
   const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
-  // the page's address does not change under a running game, so it is read once and not per draw
-  const recordOnly = new URLSearchParams(location.search).has('record-only');
   const frameMounts: FrameMount[] = [];
 
   const api: SceneRig = {
@@ -453,8 +473,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     setQuality(level: Quality) {
       const want = QUALITY[level];
       this.quality = level;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, want.pixels));
-      renderer.shadowMap.enabled = want.shadows;
+      renderer?.setPixelRatio(Math.min(window.devicePixelRatio, want.pixels));
+      if (renderer) renderer.shadowMap.enabled = want.shadows;
       sun.castShadow = want.shadows;
       lighting.sun.castShadow = want.shadows;
       if (sun.shadow.mapSize.x !== want.shadowMap) {
@@ -491,7 +511,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       surfaceBridge.sync(deepNode);
       // the ground in shot is a rectangle zoom*aspect across by zoom*GROUND_DEPTH*2 deep, centred
       // on the target; nothing past its half-diagonal can be seen, so nothing there need be drawn
-      const size = renderer.getSize(viewSize);
+      const size = renderer?.getSize(viewSize) ?? viewSize.set(canvas.width, canvas.height);
       const aspect = size.x / Math.max(1, size.y);
       groundRadius = Math.hypot(zoom * aspect / 2, zoom * GROUND_DEPTH);
       setWorldView(scene, x, z, groundRadius + VIEW_MARGIN);
@@ -522,16 +542,16 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       cam.updateProjectionMatrix();
     },
     redrawShadows() {
-      renderer.shadowMap.needsUpdate = true;
+      if (renderer) renderer.shadowMap.needsUpdate = true;
     },
     resize() {
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      presenter.resize();
+      sizeCanvas();
+      presenter?.resize();
     },
     draw(what, camera) {
       what.camera = camera.frameCamera();
       const sinks: FramePipeline[] = [];
-      if (!recordOnly) {
+      if (presenter) {
         let pipeline = mountedPipelines.get(what);
         if (!pipeline) {
           pipeline = new MountedThreePipeline(sceneForGraph(what),
@@ -550,7 +570,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
         if (at >= 0) frameMounts.splice(at, 1);
       };
     },
-    get canvas() { return renderer.domElement; },
+    get canvas() { return canvas; },
     dispose() {
       for (const unmount of unmountLights) unmount();
       detachGraph();
@@ -558,18 +578,20 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       deepMaterial.dispose();
       waterMat.dispose();
       coast.dispose();
-      presenter.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
+      presenter?.dispose();
+      renderer?.dispose();
+      canvas.remove();
     },
     brightness() {
       return { sun: sun.intensity, hemi: hemi.intensity };
     },
     lastFrame() {
+      // nothing drew it when there is no renderer, which is the neutral answer and the true one
+      if (!renderer) return { draws: 0, triangles: 0 };
       return { draws: renderer.info.render.calls, triangles: renderer.info.render.triangles };
     },
     chip() {
-      return describeGpu(renderer);
+      return renderer ? describeGpu(renderer) : { name: 'nothing: recording only', accelerated: false };
     },
     setBrightness(of, value) {
       if (of === 'sun') { lighting.sun.intensity = value; sun.intensity = value; }
