@@ -1129,7 +1129,6 @@ export class Simulation {
       players: [...room.clients].filter((c) => c !== joining).map((c) => c.presence),
       clock: room.world.clock,
       deltas: room.world.log,
-      holdingDays: room.world.holdingDays,
     });
     this.rooms.send(joining, { type: 'stalls', stalls: room.world.stalls });
 
