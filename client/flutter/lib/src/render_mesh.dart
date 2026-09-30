@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'chunk_parcel.dart';
+import 'colour.dart';
 
 /// Interleaved native vertex: position, normal, linear colour, material,
 /// animation joint, animation pivot, waterfall flow and open-sea mask.
@@ -41,6 +42,7 @@ final class RenderMesh {
   final int renderOrder;
   final bool transparent;
   final double opacity;
+  /// sRGB hex, like every authored colour; decoded to linear on its way to the bridge.
   final int emissive;
   final String blend;
 
@@ -172,7 +174,7 @@ final class ChunkMesher {
             _palettes[chunk.biome[i].clamp(0, _palettes.length - 1)];
         final wx = (originX + x).toDouble(), wz = (originZ + z).toDouble();
         final shade = 0.94 + _hash01(seed, originX + x, originZ + z) * 0.12;
-        final top = _linear(_topHex(kind, palette))
+        final top = linearFromHex(_topHex(kind, palette))
             .map((v) => v * shade)
             .toList(growable: false);
         final corners = _corners(chunk, x, z);
@@ -194,7 +196,7 @@ final class ChunkMesher {
 
         final bridge =
             kind == TileType.bridge.index || kind == TileType.pier.index;
-        final cliff = _linear(bridge ? 0x6e4a2a : palette.cliff);
+        final cliff = linearFromHex(bridge ? 0x6e4a2a : palette.cliff);
         for (final side in _sides) {
           final neighbour = _corners(chunk, x + side.dx, z + side.dz);
           final a = corners[side.mineA], b = corners[side.mineB];
@@ -224,7 +226,7 @@ final class ChunkMesher {
             <double>[wx + 1, surface, wz + 1],
             <double>[wx + 1, surface, wz],
             const <double>[0, 1, 0],
-            _linear(0x3fa3da),
+            linearFromHex(0x3fa3da),
             RenderMesh.waterMaterial,
             sea: chunk.type[i] == TileType.water.index ? 1 : 0,
           );
@@ -241,7 +243,7 @@ final class ChunkMesher {
             <double>[wx + side.bx + ox, surface, wz + side.bz + oz],
             <double>[wx + side.ax + ox, surface, wz + side.az + oz],
             <double>[side.nx, 0, side.nz],
-            _linear(0xd9f0fb),
+            linearFromHex(0xd9f0fb),
             RenderMesh.waterMaterial,
             sea: chunk.type[i] == TileType.water.index ? 1 : 0,
           );
@@ -293,21 +295,6 @@ final class ChunkMesher {
     11 => 0x9a6a3d,
     _ => p.ground,
   };
-
-  static List<double> _linear(int hex) {
-    double channel(int bits) {
-      final value = bits / 255;
-      return value <= 0.04045
-          ? value / 12.92
-          : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
-    }
-
-    return <double>[
-      channel((hex >> 16) & 255),
-      channel((hex >> 8) & 255),
-      channel(hex & 255),
-    ];
-  }
 
   static double _hash01(int seed, int x, int z) {
     var h = seed ^ (x * 0x27d4eb2d) ^ (z * 0x165667b1);

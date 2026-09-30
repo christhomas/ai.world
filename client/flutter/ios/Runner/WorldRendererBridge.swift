@@ -43,7 +43,7 @@ final class WorldRendererBridge: NSObject, FlutterPlugin {
           castShadow: arguments["castShadow"] as? Bool ?? true,
           receiveShadow: arguments["receiveShadow"] as? Bool ?? true,
           opacity: arguments.float("opacity"), blend: arguments.string("blend"),
-          emissive: (arguments["emissive"] as? NSNumber)?.intValue ?? 0,
+          emissive: linear(arguments["emissive"]) ?? .zero,
           depthWrite: arguments["depthWrite"] as? Bool ?? true,
           depthTest: arguments["depthTest"] as? Bool ?? true,
           doubleSided: arguments["doubleSided"] as? Bool ?? false,
@@ -87,6 +87,12 @@ private struct RenderFailure: LocalizedError {
   var errorDescription: String? { text }
 }
 
+/// Three linear channels as Dart sends them; see client/flutter/lib/src/colour.dart.
+private func linear(_ value: Any?) -> SIMD3<Float>? {
+  guard let rgb = value as? [NSNumber], rgb.count == 3 else { return nil }
+  return SIMD3(rgb[0].floatValue, rgb[1].floatValue, rgb[2].floatValue)
+}
+
 private extension Dictionary where Key == String, Value == Any {
   func number(_ key: String) -> Double { (self[key] as? NSNumber)?.doubleValue ?? 0 }
   func float(_ key: String) -> Float { Float(number(key)) }
@@ -115,7 +121,7 @@ private struct Uniforms {
 }
 
 private struct MeshStyle {
-  let castShadow: Bool; let receiveShadow: Bool; let opacity: Float; let emissive: Int
+  let castShadow: Bool; let receiveShadow: Bool; let opacity: Float; let emissive: SIMD3<Float>
   let blend: String; let depthWrite: Bool; let depthTest: Bool; let doubleSided: Bool; let backSide: Bool
   let renderOrder: Int; let transparent: Bool
 }
@@ -244,7 +250,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   }
 
   func putMesh(id: String, vertices: Data, indices: Data,
-               castShadow: Bool, receiveShadow: Bool, opacity: Float, blend: String, emissive: Int,
+               castShadow: Bool, receiveShadow: Bool, opacity: Float, blend: String, emissive: SIMD3<Float>,
                depthWrite: Bool, depthTest: Bool, doubleSided: Bool, backSide: Bool,
                renderOrder: Int, transparent: Bool) {
     pending[id] = CpuMesh(vertices: vertices, indices: indices,
@@ -263,17 +269,16 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     sceneProjection = projection; sceneWorld = world; self.background = background
     target = SIMD3(world.columns.3.x, world.columns.3.y, world.columns.3.z) -
       SIMD3(world.columns.2.x, world.columns.2.y, world.columns.2.z) * 30
-    func colour(_ node: [String: Any]?, key: String = "colour") -> SIMD3<Float> {
-      let rgb = (node?[key] as? NSNumber)?.intValue ?? 0
-      let strength = (node?["intensity"] as? NSNumber)?.floatValue ?? 0
-      return SIMD3(Float((rgb >> 16) & 255), Float((rgb >> 8) & 255), Float(rgb & 255)) * (strength / 255)
+    // Dart has already decoded each light to linear and applied its intensity (colour.dart)
+    func colour(_ node: [String: Any]?, key: String = "linear") -> SIMD3<Float> {
+      linear(node?[key]) ?? .zero
     }
     let visible: ([String: Any]) -> Bool = { $0["visible"] as? Bool != false }
     let ambient = lights.first(where: { $0["kind"] as? String == "ambient" && visible($0) })
     let hemisphere = lights.first(where: { $0["kind"] as? String == "hemisphere" && visible($0) })
     ambientLight = colour(ambient)
     skyLight = colour(hemisphere)
-    groundLight = colour(hemisphere, key: "groundColour")
+    groundLight = colour(hemisphere, key: "linearGround")
     sunLight = colour(lights.first(where: { $0["kind"] as? String == "directional" && visible($0) }))
     sunCastsShadow = lights.first(where: { $0["kind"] as? String == "directional" && visible($0) })?["castShadow"] as? Bool == true
     pointPositions = [SIMD4<Float>](repeating: .zero, count: 16)
@@ -286,6 +291,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       pointColours[index] = SIMD4(tint.x, tint.y, tint.z, 0)
     }
     if let fog {
+      // sRGB as it stands: three.js mixes fog in after encoding, toward the hex itself
       let rgb = (fog["colour"] as? NSNumber)?.intValue ?? 0
       fogColour = SIMD3(Float((rgb >> 16) & 255), Float((rgb >> 8) & 255), Float(rgb & 255)) / 255
       fogNear = (fog["near"] as? NSNumber)?.floatValue ?? 0
@@ -359,6 +365,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     pass.colorAttachments[0].texture = drawable
     pass.colorAttachments[0].loadAction = .clear
     pass.colorAttachments[0].storeAction = .store
+    // the hex as it stands, as three.js clears a default framebuffer in its output colour space
     pass.colorAttachments[0].clearColor = MTLClearColor(red: Double((background >> 16) & 255) / 255,
       green: Double((background >> 8) & 255) / 255, blue: Double(background & 255) / 255, alpha: 1)
     pass.depthAttachment.texture = depthTexture
@@ -420,9 +427,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
         encoder.setDepthStencilState(depthState(write: mesh.style.depthWrite, test: mesh.style.depthTest))
         var painted = uniforms
         painted.renderFlags = SIMD4(mesh.style.opacity, mesh.style.receiveShadow && sunCastsShadow ? 1 : 0, 0, 0)
-        let rgb = mesh.style.emissive
-        painted.emissive = SIMD4(Float((rgb >> 16) & 255) / 255,
-          Float((rgb >> 8) & 255) / 255, Float(rgb & 255) / 255, 0)
+        painted.emissive = SIMD4(mesh.style.emissive, 0)
         encoder.setFragmentBytes([painted], length: MemoryLayout<Uniforms>.stride, index: 1)
       }
       encoder.setVertexBuffer(mesh.vertices, offset: 0, index: 0)
@@ -536,6 +541,9 @@ struct VOut { float4 position [[position]]; float3 world; float3 normal; float3 
 float3 animate(float3 p,float joint,float3 pivot,float time){if(joint<.5)return p;float side=(joint==1||joint==3||joint==7)?1:-1;float angle=sin(time*5)*.48*side;if(joint==6)angle=sin(time*.7)*.1;if(joint==7||joint==8)angle=sin(time*7)*.35*side;float3 q=p-pivot;float c=cos(angle),s=sin(angle);if(joint==7||joint==8)q.yz=float2(c*q.y-s*q.z,s*q.y+c*q.z);else q.xy=float2(c*q.x-s*q.y,s*q.x+c*q.y);return q+pivot;}
 vertex VOut worldVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){VOut o;o.world=animate(in.position,in.joint,in.pivot,u.lookAndTime.w);o.position=u.mvp*float4(o.world,1);o.normal=in.normal;o.color=in.color;o.material=in.material;o.flow=in.flow;o.sea=in.sea;o.shadow=u.lightMvp*float4(o.world,1);return o;}
 vertex float4 shadowVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){return u.lightMvp*float4(animate(in.position,in.joint,in.pivot,u.lookAndTime.w),1);}
+constant float RECIPROCAL_PI=0.3183098861837907;
+// three.js's sRGBTransferOETF: lit in linear, written out encoded to the plain bgra8Unorm target
+float3 encodeSrgb(float3 c){return select(pow(c,float3(0.41666))*1.055-0.055,c*12.92,c<=0.0031308);}
 float hash(float2 p){return fract(sin(dot(floor(p),float2(12.9898,78.233)))*43758.5453);}
-fragment float4 worldFragment(VOut in [[stage_in]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}float3 q=in.shadow.xyz/in.shadow.w*.5+.5;constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}float3 n=normalize(in.normal);float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5)+u.sun.xyz*max(0.0,dot(n,normalize(u.lightDirection.xyz)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){float4 p=pointPositions[i];float3 toPoint=p.xyz-in.world;float distance=length(toPoint);if(p.w>0&&distance<p.w)lit+=pointColours[i].xyz*max(0.0,dot(n,normalize(toPoint)))*pow(1-distance/p.w,2);}float3 c=in.color*(in.material>2.5?float3(1):lit)+u.emissive.xyz;if(in.material>1.5&&in.material<2.5){float coast=1;if(u.coastArea.z>0){constexpr sampler cs(coord::normalized,address::clamp_to_edge,filter::linear);coast=coastMap.sample(cs,(in.world.xz-u.coastArea.xy)*u.coastArea.z).r;}float shore=mix(64.0,coast*64.0,in.sea);float wave=mix(sin(dot(in.world.xz,float2(.77,.64))*1.9+u.lookAndTime.w*1.3)*.5+sin(dot(in.world.xz,float2(-.6,.8))*2.7-u.lookAndTime.w*.9)*.3,sin(shore*2.2+u.lookAndTime.w*.9),in.sea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=in.sea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(in.world.y*1.6-u.lookAndTime.w*1.8+sin((in.world.x+in.world.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,float3(.95,.98,1.0),mix(foam,.35+streak*.6,in.flow));}if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,clamp((length(in.world-u.cameraPosition.xyz)-u.fogRange.x)/(u.fogRange.y-u.fogRange.x),0.0,1.0));return float4(c,u.renderFlags.x);}
+fragment float4 worldFragment(VOut in [[stage_in]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}float3 q=in.shadow.xyz/in.shadow.w*.5+.5;constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}float3 n=normalize(in.normal);float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5)+u.sun.xyz*max(0.0,dot(n,normalize(u.lightDirection.xyz)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){float4 p=pointPositions[i];float3 toPoint=p.xyz-in.world;float distance=length(toPoint);if(p.w>0&&distance<p.w)lit+=pointColours[i].xyz*max(0.0,dot(n,normalize(toPoint)))*pow(1-distance/p.w,2);}float3 c=in.color*(in.material>2.5?float3(1):lit*RECIPROCAL_PI)+u.emissive.xyz;if(in.material>1.5&&in.material<2.5){float coast=1;if(u.coastArea.z>0){constexpr sampler cs(coord::normalized,address::clamp_to_edge,filter::linear);coast=coastMap.sample(cs,(in.world.xz-u.coastArea.xy)*u.coastArea.z).r;}float shore=mix(64.0,coast*64.0,in.sea);float wave=mix(sin(dot(in.world.xz,float2(.77,.64))*1.9+u.lookAndTime.w*1.3)*.5+sin(dot(in.world.xz,float2(-.6,.8))*2.7-u.lookAndTime.w*.9)*.3,sin(shore*2.2+u.lookAndTime.w*.9),in.sea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=in.sea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(in.world.y*1.6-u.lookAndTime.w*1.8+sin((in.world.x+in.world.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,float3(.95,.98,1.0),mix(foam,.35+streak*.6,in.flow));}c=encodeSrgb(c);if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,smoothstep(u.fogRange.x,u.fogRange.y,dot(in.world-u.cameraPosition.xyz,u.lookAndTime.xyz)));return float4(c,u.renderFlags.x);}
 """

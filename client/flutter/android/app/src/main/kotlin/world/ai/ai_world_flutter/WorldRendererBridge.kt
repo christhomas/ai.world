@@ -56,7 +56,7 @@ class WorldRendererBridge(
                         call.argument<Boolean>("castShadow") ?: true,
                         call.argument<Boolean>("receiveShadow") ?: true,
                         call.number("opacity"), call.argument<String>("blend") ?: "opaque",
-                        call.argument<Int>("emissive") ?: 0,
+                        call.argument<List<*>>("emissive")?.linear() ?: FloatArray(3),
                         call.argument<Boolean>("depthWrite") ?: true,
                         call.argument<Boolean>("depthTest") ?: true,
                         call.argument<Boolean>("doubleSided") ?: false,
@@ -106,13 +106,18 @@ class WorldRendererBridge(
 }
 
 private fun MethodCall.number(name: String): Float = (argument<Number>(name) ?: error("$name missing")).toFloat()
+/** Three linear channels as Dart sends them; see client/flutter/lib/src/colour.dart. */
+private fun List<*>.linear(): FloatArray {
+    check(size == 3) { "a linear colour has three channels" }
+    return FloatArray(3) { (this[it] as Number).toFloat() }
+}
 
 private data class Mesh(val vertices: FloatArray, val indices: IntArray,
-    val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: Int,
+    val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: FloatArray,
     val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
     val renderOrder: Int, val transparent: Boolean)
 private data class GpuMesh(val vertex: Int, val index: Int, val count: Int,
-    val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: Int,
+    val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: FloatArray,
     val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
     val renderOrder: Int, val transparent: Boolean, val center: FloatArray)
 
@@ -202,7 +207,7 @@ private class GLWorldRenderer(
         entry.surfaceTexture().setDefaultBufferSize(viewportWidth, viewportHeight)
     }
     fun putMesh(id: String, vertices: FloatArray, indices: IntArray,
-        castShadow: Boolean, receiveShadow: Boolean, opacity: Float, blend: String, emissive: Int,
+        castShadow: Boolean, receiveShadow: Boolean, opacity: Float, blend: String, emissive: FloatArray,
         depthWrite: Boolean, depthTest: Boolean, doubleSided: Boolean, backSide: Boolean,
         renderOrder: Int, transparent: Boolean) = post {
         pending[id] = Mesh(vertices, indices, castShadow, receiveShadow, opacity, emissive, blend, depthWrite, depthTest, doubleSided, backSide, renderOrder, transparent)
@@ -219,19 +224,16 @@ private class GLWorldRenderer(
         lights: List<Map<String, Any>>, coast: Map<String, Any>?, fog: Map<String, Any>?) = post {
         sceneProjection = projection.copyOf(); sceneWorld = world.copyOf(); background = sky
         target = floatArrayOf(world[12] - world[8] * 30f, world[13] - world[9] * 30f, world[14] - world[10] * 30f)
-        fun colour(node: Map<String, Any>?, key: String = "colour"): FloatArray {
-            val rgb = (node?.get(key) as? Number)?.toInt() ?: 0
-            val strength = (node?.get("intensity") as? Number)?.toFloat() ?: 0f
-            return floatArrayOf(((rgb shr 16) and 255) / 255f * strength,
-                ((rgb shr 8) and 255) / 255f * strength, (rgb and 255) / 255f * strength)
-        }
+        // Dart has already decoded each light to linear and applied its intensity (colour.dart)
+        fun colour(node: Map<String, Any>?, key: String = "linear"): FloatArray =
+            (node?.get(key) as? List<*>)?.linear() ?: FloatArray(3)
         val ambient = lights.firstOrNull { it["kind"] == "ambient" && it["visible"] != false }
         val hemisphere = lights.firstOrNull { it["kind"] == "hemisphere" && it["visible"] != false }
         val sun = lights.firstOrNull { it["kind"] == "directional" && it["visible"] != false }
         val points = lights.filter { it["kind"] == "point" && it["visible"] != false }.take(16)
         ambientLight = colour(ambient)
         skyLight = colour(hemisphere)
-        groundLight = colour(hemisphere, "groundColour")
+        groundLight = colour(hemisphere, "linearGround")
         sunLight = colour(sun)
         sunCastsShadow = sun?.get("castShadow") == true
         pointPositions.fill(0f)
@@ -251,6 +253,7 @@ private class GLWorldRenderer(
             }
         }
         if (fog != null) {
+            // sRGB as it stands: three.js mixes fog in after encoding, toward the hex itself
             val rgb = (fog["colour"] as Number).toInt()
             fogColour = floatArrayOf(((rgb shr 16) and 255) / 255f,
                 ((rgb shr 8) and 255) / 255f, (rgb and 255) / 255f)
@@ -357,6 +360,7 @@ private class GLWorldRenderer(
         if (sunCastsShadow) drawShadow(matrices.second, now)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
         GLES30.glViewport(0, 0, viewportWidth, viewportHeight)
+        // the hex as it stands, as three.js clears a default framebuffer in its output colour space
         GLES30.glClearColor(((background shr 16) and 255) / 255f, ((background shr 8) and 255) / 255f, (background and 255) / 255f, 1f)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
         GLES30.glUseProgram(program)
@@ -428,9 +432,7 @@ private class GLWorldRenderer(
                         if (mesh.blend == "additive") GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA)
                 }
                 GLES30.glUniform1f(GLES30.glGetUniformLocation(activeProgram, "uOpacity"), mesh.opacity)
-                val rgb = mesh.emissive
-                GLES30.glUniform3f(GLES30.glGetUniformLocation(activeProgram, "uEmissive"),
-                    ((rgb shr 16) and 255) / 255f, ((rgb shr 8) and 255) / 255f, (rgb and 255) / 255f)
+                GLES30.glUniform3fv(GLES30.glGetUniformLocation(activeProgram, "uEmissive"), 1, mesh.emissive, 0)
                 GLES30.glUniform1f(GLES30.glGetUniformLocation(activeProgram, "uReceiveShadow"),
                     if (mesh.receiveShadow && sunCastsShadow) 1f else 0f)
             }
@@ -591,10 +593,13 @@ uniform vec3 uCameraPos; uniform vec3 uFogColour; uniform vec2 uFogRange;
 uniform vec3 uEmissive;
 uniform sampler2D uCoast; uniform vec3 uCoastArea;
 out vec4 color;
+const float RECIPROCAL_PI=0.3183098861837907;
+// three.js's sRGBTransferOETF: lit in linear, written out encoded (client/flutter/lib/src/colour.dart)
+vec3 encodeSrgb(vec3 c){return mix(pow(c,vec3(0.41666))*1.055-vec3(0.055),c*12.92,lessThanEqual(c,vec3(0.0031308)));}
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
 float ripple(vec2 w){return sin(dot(w,vec2(.77,.64))*1.9+uTime*1.3)*.5+sin(dot(w,vec2(-.6,.8))*2.7-uTime*.9)*.3;}
 float shadow(){vec3 q=vShadow.xyz/vShadow.w*.5+.5;if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.0;float s=0.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)s+=texture(uShadow,vec3(q.xy+vec2(x,y)/1024.0,q.z-.002));return s/9.0;}
-void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){vec4 p=uPointPositions[i];float distance=length(p.xyz-vWorld);if(p.w>0.0&&distance<p.w)lit+=uPointColours[i].rgb*max(0.0,dot(n,normalize(p.xyz-vWorld)))*pow(1.0-distance/p.w,2.0);}vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,clamp((length(vWorld-uCameraPos)-uFogRange.x)/(uFogRange.y-uFogRange.x),0.0,1.0));color=vec4(c,uOpacity);}
+void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){vec4 p=uPointPositions[i];float distance=length(p.xyz-vWorld);if(p.w>0.0&&distance<p.w)lit+=uPointColours[i].rgb*max(0.0,dot(n,normalize(p.xyz-vWorld)))*pow(1.0-distance/p.w,2.0);}vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,uOpacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es
 precision highp float; in vec3 aPosition; in float aJoint; in vec3 aPivot; uniform mat4 uMvp; uniform float uTime;

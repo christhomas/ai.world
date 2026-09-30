@@ -127,6 +127,23 @@ void main() {
     },
   );
 
+  // Dart decodes every lit colour and applies intensity (colour.dart); each bridge must take those
+  // numbers as they come, and encode what it draws, or a colour is decoded twice or never (#499).
+  test('both native bridges light with the linear channels Dart sends and encode to sRGB', () {
+    for (final path in <String>[
+      'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
+      'ios/Runner/WorldRendererBridge.swift',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(source, contains('"linear"'), reason: path);
+      expect(source, contains('"linearGround"'), reason: path);
+      expect(source, isNot(contains('"intensity"')), reason: path);
+      expect(source, isNot(contains('"groundColour"')), reason: path);
+      expect(source, contains('RECIPROCAL_PI'), reason: path);
+      expect(source, contains('c=encodeSrgb(c);'), reason: path);
+    }
+  });
+
   test('Android renderer failures are returned and dead-thread disposal is bounded', () {
     final source = File(
       'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',

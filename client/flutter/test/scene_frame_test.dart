@@ -156,6 +156,88 @@ void main() {
     await native.dispose();
   });
 
+  /*
+   * three.js takes every authored hex as sRGB and lights in linear (#499): `Color.setHex` decodes,
+   * `WebGLLights` multiplies by intensity, and a frame's `linearColour` is used before its clamped
+   * hex (`bindLightMount`). The bridges only shade, so this is where all of that is decided for them.
+   */
+  test('lights and emissive reach the native bridges linear, as three.js lights them', () async {
+    const channel = MethodChannel('world.ai/light-test');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 9 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    await FlutterFramePipeline(native).draw(SceneFrame.fromJson(<String, dynamic>{
+      'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
+      'background': 0x123456,
+      'fog': null,
+      'nodes': <Map<String, dynamic>>[
+        <String, dynamic>{'kind': 'ambient', 'colour': 0x808080, 'intensity': 0.5, 'visible': true},
+        // the autumn sun's case: a computed colour warmer than its hex can say
+        <String, dynamic>{
+          'kind': 'hemisphere', 'colour': 0xffe0a0, 'linearColour': <num>[1.3, 0.8, 0.35],
+          'groundColour': 0x402010, 'intensity': 2, 'visible': true,
+        },
+        <String, dynamic>{
+          'kind': 'directional', 'colour': 0xffa020, 'intensity': 3, 'visible': true,
+          'world': identity, 'target': <num>[0, 0, 0],
+        },
+        <String, dynamic>{
+          'kind': 'point', 'colour': 0xffffff, 'intensity': 14, 'distance': 9, 'decay': 1.4,
+          'visible': true, 'world': identity,
+        },
+        <String, dynamic>{
+          'kind': 'point', 'colour': 0xffffff, 'intensity': 1, 'distance': 0,
+          'visible': true, 'world': identity,
+        },
+        <String, dynamic>{
+          'id': 6,
+          'kind': 'mesh',
+          'world': identity,
+          'visible': true,
+          'castShadow': false,
+          'receiveShadow': false,
+          'material': <String, dynamic>{
+            'intent': 'lit', 'colour': 0x808080, 'emissive': 0xff8040, 'opacity': 1,
+            'transparent': false, 'depthWrite': true, 'side': 'front', 'effects': <String>[],
+          },
+          'attributes': <String, dynamic>{
+            'position': <String, dynamic>{'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 0, 1]},
+          },
+          'indices': <int>[0, 1, 2],
+        },
+      ],
+    }));
+    final scene = calls.singleWhere((call) => call.method == 'sceneFrame').arguments as Map;
+    final lights = (scene['lights'] as List).cast<Map>();
+    List<double> channels(Object? values) => (values as List).cast<num>().map((v) => v.toDouble()).toList();
+    final grey = _linear(0x80);
+    expect(grey, closeTo(0.2158605, 1e-6));
+
+    // a hex is sRGB, decoded before the intensity scales it
+    expect(channels(lights[0]['linear']), closeToList(<double>[grey * .5, grey * .5, grey * .5]));
+    // the unclamped channels win over the hex, and the ground's hex is decoded like any other
+    expect(channels(lights[1]['linear']), closeToList(<double>[2.6, 1.6, 0.7]));
+    expect(channels(lights[1]['linearGround']),
+        closeToList(<double>[_linear(0x40) * 2, _linear(0x20) * 2, _linear(0x10) * 2]));
+    expect(channels(lights[2]['linear']),
+        closeToList(<double>[3, _linear(0xa0) * 3, _linear(0x20) * 3]));
+    expect(channels(lights[3]['linear']), closeToList(<double>[14, 14, 14]));
+
+    // emissive is added to linear light in three.js, so it leaves Dart decoded too
+    final mesh = calls.singleWhere((call) => call.method == 'putMesh').arguments as Map;
+    expect(channels(mesh['emissive']), closeToList(<double>[1, _linear(0x80), _linear(0x40)]));
+    // and the mesh's own colour is decoded by the same sum, not a second copy of it
+    final vertices = mesh['vertices'] as Float32List;
+    expect(vertices.sublist(6, 9), closeToList(<double>[grey, grey, grey]));
+    expect(linearFromHex(0xff8040), closeToList(<double>[1, _linear(0x80), _linear(0x40)]));
+    await native.dispose();
+  });
+
   test('instance transforms, unlit intent, additive blend and points reach native buffers', () async {
     const channel = MethodChannel('world.ai/instance-test');
     final calls = <MethodCall>[];
@@ -579,3 +661,11 @@ double _linear(int channel) {
   final c = channel / 255;
   return c <= .04045 ? c / 12.92 : math.pow((c + .055) / 1.055, 2.4).toDouble();
 }
+
+Matcher closeToList(List<double> expected) => predicate<List<double>>(
+  (actual) =>
+      actual.length == expected.length &&
+      List.generate(actual.length, (index) => (actual[index] - expected[index]).abs())
+          .every((difference) => difference < 0.00001),
+  'is within 0.00001 of $expected',
+);
