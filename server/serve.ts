@@ -79,8 +79,8 @@ export interface ServerOptions {
   captureClock?: boolean;
   /** Grow a joining world's expensive first patches off the HTTP/socket event loop. */
   asyncCountry?: boolean;
-  /** An asynchronous patch source for integration tests and other server hosts. */
-  preparePatch?: SimOptions['preparePatch'];
+  /** An asynchronous ground source for integration tests and other server hosts. */
+  prepare?: SimOptions['prepare'];
 }
 
 export interface RunningServer {
@@ -180,11 +180,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'register', MINDS_SCHEMA);
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
-  const groundWorker = options.asyncCountry && !options.preparePatch ? new GroundWorker() : null;
+  const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;
   const sim = new Simulation({
     dataDir, vault: new FileVault(), ground: true,
-    preparePatch: options.preparePatch
-      ?? (groundWorker ? (seed, patch, layers, terrain) => groundWorker.grow(seed, patch, layers, terrain) : undefined),
+    prepare: options.prepare ?? groundWorker ?? undefined,
     minds: durable ?? undefined, chronicles: durable ?? undefined,
   });
   let captureNow = 0;
@@ -411,6 +410,8 @@ function registry(sim: Simulation, options: ServerOptions | null, req: IncomingM
     if (!Number.isFinite(seed)) { say(400, { error: 'that is not a seed' }); return; }
     const book = sim.surveyOf(seed);
     if (!book) { say(404, { error: `no world ${seed}` }); return; }
+    // somebody is joining it and its ground is being grown elsewhere: ask again shortly
+    if (book === 'preparing') { say(503, { error: `world ${seed} is still being prepared`, preparing: true }); return; }
     /*
      * And what has happened since the caller last looked.
      *
@@ -431,7 +432,7 @@ function registry(sim: Simulation, options: ServerOptions | null, req: IncomingM
   // no seed: whatever this server is presently holding, which is what a watcher wants
   const books = sim.rooms.entries()
     .map(([seed]) => sim.surveyOf(seed))
-    .filter((b): b is NonNullable<typeof b> => b !== null);
+    .filter((b): b is Exclude<typeof b, null | 'preparing'> => b !== null && b !== 'preparing');
   say(200, { worlds: books.length, books });
 }
 

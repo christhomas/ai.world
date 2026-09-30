@@ -1,3 +1,4 @@
+import type { SeasonLook } from '../core/scene';
 import { Biome } from '../world/biomes';
 
 /**
@@ -41,6 +42,22 @@ export function seasonTint(season: Season): SeasonTint {
 /** Biomes that ignore the season: deserts do not go autumn-gold, snow is already white. */
 export function seasonAffects(biome: Biome): boolean {
   return biome !== Biome.Desert && biome !== Biome.Snow;
+}
+
+/** What winter's frost blends the country toward. */
+export const SEASON_SNOW = 0xf2f6ff;
+
+/**
+ * How the season colours the country around somebody standing on `biome`, as the frame carries it.
+ *
+ * An intent rather than a shader edit, so every renderer can draw it: the WebGL materials take
+ * their season uniforms from this and the Dart renderer bakes it into the colours it uploads.
+ * Null where the ground ignores the season, which draws exactly as an untinted world does.
+ */
+export function seasonLook(season: Season, biome: Biome): SeasonLook | null {
+  if (!seasonAffects(biome)) return null;
+  const { ground, frost } = seasonTint(season);
+  return { multiply: [ground[0], ground[1], ground[2]], frost, snow: SEASON_SNOW };
 }
 
 /**

@@ -64,6 +64,8 @@ export class SceneGraph {
   camera: FrameDescription['camera'] | null = null;
   fog: FrameDescription['fog'] = null;
   cutaway: FrameDescription['cutaway'] = null;
+  /** The season's tint on whatever lists the `'season'` effect; see `FrameDescription.season`. */
+  season: FrameDescription['season'] = null;
   coast: FrameDescription['coast'] = null;
 
   constructor(public background: number) {}
@@ -83,6 +85,7 @@ export class SceneGraph {
       background: this.background,
       fog: this.fog,
       cutaway: this.cutaway,
+      season: this.season,
       coast: this.coast,
       nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
         const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };

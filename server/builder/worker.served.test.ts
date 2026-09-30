@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import WebSocket from 'ws';
-import { startWorker, changedIn, readEvent, type RunningWorker } from './worker';
+import { startWorker, changedIn, codexArgs, readEvent, type RunningWorker } from './worker';
 import { startServer, type RunningServer } from '../serve';
 import { COOKIE } from '../tools/portal';
 import { addAccount } from '../tools/accounts';
@@ -46,6 +46,14 @@ say({ type: 'item.started', item: { id: 'command_1', type: 'command_execution', 
 require('node:fs').writeFileSync('changed.txt', prompt);
 say({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 20 } });
 `;
+
+describe('the codex command line', () => {
+  it('ends its options before a prompt that starts with a dash', () => {
+    expect(codexArgs('-shorter legs please')).toEqual([
+      'exec', '--model', 'gpt-6-sol', '--sandbox', 'workspace-write', '--json', '--', '-shorter legs please',
+    ]);
+  });
+});
 
 describe('Codex JSONL events', () => {
   const root = '/workspace/tree';
