@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.2 — 2026-09-30
+
+world creation never freezes the server, the season reaches the Dart renderer, and the tools cookie is Secure
+
 ### v0.103.1 — 2026-09-29
 
 autumn light, wild-camp tents and amber night windows are back, and the game can be played with nothing drawn
@@ -626,10 +630,6 @@ world routing, terrain and water authoring, carrier replay, wildlife sync, and b
 ### v0.102.0 — 2026-09-19
 
 A title screen that opens the world it measured, a door the world can refuse, and a massif with a foot
-
-### v0.101.0 — 2026-09-19
-
-A carcass on a crag, a holding that pays while you are away, and a country made of layers
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
