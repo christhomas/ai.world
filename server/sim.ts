@@ -1063,9 +1063,9 @@ export class Simulation {
   private lift(client: Client, room: Room, message: Extract<ClientMessage, { type: 'open' }>): void {
     lidLifted({
       floor: this.floors.get(`${client.seed}|${client.standingIn}`) ?? null,
-      // where the world has him: the position it walked him to out of doors, and the one it was last
-      // told below ground, which are the same object either way
-      hero: client.hero ?? client.presence,
+      // where he is on the floor, which is where his page last said: the world walks nobody below
+      // ground, and its own hero waits at the stairhead until he comes back up (#524)
+      hero: client.presence,
       standingIn: client.standingIn,
       apply: (delta) => room.world.apply(delta),
       broadcast: (delta) => this.rooms.broadcast(client.seed, { type: 'delta', delta, from: client.presence.id }, client),

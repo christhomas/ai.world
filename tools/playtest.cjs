@@ -373,16 +373,20 @@ const finish = async () => {
    * tiles out; the mounted walk starts farther out to give the horse room to begin moving.
    */
   /* `page.evaluate` runs this same selection inside the game, using its live `__solid` probe. */
-  let house = nearbyHouses[0] ?? null;
-  let approach = house ? await page.evaluate(chooseHouseApproach, house) : null;
   // The first cottage can be boxed in by the village that grew around it. The collision question
-  // needs an open ten-tile run-up, so search nearby houses before treating town scenery as a wall.
-  for (const candidate of nearbyHouses.slice(1)) {
-    if (approach?.fullRay) break;
+  // needs an open ten-tile run-up, so search nearby houses before treating town scenery as a wall;
+  // failing that, the nearest with a safe walk on foot. A house with neither is passed over rather
+  // than walked at from a side already rejected for crossing its door (#523).
+  let house = null, approach = null;
+  for (const candidate of nearbyHouses) {
     const ray = await page.evaluate(chooseHouseApproach, candidate);
+    if (!ray) continue;
+    if (!approach) { house = candidate; approach = ray; }
     if (ray.fullRay) { house = candidate; approach = ray; break; }
   }
-  if (!house || !approach) throw new Error('no nearby house to check collision against');
+  if (!nearbyHouses.length) throw new Error('no nearby house to check collision against');
+  // not the wall's fault, and not reported as the wall check: there was no clear walk to test it by
+  if (!approach) throw new Error(`no house with a clear approach among ${nearbyHouses.length} nearby`);
   await go(approach.x, approach.z);
   let footFrom = await at();
   await face(house.x, house.z);

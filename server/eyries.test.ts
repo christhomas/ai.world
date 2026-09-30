@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { HighCountry } from '../src/game/highcountry';
 import type { SkyIslands } from '../src/render/skyisland';
 import { Manifest } from '../src/world/manifest';
-import { mayChangeEyrie } from './eyries';
+import { baitWouldTake, mayChangeEyrie } from './eyries';
+import { layTheCarcass } from '../src/game/baiting';
+import type { TerrainSampler } from '../src/world/terrain';
 import { cleanDelta, type WorldDelta } from './protocol';
 import { FileVault } from './filevault';
 import { Forgetful } from './vault';
@@ -102,5 +104,59 @@ describe('shared baited nests', () => {
     const accepted = new Manifest(SEED).ensure('eyrie:20,30', 'eyrie', 20, 30);
     high.reconcileBaited([accepted]);
     expect(new Manifest(SEED, local.toJSON()).byKind('eyrie')).toEqual([accepted]);
+  });
+});
+
+/**
+ * Whether the world agrees the bait would have taken (#525): the rule the page runs, run again on
+ * the world's own square and day, before a nest is added for everybody.
+ */
+describe('the world asking the bait rule itself', () => {
+  // One great range, its middle at the origin; a village somewhere, or nowhere.
+  const RANGE = { x: 0, z: 0, radius: 60, height: 8, hollow: 0 };
+  const square = (options: { massifs?: typeof RANGE[]; villages?: { x: number; z: number; radius: number }[] } = {}) =>
+    ({
+      ranges: null, mesh: null, within: null,
+      massifs: options.massifs ?? [RANGE],
+      probe: () => ({ land: true }),
+      structures: { villages: options.villages ?? [] },
+    }) as unknown as TerrainSampler;
+  const at = (x: number, z: number) => new Manifest(SEED).ensure(`eyrie:${x},${z}`, 'eyrie', x, z);
+  /** The first day from 1 on which the roll at this ledge comes out as asked. */
+  const dayWhen = (took: boolean, x: number, z: number) => {
+    for (let day = 1; day < 400; day++) {
+      const laid = layTheCarcass(new Manifest(SEED), SEED, day, [RANGE], () => true, Infinity, x, z);
+      if ((laid.nest !== null) === took) return day;
+    }
+    throw new Error('no such day in 400');
+  };
+
+  it('stores a nest at a lonely ledge on a range, on a day the roll takes', () => {
+    const day = dayWhen(true, 5, 5);
+    expect(baitWouldTake(new Manifest(SEED), SEED, day, square(), at(5, 5))).toBe(true);
+  });
+
+  it('refuses one on flat ground away from any range', () => {
+    const day = dayWhen(true, 5, 5);
+    expect(baitWouldTake(new Manifest(SEED), SEED, day, square({ massifs: [] }), at(5, 5))).toBe(false);
+  });
+
+  it('refuses one within sight of a village', () => {
+    const day = dayWhen(true, 5, 5);
+    expect(baitWouldTake(new Manifest(SEED), SEED, day,
+      square({ villages: [{ x: 20, z: 5, radius: 10 }] }), at(5, 5))).toBe(false);
+  });
+
+  it('refuses one on a day the roll fails', () => {
+    const day = dayWhen(false, 5, 5);
+    expect(baitWouldTake(new Manifest(SEED), SEED, day, square(), at(5, 5))).toBe(false);
+  });
+
+  it('refuses an anchor that is not the one the rule would lay there, and asking plants nothing', () => {
+    const day = dayWhen(true, 5, 5);
+    const manifest = new Manifest(SEED);
+    expect(baitWouldTake(manifest, SEED, day, square(), { ...at(5, 5), id: 'eyrie:6,5' })).toBe(false);
+    expect(baitWouldTake(manifest, SEED, day, square(), at(5, 5))).toBe(true);
+    expect(manifest.byKind('eyrie')).toEqual([]);
   });
 });
