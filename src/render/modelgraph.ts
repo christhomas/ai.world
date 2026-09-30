@@ -66,9 +66,11 @@ export class ModelGraph {
       for (let parent: THREE.Object3D | null = mesh; parent; parent = parent.parent) visible &&= parent.visible;
       node.visible = visible;
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-      if ('color' in material && material.color instanceof THREE.Color) {
-        node.colour = material.color.getHex();
-        node.materialState = { ...node.materialState, colour: node.colour };
+      const colour = 'color' in material && material.color instanceof THREE.Color ? material.color.getHex() : undefined;
+      // a new material state makes a new frame entry for the mesh, so it is republished only when the colour moved
+      if (colour !== undefined && colour !== node.colour) {
+        node.colour = colour;
+        node.materialState = { ...node.materialState, colour };
       }
     }
   }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { IsoCamera } from './camera';
+import { nativeCamera, type IsoCamera } from './camera';
 import { worldView } from './scene';
 import { HealthBars, heightOf } from './healthbars';
 import type { AnimRole, AnimalKind, PartDef } from '../entities/animals';
@@ -332,7 +332,7 @@ export class EntityRenderer {
   /** Resolve a screen pointer entirely inside the rendering implementation. */
   pick(x: number, y: number, camera: IsoCamera): Entity | null {
     const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2(x, y), camera.camera);
+    ray.setFromCamera(new THREE.Vector2(x, y), nativeCamera(camera));
     for (const hit of ray.intersectObjects(this.pickables(), false)) {
       const entity = this.entityAt(hit);
       if (entity) return entity;
@@ -363,12 +363,12 @@ export class EntityRenderer {
    * left are packed into the front of each buffer, so both the maths and the draw are paid for
    * only what is on screen.
    */
-  update(camera?: THREE.Camera): void {
+  update(camera?: IsoCamera): void {
     const view = worldView(this.scene);
     const reach = view ? view.radius * view.radius : 0;
     // the bars go where the creatures go, so they are filled in on the same walk of the same list:
     // anything skipped here is off screen, indoors or in pieces, and none of those has a bar
-    if (camera) this.bars.begin(camera);
+    if (camera) this.bars.begin(nativeCamera(camera));
     for (const p of this.pools.values()) {
       const n = p.entities.length;
       // a creature's palette can change under a slot without the slot changing hands, so add and

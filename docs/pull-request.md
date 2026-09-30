@@ -56,9 +56,10 @@ will hit real conflicts), and whether any check is currently failing.
 ## Working the queue
 
 Go oldest first, but "oldest first" governs the order you *give attention to* PRs, not a lock that
-makes every later PR wait on an earlier one. These PRs are not stacked on each other — each targets
-`main` directly — so there is no correctness reason to hold a ready PR back behind a slower one.  In
-practice this looks like a pipeline rather than a strict sequence:
+makes every later PR wait on an earlier one. PRs that are not stacked on each other each target
+`main` directly (a stack is landed whole; see "Stacked pull requests" below), so there is no
+correctness reason to hold a ready PR back behind a slower one. In practice this looks like a
+pipeline rather than a strict sequence:
 
 1. **Pick the oldest untouched PR.** Rebase it onto the current `origin/main` in a scratch worktree
    (see below). If that's a clean rebase with checks already green, push and let CI run.
@@ -125,6 +126,26 @@ either work them carefully yourself, or hand the PR to a background agent with:
 - an explicit "do not touch any other open PR" boundary, since several of these run concurrently.
 
 Keep working the rest of the queue while it runs. Don't let a hard PR block the whole session.
+
+### Stacked pull requests
+
+A stack built with `gh stack` has its bottom PR based on `main` and each PR above based on the
+branch below it. It is landed by merging the **top** PR through the merge-async endpoint, which
+squashes every PR in the stack into `main`:
+
+    gh api -X PUT repos/christhomas/ai.world/pulls/<top>/merge-async
+
+What lands is the top's tree, so the top's required checks are the ones that have to be real. The
+checks workflow makes sure they are: a stacked PR's `pull_request` run is skipped, and its head is
+tested by the push run instead, which stands down only for a PR whose base is `main` (see "How a
+stack is tested" in `docs/issue-pipeline.md`). Before merging the top, confirm its head carries a
+completed `check`, `flutter` and `playtest` — not skipped — from a run on that exact SHA:
+
+    gh api repos/christhomas/ai.world/commits/<top-head-sha>/check-runs \
+      --jq '.check_runs[] | [.name, .conclusion] | @tsv'
+
+If they are skipped (for example the top was retargeted off `main` after its last push), dispatch
+`gh workflow run checks.yml --ref <top-branch>` and wait for it rather than merging on the skip.
 
 ### Merging
 

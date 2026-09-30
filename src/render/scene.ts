@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { composerFor, worthAComposer } from './secondrig';
+import { presenterFor } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
 import { SceneGraph, type SceneGeometry, type SceneNode } from '../core/scenegraph';
@@ -287,8 +287,6 @@ export interface SceneRig {
    * has an opinion about how the picture got there.
    */
   readonly canvas: HTMLCanvasElement;
-  /** Diagnostic hook used by fixed scene capture to freeze native actor layers. */
-  debugScene(): unknown;
   /** Give the graphics context back. The renderer's, and nobody else's business how. */
   dispose(): void;
   /**
@@ -441,8 +439,9 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     return 'high';
   })();
 
-  // the second path, or nothing at all. Built after the quality is known, because `low` refuses it
-  const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
+  // straight at the canvas or through a composer, chosen once for the rig's life. Built after the
+  // quality is known, because `low` refuses the composer
+  const presenter = presenterFor(renderer, asked, remembered);
   const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
   // the page's address does not change under a running game, so it is read once and not per draw
   const recordOnly = new URLSearchParams(location.search).has('record-only');
@@ -527,7 +526,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     },
     resize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
-      second?.resize();
+      presenter.resize();
     },
     draw(what, camera) {
       what.camera = camera.frameCamera();
@@ -535,10 +534,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       if (!recordOnly) {
         let pipeline = mountedPipelines.get(what);
         if (!pipeline) {
-          pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
-            if (second) second.draw(mountedScene, mountedCamera);
-            else renderer.render(mountedScene, mountedCamera);
-          }, what, frameMounts);
+          pipeline = new MountedThreePipeline(sceneForGraph(what),
+            (mountedScene, mountedCamera) => presenter.draw(mountedScene, mountedCamera), what, frameMounts);
           mountedPipelines.set(what, pipeline);
         }
         sinks.push(pipeline);
@@ -554,7 +551,6 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       };
     },
     get canvas() { return renderer.domElement; },
-    debugScene() { return scene; },
     dispose() {
       for (const unmount of unmountLights) unmount();
       detachGraph();
@@ -562,7 +558,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       deepMaterial.dispose();
       waterMat.dispose();
       coast.dispose();
-      second?.dispose();
+      presenter.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

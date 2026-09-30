@@ -12,7 +12,7 @@ import type { PropPart } from '../entities/shapes';
  *
  * The primitives are `THREE`'s own rather than triangles of ours, and `entities/shapes.ts`
  * reproduces where their corners land so that the box a walker meets is the shape on the screen.
- * `world/footprints.test.ts` stands the two against each other, prop by prop.
+ * `render/footprint.test.ts` stands the two against each other, prop by prop.
  */
 
 /** One part, as geometry: the primitive its shape names, at its own size. */

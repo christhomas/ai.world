@@ -260,8 +260,12 @@ export class HeroGear {
   /** The torch and its flame, made once and shown only after dark. */
   private torch: THREE.Mesh | null = null;
   private flame: THREE.Mesh | null = null;
-  /** Where the fire is this frame, for whatever wants to put a light there. */
-  private readonly fire = new THREE.Vector3();
+  /**
+   * Where the fire is this frame, for whatever wants to put a light there. Plain numbers, because
+   * the frame loop hands it on to the day cycle and the game should not be holding a three.js
+   * vector while it does.
+   */
+  private readonly fire = { x: 0, y: 0, z: 0 };
   private carrying = false;
   private record: ModelGraph;
   private needsRecord = false;
@@ -279,10 +283,16 @@ export class HeroGear {
    * night light used to come from for want of anywhere better. Null when the hero is carrying
    * nothing, so a caller can tell "no light" from "a light at the origin".
    */
-  lightSource(): THREE.Vector3 | null {
+  lightSource(): Readonly<{ x: number; y: number; z: number }> | null {
     if (this.carrying) return this.fire;
     const lantern = this.worn.get('offhand');
-    return lantern?.id === 'lantern' ? this.fire.copy(lantern.mesh.position) : null;
+    return lantern?.id === 'lantern' ? this.placeFire(lantern.mesh.position) : null;
+  }
+
+  /** Put the fire where a mesh is, without the mesh's own vector leaving this class. */
+  private placeFire(at: THREE.Vector3): { x: number; y: number; z: number } {
+    this.fire.x = at.x; this.fire.y = at.y; this.fire.z = at.z;
+    return this.fire;
   }
 
   /** Move the gear onto a different scene, following the hero indoors or underground. */
@@ -398,7 +408,7 @@ export class HeroGear {
       this.flame.rotation.y = hero.yaw;
       // the fire breathes: a fifteenth either way, which is a flicker rather than a pulse
       this.flame.scale.setScalar(scale * (1 + Math.sin(hero.phase * 5.3) * 0.07));
-      this.fire.copy(this.flame.position);
+      this.placeFire(this.flame.position);
     }
     if (this.needsRecord) {
       this.record.dispose();

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { THERMAL, thermalsAround } from '../world/thermals';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
+import { nativeCamera, type IsoCamera } from './camera';
 import { recordInstances, retireInstances } from './instancegraph';
 
 /**
@@ -144,8 +145,8 @@ export class Updraughts {
   }
 
   /** Which way the motes face: at the camera, so a flake is never edge-on and invisible. */
-  faceThe(camera: THREE.Camera): void {
-    this.quat.copy(camera.quaternion);
+  faceThe(camera: IsoCamera): void {
+    this.quat.copy(nativeCamera(camera).quaternion);
   }
 
   dispose(): void {
