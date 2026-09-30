@@ -458,9 +458,12 @@ export function buildSkyIsland(
     // Still nothing: walk back along the plume towards the middle of the island. The ground under
     // the sky island's own centre is dry by construction — the planner would not have put it here
     // otherwise — so this always arrives somewhere, and a bird standing under the island rather
-    // than in the spray is a worse place to find but never an impossible one.
-    for (let t = 0.1; t <= 1.001 && !landBelow(crag.x, crag.z); t += 0.1) {
-      crag = {
+    // than in the spray is a worse place to find but never an impossible one. The last step is the
+    // centre itself, not a sum that rounds near it: the editor relies on a dry centre meaning a
+    // dry crag, and asks nothing further about the landing.
+    for (let step = 1; step <= 10 && !landBelow(crag.x, crag.z); step++) {
+      const t = step / 10;
+      crag = step === 10 ? { x: site.x, z: site.z } : {
         x: foot.x + (site.x - foot.x) * t,
         z: foot.z + (site.z - foot.z) * t,
       };

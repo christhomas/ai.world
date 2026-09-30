@@ -1,6 +1,6 @@
 import type { Burial, Register } from '../world/register';
 import { ownedBy } from '../world/holdings';
-import { spentOnLiving } from '../world/prosperity';
+import { PROSPER, spentOnLiving } from '../world/prosperity';
 import { pitchFor } from '../world/livelihoods';
 import { aDaysIncome, priceTheRollQuotes } from '../world/expected';
 import { FOOD } from '../world/food';
@@ -202,6 +202,17 @@ export function theRoll(
   const living = register.living(village);
   const grown = living.filter((p) => p.trade);
   /*
+   * And the purses as tomorrow's posts will leave them, which is where the day being forecast
+   * starts: a post is stood at dawn, before anybody trades, spends or eats (`register.aMorning`,
+   * #485). A builder who goes to bed with nothing and is paid a crew's wage at dawn keeps and eats
+   * like a man with twelve gold, and a roll that forecast him penniless disagreed with the purses
+   * by the difference. Clamped as `pay` clamps them. The wage itself is `posted`, read after.
+   */
+  const dawn = register.wagesAtDawn(village);
+  const woke = living.map((p) => dawn.has(ownedBy(p))
+    ? { ...p, purse: Math.min(PROSPER.MOST, Math.max(0, p.purse + dawn.get(ownedBy(p))!)) } : p);
+  const atDawn = new Map(woke.map((p) => [p.id, p]));
+  /*
    * What the day is expected to pay each of them, asked once for the whole village.
    *
    * It has to be the whole village and it cannot be asked person by person, because most of a
@@ -217,14 +228,14 @@ export function theRoll(
   // the two halves of the same row disagree and the economy bench reads the gap as coin from
   // nowhere. `FOOD.MEAL` is the price at reference cover since item 138, not the price everywhere.
   const dinnerPrice = priceTheRollQuotes(
-    living, register.herdOf(village), register.pressureOn(village),
+    woke, register.herdOf(village), register.pressureOn(village),
     register.larderOf(village), register.madeOf(village),
   );
   // and what this village owes itself, because a morning pays some of it back in the same book it
   // pays its wages out of. A roll that did not know would have a doctor's arrears arriving in his
   // purse with nothing in any book to explain it. See `debts.ts`
   const income = aDaysIncome(
-    living, register.herdOf(village), register.pressureOn(village), register.larderOf(village), register.madeOf(village),
+    woke, register.herdOf(village), register.pressureOn(village), register.larderOf(village), register.madeOf(village),
     register.owedIn(village),
   );
   const trades = commonest(grown.map((p) => p.trade), 3);
@@ -258,7 +269,7 @@ export function theRoll(
       // it, and a tax recomputed from today's purse is not the tax that was actually taken on the
       // day in question — it is a guess that drifts. What was taken is a fact about a day, so the
       // bench reads it off the hall itself, the way it already reads what a mine minted.
-      spends: spentOnLiving(person) + pitchFor(person),
+      spends: spentOnLiving(atDawn.get(person.id) ?? person) + pitchFor(atDawn.get(person.id) ?? person),
       tax: register.taxPaidBy(person.id),
       paid: register.hallPaid(person.id),
       // and what a cart took over the hill, which is money that crossed a valley and so belongs in

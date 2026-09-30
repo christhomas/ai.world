@@ -184,8 +184,7 @@ final class FlutterFramePipeline {
     }
 
     final next = <String>{};
-    for (var at = 0; at < frame.nodes.length; at++) {
-      final node = frame.nodes[at];
+    for (final node in frame.nodes) {
       if (node['visible'] == false) continue;
       final kind = node['kind'];
       if (kind == 'group' ||
@@ -203,7 +202,7 @@ final class FlutterFramePipeline {
       if (kind != 'mesh' && kind != 'instances' && kind != 'points') {
         throw UnsupportedError('Unknown scene node kind: $kind');
       }
-      final id = 'scene:$at';
+      final id = _meshId(node);
       final season = _seasoned(node) ? frame.season : null;
       final fingerprint = jsonEncode(<String, Object?>{
         'geometryId': node['geometryId'],
@@ -224,7 +223,9 @@ final class FlutterFramePipeline {
         // baked into the vertices, so a new season is a new upload of what it colours
         'season': season?.toJson(),
       });
-      next.add(id);
+      if (!next.add(id)) {
+        throw FormatException('Two scene nodes are both named $id');
+      }
       if (_fingerprints[id] == fingerprint) continue;
       final mesh = _mesh(
         kind == 'points' ? _expandPoints(node) : node,
@@ -245,6 +246,17 @@ final class FlutterFramePipeline {
     _mounted
       ..clear()
       ..addAll(next);
+  }
+
+  /// The native mesh's name: the node's own id, which it keeps while nodes
+  /// before it come and go, and its part where one node was split into
+  /// several. Its place in the frame would rename every later mesh whenever
+  /// one left the middle, and each of them would be baked and sent again.
+  static String _meshId(Map<String, dynamic> node) {
+    final id = node['id'];
+    if (id is! num) throw const FormatException('Scene node has no id');
+    final part = node['part'] as num?;
+    return part == null ? 'scene:${id.toInt()}' : 'scene:${id.toInt()}.${part.toInt()}';
   }
 
   /// Whether a node's material takes the frame's season.

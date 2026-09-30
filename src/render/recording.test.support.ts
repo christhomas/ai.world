@@ -32,7 +32,7 @@ export function describeFrame(scene: THREE.Scene, camera: THREE.Camera): FrameDe
     else if (object instanceof THREE.AmbientLight) kind = 'ambient';
     else if (object instanceof THREE.PointLight) kind = 'point';
     const node: FrameDescription['nodes'][number] = {
-      parent, kind, world: object.matrixWorld.toArray(), visible: object.visible,
+      id: object.id, parent, kind, world: object.matrixWorld.toArray(), visible: object.visible,
       layers: object.layers.mask, castShadow: object.castShadow, receiveShadow: object.receiveShadow,
     };
     if (object instanceof THREE.Light) {

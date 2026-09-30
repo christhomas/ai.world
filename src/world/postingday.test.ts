@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POST, theDaysPosts, wageForAGuard } from './postings';
+import { POST, standPostsIn, wageForAGuard, type Post } from './postings';
 import { THE_HALL_OWNER } from './holdings';
 import type { Person } from './people';
 import type { Settlement } from './settlement';
@@ -50,6 +50,11 @@ const village = (people: Person[], owner: string): ReadonlyMap<string, Settlemen
  * asserting against something nobody runs. It is a map of maps and costs nothing to stand up.
  */
 const aBook = (): HoldingBook => new HoldingBook();
+
+/** Every village's posts for one morning, the way `register.aMorning` stands each village's. */
+const theDaysPosts = (villages: ReadonlyMap<string, Settlement>, pressureOn: (village: string) => number,
+  day: number, book: HoldingBook): Map<string, readonly Post[]> =>
+  new Map([...villages].map(([name, here]) => [name, standPostsIn(name, here, pressureOn(name), day, book)]));
 
 /** What a post moved in or out of somebody's purse on the morning these tests name. */
 const moved = (book: HoldingBook, id: string): number => book.paidTo(id, GROWN_BY);
