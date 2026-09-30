@@ -4,7 +4,7 @@ import { elevationFor, terrainFor } from './growworld';
 import { Manifest, type Anchor, type ManifestJson } from './manifest';
 import { rangesAsMassifs } from './ranges';
 import { Patchwork, PATCH } from './patchwork';
-import { buildSkyIsland, planSkyIslands, SKY, type SkySite } from './skyisland';
+import { planSkyIslands, SKY, type SkySite } from './skyisland';
 import { skyGroundsIn } from './skygrounds';
 import type { TerrainSampler } from './terrain';
 import { skyEyrieAnchor } from './worldediting';
@@ -95,10 +95,8 @@ export function assessSkyAccess(
         && m.height * WORLD.STEP > site.y - SKY.HEADROOM)) {
         return { sites: [], conflict: `The mountain would rise through the sky village at ${site.x}, ${site.z}.` };
       }
-      const isle = buildSkyIsland(site, anchor.seed, land);
-      if (!land(isle.crag.x, isle.crag.z)) {
-        return { sites: [], conflict: `The sky village at ${site.x}, ${site.z} would lose its eagle landing.` };
-      }
+      // No separate question about the eagle landing: with the centre dry, buildSkyIsland's crag
+      // search always ends on dry ground, at worst the centre itself (#493).
     }
   }
   return { sites, conflict: null };
