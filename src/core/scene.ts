@@ -88,5 +88,10 @@ export interface FrameDescription {
     glowParts?: readonly ScenePropPart[];
     glowColour?: number;
     placements?: readonly ScenePlacement[];
+    /**
+     * The effects a prop batch's body is drawn with. Absent means the one prop material's, which is
+     * cut away and seasoned; a batch WebGL draws in some other material says what that one takes.
+     */
+    effects?: string[];
   }>;
 }
