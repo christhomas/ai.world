@@ -585,7 +585,7 @@ void main(){ vec3 p=animate(aPosition,aJoint,aPivot,uTime); vWorld=p; vNormal=aN
 private const val FRAGMENT_SHADER = """#version 300 es
 precision highp float;
 in vec3 vWorld; in vec3 vNormal; in vec3 vColor; in vec4 vShadow; in float vMaterial; in float vFlow; in float vSea;
-uniform sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform vec3 uLightDir; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow;
+uniform highp sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform vec3 uLightDir; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow;
 uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uSun; uniform vec4 uPointPositions[16]; uniform vec4 uPointColours[16];
 uniform vec3 uCameraPos; uniform vec3 uFogColour; uniform vec2 uFogRange;
 uniform vec3 uEmissive;
