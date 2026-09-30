@@ -105,6 +105,11 @@ class WorldRendererBridge(
     }
 }
 
+/** The unit vector along (x, y, z), or null for none. */
+private fun normalised(x: Float, y: Float, z: Float): FloatArray? {
+    val length = kotlin.math.sqrt(x * x + y * y + z * z)
+    return if (length > 0f) floatArrayOf(x / length, y / length, z / length) else null
+}
 private fun MethodCall.number(name: String): Float = (argument<Number>(name) ?: error("$name missing")).toFloat()
 /** Three linear channels as Dart sends them; see client/flutter/lib/src/colour.dart. */
 private fun List<*>.linear(): FloatArray {
@@ -148,11 +153,14 @@ private class GLWorldRenderer(
     private var sceneProjection: FloatArray? = null
     private var sceneWorld: FloatArray? = null
     private var background = 0x080b18
-    private var lightDirection = floatArrayOf(-.42f, .82f, -.38f)
+    /** Where the shadow map looks from: the shadow-casting directional light, pointing at the scene. */
+    private var lightDirection = normalised(-.42f, .82f, -.38f)!!
     private var ambientLight = floatArrayOf(.35f, .35f, .35f)
     private var skyLight = floatArrayOf(0f, 0f, 0f)
     private var groundLight = floatArrayOf(0f, 0f, 0f)
-    private var sunLight = floatArrayOf(.65f, .65f, .65f)
+    /** Up to DIRECTIONAL_LIGHTS: each one's direction, and its colour with 1 in the fourth channel for the one the shadow map is for. */
+    private val sunDirections = FloatArray(DIRECTIONAL_LIGHTS * 4).also { lightDirection.copyInto(it) }
+    private val sunColours = FloatArray(DIRECTIONAL_LIGHTS * 4).also { floatArrayOf(.65f, .65f, .65f, 1f).copyInto(it) }
     private val pointPositions = FloatArray(16 * 4)
     private val pointColours = FloatArray(16 * 4)
     private var fogColour = floatArrayOf(0f, 0f, 0f)
@@ -227,15 +235,38 @@ private class GLWorldRenderer(
         // Dart has already decoded each light to linear and applied its intensity (colour.dart)
         fun colour(node: Map<String, Any>?, key: String = "linear"): FloatArray =
             (node?.get(key) as? List<*>)?.linear() ?: FloatArray(3)
-        val ambient = lights.firstOrNull { it["kind"] == "ambient" && it["visible"] != false }
-        val hemisphere = lights.firstOrNull { it["kind"] == "hemisphere" && it["visible"] != false }
-        val sun = lights.firstOrNull { it["kind"] == "directional" && it["visible"] != false }
-        val points = lights.filter { it["kind"] == "point" && it["visible"] != false }.take(16)
-        ambientLight = colour(ambient)
-        skyLight = colour(hemisphere)
-        groundLight = colour(hemisphere, "linearGround")
-        sunLight = colour(sun)
-        sunCastsShadow = sun?.get("castShadow") == true
+        fun visible(kind: String) = lights.filter { it["kind"] == kind && it["visible"] != false }
+        // three.js adds up every light of a kind (#512). Ambient light is one sum in three.js too, and
+        // a hemisphere light always points straight up in this game, three.js's default, so the sum
+        // of their skies and of their grounds is exact and needs no cap. Neither takes a shadow.
+        fun total(kind: String, key: String = "linear") = FloatArray(3).also { sum ->
+            visible(kind).forEach { light -> colour(light, key).forEachIndexed { at, value -> sum[at] += value } }
+        }
+        ambientLight = total("ambient")
+        skyLight = total("hemisphere")
+        groundLight = total("hemisphere", "linearGround")
+        // Directional lights each have a direction, so the shader adds them up itself, up to the cap.
+        // There is one shadow map, and it belongs to the first of them that casts a shadow.
+        val suns = visible("directional").take(DIRECTIONAL_LIGHTS)
+        val shadowed = suns.indexOfFirst { it["castShadow"] == true }
+        sunDirections.fill(0f)
+        sunColours.fill(0f)
+        sunCastsShadow = false
+        suns.forEachIndexed { index, sun ->
+            val matrix = (sun["world"] as? List<*>)?.map { (it as Number).toFloat() }
+            val point = (sun["target"] as? List<*>)?.map { (it as Number).toFloat() }
+            if (matrix == null || point == null || matrix.size != 16 || point.size != 3) return@forEachIndexed
+            val direction = normalised(matrix[12] - point[0], matrix[13] - point[1], matrix[14] - point[2])
+                ?: return@forEachIndexed
+            direction.copyInto(sunDirections, index * 4)
+            colour(sun).copyInto(sunColours, index * 4)
+            if (index == shadowed) {
+                sunColours[index * 4 + 3] = 1f
+                sunCastsShadow = true
+                lightDirection = direction
+            }
+        }
+        val points = visible("point").take(16)
         pointPositions.fill(0f)
         pointColours.fill(0f)
         points.forEachIndexed { index, point ->
@@ -260,15 +291,6 @@ private class GLWorldRenderer(
                 ((rgb shr 8) and 255) / 255f, (rgb and 255) / 255f)
             fogRange = floatArrayOf((fog["near"] as Number).toFloat(), (fog["far"] as Number).toFloat())
         } else fogRange = floatArrayOf(0f, 0f)
-        if (sun != null) {
-            val matrix = (sun["world"] as? List<*>)?.map { (it as Number).toFloat() }
-            val point = (sun["target"] as? List<*>)?.map { (it as Number).toFloat() }
-            if (matrix?.size == 16 && point?.size == 3) {
-                val x = matrix[12] - point[0]; val y = matrix[13] - point[1]; val z = matrix[14] - point[2]
-                val length = kotlin.math.sqrt(x*x + y*y + z*z)
-                if (length > 0f) lightDirection = floatArrayOf(x/length, y/length, z/length)
-            }
-        }
         val samples = coast?.get("values") as? ByteArray
         val size = (coast?.get("size") as? Number)?.toInt() ?: 0
         if (samples != null && size > 0 && samples.size == size * size) {
@@ -371,11 +393,11 @@ private class GLWorldRenderer(
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uLook"), 1, matrices.third, 0)
         GLES30.glUniform1f(GLES30.glGetUniformLocation(program, "uCutOn"), cutOn)
         GLES30.glUniform1f(GLES30.glGetUniformLocation(program, "uTime"), now)
-        GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uLightDir"), 1, lightDirection, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uAmbient"), 1, ambientLight, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uSky"), 1, skyLight, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uGround"), 1, groundLight, 0)
-        GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uSun"), 1, sunLight, 0)
+        GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uSunDirections[0]"), DIRECTIONAL_LIGHTS, sunDirections, 0)
+        GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uSunColours[0]"), DIRECTIONAL_LIGHTS, sunColours, 0)
         GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uPointPositions[0]"), 16, pointPositions, 0)
         GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uPointColours[0]"), 16, pointColours, 0)
         GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uCameraPos"), 1, sceneWorld?.copyOfRange(12, 15) ?: floatArrayOf(0f, 0f, 0f), 0)
@@ -558,6 +580,8 @@ private class GLWorldRenderer(
 }
 
 private const val STARTUP_TIMEOUT_MS = 5_000L
+/** How many directional lights the shader adds up; FRAGMENT_SHADER's arrays and loop are this long. */
+private const val DIRECTIONAL_LIGHTS = 4
 private const val DISPOSAL_TIMEOUT_MS = 250L
 
 private fun FloatArray.buffer(): FloatBuffer = ByteBuffer.allocateDirect(size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(this@buffer); position(0) }
@@ -588,8 +612,8 @@ void main(){ vec3 p=animate(aPosition,aJoint,aPivot,uTime); vWorld=p; vNormal=aN
 private const val FRAGMENT_SHADER = """#version 300 es
 precision highp float;
 in vec3 vWorld; in vec3 vNormal; in vec3 vColor; in vec4 vShadow; in float vMaterial; in float vFlow; in float vSea;
-uniform highp sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform vec3 uLightDir; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow;
-uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uSun; uniform vec4 uPointPositions[16]; uniform vec4 uPointColours[16];
+uniform highp sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow;
+uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec4 uSunDirections[4]; uniform vec4 uSunColours[4]; uniform vec4 uPointPositions[16]; uniform vec4 uPointColours[16];
 uniform vec3 uCameraPos; uniform vec3 uFogColour; uniform vec2 uFogRange;
 uniform vec3 uEmissive;
 uniform sampler2D uCoast; uniform vec3 uCoastArea;
@@ -603,7 +627,18 @@ float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay)
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
 float ripple(vec2 w){return sin(dot(w,vec2(.77,.64))*1.9+uTime*1.3)*.5+sin(dot(w,vec2(-.6,.8))*2.7-uTime*.9)*.3;}
 float shadow(){vec3 q=vShadow.xyz/vShadow.w*.5+.5;if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.0;float s=0.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)s+=texture(uShadow,vec3(q.xy+vec2(x,y)/1024.0,q.z-.002));return s/9.0;}
-void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;lit+=q.rgb*max(0.0,dot(n,normalize(l)))*attenuation(length(l),p.w,q.w);}vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,uOpacity);}
+void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}
+vec3 n=normalize(vNormal);vec3 albedo=vColor;
+// foam whitens the water's own colour before any light reaches it, as the web's water does at color_fragment (src/render/water.ts)
+if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));albedo=mix(albedo,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}
+// three.js r185's lights_fragment_begin: ambient and hemisphere are the indirect term and take no shadow
+vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5);
+// every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
+float shade=mix(1.0,shadow(),uReceiveShadow);
+for(int i=0;i<4;i++){vec4 d=uSunDirections[i];vec4 s=uSunColours[i];if(all(equal(s.rgb,vec3(0.0))))continue;lit+=s.rgb*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
+for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;lit+=q.rgb*max(0.0,dot(n,normalize(l)))*attenuation(length(l),p.w,q.w);}
+vec3 c=albedo*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;
+c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,uOpacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es
 precision highp float; in vec3 aPosition; in float aJoint; in vec3 aPivot; uniform mat4 uMvp; uniform float uTime;
