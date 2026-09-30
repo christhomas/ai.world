@@ -136,6 +136,27 @@ async function captureClock(page) {
       return id;
     };
     window.cancelAnimationFrame = (id) => { pending.delete(id); };
+    window.__trace = [];
+    const snap = (why) => {
+      const log = document.getElementById('chatLog'), card = document.getElementById('actionCard');
+      if (!log) return;
+      window.__trace.push({ why, now, st: log.scrollTop, sh: log.scrollHeight, ch: log.clientHeight, n: log.childElementCount,
+        card: card ? card.hidden : null, verb: document.getElementById('actionVerb')?.textContent,
+        first: log.firstElementChild?.textContent?.slice(0, 40), last: log.lastElementChild?.textContent?.slice(0, 30),
+        rail: [...(document.getElementById('hudRail')?.children ?? [])].map((c) => c.id + ':' + Math.round(c.getBoundingClientRect().height)).join(' '),
+        fonts: document.fonts?.status });
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      const log = document.getElementById('chatLog');
+      new MutationObserver(() => snap('lines')).observe(log, { childList: true });
+      const orig = log.appendChild.bind(log);
+      log.appendChild = (el) => { snap('before:' + el.textContent.slice(0, 30)); const r = orig(el); return r; };
+      const ro = new ResizeObserver(() => snap('resize')); ro.observe(log); for (const c of document.getElementById('hudRail')?.children ?? []) ro.observe(c);
+      new MutationObserver(() => { for (const c of log.children) ro.observe(c); }).observe(log, { childList: true });
+      document.fonts?.addEventListener?.('loadingdone', () => snap('fonts'));
+      log.addEventListener('scroll', () => snap('scroll'));
+      new MutationObserver(() => snap('card')).observe(document.getElementById('actionCard'), { attributes: true });
+    });
     window.__shotClock = {
       newsReady: false,
       step(frames) {
@@ -1124,6 +1145,7 @@ async function take(browser, shot) {
     console.log(`static ${shot.name} ${JSON.stringify(at)}`);
   }
   console.log(`${shot.name}: final frame ready`);
+  console.log(JSON.stringify(await page.evaluate(() => window.__trace), null, 0).replace(/},/g, '},\n'));
   await page.evaluate(() => window.__shotClock.release());
   const file = path.join(OUT, `${shot.name}.png`);
   // Software rendering a wide mountain scene can take longer than Playwright's 30-second default
