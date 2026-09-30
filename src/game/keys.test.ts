@@ -72,8 +72,8 @@ function aKeyboard(initialBusy: ReturnType<Screen['busy']>) {
 
   const ctx = {
     seed: 1, input, screen,
-    rig: { renderer: { render: () => {} }, scene: {}, resize: () => {} },
-    iso: { camera: {}, resize: () => {} },
+    rig: { resize: () => {} },
+    iso: { resize: () => {} },
     player,
     places: {}, online: { connected: true, ping: note('ping') },
     sound: { blip: () => {}, chime: () => {} },

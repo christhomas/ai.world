@@ -48,14 +48,47 @@ export function zoomBand(height: number): { start: number; min: number; max: num
  */
 const WHEEL_SHARE = 0.03 / CAMERA.START_ZOOM;
 
-/** Orthographic isometric rig: orbits a ground target, pans in screen space, zooms by frustum size. */
 /** Scratch for `groundCorners`, which runs every frame and should not litter. */
 const CORNER = new THREE.Vector3();
 const FORWARD = new THREE.Vector3();
 
+/**
+ * Where the rig looks, as plain numbers.
+ *
+ * The hero, the boat, a teleport and a doorway all move it, so it is the part of the camera most
+ * of the game writes to. It used to be a `THREE.Vector3`. That made every one of those files
+ * depend on three.js without ever naming it: a second pipeline would have had to hand out a
+ * three.js vector too. It keeps `set`, which is the only method anybody called.
+ */
+export class Aim {
+  x = 0;
+  y = 0;
+  z = 0;
+
+  set(x: number, y: number, z: number): this {
+    this.x = x; this.y = y; this.z = z;
+    return this;
+  }
+}
+
+/** Each rig's three.js camera, kept off the object the game holds. See `nativeCamera`. */
+const lenses = new WeakMap<IsoCamera, THREE.OrthographicCamera>();
+
+/**
+ * The three.js camera behind a rig, for render code that projects, picks or faces something
+ * with it. Resolved here rather than read as `iso.camera`, the same way `nativeRig` resolves the
+ * WebGL scene. The game then cannot reach the lens at all, and it cannot pass it back into a
+ * renderer, which is what four renderers used to ask it to do every frame.
+ */
+export function nativeCamera(iso: IsoCamera): THREE.OrthographicCamera {
+  const lens = lenses.get(iso);
+  if (!lens) throw new Error('camera rig has no three.js camera');
+  return lens;
+}
+
+/** Orthographic isometric rig: orbits a ground target, pans in screen space, zooms by frustum size. */
 export class IsoCamera {
-  readonly camera: THREE.OrthographicCamera;
-  readonly target = new THREE.Vector3();
+  readonly target = new Aim();
   rotation = Math.PI / 4;
   /**
    * How far above the target the camera actually looks, in world units.
@@ -98,7 +131,7 @@ export class IsoCamera {
 
   constructor() {
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+    lenses.set(this, new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000));
     this.applyFrustum(aspect);
     this.applyPosition();
   }
@@ -214,8 +247,13 @@ export class IsoCamera {
     this.resize();
   }
 
+  /** How high the rig stands, in world units: where the weather's clouds are hung from. */
+  get height(): number {
+    return this.pose.y;
+  }
+
   private applyFrustum(aspect: number): void {
-    const c = this.camera;
+    const c = nativeCamera(this);
     c.left = -this.zoom * aspect / 2;
     c.right = this.zoom * aspect / 2;
     c.top = this.zoom / 2;
@@ -241,10 +279,11 @@ export class IsoCamera {
    * one and following it would mean four raycasts a frame for a line drawn six pixels long.
    */
   groundCorners(groundY: number): Array<{ x: number; z: number }> {
-    this.camera.getWorldDirection(FORWARD);
+    const lens = nativeCamera(this);
+    lens.getWorldDirection(FORWARD);
     const out: Array<{ x: number; z: number }> = [];
     for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-      CORNER.set(nx, ny, 0).unproject(this.camera);
+      CORNER.set(nx, ny, 0).unproject(lens);
       // the camera looks down, so this always meets the plane; the guard is for a rig pitched flat
       const along = Math.abs(FORWARD.y) < 1e-4 ? 0 : (groundY - CORNER.y) / FORWARD.y;
       out.push({ x: CORNER.x + FORWARD.x * along, z: CORNER.z + FORWARD.z * along });
@@ -261,7 +300,8 @@ export class IsoCamera {
     pose.targetX = this.target.x;
     pose.targetY = at;
     pose.targetZ = this.target.z;
-    this.camera.position.set(pose.x, pose.y, pose.z);
-    this.camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
+    const lens = nativeCamera(this);
+    lens.position.set(pose.x, pose.y, pose.z);
+    lens.lookAt(pose.targetX, pose.targetY, pose.targetZ);
   }
 }

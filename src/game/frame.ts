@@ -390,7 +390,7 @@ export function createFrame(ctx: Framing) {
     if (indoors) {
       countFrame(dt);
       // indoors: a fixed view of the room, the hero and whoever keeps the place
-      indoors.renderer.update(iso.camera);
+      indoors.renderer.update(iso);
       heroGear.update(state, player.entity);
       sync(dt, () => 0.5);
       updateHud(dt, indoors.title);
@@ -420,7 +420,7 @@ export function createFrame(ctx: Framing) {
       floorLife()?.update(dt);
       announceWindUps(below.monsters);
       if (places.underground !== below) { input.endFrame(); return; }
-      below.renderer.update(iso.camera);
+      below.renderer.update(iso);
       heroGear.update(state, player.entity);
       sync(dt, (x, z) => below.world.heightAt(x, z));
       below.map.reveal(player.x, player.z);
@@ -504,10 +504,10 @@ export function createFrame(ctx: Framing) {
     raining = weatherStrength > 0.5;
     rig.graph.season = seasonLook(season, here.biome);
     weather.set(weatherStrength, season);
-    weather.update(dt, x, z, iso.camera.position.y * 0.35);
+    weather.update(dt, x, z, iso.height * 0.35);
     // and the columns of warm air standing over the country, which are landmarks rather than
     // weather: they are in the same place tomorrow. See `world/thermals.ts`.
-    updraughts.faceThe(iso.camera);
+    updraughts.faceThe(iso);
     updraughts.update(dt, x, z, (ax, az) => chunks.heightAt(ax, az));
     // and the water that goes down, drawn where it turns: see `render/swallows.ts`
     seaEyes.update(dt, x, z, (ax, az) => chunks.waterAt(ax, az) !== null);
@@ -578,7 +578,7 @@ export function createFrame(ctx: Framing) {
       }
       chunks.standsOn(tiles);
     }
-    entityRenderer.update(iso.camera);
+    entityRenderer.update(iso);
 
     // the fog follows both halves of what somebody knows: the chunk he has just walked into, and a
     // province he has just bought a map of over a counter. Without the second, a map paid for in a

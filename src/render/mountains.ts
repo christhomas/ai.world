@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { IsoCamera } from './camera';
+import { nativeCamera, type IsoCamera } from './camera';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
 import { hexToLinear } from '../world/mesher';
@@ -311,13 +311,13 @@ float rockDither(vec2 p) {
   }
 
   /** Tell the rock where the hero is and which way the camera is looking at him. */
-  look(hero: THREE.Vector3, camera: THREE.Camera, target: THREE.Vector3): void {
+  look(hero: THREE.Vector3, camera: THREE.Camera, target: THREE.Vector3Like): void {
     this.uniforms.uHero.value.copy(hero);
     this.uniforms.uLook.value.copy(target).sub(camera.position).normalize();
   }
 
   lookAt(hero: { x: number; y: number; z: number }, camera: IsoCamera): void {
-    this.look(new THREE.Vector3(hero.x, hero.y, hero.z), camera.camera, camera.target);
+    this.look(new THREE.Vector3(hero.x, hero.y, hero.z), nativeCamera(camera), camera.target);
   }
 
   dispose(): void {

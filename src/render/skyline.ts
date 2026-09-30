@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { IsoCamera } from './camera';
+import { nativeCamera, type IsoCamera } from './camera';
 import type { Ranges } from '../world/ranges';
 
 /**
@@ -77,7 +77,7 @@ export class Skyline {
       this.lookUp += (0 - this.lookUp) * Math.min(1, dt * VIEW.EASE);
       return;
     }
-    this.up.setFromMatrixColumn(iso.camera.matrixWorld, 1);
+    this.up.setFromMatrixColumn(nativeCamera(iso).matrixWorld, 1);
     let wants = 0;
     for (const peak of this.ranges.peaks) {
       const away = Math.hypot(peak.x - x, peak.z - z);
