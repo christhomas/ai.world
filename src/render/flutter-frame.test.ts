@@ -27,6 +27,10 @@ describe('Flutter frame adapter', () => {
     expect(frame.coast?.values).toEqual(Uint8Array.of(0, 64, 128, 255));
     expect(frame.cutaway).toEqual({ enabled: true, hero: [4, 5, 6] });
     expect(frame.season).toEqual({ multiply: [0.88, 0.94, 1.06], frost: 0.5, snow: 0xf2f6ff });
+    // the batch's pieces keep its id and are told apart by part, so each native mesh has its own name
+    expect(frame.nodes.map((node) => [node.id, node.part])).toEqual([
+      [source.nodes[0].id, undefined], [source.nodes[1].id, 0], [source.nodes[1].id, 1],
+    ]);
     disposeFlutterFrameGeometry();
   });
   it('records the WebGL water defaults and flow/sea vertex channels for native renderers', () => {

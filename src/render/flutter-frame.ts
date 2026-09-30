@@ -40,7 +40,7 @@ export function expandForFlutter(frame: FrameDescription): FrameDescription {
         instanceColours.set([shade.r, shade.g, shade.b], index * 3);
       });
       nodes.push({
-        parent, kind: 'instances', world: node.world, visible: node.visible,
+        id: node.id, part: partIndex, parent, kind: 'instances', world: node.world, visible: node.visible,
         castShadow: partIndex === 0 && node.castShadow,
         receiveShadow: partIndex === 0 && node.receiveShadow,
         material: {
@@ -59,7 +59,7 @@ export function expandForFlutter(frame: FrameDescription): FrameDescription {
       });
     }
     if (nodes.length === remap[at]) nodes.push({
-      parent, kind: 'group', world: node.world, visible: node.visible,
+      id: node.id, parent, kind: 'group', world: node.world, visible: node.visible,
       castShadow: false, receiveShadow: false,
     });
   }
