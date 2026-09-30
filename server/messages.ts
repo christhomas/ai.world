@@ -7,6 +7,7 @@ import {
 import type { Entity } from '../src/entities/entity';
 import { WORLD } from '../src/core/config';
 import { GroundWorld } from '../src/world/groundworld';
+import type { Anchor } from '../src/world/manifest';
 import { BOAT, helm } from '../src/game/sailing';
 import { cropLifted, seedSown } from './farming';
 import { JUMP } from '../src/entities/leap';
@@ -18,7 +19,7 @@ import { cartGuarded, robLoadedCart } from './cartrobbery';
 import { walkedFoot } from './footing';
 import { carrierOnRoad } from './carrieractor';
 import type { CartLoaded } from '../src/world/carrierbook';
-import { mayChangeEyrie } from './eyries';
+import { baitWouldTake, mayChangeEyrie } from './eyries';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -765,6 +766,17 @@ function civicVote(rooms: Rooms, me: Client, room: Room, message: Extract<Client
   rooms.broadcast(me.seed, { type: 'delta', delta: vote, from: me.presence.id });
 }
 
+/**
+ * A nest is added only where the world's own ground and day say the bait would have taken (#525):
+ * on ground it has grown, since asking must not grow a patch on this thread.
+ */
+function baitTook(rooms: Rooms, me: Client, room: Room, anchor: Anchor): boolean {
+  const ground = rooms.groundOf(me.seed);
+  if (!(ground instanceof GroundWorld) || ground.heightAt(anchor.x, anchor.z) === null) return false;
+  return baitWouldTake(room.world.manifest, me.seed, Math.floor(room.world.clock.day),
+    ground.countryAt(anchor.x, anchor.z), anchor);
+}
+
 /** The short log of what players have altered about the world, passed on to everybody else in it. */
 function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
   if (message.type !== 'delta') return;
@@ -779,7 +791,8 @@ function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessag
   // judged from where the world walked him, never from where his page says he is: a join or a move
   // can say anywhere at all (#524)
   if (delta.kind === 'eyrie'
-    && !mayChangeEyrie(room.world.manifest, walkedFoot(me, rooms.groundOf(me.seed)), delta)) {
+    && (!mayChangeEyrie(room.world.manifest, walkedFoot(me, rooms.groundOf(me.seed)), delta)
+      || (delta.present && !baitTook(rooms, me, room, delta.anchor)))) {
     answerEyrie(rooms, me, room, delta.anchor.id);
     return;
   }
