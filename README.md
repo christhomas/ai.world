@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.3 — 2026-09-30
+
+holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle pools stop uploading, and the editor drops a refusal that could never fire
+
 ### v0.103.2 — 2026-09-30
 
 world creation never freezes the server, the season reaches the Dart renderer, and the tools cookie is Secure
@@ -626,10 +630,6 @@ a forward swimming pose with alternating strokes
 ### v0.102.1 — 2026-09-27
 
 world routing, terrain and water authoring, carrier replay, wildlife sync, and browser playtesting
-
-### v0.102.0 — 2026-09-19
-
-A title screen that opens the world it measured, a door the world can refuse, and a massif with a foot
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
