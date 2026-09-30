@@ -46,7 +46,8 @@ export function expandForFlutter(frame: FrameDescription): FrameDescription {
         material: {
           intent: partIndex === 0 ? 'lit' : 'unlit', colour: partIndex === 0 ? 0xffffff : node.glowColour ?? 0xffffff,
           emissive: 0, vertexColours: true, transparent: false, opacity: 1,
-          depthWrite: true, side: 'front', effects: partIndex === 0 ? ['cutaway'] : [],
+          // the body is drawn with the prop material, which is cut away and seasoned; the glow is not
+          depthWrite: true, side: 'front', effects: partIndex === 0 ? ['cutaway', 'season'] : [],
         },
         attributes: {
           position: { size: 3, values: positions.array as Float32Array },

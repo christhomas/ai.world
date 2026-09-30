@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:ai_world_flutter/ai_world_flutter.dart';
@@ -303,6 +304,76 @@ void main() {
     await native.dispose();
   });
 
+  test('the season a frame carries colours only what names it, and a new season re-uploads only that', () async {
+    const channel = MethodChannel('world.ai/season-test');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 11 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    final pipeline = FlutterFramePipeline(native);
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    Map<String, dynamic> ground(List<String> effects) => <String, dynamic>{
+      'kind': 'mesh', 'world': identity, 'visible': true, 'castShadow': true, 'receiveShadow': true,
+      'material': <String, dynamic>{'intent': 'lit', 'colour': 0xffffff, 'vertexColours': true,
+        'opacity': 1, 'transparent': false, 'depthWrite': true, 'side': 'front', 'effects': effects},
+      'attributes': <String, dynamic>{
+        'position': <String, dynamic>{'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 0, 1]},
+        'normal': <String, dynamic>{'size': 3, 'values': <num>[0, 1, 0, 0, 1, 0, 0, 1, 0]},
+        'color': <String, dynamic>{'size': 3, 'values': <num>[0.5, 0.25, 1, 0.5, 0.25, 1, 0.5, 0.25, 1]},
+      },
+      'indices': <int>[0, 1, 2],
+    };
+    SceneFrame frame(Map<String, dynamic>? season) => SceneFrame.fromJson(<String, dynamic>{
+      'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
+      'background': 0,
+      'fog': null,
+      'season': season,
+      // the country's ground, which the season reaches, and something it does not
+      'nodes': <Map<String, dynamic>>[ground(<String>['season']), ground(<String>[])],
+    });
+    List<double> colour(MethodCall upload) {
+      final vertices = (upload.arguments as Map)['vertices'] as Float32List;
+      return <double>[vertices[6], vertices[7], vertices[8]];
+    }
+
+    // winter, as `seasonLook` says it: mix(colour * multiply, snow, frost), snow taken to linear
+    const winter = <String, dynamic>{'multiply': <num>[0.88, 0.94, 1.06], 'frost': 0.5, 'snow': 0xf2f6ff};
+    await pipeline.draw(frame(winter));
+    var uploads = calls.where((call) => call.method == 'putMesh').toList();
+    expect(uploads, hasLength(2));
+    final snow = <double>[_linear(0xf2), _linear(0xf6), _linear(0xff)];
+    const multiply = <double>[0.88, 0.94, 1.06], source = <double>[0.5, 0.25, 1];
+    for (var channel = 0; channel < 3; channel++) {
+      expect(colour(uploads[0])[channel],
+          closeTo(source[channel] * multiply[channel] * 0.5 + snow[channel] * 0.5, 1e-6));
+      expect(colour(uploads[1])[channel], closeTo(source[channel], 1e-6));
+    }
+
+    // the season turning is a new upload of the ground and nothing else
+    calls.clear();
+    const autumn = <String, dynamic>{'multiply': <num>[1.35, 0.82, 0.42], 'frost': 0, 'snow': 0xf2f6ff};
+    await pipeline.draw(frame(autumn));
+    uploads = calls.where((call) => call.method == 'putMesh').toList();
+    expect(uploads, hasLength(1));
+    expect((uploads.single.arguments as Map)['meshId'], 'scene:0');
+    for (var channel = 0; channel < 3; channel++) {
+      expect(colour(uploads.single)[channel], closeTo(source[channel] * <double>[1.35, 0.82, 0.42][channel], 1e-6));
+    }
+
+    // and no season is the ground untinted
+    calls.clear();
+    await pipeline.draw(frame(null));
+    uploads = calls.where((call) => call.method == 'putMesh').toList();
+    expect(uploads, hasLength(1));
+    for (var channel = 0; channel < 3; channel++) {
+      expect(colour(uploads.single)[channel], closeTo(source[channel], 1e-6));
+    }
+    await native.dispose();
+  });
+
   /*
    * Every test above draws a frame somebody wrote. This one draws a frame the game wrote.
    *
@@ -364,6 +435,72 @@ void main() {
     await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{'frame': recorded}, geometryCache: cache));
     expect(calls.where((call) => call.method == 'putMesh'), isEmpty);
     expect(calls.where((call) => call.method == 'removeMesh'), isEmpty);
+
+    // A season reaches only what names it. The props here were recorded before their bodies
+    // named it, so they are named as `flutter-frame.ts` now describes them: the cuttable bodies.
+    final named = <String, dynamic>{
+      ...recorded,
+      'nodes': <Object?>[
+        for (final node in recorded['nodes'] as List)
+          _withSeasonOnCuttable(Map<String, dynamic>.from(node as Map)),
+      ],
+    };
+    final seasoned = <String>{
+      for (final (at, node) in (named['nodes'] as List).indexed)
+        if (((node as Map)['material'] as Map?)?['effects'] case final List effects
+            when effects.contains('season'))
+          'scene:$at',
+    };
+    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{'frame': named}, geometryCache: cache));
+    final untinted = <Object?, List<double>>{
+      for (final call in calls.where((call) => call.method == 'putMesh'))
+        (call.arguments as Map)['meshId']: ((call.arguments as Map)['vertices'] as Float32List).toList(),
+    };
+    // naming the effect is a new material, so each drawn piece that names it went up again
+    expect(untinted, isNotEmpty);
+    expect(untinted.keys.toSet().difference(seasoned), isEmpty);
+    calls.clear();
+    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{
+      'frame': <String, dynamic>{
+        ...named,
+        'season': <String, dynamic>{'multiply': <num>[0.88, 0.94, 1.06], 'frost': 0.5, 'snow': 0xf2f6ff},
+      },
+    }, geometryCache: cache));
+    final tinted = calls.where((call) => call.method == 'putMesh').map((call) => call.arguments as Map).toList();
+    expect(tinted.map((mesh) => mesh['meshId']).toSet(), untinted.keys.toSet());
+    final snowRed = _linear(0xf2);
+    for (final mesh in tinted) {
+      final before = untinted[mesh['meshId']]!;
+      final after = mesh['vertices'] as Float32List;
+      expect(after.length, before.length);
+      var moved = 0.0, wrong = 0.0;
+      for (var at = 0; at < after.length; at += RenderMesh.floatsPerVertex) {
+        // where it is and what it is made of stay; its colour is winter's
+        moved = math.max(moved, (after[at] - before[at]).abs() + (after[at + 9] - before[at + 9]).abs());
+        wrong = math.max(wrong, (after[at + 6] - (before[at + 6] * 0.88 * 0.5 + snowRed * 0.5)).abs());
+      }
+      expect(moved, 0, reason: '${mesh['meshId']}');
+      expect(wrong, lessThan(1e-5), reason: '${mesh['meshId']}');
+    }
+    expect(calls.where((call) => call.method == 'removeMesh'), isEmpty);
     await native.dispose();
   });
+}
+
+/// A recorded node whose material is cut away also takes the season, as prop bodies now say.
+Map<String, dynamic> _withSeasonOnCuttable(Map<String, dynamic> node) {
+  final paint = node['material'];
+  if (paint is! Map) return node;
+  final effects = List<Object?>.from(paint['effects'] as List? ?? const <Object?>[]);
+  if (!effects.contains('cutaway')) return node;
+  return <String, dynamic>{
+    ...node,
+    'material': <String, dynamic>{...Map<String, dynamic>.from(paint), 'effects': <Object?>[...effects, 'season']},
+  };
+}
+
+/// One sRGB channel as linear light, the way both renderers take an authored hex.
+double _linear(int channel) {
+  final c = channel / 255;
+  return c <= .04045 ? c / 12.92 : math.pow((c + .055) / 1.055, 2.4).toDouble();
 }

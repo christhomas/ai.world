@@ -118,7 +118,7 @@ export class SkyIslands {
       if (this.bridge) {
         const node: Extract<SceneNode, { kind: 'mesh' }> = {
           kind: 'mesh', material: 'lit-vertex-colours', geometry: land,
-          castShadow: true, receiveShadow: true,
+          castShadow: true, receiveShadow: true, effects: this.landEffects,
         };
         this.bridge.add(node);
         nodes.push(node);
@@ -186,7 +186,11 @@ export class SkyIslands {
    */
   useSeasonTint(tint: { attach: (m: THREE.Material) => void }): void {
     tint.attach(this.landMaterial);
+    this.landEffects = ['season'];
   }
+
+  /** The turf's `'season'` effect, for renderers that draw the frame rather than these materials. */
+  private landEffects: string[] = [];
 
   /** The clouds go round, slowly, because a still cloud is a rock. */
   update(dt: number): void {
