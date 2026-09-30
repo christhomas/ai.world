@@ -509,39 +509,6 @@ function writeTheChangelog(version: string, body: string, since: string | null):
  */
 
 /**
- * Run the checks that read what this release just wrote, now that it is written.
- *
- * The suite above runs on the tree as it was. Everything after it — the chart, the pin, the
- * package, the changelog entry and the README's ten — is written afterwards, so **the thing the
- * release breaks is never the thing it checked.**
- *
- * That is not a hypothetical. `$` under the `m` flag is the end of a *line*, so a changelog entry's
- * body matched empty and every one of the README's ten read *"No note was written for this one"* —
- * for eleven releases, including ones plainly written with notes. Nothing caught it, and when
- * something finally did it was a good accident: the release had started going out through a pull
- * request, and the pull request's own checks happen to run after the write.
- *
- * `tools/release.test.ts` is the suite that knows what a changelog entry should look like, it reads
- * both files, and it takes under a second. There is no reason it should not be asked twice.
- *
- * **And the tree is put back if it refuses.** A release that stops here has already written five
- * files on `main`, and leaving them is the same fault in a different coat — a tool that leaves the
- * tree in a state its own gate never saw. See #81, which is this shape in CI.
- */
-function readWhatWasWritten(): void {
-  say('reading back what was just written, because the suite above ran before it existed');
-  try {
-    execFileSync('pnpm', ['vitest', 'run', 'tools/release.test.ts'], { stdio: 'inherit' });
-  } catch {
-    run('git', ['checkout', '--', ...FILES_A_RELEASE_WRITES]);
-    throw new Error(
-      'the release wrote its files and its own checks then refused them. The tree is put back as it '
-      + `was; nothing was committed, pushed or tagged. The files it wrote were: ${FILES_A_RELEASE_WRITES.join(', ')}.`,
-    );
-  }
-}
-
-/**
  * The commit a squashed release actually became, named by the pull request rather than guessed at.
  *
  * A release goes out through a pull request and is squashed, so the commit that exists locally is
@@ -877,7 +844,15 @@ function main(): void {
     writeTheChangelog(version, body, since);
     writeTheReadme();
     say(`${CHANGELOG} and the README's ten now say what ${version} was`);
-    readWhatWasWritten();
+    /*
+     * Nothing reads these files back here, and that is deliberate.
+     *
+     * The suite that knows what a changelog entry should look like, `tools/release.test.ts`, runs
+     * in the release request's own checks, on the commit that holds exactly these files, and the
+     * merge below waits for them. A refusal there stops the release before anything is merged or
+     * tagged. Asking this machine as well was the last test a release ran locally, and on a
+     * Raspberry Pi that also runs the cluster, no test is cheap enough to be worth running twice.
+     */
 
     run('git', ['switch', '-c', branch]);
     run('git', ['add', ...FILES_A_RELEASE_WRITES]);
