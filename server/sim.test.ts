@@ -9,6 +9,10 @@ import { DAY_LENGTH } from './protocol';
 import { homelandsOf } from '../src/entities/homeland';
 import { provinceOfHome } from '../src/world/provinces';
 import { Manifest } from '../src/world/manifest';
+import { baitWouldTake } from './eyries';
+import { EYRIE } from '../src/game/eyries';
+import { rangesAsMassifs } from '../src/world/ranges';
+import { boundsOf, patchOf } from '../src/world/patchwork';
 import { endlessStamp } from '../src/world/growworld';
 import { generateDungeon } from '../src/dungeon/generate';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../src/world/chests';
@@ -195,6 +199,32 @@ class Pretend {
   }
 }
 
+/**
+ * A ledge on seed 3 where the world's own bait rule keeps an eagle today (#525).
+ *
+ * Found rather than written down, because the roll is keyed to the day the room's clock reads: the
+ * ranges of the square at the origin, walked in from their skirts, until one tile takes.
+ */
+function aLedgeThatTakes(sim: Simulation): ReturnType<Manifest['ensure']> {
+  const ground = sim.groundOf(3)!;
+  const room = sim.rooms.get(3)!;
+  const day = Math.floor(room.world.clock.day);
+  const country = ground.countryAt(0, 0);
+  const { x0, z0, x1, z1 } = boundsOf(patchOf(0, 0));
+  const ranges = (country.ranges ? rangesAsMassifs(country.ranges, country.mesh) : country.massifs)
+    .filter((massif) => massif.radius >= EYRIE.WORTH_FLYING);
+  for (const massif of ranges) {
+    for (let share = 0.3; share < 1; share += 0.1) for (let turn = 0; turn < Math.PI * 2; turn += 0.3) {
+      const x = Math.round(massif.x + Math.cos(turn) * massif.radius * share);
+      const z = Math.round(massif.z + Math.sin(turn) * massif.radius * share);
+      if (x < x0 + 8 || z < z0 + 8 || x >= x1 - 8 || z >= z1 - 8) continue;
+      const anchor = new Manifest(3).ensure(`eyrie:${x},${z}`, 'eyrie', x, z);
+      if (baitWouldTake(room.world.manifest, 3, day, country, anchor)) return anchor;
+    }
+  }
+  throw new Error('no ledge on the square at the origin of seed 3 keeps an eagle today');
+}
+
 describe('the simulation, hosted by nothing at all', () => {
   it('welcomes a player, and tells them the world they arrived in', () => {
     const sim = new Simulation({ vault: new Forgetful() });
@@ -256,13 +286,15 @@ describe('the simulation, hosted by nothing at all', () => {
   const onALedge = () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
-    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    // a real ledge now, not any spot beside him: the world asks the bait rule itself (#525)
+    const ledge = aLedgeThatTakes(sim);
+    rowan.say({ type: 'move', x: ledge.x, z: ledge.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     sim.tick(Date.now() + 100);
     rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
     const at = rowan.of('youAre').at(-1);
     expect(at, 'the world never walked him, so no nest could be his').toBeDefined();
-    const x = Math.round(at!.x), z = Math.round(at!.z);
-    return { sim, rowan, anchor: new Manifest(3).ensure(`eyrie:${x},${z}`, 'eyrie', x, z) };
+    expect(Math.hypot(at!.x - ledge.x, at!.z - ledge.z), 'and he stands at the ledge').toBeLessThan(8);
+    return { sim, rowan, anchor: ledge };
   };
 
   it('broadcasts a baited nest and replays its latest state to a joining player', () => {
@@ -314,9 +346,9 @@ describe('the simulation, hosted by nothing at all', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
     const wren = new Pretend(sim).join(3, 'Wren');
-    const anchor = new Manifest(3).ensure('eyrie:0,-13', 'eyrie', 0, -13);
+    const anchor = aLedgeThatTakes(sim);
     const nest = { kind: 'eyrie', anchor, present: true } as const;
-    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: anchor.x, z: anchor.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     sim.tick(Date.now() + 100);
     const room = sim.rooms.get(3)!;
     const rowansPresence = [...room.clients].find((c) => c.presence.name === 'Rowan')!.presence;
@@ -334,6 +366,28 @@ describe('the simulation, hosted by nothing at all', () => {
     rowan.say({ type: 'delta', delta: nest });
     expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor });
     expect(wren.of('delta').map((m) => m.delta)).toEqual([nest]);
+  });
+
+  it('will not take a nest the bait would not have kept, however well he stands (#525)', () => {
+    const { sim, rowan } = onALedge();
+    const wren = new Pretend(sim).join(3, 'Wren');
+    const room = sim.rooms.get(3)!;
+    const ground = sim.groundOf(3)!;
+    const day = Math.floor(room.world.clock.day);
+    const at = rowan.of('youAre').at(-1)!;
+    // a spot beside him the rule turns down, whatever the reason: the page says it took
+    let refused: ReturnType<Manifest['ensure']> | null = null;
+    for (let dz = -6; dz <= 6 && !refused; dz++) for (let dx = -6; dx <= 6 && !refused; dx++) {
+      const x = Math.round(at.x) + dx, z = Math.round(at.z) + dz;
+      if (ground.heightAt(x, z) === null) continue;
+      const anchor = new Manifest(3).ensure(`eyrie:${x},${z}`, 'eyrie', x, z);
+      if (!baitWouldTake(room.world.manifest, 3, day, ground.countryAt(x, z), anchor)) refused = anchor;
+    }
+    expect(refused, 'some tile near a ledge fails the roll or the footing').not.toBeNull();
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: refused!, present: true } });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: refused!.id, anchor: null }]);
+    expect(room.world.manifest.get(refused!.id)).toBeUndefined();
+    expect(wren.of('delta')).toEqual([]);
   });
 
   it('corrects a refused report about an editor-placed sky eyrie too', () => {
