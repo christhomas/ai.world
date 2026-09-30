@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd, damageEntity, type TileWorld } from '../entities/entity';
@@ -7,6 +7,13 @@ import { mulberry32 } from '../core/rng';
 import { BEHAVIOUR } from '../entities/properties';
 import { BAR, HealthBars, heightOf } from './healthbars';
 import { SceneGraph } from '../core/scenegraph';
+import { IsoCamera } from './camera';
+
+/** A camera rig as the game holds one, built against a desktop-sized window. */
+function lookingOn(): IsoCamera {
+  vi.stubGlobal('window', { innerWidth: 1600, innerHeight: 900 });
+  try { return new IsoCamera(); } finally { vi.unstubAllGlobals(); }
+}
 
 /**
  * What a creature has left, over its head.
@@ -148,7 +155,7 @@ describe('a health bar', () => {
 
     renderer.update();
     expect(renderer.barsShowing, 'bars were written with nobody looking').toBe(0);
-    renderer.update(new THREE.OrthographicCamera());
+    renderer.update(lookingOn());
     expect(renderer.barsShowing, 'a hurt wolf in shot has nothing over its head').toBe(1);
     const bars = graph.nodes.filter((node) => node.kind === 'instances' && node.renderOrder !== undefined);
     expect(bars).toHaveLength(2);
@@ -170,7 +177,7 @@ describe('a health bar', () => {
 
     // a body is not a patient: nothing over a dead thing
     wolf.dead = true;
-    renderer.update(new THREE.OrthographicCamera());
+    renderer.update(lookingOn());
     expect(renderer.barsShowing, 'a bar over a corpse').toBe(0);
     expect(graph.nodes.filter((node) => node.kind === 'instances' && node.renderOrder !== undefined)
       .every((node) => node.kind === 'instances' && node.count === 0)).toBe(true);

@@ -50,16 +50,44 @@ export function worthAComposer(asked: boolean, quality: Quality): boolean {
 }
 
 /**
+ * How a finished WebGL scene reaches the canvas: straight at it, or through a composer.
+ *
+ * A rig has one for its whole life and hands it every frame (#249). Which one is fixed when the
+ * rig is built, because the quality `worthAComposer` reads is the one the rig was built with, so
+ * the WebGL sink has one submission call rather than a choice between two on every frame.
+ */
+export interface Presenter {
+  draw(scene: THREE.Scene, camera: THREE.Camera): void;
+  /** Follow the renderer's size, which the rig has already set. */
+  resize(): void;
+  dispose(): void;
+}
+
+/** The presenter a rig draws through, chosen once. See `worthAComposer` for when it is a composer. */
+export function presenterFor(renderer: THREE.WebGLRenderer, asked: boolean, quality: Quality): Presenter {
+  return worthAComposer(asked, quality) ? composerFor(renderer) : straightAt(renderer);
+}
+
+/** The classic path: the renderer draws the scene at the canvas, with nothing in between. */
+function straightAt(renderer: THREE.WebGLRenderer): Presenter {
+  return {
+    draw(scene, camera) {
+      renderer.render(scene, camera);
+    },
+    // the canvas is the renderer's own, so resizing the renderer was all there was to do
+    resize() {},
+    // and it owns nothing: the renderer is the rig's to give back
+    dispose() {},
+  };
+}
+
+/**
  * The composer itself, and the `draw` that goes through it.
  *
  * Sized to the renderer rather than to the window, so the pixel ratio a quality level sets is the
  * ratio the passes work at. Resizing is the caller's, for the same reason the rig owns `resize`.
  */
-export function composerFor(renderer: THREE.WebGLRenderer): {
-  draw(scene: THREE.Scene, camera: THREE.Camera): void;
-  resize(): void;
-  dispose(): void;
-} {
+function composerFor(renderer: THREE.WebGLRenderer): Presenter {
   const size = renderer.getSize(new THREE.Vector2());
   const composer = new EffectComposer(renderer);
   composer.setSize(size.x, size.y);
