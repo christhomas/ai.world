@@ -36,7 +36,9 @@ export type SceneNode =
   | { readonly kind: 'point'; colour: LightColour; intensity: number; distance: number; decay: number; position: [number, number, number] }
   | { readonly kind: 'directional'; colour: LightColour; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
   | { readonly kind: 'prop-batch'; readonly parts: readonly ScenePropPart[]; readonly glowParts?: readonly ScenePropPart[];
-      glowColour?: number; placements: readonly ScenePlacement[]; readonly castShadow: boolean; readonly receiveShadow: boolean }
+      glowColour?: number; placements: readonly ScenePlacement[]; readonly castShadow: boolean; readonly receiveShadow: boolean;
+      /** The body's material effects; see `FrameDescription['nodes'][number]['effects']`. */
+      readonly effects?: string[] }
   | { readonly kind: 'instances'; readonly geometry: SceneGeometry; readonly colour: number; count: number;
       matrices: Float32Array; colours?: Float32Array; readonly castShadow: boolean; readonly receiveShadow: boolean;
       readonly renderOrder?: number; readonly material?: {
@@ -255,6 +257,7 @@ function describe(node: SceneNode, id: number): FrameNode {
     ...base, kind: 'prop-batch' as const, castShadow: node.castShadow,
     receiveShadow: node.receiveShadow, parts: node.parts,
     glowParts: node.glowParts, glowColour: node.glowColour, placements: node.placements,
+    effects: node.effects,
   };
   if (node.kind === 'instances') return {
     ...base, kind: 'instances' as const, visible: node.count > 0, castShadow: node.castShadow,
