@@ -30,7 +30,7 @@ describe('engine-owned frame submission', () => {
     const render = vi.fn();
     const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
 
-    const frame = submitGraphFrame(graph, [recording, webgl]);
+    const frame = submitGraphFrame(graph, [recording, webgl])!;
 
     expect(recording.last).toEqual(frame);
     expect(render).toHaveBeenCalledOnce();
@@ -62,7 +62,7 @@ describe('engine-owned frame submission', () => {
     const mounted = new MountedThreePipeline(scene, draw);
     const recording = new RecordingPipeline();
     recording.captureNext();
-    const frame = submitGraphFrame(graph, [mounted, recording]);
+    const frame = submitGraphFrame(graph, [mounted, recording])!;
     const [drawnScene, drawnCamera] = draw.mock.calls[0] as [THREE.Scene, THREE.Camera];
     expect(drawnScene).toBe(scene);
     expect((scene.background as THREE.Color).getHex()).toBe(frame.background);
@@ -134,7 +134,7 @@ describe('engine-owned frame submission', () => {
     recorder.captureNext();
     const render = vi.fn();
     const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
-    const frame = submitGraphFrame(graph, [recorder, webgl]);
+    const frame = submitGraphFrame(graph, [recorder, webgl])!;
     expect(recorder.last).toEqual(frame);
     expect(frame.nodes[0].parts).toBe(parts);
     expect(frame.nodes[0].placements).toBe(placements);
@@ -173,7 +173,7 @@ describe('engine-owned frame submission', () => {
     recorder.captureNext();
     const render = vi.fn();
     const webgl = new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer);
-    const frame = submitGraphFrame(graph, [recorder, webgl]);
+    const frame = submitGraphFrame(graph, [recorder, webgl])!;
     expect(recorder.last).toEqual(frame);
     expect(frame.nodes.filter((node) => node.kind === 'instances')
       .reduce((total, node) => total + (node.instanceMatrices?.length ?? 0) / 16, 0))

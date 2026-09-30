@@ -145,28 +145,36 @@ export function addPropInstances(
     let glow: THREE.InstancedMesh | null = null;
     if (glowGeometry) {
       glow = new THREE.InstancedMesh(glowGeometry, glowMaterial, list.length);
-      glow.instanceMatrix.copy(mesh.instanceMatrix);
+      // into the array it has: `BufferAttribute.copy` allocates a new one to copy into
+      (glow.instanceMatrix.array as Float32Array).set(mesh.instanceMatrix.array);
       glow.instanceMatrix.needsUpdate = true;
       glow.computeBoundingSphere();
       parent.add(glow);
     }
     if (graph && node?.kind === 'prop-batch') {
+      // what the buffers hold; a frame handing back the same placements has nothing to post
+      let composed = node.placements;
       mesh.userData.unmount = bindGraphMount(graph, node, (frame) => {
         if (glow && frame.glowColour !== undefined && glow.material instanceof THREE.MeshBasicMaterial) {
           glow.material.color.setHex(frame.glowColour);
         }
-        const placements = frame.placements ?? [];
-        mesh.count = placements.length;
         mesh.castShadow = frame.castShadow;
         mesh.receiveShadow = frame.receiveShadow;
+        const placements = frame.placements ?? [];
+        if (placements === composed) return;
+        composed = placements;
+        mesh.count = placements.length;
         placements.forEach((inst, at) => {
           mesh.setMatrixAt(at, composeInstance(inst, matrix));
           mesh.setColorAt(at, shadeOf(inst.tint ?? 0.5));
         });
-        if (placements.length) mesh.instanceMatrix.needsUpdate = true;
+        if (placements.length) {
+          mesh.instanceMatrix.needsUpdate = true;
+          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        }
         if (glow) {
           glow.count = placements.length;
-          glow.instanceMatrix.copy(mesh.instanceMatrix);
+          (glow.instanceMatrix.array as Float32Array).set(mesh.instanceMatrix.array);
           if (placements.length) glow.instanceMatrix.needsUpdate = true;
         }
       });

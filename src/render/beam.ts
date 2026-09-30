@@ -187,6 +187,10 @@ interface Column {
   over: Entity | null;
 }
 
+// scratch for a column's pose, which is worked out for both of its boxes in every frame it stands
+const place = new THREE.Matrix4();
+const step = new THREE.Matrix4();
+
 export class Beam {
   private readonly columns: Column[] = [];
   private readonly unmounts: Array<() => void> = [];
@@ -275,11 +279,11 @@ export class Beam {
       if (!node) continue;
       node.visible = column.shown;
       node.materialState!.opacity = opacity;
-      const matrix = new THREE.Matrix4().makeTranslation(column.x, column.y, column.z)
-        .multiply(new THREE.Matrix4().makeRotationY(column.turn))
-        .multiply(new THREE.Matrix4().makeTranslation(0, mesh.position.y, 0))
-        .multiply(new THREE.Matrix4().makeScale(half * 2, HEIGHT * column.grown, half * 2));
-      node.world = matrix.toArray(node.world);
+      place.makeTranslation(column.x, column.y, column.z)
+        .multiply(step.makeRotationY(column.turn))
+        .multiply(step.makeTranslation(0, mesh.position.y, 0))
+        .multiply(step.makeScale(half * 2, HEIGHT * column.grown, half * 2));
+      node.world = place.toArray(node.world);
     }
   }
 

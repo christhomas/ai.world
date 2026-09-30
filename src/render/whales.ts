@@ -42,14 +42,21 @@ function describeMesh(graph: SceneGraph, mesh: THREE.Mesh, colour: number, lit: 
   return node;
 }
 
-function partWorld(x: number, y: number, z: number, yaw: number, pitch: number, part: WhalePart, out: number[]): void {
-  const root = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -yaw, pitch * 0.55, 'YZX')),
-    new THREE.Vector3(1, 1, 1));
-  const local = new THREE.Matrix4().compose(new THREE.Vector3(...part.position),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(...part.rotation)),
-    new THREE.Vector3(...part.scale));
-  root.multiply(local).toArray(out);
+/** Where each part sits on the body, which never changes, so it is composed once. */
+const LOCAL = PARTS.map((part) => new THREE.Matrix4().compose(new THREE.Vector3(...part.position),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(...part.rotation)),
+  new THREE.Vector3(...part.scale)));
+
+// scratch for posing a part, which happens for every part of every whale in every frame
+const root = new THREE.Matrix4();
+const where = new THREE.Vector3();
+const spin = new THREE.Quaternion();
+const heading = new THREE.Euler();
+const UNIT = new THREE.Vector3(1, 1, 1);
+
+function partWorld(x: number, y: number, z: number, yaw: number, pitch: number, part: number, out: number[]): void {
+  root.compose(where.set(x, y, z), spin.setFromEuler(heading.set(0, -yaw, pitch * 0.55, 'YZX')), UNIT);
+  root.multiply(LOCAL[part]).toArray(out);
 }
 
 /**
@@ -112,7 +119,7 @@ export class WhaleSchool {
         body.rotation.set(0, -whale.yaw, whale.pitch * 0.55, 'YZX');
         for (const [at, node] of this.bodyNodes[drawn - 1].entries()) {
           node.visible = true;
-          partWorld(whale.x, whale.y, whale.z, whale.yaw, whale.pitch, PARTS[at], node.world!);
+          partWorld(whale.x, whale.y, whale.z, whale.yaw, whale.pitch, at, node.world!);
         }
         // a whale that was up and is now down has just hit the water
         const wasUp = body.userData.airborne === true;
@@ -146,8 +153,7 @@ export class WhaleSchool {
     if (!node) return;
     node.visible = ring.mesh.visible;
     node.materialState!.opacity = (ring.mesh.material as THREE.MeshBasicMaterial).opacity;
-    new THREE.Matrix4().compose(ring.mesh.position, new THREE.Quaternion().setFromEuler(ring.mesh.rotation),
-      ring.mesh.scale).toArray(node.world);
+    root.compose(ring.mesh.position, spin.setFromEuler(ring.mesh.rotation), ring.mesh.scale).toArray(node.world);
   }
 
   private ageRings(dt: number): void {
