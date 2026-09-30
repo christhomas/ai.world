@@ -8,7 +8,7 @@ const DIRECTIONS: readonly PrayerDirection[] = ['north', 'east', 'south', 'west'
 
 /** Shrine prayers alter the private world's ground only after a warned, saved wait. */
 export function prayerInteractions(ctx: Surroundings) {
-  const { state, manifest, around, online, hud, sound, persistAsync } = ctx;
+  const { state, manifest, around, online, hud, sound, persistStrict } = ctx;
   let reloading = false;
 
   const choicesAt = (shrine: { name: string; x: number; z: number }): DialogueChoice[] => [{
@@ -43,14 +43,18 @@ export function prayerInteractions(ctx: Surroundings) {
                     // that same roll, so closing the tab cannot offer another outcome.
                     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
                     const prayer = askForHighland(shrine, direction, state.day, seed);
+                    // Pushed before the save so the save carries it; confirmed only once the save
+                    // is known to be written, because a promise the reload cannot keep is worse
+                    // than a prayer the player is asked to make again.
                     state.prayers.push(prayer);
-                    void persistAsync().catch(() => {
+                    void persistStrict().then(() => {
+                      sound.chime();
+                      hud.flash(`The stones will answer for ${site.name} on day ${prayer.due}.`);
+                    }, () => {
                       const index = state.prayers.indexOf(prayer);
                       if (index >= 0) state.prayers.splice(index, 1);
                       hud.flash('The prayer could not be saved. Please try again.');
                     });
-                    sound.chime();
-                    hud.flash(`The stones will answer for ${site.name} on day ${state.day + PRAYER_WAIT}.`);
                     return null;
                   } },
                   { label: 'Leave the ground as it is', next: () => null },
@@ -70,7 +74,7 @@ export function prayerInteractions(ctx: Surroundings) {
     if (!state.prayers.some((p) => !p.answered && state.day >= p.due)) return;
     reloading = true;
     hud.flash('The stones have answered. The country is changing.');
-    void persistAsync().then(() => window.location.reload()).catch(() => {
+    void persistStrict().then(() => window.location.reload()).catch(() => {
       reloading = false;
       hud.flash('The answer could not be saved. The stones will try again.');
     });
