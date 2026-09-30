@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.6 — 2026-09-30
+
+The GPU-free frame path lands, prayers stay saved, and a release tests nothing on the machine that cuts it
+
 ### v0.103.5 — 2026-09-30
 
 An idle scene costs next to nothing to describe each frame, and boats on the Flutter client keep their colours in every season
@@ -626,10 +630,6 @@ Fix HTTPS redirect loops behind proxy chains
 ### v0.102.4 — 2026-09-27
 
 portable hosting setup and proxy scheme detection
-
-### v0.102.3 — 2026-09-27
-
-tools portal access and HTTPS redirect
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

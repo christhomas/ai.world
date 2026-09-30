@@ -125,23 +125,31 @@ export function openTheSave(ctx: Keeping) {
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const mount = Mount.from(saved?.state?.horse ?? null, rng);
 
-  const persistAsync = (): Promise<void> =>
-    store.save<SessionSave>(slotKey, {
-      seed,
-      world,
-      worldName,
-      cam: cam(),
-      player: at(),
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save(), ore: ore.toJSON(), forge: forge.toJSON() },
-      manifest: manifest.toJSON(),
-      nemesis: nemesis.toJSON(),
-      roaming: roaming.save(),
-      sky: sky(),
-    });
-  const persist = (): void => { void persistAsync(); };
+  const packed = (): SessionSave => ({
+    seed,
+    world,
+    worldName,
+    cam: cam(),
+    player: at(),
+    state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save(), ore: ore.toJSON(), forge: forge.toJSON() },
+    manifest: manifest.toJSON(),
+    nemesis: nemesis.toJSON(),
+    roaming: roaming.save(),
+    sky: sky(),
+  });
+  /** Best effort: a lost write costs a little progress, and the world is seed-derived anyway. */
+  const persist = (): void => { void store.save<SessionSave>(slotKey, packed()); };
+  /**
+   * For a caller that promises the player something was kept — a prayer the gods will answer, a
+   * reload that applies the answer — and so has to hear about a private window or a full disk
+   * rather than confirm a write that never happened.
+   */
+  const persistStrict = (): Promise<void> => store.saveStrict
+    ? store.saveStrict<SessionSave>(slotKey, packed())
+    : store.save<SessionSave>(slotKey, packed());
 
   return {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist, persistAsync,
+    plots, houses, sailing, mount, persist, persistStrict,
   };
 }
