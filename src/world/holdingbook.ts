@@ -31,10 +31,20 @@ import type { Owner } from './holdings';
  *
  * ## What it costs
  *
- * Memory, saves, and what a joining client is handed — and nothing else. It is one keyed write a
- * village a morning, exactly as `StableBook.on` is one keyed lookup, so replay does not get slower
- * for it. How big it actually gets is measured rather than argued about: `chore test economy`
- * reports `facts`, `holdings` and `weigh` after a hundred days.
+ * Memory, and nothing else. It is one keyed write a village a morning, exactly as `StableBook.on`
+ * is one keyed lookup, so replay does not get slower for it. How big it actually gets is measured
+ * rather than argued about: `chore test economy` reports `facts`, `holdings` and `weigh` after a
+ * hundred days.
+ *
+ * ## Why it is neither saved nor sent
+ *
+ * It used to be both: written into the world file and handed to every joining page, then restored
+ * over whatever book the other side had. And then thrown away unread, because the first `settle`
+ * of the village forgets it and lives it again from its founding — which is the one source of
+ * truth this book has. Every row is the replay's, and the replay is deterministic, so a page that
+ * grows a village writes the same book the server does without a row passing between them. The
+ * copy cost 2 MB of welcome and 2.85 MB of save after a year on seed 7, and the restore wiped
+ * every village the sender had not grown. #484.
  */
 
 /** One holding, one morning: who stood its post, at what price, and what actually moved. */
@@ -73,8 +83,8 @@ export interface HoldingIncome {
   crop: number;
 }
 
-/** A daybook fact with the village key needed to restore or send it. */
-export type HoldingRecord = { village: string } & (HoldingDay | HoldingIncome);
+/** A daybook fact with its village key, flattened for weighing. */
+type HoldingRecord = { village: string } & (HoldingDay | HoldingIncome);
 
 export class HoldingBook {
   /**
@@ -110,8 +120,8 @@ export class HoldingBook {
 
   private key(id: string, day: number): string { return `${id}:${Math.floor(day)}`; }
 
-  /** A stable, flat snapshot for a world save or a joining client's welcome. */
-  records(): HoldingRecord[] {
+  /** Every row, flat and in a stable order: what `weigh` measures. */
+  private records(): HoldingRecord[] {
     const rows: HoldingRecord[] = [];
     for (const [village, here] of this.told) for (const days of here.values()) {
       for (const fact of days.values()) rows.push({ village, ...fact });
@@ -124,36 +134,7 @@ export class HoldingBook {
       || ('type' in a ? 1 : 0) - ('type' in b ? 1 : 0));
   }
 
-  /** Restore facts and their daily net index without transferring a coin. */
-  restore(records: readonly HoldingRecord[]): void {
-    this.told.clear();
-    this.income.clear();
-    this.nets.clear();
-    for (const { village, ...fact } of records) {
-      if ('type' in fact) {
-        this.earned(village, [fact]);
-        continue;
-      }
-      let here = this.told.get(village);
-      if (!here) { here = new Map(); this.told.set(village, here); }
-      let days = here.get(fact.holding);
-      if (!days) { days = new Map(); here.set(fact.holding, days); }
-      days.set(fact.day, fact);
-    }
-    for (const [village, here] of this.told) {
-      const purses = new Map<string, number>();
-      for (const days of here.values()) for (const fact of days.values()) {
-        if (fact.paid <= 0) continue;
-        const funder = this.key(fact.funder, fact.day);
-        const worker = this.key(fact.who, fact.day);
-        purses.set(funder, (purses.get(funder) ?? 0) - fact.paid);
-        purses.set(worker, (purses.get(worker) ?? 0) + fact.paid);
-      }
-      this.nets.set(village, purses);
-    }
-  }
-
-  /** Replace a village's dated attribution with the same fact on replay or restore. */
+  /** Replace a village's dated attribution with the same fact when a morning is lived again. */
   earned(village: string, facts: readonly HoldingIncome[]): void {
     let here = this.income.get(village);
     if (!here) { here = new Map(); this.income.set(village, here); }
@@ -256,19 +237,31 @@ export class HoldingBook {
     return all;
   }
 
-  /** And how many mornings are written down across all of them, which is what actually grows. */
+  /**
+   * And how many rows are written down across all of them, which is what actually grows: a post
+   * stood, and — since #442 — a farm's takings for an owner, which a manned farm writes every
+   * morning and which is most of the book.
+   */
   facts(): number {
     let all = 0;
     for (const here of this.told.values()) for (const days of here.values()) all += days.size;
+    for (const here of this.income.values()) for (const days of here.values()) all += days.size;
     return all;
+  }
+
+  /** The villages this book has any row for: what a world file keeps instead of the rows. */
+  villages(): string[] {
+    const named = new Set<string>();
+    for (const shelf of [this.told, this.income]) for (const [village, here] of shelf) if (here.size > 0) named.add(village);
+    return [...named].sort();
   }
 
   /**
    * What the book weighs, in bytes of JSON.
    *
-   * Measured rather than estimated, and measured as the thing that actually costs: a save is
-   * written as JSON and a joining client is handed JSON, so the length of the serialised rows is
-   * the number both of those bills are made out in. Reported by `chore test economy` at a hundred
+   * Measured rather than estimated, as JSON because that is what it would cost to save or send —
+   * which is the bill #484 stopped paying, and the number to look at before anybody starts paying
+   * it again. Reported by `chore test economy` at a hundred
    * days, which is #264's fourth line and the reason this method exists rather than an argument
    * about whether keeping everything is affordable.
    */

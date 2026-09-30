@@ -1,12 +1,12 @@
 import { FOOD, broughtIn, cellarCap, eat, theirField } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
-import { ownedBy, BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing, type Owner } from './holdings';
+import { ownedBy, BEASTS_PER_FARM, THE_HALL_OWNER, mannedFarms, shareTheTake, type Standing, type Owner } from './holdings';
 import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { wellEnough } from './ailments';
-import { fieldCrop } from './fields';
+import { atTheTable, fieldCrop } from './fields';
 import type { HoldingIncomeSource } from './holdingincome';
 import { priceOfAMeal } from './prices';
 
@@ -256,10 +256,10 @@ export function whoFed(
    * nowhere — `pay` calls it `unplaced` and says it *"should never happen at all"*.
    *
    * Dropped rather than redirected, because `shareOut` hands out a pool in proportion: one share
-   * fewer is the same money divided among the people who are still at the table, which is what
-   * actually happens to a dead man's dinner.
+   * fewer is the same money divided among whoever is still at the table — the hall among them, as
+   * the owner of a farm whose crop `fieldCrop` addresses to it (#486).
    */
-  const here = new Set(people.map(ownedBy));
+  const here = new Set([...people.map(ownedBy), THE_HALL_OWNER]);
   for (const [owner, crop] of fromFields ?? []) {
     if (!here.has(owner)) continue;
     shares.set(owner, (shares.get(owner) ?? 0) + crop);
@@ -349,6 +349,8 @@ export interface Trading {
   toTheHall: number;
   /** What each purse is owed for the day's work, before anybody has eaten. */
   paid: Map<Owner, number>;
+  /** Who put what on the table, counted the morning it was grown: see `fields.ts: atTheTable`. */
+  fed: ReadonlyMap<Owner, number>;
 }
 
 /**
@@ -401,7 +403,7 @@ export function aDaysTrade(
     // an empty map rather than none: the fields *were* counted and a raided village grew nothing,
     // which is the number the larder took and so the number the dinner money has to agree with
     return { herd, grown: 0, fields: new Map(), meat: 0, fish: 0, shore: coast.shore, toTheHall: 0, paid,
-      holdingIncome: { fields: [], cattle: [] } };
+      holdingIncome: { fields: [], cattle: [] }, fed: whoFed(people, 0, coast.shore, 0, new Map()) };
   }
 
   // a man who is laid up does not work, and his trade earns the village nothing while he is: see
@@ -498,6 +500,7 @@ export function aDaysTrade(
     shore: coast.shore,
     toTheHall: take.toTheHall,
     paid,
+    fed: whoFed(people, cattle.meals, coast.shore, caught.meals, crop.fields),
   };
 }
 
@@ -549,13 +552,10 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
   // side effect of an ordering chosen for something else entirely.
   const price = priceOfAMeal(food, people);
   const meal = eat(people, food, price);
-  const paid = paidForFood(people, meal.spent, work.meat, work.shore, work.fish, work.fields);
+  const fed = atTheTable(people, work.fed);
+  const paid = shareOut(meal.spent, fed);
   // and the money for it comes from the next valley, because that is where the food went
-  for (const [id, much] of paidForFood(
-    people, spare * FOOD.ABROAD, work.meat, work.shore, work.fish, work.fields,
-  )) {
-    paid.set(id, (paid.get(id) ?? 0) + much);
-  }
+  for (const [id, much] of shareOut(spare * FOOD.ABROAD, fed)) paid.set(id, (paid.get(id) ?? 0) + much);
   return { food: Math.max(0, food - meal.eaten), sold: spare, starved: meal.starved, paid, price };
 }
 

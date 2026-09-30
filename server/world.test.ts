@@ -16,38 +16,36 @@ import { ownerFromSave } from '../src/world/holdings';
 const scratch = () => mkdtempSync(join(tmpdir(), 'aiworld-'));
 
 describe('the shared world', () => {
-  it('saves and restores holding mornings without paying them twice', () => {
+  /*
+   * The holding daybook is not the world's to keep. Every row in it is re-derived by replaying the
+   * village from its founding, which is what `settle` does the moment anybody grows the place — so
+   * a saved copy was thrown away unread by the first settle, and cost 2.85 MB of world file after a
+   * year on seed 7. #484. A save written before then still carries the field, and has to open.
+   */
+  it('opens a save that still carries the holding daybook, and does not write it back', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 77);
       const fact: HoldingDay = { day: 5, holding: 'yard-1', kind: 'crew', who: 'bob',
         funder: ownerFromSave('rich'), wage: 12, paid: 12 };
-      const firstBook = new HoldingBook();
-      firstBook.stood('Ashford', 5, [fact], new Map([
-        [ownerFromSave('rich'), -12], [ownerFromSave('bob'), 12],
-      ]));
-      const income = { type: 'income' as const, day: 5, holding: 'farm-1',
-        owner: ownerFromSave('rich'), cattle: 2.16, crop: 1.24 };
-      firstBook.earned('Ashford', [income]);
-      const first = new SharedWorld(77, path, { day: 5, time: 0 }, dir, kept);
-      first.keepsTheRegister({ compact: () => {}, holdingsBook: firstBook });
-      first.tick(1);
-      first.save();
+      kept.write(path, JSON.stringify({ seed: 77, clock: { day: 9, time: 0.25 }, deltas: [],
+        holdingDays: [{ village: 'Ashford', ...fact }] }));
 
-      const second = new SharedWorld(77, path, { day: 1, time: 0 }, dir, kept);
-      const secondBook = new HoldingBook();
-      second.keepsTheRegister({ compact: () => {}, holdingsBook: secondBook });
-      expect(second.holdingDays).toEqual(first.holdingDays);
-      expect(secondBook.paidTo('bob', 5)).toBe(12);
-      expect(secondBook.incomeOn('farm-1')).toEqual([income]);
-      secondBook.restore(second.holdingDays);
-      expect(secondBook.on('yard-1')).toEqual([fact]);
-      expect(secondBook.incomeOn('farm-1')).toEqual([income]);
-      expect(secondBook.paidTo('bob', 5)).toBe(12);
-      second.tick(1);
-      second.save();
-      expect(new SharedWorld(77, path, { day: 1, time: 0 }, dir, kept).holdingDays)
-        .toEqual(first.holdingDays);
+      const world = new SharedWorld(77, path, { day: 1, time: 0 }, dir, kept);
+      expect(world.clock.day, 'the older save was not read at all').toBe(9);
+      // and a register with mornings in its book, which the save used to copy out of it
+      const book = new HoldingBook();
+      book.stood('Ashford', 9, [{ ...fact, day: 9 }], new Map());
+      const register = { compact: () => {}, holdingsBook: book };
+      world.keepsTheRegister(register);
+      world.tick(1);
+      world.save();
+
+      const written = JSON.parse(kept.read(path)!) as Record<string, unknown>;
+      expect(written.clock, 'the save did not rewrite the file').toMatchObject({ day: 9 });
+      expect(Object.keys(written), 'the daybook went back into the world file').not.toContain('holdingDays');
+      // and which villages have a history is still said, a name each, for an offline edit to respect
+      expect(written.holdingVillages).toEqual(['Ashford']);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it('keeps its own time and rolls over at midnight', () => {
