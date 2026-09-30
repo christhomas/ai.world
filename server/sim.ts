@@ -542,8 +542,13 @@ export class Simulation {
    * grown is deliberate and is what `groundOf` already does for every other question: a survey that
    * answered "nothing there" for a world nobody had opened would be a survey of the visitors rather
    * than of the world.
+   *
+   * Except while a join is preparing it: then the ground is on its way from the ground worker, and
+   * growing it here would be the freeze the worker exists to prevent, and a second ground that
+   * preparation would not know about (#481). The caller hears `preparing` and can ask again.
    */
-  surveyOf(seed: number): Domesday | null {
+  surveyOf(seed: number): Domesday | 'preparing' | null {
+    if (this.warming.has(seed) && !this.wildlife.has(seed)) return 'preparing';
     const alive = this.livesIn(seed);
     const register = alive?.register;
     if (!alive || !register) return null;
@@ -582,7 +587,8 @@ export class Simulation {
 
   /** What is alive in a world, when the simulation is the thing keeping it alive. */
   livesIn(seed: number): Wildlife | null {
-    this.groundOf(seed);
+    // not grown while a join is preparing the world: that ground is coming, and see `surveyOf`
+    if (!this.warming.has(seed)) this.groundOf(seed);
     return this.wildlife.get(seed) ?? null;
   }
 
@@ -1190,6 +1196,9 @@ export class Simulation {
     }
     const patchwork = kind === 'endless' ? (this.patchworks.get(seed)
       ?? new Patchwork(seed, growPatch, undefined, this.layersOf(seed), this.terrainOf(seed))) : null;
+    // Kept from the start rather than at the end, so any ground grown meanwhile reads this very set
+    // and the patches below go where it looks. Stored last, a copy replaced the live one's (#481).
+    if (patchwork) this.patchworks.set(seed, patchwork);
     const patches = patchwork
       ? [...new Set([...(this.ground.has(seed) ? [] : [patchOf(0, 0)]), ...chunks])]
         .filter((patch) => !patchwork.has(patch)) : [];
@@ -1223,7 +1232,6 @@ export class Simulation {
         }
       }
       if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
-      if (patchwork) this.patchworks.set(seed, patchwork);
       const ground = this.groundOf(seed, road);
       if (ground && standing) {
         const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);

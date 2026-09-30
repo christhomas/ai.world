@@ -410,6 +410,8 @@ function registry(sim: Simulation, options: ServerOptions | null, req: IncomingM
     if (!Number.isFinite(seed)) { say(400, { error: 'that is not a seed' }); return; }
     const book = sim.surveyOf(seed);
     if (!book) { say(404, { error: `no world ${seed}` }); return; }
+    // somebody is joining it and its ground is being grown elsewhere: ask again shortly
+    if (book === 'preparing') { say(503, { error: `world ${seed} is still being prepared`, preparing: true }); return; }
     /*
      * And what has happened since the caller last looked.
      *
@@ -430,7 +432,7 @@ function registry(sim: Simulation, options: ServerOptions | null, req: IncomingM
   // no seed: whatever this server is presently holding, which is what a watcher wants
   const books = sim.rooms.entries()
     .map(([seed]) => sim.surveyOf(seed))
-    .filter((b): b is NonNullable<typeof b> => b !== null);
+    .filter((b): b is Exclude<typeof b, null | 'preparing'> => b !== null && b !== 'preparing');
   say(200, { worlds: books.length, books });
 }
 

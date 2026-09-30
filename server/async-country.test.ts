@@ -196,11 +196,13 @@ describe('a slow first country', () => {
     return { ...page, get open() { return page.open; }, leave: () => { page.open = false; attached.leave(); } };
   }
 
+  // One patch of one endless seed, grown once for the cases below that need a real answer.
+  const seed = 57721;
+  let grown: ReturnType<typeof partsOf> | null = null;
+  const parts = () => (grown ??= partsOf(growPatch(seed, boundsOf('0,0'))));
+  const never = <T>() => new Promise<T>(() => {});
+
   describe('a ground source that never answers', () => {
-    const seed = 57721;
-    let grown: ReturnType<typeof partsOf> | null = null;
-    const parts = () => (grown ??= partsOf(growPatch(seed, boundsOf('0,0'))));
-    const never = <T>() => new Promise<T>(() => {});
 
     it('tells the preparing page it failed after a limit, and the next join tries again', async () => {
       const answer = parts();
@@ -245,6 +247,59 @@ describe('a slow first country', () => {
         await until(() => second.heard.find((m) => m.type === 'country'), 20_000);
         expect(second.heard.filter((m) => m.type === 'country-progress').length).toBeGreaterThan(0);
         expect(asked).toBe(2);
+      } finally { sim.stop(); }
+    }, 60_000);
+  });
+
+  describe('a survey while a world is being prepared', () => {
+    /** A simulation whose source holds its answer until the test lets it go. */
+    function held() {
+      let release!: () => void;
+      const answered = new Promise<void>((resolve) => { release = resolve; });
+      let asked = 0;
+      const answer = parts();
+      const sim = new Simulation({
+        vault: new Forgetful(), ground: true,
+        prepare: {
+          grow: async () => { asked++; await answered; return answer; },
+          growRoad: never,
+        },
+      });
+      return { sim, release, asked: () => asked };
+    }
+
+    it('answers that the world is busy rather than growing it on this thread', async () => {
+      const { sim, release, asked } = held();
+      try {
+        const page = joinSim(sim, seed);
+        await until(() => page.heard.find((m) => m.type === 'country-progress'), 5000);
+        await until(() => (asked() === 1 ? true : undefined), 5000);
+        expect(sim.surveyOf(seed)).toBe('preparing');
+        expect(sim.rooms.groundOf(seed), 'the survey grew no ground').toBeNull();
+        release();
+        await until(() => page.heard.find((m) => m.type === 'country'), 20_000);
+        const book = sim.surveyOf(seed);
+        expect(book, 'once it is ready, the world is surveyed').not.toBe('preparing');
+        expect(book).toMatchObject({ seed });
+      } finally { sim.stop(); }
+    }, 60_000);
+
+    it('keeps the patch set behind a ground grown while it was being prepared', async () => {
+      const { sim, release, asked } = held();
+      // `patchworks` is private; what is asked is whether the live ground and the kept set are one.
+      const kept = () => (sim as unknown as { patchworks: Map<number, unknown> }).patchworks.get(seed);
+      try {
+        const page = joinSim(sim, seed);
+        await until(() => (asked() === 1 ? true : undefined), 5000);
+        // Anything on this thread that grows the world mid-preparation, as a survey used to.
+        const ground = sim.groundOf(seed);
+        const behind = kept();
+        expect(ground, 'the precondition: a ground was grown mid-preparation').not.toBeNull();
+        expect(behind).toBeDefined();
+        release();
+        await until(() => page.heard.find((m) => m.type === 'country'), 20_000);
+        expect(sim.groundOf(seed)).toBe(ground);
+        expect(kept(), 'the preparation kept the patch set that ground reads').toBe(behind);
       } finally { sim.stop(); }
     }, 60_000);
   });
