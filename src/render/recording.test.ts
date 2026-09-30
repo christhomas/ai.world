@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { RecordingPipeline } from './recording';
 import { describeFrame } from './recording.test.support';
+import { ThreeFramePipeline } from './three-frame.test.support';
 
 describe('recording pipeline', () => {
   it('receives plain mesh, instance, material, light and camera data', () => {
@@ -38,7 +39,7 @@ describe('recording pipeline', () => {
     expect(frame.camera.orthographic).toBe(true);
     expect(frame.camera.layers).toBe(2);
     expect(frame.nodes.find((node) => node.kind === 'ambient')).toMatchObject({ colour: 0xabcdef, intensity: 0.7 });
-    expect(frame.nodes.find((node) => node.kind === 'directional')?.lightTarget).toEqual([-2, 0, 3]);
+    expect(frame.nodes.find((node) => node.kind === 'directional')?.target).toEqual([-2, 0, 3]);
     const recorded = frame.nodes.find((node) => node.kind === 'instances')!;
     expect(recorded.attributes?.position.size).toBe(3);
     expect(recorded.instanceMatrices).toHaveLength(16);
@@ -47,5 +48,23 @@ describe('recording pipeline', () => {
     expect(recorded.materials).toHaveLength(2);
     expect(recorded.groups).toEqual([{ start: 0, count: 18, materialIndex: 0 }, { start: 18, count: 18, materialIndex: 1 }]);
     expect(JSON.parse(JSON.stringify(frame)).nodes.some((node: { isObject3D?: boolean }) => node.isObject3D)).toBe(false);
+  });
+
+  it('records the sun where every renderer looks for it, so a mounted sun shines at its own target (#521)', () => {
+    const scene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(4, 8, 2);
+    sun.target.position.set(-2, 0, 3);
+    scene.add(sun, sun.target);
+    const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 100);
+
+    let mounted: THREE.Scene | null = null;
+    const webgl = new ThreeFramePipeline({ render: (drawn: THREE.Scene) => { mounted = drawn; } } as unknown as THREE.WebGLRenderer);
+    webgl.draw(() => describeFrame(scene, camera));
+    let light: THREE.DirectionalLight | undefined;
+    (mounted as THREE.Scene | null)?.traverse((object) => {
+      if (object instanceof THREE.DirectionalLight) light = object;
+    });
+    expect(light?.target.position.toArray()).toEqual([-2, 0, 3]);
   });
 });

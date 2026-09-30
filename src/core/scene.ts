@@ -51,8 +51,6 @@ export interface FrameDescription {
     layers?: number;
     colour?: number;
     intensity?: number;
-    /** World-space point a directional light shines toward. */
-    lightTarget?: [number, number, number];
     groundColour?: number;
     /**
      * A light's colour in linear RGB exactly as the engine computed it, channels free to pass one.
@@ -64,6 +62,10 @@ export interface FrameDescription {
     linearGroundColour?: [number, number, number];
     distance?: number;
     decay?: number;
+    /**
+     * World-space point a directional light shines toward. The one name for it: the graph writes
+     * it, and the WebGL mount and both native bridges read it (#521).
+     */
     target?: [number, number, number];
     castShadow: boolean;
     receiveShadow: boolean;
