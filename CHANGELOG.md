@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.6 — 2026-09-30
+
+The GPU-free frame path lands, prayers stay saved, and a release tests nothing on the machine that cuts it
+
 ## v0.103.5 — 2026-09-30
 
 An idle scene costs next to nothing to describe each frame, and boats on the Flutter client keep their colours in every season

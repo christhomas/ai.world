@@ -8,7 +8,8 @@ import type { GroundWorld } from '../src/world/groundworld';
 import type { Village } from '../src/world/structures';
 import { ownedBy } from '../src/world/holdings';
 import { priceOfAMeal } from '../src/world/prices';
-import { cartActionPosition, cartGuarded, robLoadedCart } from './cartrobbery';
+import { cartGuarded, robLoadedCart } from './cartrobbery';
+import { walkedFoot } from './footing';
 import { carrierOnRoad } from './carrieractor';
 
 const FROM = 'Barrowgate';
@@ -62,11 +63,11 @@ describe('a player robbing an in-flight cart', () => {
       standingIn: 'surface', presence: { riding: 'foot' }, hero: { x: 10, z: 0 },
       serverFootAt: { x: 10, z: 0 },
     };
-    expect(cartActionPosition(player, ground)).toEqual({ x: 10, z: 0 });
-    expect(cartActionPosition({ ...player, serverFootAt: null }, ground)).toBeNull();
-    expect(cartActionPosition({ ...player, presence: { riding: 'horse' } }, ground)).toBeNull();
-    expect(cartActionPosition({ ...player, hero: { x: 20, z: 0 } }, ground)).toBeNull();
-    expect(cartActionPosition(player, { heightAt: () => null })).toBeNull();
+    expect(walkedFoot(player, ground)).toEqual({ x: 10, z: 0 });
+    expect(walkedFoot({ ...player, serverFootAt: null }, ground)).toBeNull();
+    expect(walkedFoot({ ...player, presence: { riding: 'horse' } }, ground)).toBeNull();
+    expect(walkedFoot({ ...player, hero: { x: 20, z: 0 } }, ground)).toBeNull();
+    expect(walkedFoot(player, { heightAt: () => null })).toBeNull();
   });
 
   it('is stopped by another escort only while that escort stays beside this cart', () => {
