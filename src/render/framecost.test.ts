@@ -4,8 +4,9 @@ import { SceneGraph } from '../core/scenegraph';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import { mulberry32 } from '../core/rng';
+import { Season, seasonLook } from '../game/seasons';
 import type { Pod } from '../game/whales';
-import { PropKind } from '../world/biomes';
+import { Biome, PropKind } from '../world/biomes';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import { Beam } from './beam';
 import { EntityRenderer } from './entities';
@@ -13,6 +14,7 @@ import { addPropInstances, disposeInstances } from './instancing';
 import { MountedThreePipeline, submitGraphFrame, type FrameSource } from './pipeline';
 import { PropLibrary } from './props';
 import { RecordingPipeline } from './recording';
+import { SeasonTintMaterials } from './seasontint';
 import { SkyIslands } from './skyisland';
 import { WhaleSchool } from './whales';
 
@@ -130,6 +132,27 @@ describe('the frame description', () => {
     submitGraphFrame(graph, [live, recorder]);
     expect(described).toHaveBeenCalledOnce();
     expect(recorder.last).toEqual(drawn.mock.calls[0][0]);
+  });
+
+  it('still reaches the live mount every draw, so the season tint follows a recorder nobody armed', () => {
+    const graph = new SceneGraph(0x102030);
+    graph.camera = camera;
+    const tint = new SeasonTintMaterials();
+    const recorder = new RecordingPipeline();
+    const mounted = new MountedThreePipeline(new THREE.Scene(), () => {}, graph,
+      [(frame) => tint.show(frame.season)]);
+    const described = vi.spyOn(graph, 'frame');
+
+    // the recorder asked first and did not want it; the live mount still has to be handed one
+    graph.season = seasonLook(Season.Autumn, Biome.Forest);
+    submitGraphFrame(graph, [recorder, mounted]);
+    expect(tint.uniforms.uSeasonMul.value.toArray()).toEqual([1.35, 0.82, 0.42]);
+    graph.season = seasonLook(Season.Winter, Biome.Plains);
+    submitGraphFrame(graph, [mounted, recorder]);
+    expect(tint.uniforms.uSeasonMul.value.toArray()).toEqual([0.88, 0.94, 1.06]);
+    expect(tint.uniforms.uSeasonBlend.value).toBe(0.5);
+    expect(described).toHaveBeenCalledTimes(2);
+    expect(recorder.last).toBeNull();
   });
 });
 

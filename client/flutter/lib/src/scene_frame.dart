@@ -35,6 +35,11 @@ final class SceneFrame {
       cutaway: packet['cutaway'] == null
           ? null
           : Map<String, dynamic>.from(packet['cutaway'] as Map),
+      season: packet['season'] == null
+          ? null
+          : SeasonTint.fromJson(
+              Map<String, dynamic>.from(packet['season'] as Map),
+            ),
       fog: packet['fog'] == null
           ? null
           : Map<String, dynamic>.from(packet['fog'] as Map),
@@ -47,6 +52,7 @@ final class SceneFrame {
     required this.background,
     required this.coast,
     required this.cutaway,
+    required this.season,
     required this.fog,
     required this.nodes,
   });
@@ -55,8 +61,56 @@ final class SceneFrame {
   final int? background;
   final Map<String, dynamic>? coast;
   final Map<String, dynamic>? cutaway;
+
+  /// Colours every material whose effects name 'season'; null draws them untinted.
+  final SeasonTint? season;
   final Map<String, dynamic>? fog;
   final List<Map<String, dynamic>> nodes;
+}
+
+/// The frame's season: `FrameDescription.season` in src/core/scene.ts.
+///
+/// WebGL draws it as a shader uniform, `mix(colour * multiply, snow, frost)`
+/// on the unlit colour. Here it is the same sum on the colour baked into each
+/// vertex, so the native renderers draw autumn and winter without knowing
+/// either exists.
+final class SeasonTint {
+  const SeasonTint({
+    required this.multiply,
+    required this.frost,
+    required this.snow,
+  });
+
+  factory SeasonTint.fromJson(Map<String, dynamic> json) {
+    final multiply = _numbers(json['multiply']);
+    if (multiply.length != 3) {
+      throw const FormatException('Season multiply must have three channels');
+    }
+    return SeasonTint(
+      multiply: multiply,
+      frost: (json['frost'] as num?)?.toDouble() ?? 0,
+      snow: (json['snow'] as num?)?.toInt() ?? 0xffffff,
+    );
+  }
+
+  /// Linear, and free to pass one.
+  final List<double> multiply;
+
+  /// How far toward [snow] the colour is blended, nought to one.
+  final double frost;
+
+  /// sRGB hex, like every other authored colour in the frame.
+  final int snow;
+
+  /// One linear colour channel, tinted.
+  double apply(double colour, int channel, List<double> snowLinear) =>
+      colour * multiply[channel] * (1 - frost) + snowLinear[channel] * frost;
+
+  Map<String, Object> toJson() => <String, Object>{
+    'multiply': multiply,
+    'frost': frost,
+    'snow': snow,
+  };
 }
 
 /// Keeps immutable mesh data once per WebSocket connection. The server sends
@@ -150,6 +204,7 @@ final class FlutterFramePipeline {
         throw UnsupportedError('Unknown scene node kind: $kind');
       }
       final id = 'scene:$at';
+      final season = _seasoned(node) ? frame.season : null;
       final fingerprint = jsonEncode(<String, Object?>{
         'geometryId': node['geometryId'],
         // Older/local test fixtures can still supply raw geometry directly.
@@ -166,10 +221,16 @@ final class FlutterFramePipeline {
         'castShadow': node['castShadow'],
         'receiveShadow': node['receiveShadow'],
         'renderOrder': node['renderOrder'],
+        // baked into the vertices, so a new season is a new upload of what it colours
+        'season': season?.toJson(),
       });
       next.add(id);
       if (_fingerprints[id] == fingerprint) continue;
-      final mesh = _mesh(kind == 'points' ? _expandPoints(node) : node, id);
+      final mesh = _mesh(
+        kind == 'points' ? _expandPoints(node) : node,
+        id,
+        season,
+      );
       if (mesh == null) {
         next.remove(id);
         continue;
@@ -186,7 +247,14 @@ final class FlutterFramePipeline {
       ..addAll(next);
   }
 
-  RenderMesh? _mesh(Map<String, dynamic> node, String id) {
+  /// Whether a node's material takes the frame's season.
+  static bool _seasoned(Map<String, dynamic> node) {
+    final paint = node['material'];
+    if (paint is! Map) return false;
+    return (paint['effects'] as List?)?.contains('season') == true;
+  }
+
+  RenderMesh? _mesh(Map<String, dynamic> node, String id, SeasonTint? season) {
     final attributes = Map<String, dynamic>.from(node['attributes'] as Map);
     List<double>? attribute(String name, int size) {
       final value = attributes[name];
@@ -227,6 +295,7 @@ final class FlutterFramePipeline {
     }
     final paint = Map<String, dynamic>.from(node['material'] as Map);
     final tint = _linear((paint['colour'] as num?)?.toInt() ?? 0xffffff);
+    final snow = season == null ? null : _linear(season.snow);
     final material = paint['intent'] == 'water'
         ? RenderMesh.waterMaterial
         : (paint['effects'] as List?)?.any(
@@ -319,12 +388,15 @@ final class FlutterFramePipeline {
         vertices[target + 4] = normalY / divisor;
         vertices[target + 5] = normalZ / divisor;
         for (var channel = 0; channel < 3; channel++) {
-          vertices[target + 6 + channel] =
+          final colour =
               (paint['vertexColours'] == true
-                  ? (colours?[source + channel] ?? 1)
-                  : 1) *
+                  ? (colours?[source + channel] ?? 1.0)
+                  : 1.0) *
               tint[channel] *
               shade[channel];
+          vertices[target + 6 + channel] = season == null
+              ? colour
+              : season.apply(colour, channel, snow!);
         }
         vertices[target + 9] = material;
         vertices[target + 14] = flow?[vertex] ?? 0;

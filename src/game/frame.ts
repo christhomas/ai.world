@@ -17,7 +17,6 @@ import type { Cutaway } from '../render/cutaway';
 import type { MountainMaterial, Mountains } from '../render/mountains';
 import type { PatchCountry } from '../world/patchcountry';
 import { dropsFor, type DropField } from '../render/drops';
-import type { SeasonTintMaterials } from '../render/seasontint';
 import type { BuildingSite } from '../render/site';
 import type { HighCountry } from './highcountry';
 import type { SkyIslands } from '../render/skyisland';
@@ -46,7 +45,7 @@ import type { Online } from './online';
 import type { Places } from './places';
 import type { Remains } from './remains';
 import { BOAT, type Sailing } from './sailing';
-import { Season, isWet, seasonAffects, seasonOf, seasonTint } from './seasons';
+import { Season, isWet, seasonLook, seasonOf, seasonTint } from './seasons';
 import type { Skies } from './skies';
 import type { Skyline } from '../render/skyline';
 import type { GameState } from './state';
@@ -140,7 +139,6 @@ export interface Framing {
    * puts the hero's rig back together and a hero left half way through one would stay in pieces.
    */
   beam: Beam;
-  seasonTintMaterials: SeasonTintMaterials;
   skyRenderer: SkyIslands;
   skies: Skies;
   wildlife: Wildlife;
@@ -218,7 +216,7 @@ export interface Framing {
 export function createFrame(ctx: Framing) {
   const {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, high, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
+    skyline, high, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
@@ -400,6 +398,9 @@ export function createFrame(ctx: Framing) {
       hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
+      // Indoors keeps the season the hero walked in with: the furniture is drawn with the same
+      // materials as the country's props, and those take their tint from the frame they are in.
+      indoors.scene.graph.season = rig.graph.season;
       rig.draw(indoors.scene.graph, iso);
       endFrame(dt);
       return;
@@ -432,6 +433,7 @@ export function createFrame(ctx: Framing) {
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
         `draws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
         `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
+      below.scene.graph.season = rig.graph.season;   // as indoors: the season carried down
       rig.draw(below.scene.graph, iso);
       endFrame(dt);
       return;
@@ -500,8 +502,7 @@ export function createFrame(ctx: Framing) {
     const wetHere = isWet(seed, state.day, here.biome) ? 1 : 0;
     weatherStrength += (wetHere - weatherStrength) * Math.min(1, dt * 0.4);
     raining = weatherStrength > 0.5;
-    if (seasonAffects(here.biome)) seasonTintMaterials.set(tint.ground, tint.frost);
-    else seasonTintMaterials.set([1, 1, 1], 0);
+    rig.graph.season = seasonLook(season, here.biome);
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
     // and the columns of warm air standing over the country, which are landmarks rather than

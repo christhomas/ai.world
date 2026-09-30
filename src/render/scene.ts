@@ -8,7 +8,7 @@ import { WaterMaterial } from './water';
 import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
 import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
-import { MountedThreePipeline, submitGraphFrame, type FramePipeline } from './pipeline';
+import { MountedThreePipeline, submitGraphFrame, type FrameMount, type FramePipeline } from './pipeline';
 import { bindLightMount } from './graphmount';
 
 const SKY = 0x8fc1e6;
@@ -274,6 +274,12 @@ export interface SceneRig {
    */
   draw(graph: SceneGraph, camera: IsoCamera): void;
   /**
+   * Keep some shared piece of the renderer in step with every frame this rig draws, whichever graph
+   * it came from, and from nothing but that frame. The season's uniforms are one: the materials
+   * they live on draw the country, the rooms and the dungeons alike.
+   */
+  followFrames(mount: FrameMount): () => void;
+  /**
    * The canvas the picture lands on, for the things that legitimately need the element itself:
    * hanging input listeners on it, taking it out of the document, and reading it back for a photo.
    *
@@ -440,6 +446,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
   // the page's address does not change under a running game, so it is read once and not per draw
   const recordOnly = new URLSearchParams(location.search).has('record-only');
+  const frameMounts: FrameMount[] = [];
 
   const api: SceneRig = {
     graph, lighting, sunDriven: false,
@@ -531,13 +538,20 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
           pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
             if (second) second.draw(mountedScene, mountedCamera);
             else renderer.render(mountedScene, mountedCamera);
-          }, what);
+          }, what, frameMounts);
           mountedPipelines.set(what, pipeline);
         }
         sinks.push(pipeline);
       }
       if (recording) sinks.push(recording);
       submitGraphFrame(what, sinks);
+    },
+    followFrames(mount) {
+      frameMounts.push(mount);
+      return () => {
+        const at = frameMounts.indexOf(mount);
+        if (at >= 0) frameMounts.splice(at, 1);
+      };
     },
     get canvas() { return renderer.domElement; },
     debugScene() { return scene; },

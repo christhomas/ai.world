@@ -171,7 +171,18 @@ export function requestProtocol(req: IncomingMessage, trustProxy: boolean): 'htt
   return (req.socket as { encrypted?: boolean }).encrypted === true ? 'https' : null;
 }
 
+/**
+ * Whether the session cookie should carry `Secure`.
+ *
+ * The browser enforces `Secure`, so its own scheme is the one that counts, and a browser puts it in
+ * `Origin` on every form POST, including login and logout. That header is needed because a proxy
+ * chain can report its internal hop as http for a public https request (#421), which is exactly
+ * what production does. A forged `Origin` can only make a cookie stricter, so it needs no proxy to
+ * vouch for it. Without an https one, the connection decides.
+ */
 export function overHttps(req: IncomingMessage, trustProxy: boolean): boolean {
+  const origin = req.headers.origin;
+  if (typeof origin === 'string' && origin.startsWith('https://')) return true;
   return requestProtocol(req, trustProxy) === 'https';
 }
 

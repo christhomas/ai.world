@@ -8,6 +8,9 @@ export type FrameSource = FrameDescription | (() => FrameDescription);
 
 export interface FramePipeline { draw(frame: FrameSource): void }
 
+/** Something WebGL keeps outside any one node and sets from each frame as a whole: a uniform, say. */
+export type FrameMount = (frame: FrameDescription) => void;
+
 /** The description a sink was handed, worked out now if it was handed the way to work it out. */
 const frameOf = (source: FrameSource): FrameDescription =>
   typeof source === 'function' ? source() : source;
@@ -34,7 +37,8 @@ export class MountedThreePipeline implements FramePipeline {
 
   constructor(private readonly scene: THREE.Scene,
     private readonly submit: (scene: THREE.Scene, camera: THREE.Camera) => void,
-    private readonly graph?: SceneGraph) {
+    private readonly graph?: SceneGraph,
+    private readonly frameMounts: readonly FrameMount[] = []) {
     this.camera.matrixAutoUpdate = false;
   }
 
@@ -56,6 +60,7 @@ export class MountedThreePipeline implements FramePipeline {
       this.scene.fog.far = frame.fog.far;
     } else this.scene.fog = null;
     if (this.graph) applyGraphMounts(this.graph, frame);
+    for (const mount of this.frameMounts) mount(frame);
     this.submit(this.scene, this.camera);
   }
 }

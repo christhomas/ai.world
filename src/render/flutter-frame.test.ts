@@ -10,6 +10,7 @@ describe('Flutter frame adapter', () => {
       world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] };
     graph.coast = { x0: -2, z0: 3, span: 4, size: 2, values: Uint8Array.of(0, 64, 128, 255) };
     graph.cutaway = { enabled: true, hero: [4, 5, 6] };
+    graph.season = { multiply: [0.88, 0.94, 1.06], frost: 0.5, snow: 0xf2f6ff };
     graph.add({ kind: 'ambient', colour: 0xffffff, intensity: 0.4 });
     graph.add({ kind: 'prop-batch', parts: [{ shape: 'box', size: [1, 2, 3], offset: [0, 1, 0], color: 0x20a040 }],
       glowParts: [{ shape: 'box', size: [0.2, 0.2, 0.2], offset: [0, 2, 0], color: 0xffffff }],
@@ -21,10 +22,11 @@ describe('Flutter frame adapter', () => {
     expect(frame.nodes.map((node) => node.kind)).toEqual(['ambient', 'instances', 'instances']);
     expect(frame.nodes[1].attributes?.position.values.length).toBeGreaterThan(0);
     expect(frame.nodes[1].instanceMatrices?.length).toBe(16);
-    expect(frame.nodes[1].material?.effects).toContain('cutaway');
-    expect(frame.nodes[2].material).toMatchObject({ intent: 'unlit', colour: 0xffcc88 });
+    expect(frame.nodes[1].material?.effects).toEqual(['cutaway', 'season']);
+    expect(frame.nodes[2].material).toMatchObject({ intent: 'unlit', colour: 0xffcc88, effects: [] });
     expect(frame.coast?.values).toEqual(Uint8Array.of(0, 64, 128, 255));
     expect(frame.cutaway).toEqual({ enabled: true, hero: [4, 5, 6] });
+    expect(frame.season).toEqual({ multiply: [0.88, 0.94, 1.06], frost: 0.5, snow: 0xf2f6ff });
     disposeFlutterFrameGeometry();
   });
   it('records the WebGL water defaults and flow/sea vertex channels for native renderers', () => {
