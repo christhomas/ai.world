@@ -320,46 +320,6 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
 }
 
 /**
- * Every village's posts for one morning, stood and paid, in the village's own day.
- *
- * This used to happen in `tidings.ts` — on the page, once a frame's worth of day, and *inside* the
- * loop over the warbands. Two things followed from that and both were wrong. A village with nothing
- * leaning on it was never asked at all, which #355 fixed one file up; and the paying happened
- * because a frame was drawn, so a man's holding earned him nothing on any day he was not looking at
- * it. A hero who closed the tab employed nobody until he opened it again.
- *
- * Here instead, beside `aCarrierWalks` and for the same reason: the register's forward clock is the
- * thing that runs while nobody is watching. *"A day away pays what a day present would have paid"*
- * is #264's third line, and this is the whole of it — a day lived is a day paid, whoever was
- * looking.
- *
- * Nothing is rolled and nothing is stored. Who stands what is worked out fresh from who is alive
- * this morning, which is `postings.ts`'s oldest rule: *a post belongs to the holding, not to the
- * person*, so a village re-lived from its founding arrives at the same men in the same fields.
- *
- * ## Hall holdings and wages
- *
- * Farm proceeds go to the hall after paying its worker from the take (`shareTheTake`). Guards and
- * yard crews are paid from the treasury, under the same one-fifth-of-the-purse daily limit as a
- * personal owner. The hand receives the wage and the transfer goes in the holding daybook. #415.
- *
- * A post somebody stands on their own holding moves no money and is skipped, which is what the
- * two-purse hand-over did before by arriving at the same purse twice.
- */
-export function theDaysPosts(
-  villages: ReadonlyMap<string, Settlement>,
-  pressureOn: (village: string) => number,
-  day: number,
-  book: HoldingBook,
-): Map<string, readonly Post[]> {
-  const standing = new Map<string, readonly Post[]>();
-  for (const [name, village] of villages) {
-    standing.set(name, standPostsIn(name, village, pressureOn(name), day, book));
-  }
-  return standing;
-}
-
-/**
  * One village's posts for one morning, stood and paid.
  *
  * Its own function because there are two ways a village lives a day and both have to do this. A
@@ -383,6 +343,29 @@ export function theDaysPosts(
  * a village. `pressureOn` is `now`, the same-day reading, and it is what a carrier wants because a
  * cart is settled in the evening of the day it walked. A man is put on a gate in the morning
  * against what is standing over the place that morning.
+ *
+ * ## First thing in the morning
+ *
+ * Before the day is lived, against the purses the village woke with, in both of those ways
+ * (`register.aMorning`). A man is taken on at dawn for what his employer could lay out at dawn;
+ * what the day then earns, a vote spends or a cart costs is tomorrow's budget. The two ways used to
+ * stand the posts at different points in the day, and since #434 a hall pays its posts out of its
+ * treasury — so a cart that took a hall under a crew's price hired the crew in a catch-up and
+ * nobody on the page that watched. It is also the only order in which `whoWouldStand` can be the
+ * truth rather than a guess: asked before the morning, it reads the purses this is about to. #485.
+ *
+ * It used to happen in `tidings.ts`, on the page and inside the loop over the warbands, so a man's
+ * holding earned him nothing on any day nobody was looking at it. *"A day away pays what a day
+ * present would have paid"* is #264's third line: a day lived is a day paid, whoever was looking.
+ * Nothing is rolled and nothing is stored — *a post belongs to the holding, not to the person*, so
+ * a village re-lived from its founding arrives at the same men in the same fields.
+ *
+ * ## Hall holdings and wages
+ *
+ * Farm proceeds go to the hall after paying its worker from the take (`shareTheTake`). Guards and
+ * yard crews are paid from the treasury, under the same one-fifth-of-the-purse daily limit as a
+ * personal owner. The hand receives the wage and the transfer goes in the holding daybook. #415.
+ * A post somebody stands on their own holding moves no money.
  *
  * ## And the morning is written down
  *
@@ -440,9 +423,9 @@ export function standPostsIn(
  * got nothing at all. A death or a change in pressure moves a post between days, so the advice was
  * about the wrong one. See #360.
  *
- * Safe to ask as often as anybody likes, which is the property that makes this the small fix rather
- * than a reordering of the day: `postsToday` decides who and at what price and **moves nothing**.
- * The paying still happens once, in `standPostsIn`, where a day is lived.
+ * Safe to ask as often as anybody likes: `postsToday` decides who and at what price and **moves
+ * nothing**. The paying happens once, in `standPostsIn`, first thing on the morning being asked
+ * about — so asked before that morning is lived, this reads the purses the posts will. #485.
  */
 export function whoWouldStand(
   villages: ReadonlyMap<string, Settlement>,
