@@ -4,7 +4,7 @@ import { Elevations } from '../world/elevation';
 import { elevationFor } from '../world/growworld';
 import { HIGHLAND_ANIMALS, PRAYED_HIGHLAND_ANIMALS } from '../entities/spawns';
 import { GameState } from './state';
-import { affectedPlaces, answerDueHighlands, answerHighland, askForHighland, mayPray, prayerSite, PRAYER_WAIT } from './prayers';
+import { affectedPlaces, answerDueHighlands, answerHighland, askForHighland, mayPray, prayerSite, prayersAnsweredHere, PRAYER_WAIT } from './prayers';
 
 const shrine = { name: 'Shrine of Echoes', x: 100, z: 100 };
 
@@ -62,5 +62,12 @@ describe('the shrine supplicant', () => {
     const state = GameState.fresh();
     state.prayers.push(askForHighland(shrine, 'west', 2, 0xabcdef01));
     expect(GameState.from(state.toJSON()).prayers).toEqual(state.prayers);
+  });
+
+  it('answers due prayers at boot only in a solo endless world, on both boot paths', () => {
+    expect(prayersAnsweredHere(false, 'endless')).toBe(true);
+    expect(prayersAnsweredHere(true, 'endless')).toBe(false);
+    expect(prayersAnsweredHere(false, 'road')).toBe(false);
+    expect(prayersAnsweredHere(true, 'road')).toBe(false);
   });
 });

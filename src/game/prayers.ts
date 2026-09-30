@@ -1,5 +1,6 @@
 import { mulberry32 } from '../core/rng';
 import type { Manifest, Anchor } from '../world/manifest';
+import type { WorldKind } from '../world/countries';
 
 /** Two world months pass between asking and the answer. */
 export const PRAYER_WAIT = 60;
@@ -76,6 +77,15 @@ export function answerHighland(manifest: Manifest, prayer: HighlandPrayer, day: 
   anchor.layer = { reach: 64 + Math.floor(roll() * 33), lift: 4 + Math.floor(roll() * 5) };
   prayer.answered = true;
   return anchor;
+}
+
+/**
+ * Whether a boot may answer due prayers into its save: only a world of your own, which is a solo
+ * endless one. A `?server=` link shares its save slot with the solo link of the same seed, so a
+ * highland answered there would reach the page's manifest and never the server's (#491).
+ */
+export function prayersAnsweredHere(server: boolean, world: WorldKind): boolean {
+  return !server && world === 'endless';
 }
 
 /** Resolve due promises before the manifest is used to grow country on the next boot. */
