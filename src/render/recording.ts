@@ -1,4 +1,5 @@
 import type { FrameDescription } from '../core/scene';
+import type { FrameSource } from './pipeline';
 export type { FrameDescription } from '../core/scene';
 
 /** Draws nothing; its input is a neutral description, requested only for a chosen frame. */
@@ -9,7 +10,7 @@ export class RecordingPipeline {
 
   captureNext(): void { this.armed = true; }
 
-  draw(frame: FrameDescription | (() => FrameDescription)): void {
+  draw(frame: FrameSource): void {
     this.frames++;
     if (!this.armed) return;
     // Geometry and instance arrays are shared with the running graph to keep normal frames cheap.

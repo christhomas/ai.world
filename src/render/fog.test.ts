@@ -167,4 +167,19 @@ describe('the light the day cycle hands the renderer', () => {
     const [r, g, b] = one.lighting.hemi.ground as [number, number, number];
     expect(hemi.groundColor.toArray()).toEqual([r, g, b]);
   });
+
+  it('works the light out every frame into the channels it already has', () => {
+    const one = rig();
+    const cycle = new DayCycle(one);
+    cycle.apply(at(0.5) as never);
+    const { sun, hemi, ambient } = one.lighting;
+    const channels = () => [sun.colour, hemi.sky, hemi.ground, ambient.colour];
+    const noon = channels();
+    const values = structuredClone(noon);
+    expect(noon.every(Array.isArray)).toBe(true);
+    cycle.apply(at(0.78) as never);
+    channels().forEach((now, i) => expect(now).toBe(noon[i]));
+    // and they hold dusk's light now, not noon's
+    expect(channels()).not.toEqual(values);
+  });
 });
