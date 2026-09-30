@@ -444,6 +444,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   // the second path, or nothing at all. Built after the quality is known, because `low` refuses it
   const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
   const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
+  // the page's address does not change under a running game, so it is read once and not per draw
+  const recordOnly = new URLSearchParams(location.search).has('record-only');
   const frameMounts: FrameMount[] = [];
 
   const api: SceneRig = {
@@ -530,7 +532,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     draw(what, camera) {
       what.camera = camera.frameCamera();
       const sinks: FramePipeline[] = [];
-      if (!new URLSearchParams(location.search).has('record-only')) {
+      if (!recordOnly) {
         let pipeline = mountedPipelines.get(what);
         if (!pipeline) {
           pipeline = new MountedThreePipeline(sceneForGraph(what), (mountedScene, mountedCamera) => {
@@ -541,7 +543,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
         }
         sinks.push(pipeline);
       }
-      if (recording) sinks.push({ draw: (frame) => recording.draw(() => frame) });
+      if (recording) sinks.push(recording);
       submitGraphFrame(what, sinks);
     },
     followFrames(mount) {

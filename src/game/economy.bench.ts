@@ -208,6 +208,14 @@ export interface Run {
    * recomputed later from a purse that has moved on is a guess.
    */
   taxed: Map<string, Map<number, number>>;
+  /**
+   * What a post moved in or out of each of the dead on the morning they died, by village, day and
+   * `who`. A man's posts are stood at dawn (`register.aMorning`, #485), so one who stood a crew on
+   * his yard and died that afternoon had paid its wage first — money that went to a neighbour and
+   * not into the ground, which the funeral audit has to be told. Nobody's row says it: the dead have
+   * no row the evening they died.
+   */
+  postedByTheDead: Map<string, Map<number, Map<string, number>>>;
   /** How many people each village was founded with, for judging whether it has held together. */
   founded: Map<string, number>;
   /**
@@ -239,8 +247,9 @@ export interface Run {
    *
    * *"Keep every fact and bound nothing … report the book's measured size after a hundred days in
    * the bench rather than arguing about it."* It keeps one row per holding per morning it posted
-   * somebody, for the life of the save, and what that costs is memory, saves and what a joining
-   * client is handed. Bytes are the serialised rows, because a save is JSON and a join is JSON.
+   * somebody or a farm earned its owner anything, for the life of the save, and what that costs is
+   * memory. Bytes are the serialised rows: what it would cost to save or send, which since #484
+   * nothing does.
    */
   posts: { holdings: number; facts: number; bytes: number };
 }
@@ -325,6 +334,7 @@ export function liveForward(seed: number, days = DAYS): Run {
   const founded = new Map<string, number>();
   const roomAtFounding = new Map<string, number>();
   const standing = new Map<string, Standing[]>();
+  const postedByTheDead = new Map<string, Map<number, Map<string, number>>>();
 
   register.minesAt(VILLAGES.filter((v) => v.mine).map((v) => v.village));
   const workings: Working[] = VILLAGES.filter((v) => v.mine).map((v) => ({
@@ -385,12 +395,23 @@ export function liveForward(seed: number, days = DAYS): Run {
       timber.felledThrough(regime.village, people.filter((person) => person.trade === 'woodcutter').length, day);
       register.commissionStable(regime.village, timber);
     }
+    const dawn = VILLAGES.map((regime) => [regime.village, [...register.living(regime.village)]] as const);
     const walked = register.advance(day);
 
     for (const dug of mines.advance(day, workings, (village) => register.living(village))) {
       const bank = minted.get(dug.village)!;
       bank.set(dug.day, (bank.get(dug.day) ?? 0) + dug.gold);
       if (dug.lost) register.bury(dug.lost.id, dug.day);
+    }
+    for (const [village, woke] of dawn) {
+      const still = new Set(register.living(village).map((person) => person.id));
+      for (const person of woke) {
+        const posted = register.holdingsBook.paidTo(person.id, day);
+        if (still.has(person.id) || posted === 0) continue;
+        const here = postedByTheDead.get(village) ?? new Map<number, Map<string, number>>();
+        postedByTheDead.set(village, here);
+        here.set(day, (here.get(day) ?? new Map()).set(who(person), posted));
+      }
     }
 
     // a ruin does not repopulate itself: somebody walks over from the next village along
@@ -421,7 +442,7 @@ export function liveForward(seed: number, days = DAYS): Run {
   }
 
   return {
-    seed, books, minted, taxed, restarted, founded, roomAtFounding, standing,
+    seed, books, minted, taxed, restarted, postedByTheDead, founded, roomAtFounding, standing,
     posts: {
       holdings: register.holdingsBook.holdings(),
       facts: register.holdingsBook.facts(),

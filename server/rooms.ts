@@ -304,8 +304,10 @@ export class Rooms {
     if (worldFile) {
       let raw: unknown;
       try { raw = JSON.parse(worldFile); } catch { throw new Error('The saved world could not be checked safely.'); }
-      const file = raw as { deltas?: unknown[]; holdingDays?: Array<{ village?: unknown }> };
+      const file = raw as { deltas?: unknown[]; holdingVillages?: unknown[]; holdingDays?: Array<{ village?: unknown }> };
       for (const delta of file.deltas ?? []) collect(delta);
+      for (const name of file.holdingVillages ?? []) if (typeof name === 'string') villages.add(name);
+      // a save from before #484 carried the whole daybook, and its village keys still count
       for (const row of file.holdingDays ?? []) if (typeof row.village === 'string') villages.add(row.village);
     }
     for (const id of provincesNear(x, z, reach + 8)) {

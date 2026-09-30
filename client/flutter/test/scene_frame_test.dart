@@ -75,6 +75,7 @@ void main() {
           'world': identity,
         },
         <String, dynamic>{
+          'id': 5,
           'kind': 'mesh',
           'world': identity,
           'visible': true,
@@ -182,6 +183,7 @@ void main() {
         'fog': null,
         'nodes': <Map<String, dynamic>>[
           <String, dynamic>{
+            'id': 1,
             'kind': 'instances',
             'world': identity,
             'visible': true,
@@ -212,6 +214,7 @@ void main() {
             'indices': <int>[0, 1, 2],
           },
           <String, dynamic>{
+            'id': 2,
             'kind': 'points',
             'world': identity,
             'visible': true,
@@ -268,7 +271,7 @@ void main() {
       'frame': <String, dynamic>{
         'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
         'nodes': <Map<String, dynamic>>[<String, dynamic>{
-          'kind': 'mesh', 'geometryId': 'water-geometry', 'world': identity,
+          'id': 3, 'kind': 'mesh', 'geometryId': 'water-geometry', 'world': identity,
           'visible': true, 'castShadow': castShadow, 'receiveShadow': true,
           'renderOrder': 3,
           'material': <String, dynamic>{'intent': 'water', 'colour': 0xffffff,
@@ -315,8 +318,8 @@ void main() {
     final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
     final pipeline = FlutterFramePipeline(native);
     const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    Map<String, dynamic> ground(List<String> effects) => <String, dynamic>{
-      'kind': 'mesh', 'world': identity, 'visible': true, 'castShadow': true, 'receiveShadow': true,
+    Map<String, dynamic> ground(int id, List<String> effects) => <String, dynamic>{
+      'id': id, 'kind': 'mesh', 'world': identity, 'visible': true, 'castShadow': true, 'receiveShadow': true,
       'material': <String, dynamic>{'intent': 'lit', 'colour': 0xffffff, 'vertexColours': true,
         'opacity': 1, 'transparent': false, 'depthWrite': true, 'side': 'front', 'effects': effects},
       'attributes': <String, dynamic>{
@@ -332,7 +335,7 @@ void main() {
       'fog': null,
       'season': season,
       // the country's ground, which the season reaches, and something it does not
-      'nodes': <Map<String, dynamic>>[ground(<String>['season']), ground(<String>[])],
+      'nodes': <Map<String, dynamic>>[ground(7, <String>['season']), ground(8, <String>[])],
     });
     List<double> colour(MethodCall upload) {
       final vertices = (upload.arguments as Map)['vertices'] as Float32List;
@@ -358,7 +361,7 @@ void main() {
     await pipeline.draw(frame(autumn));
     uploads = calls.where((call) => call.method == 'putMesh').toList();
     expect(uploads, hasLength(1));
-    expect((uploads.single.arguments as Map)['meshId'], 'scene:0');
+    expect((uploads.single.arguments as Map)['meshId'], 'scene:7');
     for (var channel = 0; channel < 3; channel++) {
       expect(colour(uploads.single)[channel], closeTo(source[channel] * <double>[1.35, 0.82, 0.42][channel], 1e-6));
     }
@@ -374,6 +377,58 @@ void main() {
     await native.dispose();
   });
 
+  test('a node leaving the middle of the frame leaves every mesh after it where it was', () async {
+    const channel = MethodChannel('world.ai/stable-id-test');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 12 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    final pipeline = FlutterFramePipeline(native);
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    // three chunks of ground and a prop batch's body and glow, each named as SceneGraph names them
+    Map<String, dynamic> piece(int id, num x, {int? part}) => <String, dynamic>{
+      'id': id, 'part': ?part, 'kind': 'mesh', 'world': identity, 'visible': true,
+      'castShadow': false, 'receiveShadow': true,
+      'material': <String, dynamic>{'intent': 'lit', 'colour': 0xffffff, 'opacity': 1,
+        'transparent': false, 'depthWrite': true, 'side': 'front', 'effects': <String>[]},
+      'attributes': <String, dynamic>{
+        'position': <String, dynamic>{'size': 3, 'values': <num>[x, 0, 0, x + 1, 0, 0, x, 0, 1]},
+      },
+      'indices': <int>[0, 1, 2],
+    };
+    SceneFrame frame(List<Map<String, dynamic>> nodes) => SceneFrame.fromJson(<String, dynamic>{
+      'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
+      'nodes': <Object?>[
+        <String, dynamic>{'id': 40, 'kind': 'ambient', 'colour': 0xffffff, 'intensity': 1, 'visible': true},
+        ...nodes,
+      ],
+    });
+    final chunks = <Map<String, dynamic>>[
+      piece(41, 0), piece(42, 2), piece(43, 4), piece(44, 6, part: 0), piece(44, 8, part: 1),
+    ];
+    await pipeline.draw(frame(chunks));
+    final first = calls.where((call) => call.method == 'putMesh').map((call) => (call.arguments as Map)['meshId']).toList();
+    // five meshes, five names, the batch's two pieces apart
+    expect(first.toSet(), hasLength(5));
+
+    // the second chunk unloads
+    calls.clear();
+    await pipeline.draw(frame(<Map<String, dynamic>>[chunks[0], ...chunks.skip(2)]));
+    expect(calls.where((call) => call.method == 'putMesh'), isEmpty);
+    expect(calls.where((call) => call.method == 'removeMesh').map((call) => (call.arguments as Map)['meshId']),
+        <Object?>[first[1]]);
+
+    // and a node without its name is refused, not keyed by where it happens to stand
+    await expectLater(
+      pipeline.draw(frame(<Map<String, dynamic>>[<String, dynamic>{...chunks[0]}..remove('id')])),
+      throwsFormatException,
+    );
+    await native.dispose();
+  });
+
   /*
    * Every test above draws a frame somebody wrote. This one draws a frame the game wrote.
    *
@@ -381,7 +436,8 @@ void main() {
    * `chore playtest-record` recorded it with nothing drawn and packed it through
    * `server/flutter-packet.ts` — the bytes the Flutter feed would send a new client, before gzip.
    * It came out of a hosted CI run's `record-only` artifact rather than an editor, so when the
-   * engine's description and this parser disagree, this is where it shows. Retake it the same way.
+   * engine's description and this parser disagree, this is where it shows. Retake it the same way;
+   * this one is from Checks run 36657253479, the first to record every node's own id.
    */
   test('a frame the game really recorded draws natively, and a second draw uploads nothing', () async {
     const channel = MethodChannel('world.ai/recorded-test');
@@ -436,33 +492,60 @@ void main() {
     expect(calls.where((call) => call.method == 'putMesh'), isEmpty);
     expect(calls.where((call) => call.method == 'removeMesh'), isEmpty);
 
-    // A season reaches only what names it. The props here were recorded before their bodies
-    // named it, so they are named as `flutter-frame.ts` now describes them: the cuttable bodies.
-    final named = <String, dynamic>{
-      ...recorded,
-      'nodes': <Object?>[
-        for (final node in recorded['nodes'] as List)
-          _withSeasonOnCuttable(Map<String, dynamic>.from(node as Map)),
-      ],
-    };
+    // Every node the game recorded has a name of its own.
+    expect((recorded['nodes'] as List).every((node) => (node as Map)['id'] is num), isTrue);
+    final names = <String>[for (final node in recorded['nodes'] as List) _meshName(node as Map)];
+    expect(names.toSet(), hasLength(names.length));
+
+    // One drawn piece from the middle goes, as a chunk unloading would: the rest stay as they are.
+    final uploaded = uploads.map((mesh) => mesh['meshId']).toSet();
+    final drawn = <int>[
+      for (final (at, node) in (recorded['nodes'] as List).indexed)
+        if (uploaded.contains(_meshName(node as Map))) at,
+    ];
+    expect(drawn, hasLength(uploads.length));
+    final middle = drawn[drawn.length ~/ 2];
+    calls.clear();
+    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{
+      'frame': <String, dynamic>{
+        ...recorded,
+        'nodes': <Object?>[
+          for (final (at, node) in (recorded['nodes'] as List).indexed)
+            if (at != middle) node,
+        ],
+      },
+    }, geometryCache: cache));
+    expect(calls.where((call) => call.method == 'putMesh'), isEmpty);
+    expect(calls.where((call) => call.method == 'removeMesh'), hasLength(1));
+    // and coming back is the one upload
+    calls.clear();
+    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{'frame': recorded}, geometryCache: cache));
+    expect(calls.where((call) => call.method == 'putMesh'), hasLength(1));
+    expect(calls.where((call) => call.method == 'removeMesh'), isEmpty);
+    calls.clear();
+
+    // A season reaches only what names it: the props' cuttable bodies, recorded under a spring
+    // sky. Taking the season away puts back up exactly those, untinted.
     final seasoned = <String>{
-      for (final (at, node) in (named['nodes'] as List).indexed)
+      for (final node in recorded['nodes'] as List)
         if (((node as Map)['material'] as Map?)?['effects'] case final List effects
             when effects.contains('season'))
-          'scene:$at',
+          _meshName(node),
     };
-    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{'frame': named}, geometryCache: cache));
+    expect(recorded['season'], isNotNull);
+    expect(seasoned, isNotEmpty);
+    await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{
+      'frame': <String, dynamic>{...recorded, 'season': null},
+    }, geometryCache: cache));
     final untinted = <Object?, List<double>>{
       for (final call in calls.where((call) => call.method == 'putMesh'))
         (call.arguments as Map)['meshId']: ((call.arguments as Map)['vertices'] as Float32List).toList(),
     };
-    // naming the effect is a new material, so each drawn piece that names it went up again
-    expect(untinted, isNotEmpty);
-    expect(untinted.keys.toSet().difference(seasoned), isEmpty);
+    expect(untinted.keys.toSet(), seasoned);
     calls.clear();
     await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{
       'frame': <String, dynamic>{
-        ...named,
+        ...recorded,
         'season': <String, dynamic>{'multiply': <num>[0.88, 0.94, 1.06], 'frost': 0.5, 'snow': 0xf2f6ff},
       },
     }, geometryCache: cache));
@@ -487,17 +570,9 @@ void main() {
   });
 }
 
-/// A recorded node whose material is cut away also takes the season, as prop bodies now say.
-Map<String, dynamic> _withSeasonOnCuttable(Map<String, dynamic> node) {
-  final paint = node['material'];
-  if (paint is! Map) return node;
-  final effects = List<Object?>.from(paint['effects'] as List? ?? const <Object?>[]);
-  if (!effects.contains('cutaway')) return node;
-  return <String, dynamic>{
-    ...node,
-    'material': <String, dynamic>{...Map<String, dynamic>.from(paint), 'effects': <Object?>[...effects, 'season']},
-  };
-}
+/// What `FlutterFramePipeline` names a node's native mesh.
+String _meshName(Map<dynamic, dynamic> node) =>
+    'scene:${node['id']}${node['part'] == null ? '' : '.${node['part']}'}';
 
 /// One sRGB channel as linear light, the way both renderers take an authored hex.
 double _linear(int channel) {

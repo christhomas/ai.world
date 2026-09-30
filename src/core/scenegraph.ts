@@ -57,9 +57,14 @@ function lightColour(colour: LightColour): { colour: number; linearColour?: [num
   return { colour: srgbChannel(r) * 65536 + srgbChannel(g) * 256 + srgbChannel(b), linearColour: [r, g, b] };
 }
 
+/** The next id to hand out; shared by every graph, so an interior and the country never collide. */
+let nextId = 0;
+
 /** The engine owns these values; a renderer decides how to display them. */
 export class SceneGraph {
   readonly nodes: SceneNode[] = [];
+  /** Each node's id from the moment it is added; see `FrameDescription['nodes'][number]['id']`. */
+  private readonly ids = new WeakMap<SceneNode, number>();
   /** The camera chosen by the engine for the next submitted frame. */
   camera: FrameDescription['camera'] | null = null;
   fog: FrameDescription['fog'] = null;
@@ -70,7 +75,7 @@ export class SceneGraph {
 
   constructor(public background: number) {}
 
-  add(node: SceneNode): SceneNode { this.nodes.push(node); return node; }
+  add(node: SceneNode): SceneNode { this.ids.set(node, nextId++); this.nodes.push(node); return node; }
 
   remove(node: SceneNode): void {
     const at = this.nodes.indexOf(node);
@@ -88,7 +93,9 @@ export class SceneGraph {
       season: this.season,
       coast: this.coast,
       nodes: this.nodes.map((node): FrameDescription['nodes'][number] => {
-        const base = { parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
+        const id = this.ids.get(node);
+        if (id === undefined) throw new Error('scene node was not added through SceneGraph.add, so it has no id');
+        const base = { id, parent: -1, world: IDENTITY, visible: true, castShadow: false, receiveShadow: false };
         if (node.kind === 'ambient') return {
           ...base, kind: 'ambient' as const, ...lightColour(node.colour), intensity: node.intensity,
         };
@@ -116,7 +123,7 @@ export class SceneGraph {
           glowParts: node.glowParts, glowColour: node.glowColour, placements: node.placements,
         };
         if (node.kind === 'instances') return {
-          ...base, kind: 'instances' as const, castShadow: node.castShadow,
+          ...base, kind: 'instances' as const, visible: node.count > 0, castShadow: node.castShadow,
           receiveShadow: node.receiveShadow, renderOrder: node.renderOrder,
           material: { intent: 'lit' as const, colour: node.colour, emissive: 0,
             vertexColours: false, transparent: false, opacity: 1, depthWrite: true,

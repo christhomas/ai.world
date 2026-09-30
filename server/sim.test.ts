@@ -313,7 +313,13 @@ describe('the simulation, hosted by nothing at all', () => {
     expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: 'eyrie:elsewhere', anchor: null });
   });
 
-  it('sends the server holding daybook to a joining player', () => {
+  /*
+   * A joining page replays every village it grows from the founding, and that replay is the book —
+   * so the server's copy, sent in every welcome, was replaced by the page's own the moment it settled
+   * anywhere, and was 2 MB of welcome after a year. #484. What a welcome must not carry is the
+   * thing that grows with every morning the world has lived.
+   */
+  it('sends a joining player no holding daybook, however much the server has written in it', () => {
     const sim = new Simulation({ vault: new Forgetful() });
     new Pretend(sim).join(7, 'Rowan');
     const book = new HoldingBook();
@@ -321,9 +327,12 @@ describe('the simulation, hosted by nothing at all', () => {
       funder: ownerFromSave('Rich'), wage: 12, paid: 12 }], new Map());
     book.earned('Ashford', [{ type: 'income', day: 5, holding: 'farm-1',
       owner: ownerFromSave('Rich'), cattle: 2.16, crop: 1.24 }]);
-    sim.rooms.get(7)!.world.keepsTheRegister({ compact: () => {}, holdingsBook: book });
-    const wren = new Pretend(sim).join(7, 'Wren');
-    expect(wren.of('welcome')[0].holdingDays).toEqual(book.records());
+    expect(book.facts(), 'the server had nothing to send').toBeGreaterThan(0);
+    const register = { compact: () => {}, holdingsBook: book };
+    sim.rooms.get(7)!.world.keepsTheRegister(register);
+    const welcome = new Pretend(sim).join(7, 'Wren').of('welcome')[0];
+    expect(welcome, 'nobody was welcomed').toBeDefined();
+    expect(Object.keys(welcome)).not.toContain('holdingDays');
   });
 
   it('moves the clock and tells everybody where everybody is', () => {

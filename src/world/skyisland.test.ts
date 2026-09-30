@@ -222,6 +222,17 @@ describe('the land below', () => {
     }
   });
 
+  // What lets the editor stop asking about the eagle landing (#493): if the ground under the
+  // village's own centre is dry, the crag always finds it, however little else is. Dry at exactly
+  // one point is the hardest world there is; the walk back along the plume must end on it.
+  it('finds the ground under the village centre when that is the only dry ground there is', () => {
+    const [site] = planSkyIslands(3, [isle(1000, 0)], []);
+    const only = (x: number, z: number): boolean => x === site.x && z === site.z;
+    expect(only(site.x, site.z)).toBe(true);
+    const built = buildSkyIsland(site, 4242, only);
+    expect(built.crag).toEqual({ x: site.x, z: site.z });
+  });
+
   it('takes the direction it is given when there is no world to look down at', () => {
     const [site] = planSkyIslands(3, [isle(1000, 0)], []);
     const blind = buildSkyIsland(site, 4242);

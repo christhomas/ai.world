@@ -36,6 +36,14 @@ export interface FrameDescription {
   /** World-space coast distance field sampled by open water. */
   coast?: { x0: number; z0: number; span: number; size: number; values: Uint8Array | number[] } | null;
   nodes: Array<{
+    /**
+     * The node's own name, kept for as long as it is in the graph and never given to another. A
+     * renderer that keeps what it built from a node keys it by this, not by where the node falls in
+     * `nodes`: a node leaving the middle would otherwise rename everything after it (#490).
+     */
+    id: number;
+    /** Which piece of one expanded node this is, where a renderer splits one into several. */
+    part?: number;
     parent: number;
     kind: 'group' | 'mesh' | 'instances' | 'prop-batch' | 'points' | 'directional' | 'hemisphere' | 'ambient' | 'point';
     world: number[];

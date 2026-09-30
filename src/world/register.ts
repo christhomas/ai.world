@@ -17,13 +17,13 @@ import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks, planCarrying, type CarryingOutcome } from './carriers';
 import { CarrierBook, cartFinished, cartLoaded, type CarrierFact, type CartFinished, type CartLoaded } from './carrierbook';
-import { standPostsIn, theDaysPosts, whoWouldStand, type Post } from './postings';
+import { standPostsIn, wagesOf, whoWouldStand, type Post } from './postings';
 import { DayBook } from './daybook';
 import { HoldingBook } from './holdingbook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
-import { THE_HALL_OWNER, whatTheVillageHolds, type Holding } from './holdings';
+import { THE_HALL_OWNER, whatTheVillageHolds, type Holding, type Owner } from './holdings';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -198,14 +198,19 @@ export class Register {
     };
     this.villages.set(village, settlement);
     this.holdingsBook.forget(village);   // a life thrown away never happened: `holdingbook.ts`
-    for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
-      liveADay(this.theDay, village, settlement, day);
-      // Keep the last morning's posts when a village is founded late or relived.
-      this.posted.set(village, standPostsIn(village, settlement, this.pressure.on(village, day), day, this.holdingsBook));
-      this.telling.votedOn(village, settlement, day);
-      if (this.carrierMode === 'journaled') this.carrierBook.applyOn(village, settlement, day);
-    }
+    // the last morning's posts are kept, so a village founded late or relived answers `postsOn`
+    for (let day = FOUNDED_ON + 1; day <= this.day; day++) this.aMorning(village, settlement, day);
     return settlement.people;
+  }
+
+  /** One village's morning, in the one order `settle` and `advance` both use. Posts first: see
+   *  `standPostsIn`, and #485 for what two orders did to a hall near a crew's price. */
+  private aMorning(name: string, village: Settlement, day: number): Change[] {
+    this.posted.set(name, standPostsIn(name, village, this.pressure.on(name, day), day, this.holdingsBook));
+    const changes = liveADay(this.theDay, name, village, day);
+    this.telling.votedOn(name, village, day);
+    if (this.carrierMode === 'journaled') this.carrierBook.applyOn(name, village, day);
+    return changes;
   }
 
   /**
@@ -351,11 +356,8 @@ export class Register {
     if (!load || !buyer || (outcome === 'delivered' && buyer.food + load.meals > cellarFor(buyer))) return null;
     return cartFinished(this.day, load, outcome, this.villages); }
 
-  /**
-   * Every morning any holding paid for a man, kept for the life of the save. See `holdingbook.ts`.
-   * Not in the day book above: a post is a fact about a *holding* rather than about somebody's day,
-   * and is kept for good rather than cleared. Handed out for `cartsToday`'s reason.
-   */
+  /** Every morning any holding paid for a man or earned its owner anything: `holdingbook.ts`. Kept
+   *  for good, not cleared like the day book above, and handed out for `cartsToday`'s reason. */
   readonly holdingsBook = new HoldingBook();
 
   /** And what a post paid them, or cost them, on the last morning this village lived through. */
@@ -364,10 +366,17 @@ export class Register {
   /** Who is standing what, so a man on a gate is not also offered a day of the hall's work. */
   postsOn(village: string): readonly Post[] { return this.posted.get(village) ?? []; }
 
-  /** Who would be standing a post on this morning, for whoever must not double-book a man. #360 */
+  /** Who stands a post on a morning, so nobody double-books a man (#360): worked out for one to
+   *  come, which is what `aMorning` will stand, and what was stood for one already lived. #485 */
   whoIsSpokenFor(day: number): ReadonlyMap<string, readonly Post[]> {
     const morning = Math.floor(day);
-    return whoWouldStand(this.villages, (v) => this.pressure.on(v, morning), morning);
+    return morning <= this.day ? this.posted : whoWouldStand(this.villages, (v) => this.pressure.on(v, morning), morning);
+  }
+
+  /** What tomorrow's posts will move at dawn, before anything else: where the roll's forecast starts. */
+  wagesAtDawn(village: string): ReadonlyMap<Owner, number> {
+    const here = this.villages.get(village), posts = this.whoIsSpokenFor(this.day + 1).get(village);
+    return here && posts ? wagesOf(here, posts) : new Map();
   }
 
   /** What every village stood this morning, which is what a page reads back after a day turns. */
@@ -379,8 +388,7 @@ export class Register {
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
     const here = this.villages.get(village);
-    if (!here) return 'well';
-    return fortuneOf(here.people.length, here.founded);
+    return here ? fortuneOf(here.people.length, here.founded) : 'well';
   }
 
   /**
@@ -469,15 +477,10 @@ export class Register {
     while (this.day < end) {
       this.day++;
       this.book.clear();
-      for (const [name, village] of this.villages) {
-        changes.push(...liveADay(this.theDay, name, village, this.day));
-        this.telling.votedOn(name, village, this.day);
-        if (this.carrierMode === 'journaled') this.carrierBook.applyOn(name, village, this.day);
-      }
-      // the men on the gates and in the yards, paid on the morning they worked rather than on a
-      // frame somebody drew, which is #264. `pressure.on` and not `pressureOn`: a pressing is told
-      // one day and felt the next. `postings.ts` has both arguments
-      this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.holdingsBook);
+      // the men on the gates and in the yards are paid on the morning they worked rather than on a
+      // frame somebody drew, which is #264, and stood at the start of it: see `aMorning`
+      this.posted = new Map();
+      for (const [name, village] of this.villages) changes.push(...this.aMorning(name, village, this.day));
       // Instant carts remain the default until the world writes dated road facts.
       if (this.carrierMode === 'instant') aCarrierWalks(
         this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);

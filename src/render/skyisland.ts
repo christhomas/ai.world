@@ -404,10 +404,14 @@ function cloudSpecs(isle: SkyIsland): CloudSpec[] {
   return specs;
 }
 
+// scratch for a puff's pose, which every cloud on every island works out again every frame
+const puffMatrix = new THREE.Matrix4();
+const puffScale = new THREE.Vector3();
+
 function cloudWorld(isle: SkyIsland, puff: CloudSpec, turn: number, out: number[] = new Array<number>(16)): number[] {
   const c = Math.cos(turn), s = Math.sin(turn);
-  const matrix = new THREE.Matrix4().makeRotationY(turn + puff.yaw);
-  matrix.scale(new THREE.Vector3(puff.size, puff.size * DRAW.CLOUD_FLAT, puff.size));
+  const matrix = puffMatrix.makeRotationY(turn + puff.yaw);
+  matrix.scale(puffScale.set(puff.size, puff.size * DRAW.CLOUD_FLAT, puff.size));
   matrix.setPosition(isle.site.x + c * puff.x + s * puff.z, puff.y,
     isle.site.z - s * puff.x + c * puff.z);
   return matrix.toArray(out);

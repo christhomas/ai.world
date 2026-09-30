@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import type { FrameDescription } from '../core/scene';
 import { build } from './geometry';
 import { composeInstance, shadeOf } from './instancing';
-import type { FramePipeline } from './pipeline';
+import type { FramePipeline, FrameSource } from './pipeline';
 
 /** Three's first consumer of the neutral frame contract. */
 export class ThreeFramePipeline implements FramePipeline {
@@ -10,7 +9,8 @@ export class ThreeFramePipeline implements FramePipeline {
 
   constructor(private readonly renderer: Pick<THREE.WebGLRenderer, 'render'>) {}
 
-  draw(frame: FrameDescription): void {
+  draw(source: FrameSource): void {
+    const frame = typeof source === 'function' ? source() : source;
     for (const resource of this.resources) resource.dispose();
     this.resources = [];
     const scene = new THREE.Scene();
