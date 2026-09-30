@@ -149,6 +149,25 @@ describe('whether the request came in over https', () => {
   });
 });
 
+describe('whether the session cookie needs Secure', () => {
+  const asking = (headers: Record<string, string>): IncomingMessage =>
+    ({ headers, socket: { encrypted: false } } as unknown as IncomingMessage);
+
+  /*
+   * Secure is kept by the browser, so the browser's own Origin is the scheme that matters. A
+   * proxy chain can report its internal hop as http for a public https request (#421).
+   */
+  it('believes a browser that says it is on https over a proxy that says http', () => {
+    expect(overHttps(asking({ 'x-forwarded-proto': 'http', origin: 'https://aiworld.example' }), true)).toBe(true);
+    expect(overHttps(asking({ origin: 'https://aiworld.example' }), false)).toBe(true);
+  });
+
+  it('does not call a plain-http browser secure', () => {
+    expect(overHttps(asking({ origin: 'http://ai.world.local' }), false)).toBe(false);
+    expect(overHttps(asking({ origin: 'null' }), false)).toBe(false);
+  });
+});
+
 /**
  * And the bootstrap, which has exactly one job: never to invent a password.
  */
