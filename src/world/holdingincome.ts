@@ -1,6 +1,7 @@
 import type { Owner } from './holdings';
 import type { HoldingIncome } from './holdingbook';
-import { whoFed, type Trading } from './livelihoods';
+import type { Trading } from './livelihoods';
+import { atTheTable } from './fields';
 import type { Person } from './people';
 
 /** Sources the economy has already assigned to particular farms during the morning. */
@@ -30,7 +31,7 @@ export function holdingIncomeFor(
     rows.set(key, row);
   };
   for (const sale of work.holdingIncome.cattle) add(sale.holding, sale.owner, sale.take, 0);
-  const contributed = whoFed(people, work.meat, work.shore, work.fish, work.fields);
+  const contributed = atTheTable(people, work.fed);
   for (const field of work.holdingIncome.fields) {
     const total = contributed.get(field.owner) ?? 0;
     add(field.holding, field.owner, 0,

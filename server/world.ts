@@ -8,7 +8,7 @@ import {
 } from '../src/world/provinces';
 import { Manifest, type Anchor, type ManifestJson } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
-import type { HoldingBook, HoldingRecord } from '../src/world/holdingbook';
+import type { HoldingBook } from '../src/world/holdingbook';
 import { addMountain } from '../src/world/worldediting';
 
 /** One province's leavings, while somebody is near enough for them to matter. */
@@ -87,8 +87,18 @@ export interface WorldFile {
    * in the registry and it was not there; the seed file is the one thing every world has.
    */
   manifest?: ManifestJson;
-  /** Recorded holding mornings, with village keys for replay after a restart. */
-  holdingDays?: HoldingRecord[];
+  /**
+   * The villages whose holdings have kept a daybook here, by name and nothing else.
+   *
+   * The book itself is not saved. Every row of it is re-derived by replaying the village from its
+   * founding, which `settle` does whenever anybody grows the place, so a saved copy was thrown away
+   * unread — and it grew by a row a farm a morning, 2.85 MB of world file after a year. #484. What
+   * the file still has to say is *which* villages have a history an offline edit must not move out
+   * from under them (`rooms.ts: rememberedForEdit`), and that is a name each.
+   */
+  holdingVillages?: string[];
+  /** Written by saves before #484: read for its village names, and never written again. */
+  holdingDays?: ReadonlyArray<{ village?: unknown }>;
 }
 
 /** What a stall did with what it was asked, and what the asker should be told. */
@@ -215,14 +225,17 @@ export class SharedWorld {
     for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
     this.letters = loaded?.letters ?? [];
     for (const name of loaded?.folk ?? []) this.seen.add(name);
-    this.savedHoldingDays = loaded?.holdingDays;
+    for (const name of loaded?.holdingVillages ?? []) this.booked.add(name);
+    for (const row of loaded?.holdingDays ?? []) if (typeof row.village === 'string') this.booked.add(row.village);
   }
 
-  private readonly savedHoldingDays: HoldingRecord[] | undefined;
+  /** Villages named by the saved file, kept until the register has grown them again. */
+  private readonly booked = new Set<string>();
 
-  /** The server's daybook, or the saved copy before its register has been grown. */
-  get holdingDays(): HoldingRecord[] {
-    return this.register?.holdingsBook?.records() ?? this.savedHoldingDays ?? [];
+  /** Every village with a holding daybook: the saved names and whatever the register has lived since. */
+  get holdingVillages(): string[] {
+    const all = new Set([...this.booked, ...(this.register?.holdingsBook?.villages() ?? [])]);
+    return [...all].sort();
   }
 
   /** Everyone this world has ever seen. */
@@ -240,7 +253,6 @@ export class SharedWorld {
    */
   keepsTheRegister(register: { compact(day: number): void; holdingsBook?: HoldingBook }): void {
     this.register = register;
-    if (this.savedHoldingDays) register.holdingsBook?.restore(this.savedHoldingDays);
   }
 
   /**
@@ -567,7 +579,7 @@ export class SharedWorld {
       // written back rather than merely read: this rewrites the whole file, and a manifest left
       // out of it would be a world whose authored ground quietly vanished on the next save
       manifest: this.manifest.toJSON(),
-      holdingDays: this.holdingDays,
+      holdingVillages: this.holdingVillages,
     };
     try {
       this.vault.write(this.path, JSON.stringify(file, null, 2));

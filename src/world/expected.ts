@@ -1,7 +1,7 @@
 import { whatIsPaidBack, type Debt } from './debts';
 import { FOOD, cellarCap } from './food';
 import { priceOfAMeal } from './prices';
-import { aDaysTrade, paidForFood, pitchFor } from './livelihoods';
+import { aDaysTrade, pitchFor, shareOut } from './livelihoods';
 import { spentOnLiving } from './prosperity';
 import { ownedBy, type Owner, type Standing } from './holdings';
 import type { Person } from './people';
@@ -113,8 +113,13 @@ export function aDaysIncome(
   // plus what the cellar will not hold, which goes to the next valley rather than on the ground
   const spare = known ? Math.max(0, store + day.grown - larder) : 0;
 
-  for (const [id, much] of paidForFood(people, pool + spare * FOOD.ABROAD, day.meat)) {
-    income.set(id, (income.get(id) ?? 0) + much);
+  // shared exactly as `aDaysDinner` shares it, by the morning's `fed` and in its two pools, because
+  // since #486 a hall-owned farm's crop is paid to the hall and the roll has no row for the hall:
+  // see `fields.ts: atTheTable`
+  for (const amount of [pool, spare * FOOD.ABROAD]) {
+    for (const [id, much] of shareOut(amount, day.fed)) {
+      income.set(id, (income.get(id) ?? 0) + much);
+    }
   }
   // the keep and the pitch are both in `paid` as debits, which is where they belong: the roll says
   // what a day takes in and what it costs on separate lines, and this is the taking-in line
