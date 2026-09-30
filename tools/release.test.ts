@@ -324,8 +324,8 @@ describe('what the README says a release was', () => {
  * the README's ten. So the thing it breaks is never the thing it checked. Every entry on the
  * README's front page read "No note was written for this one" for eleven releases, including ones
  * plainly written with notes, and nothing caught it — until the release started going out through a
- * pull request whose own checks happen to run after the write, which is a good accident rather than
- * a design.
+ * pull request whose own checks happen to run after the write. That is now the design: those checks
+ * are what reads the files back, and the merge waits for them.
  *
  * Read off the source rather than by running a release, because a release is not a thing a test can
  * have: it pushes branches and cuts tags. What can be held is the order, and the order is the bug.
@@ -339,27 +339,25 @@ describe('a release checks what it wrote', () => {
     return found;
   };
 
-  it('reads the files back after writing them and before pushing anything', () => {
+  it('commits what it wrote and pushes it to a request whose checks it waits for before merging', () => {
     const wrote = at('writeTheReadme();');
-    const read = at('readWhatWasWritten();');
+    const committed = at("run('git', ['add', ...FILES_A_RELEASE_WRITES]);");
     const pushed = at("'push', '-u', 'origin'");
-    expect(read, 'the read-back happens before the files exist').toBeGreaterThan(wrote);
-    expect(pushed, 'the branch is pushed before anything has read the files').toBeGreaterThan(read);
-  });
-
-  it('reads them back with the suite that knows what a changelog entry looks like', () => {
-    expect(source.slice(at('function readWhatWasWritten'), at('function main')))
-      .toContain("'tools/release.test.ts'");
+    const waited = at('waitForTheChecks(branch);');
+    const merged = at('pulls/${request}/merge`');
+    expect(committed, 'the commit holds the files as written').toBeGreaterThan(wrote);
+    expect(pushed, 'the request is opened on that commit').toBeGreaterThan(committed);
+    expect(waited, 'the checks read the written files on the pushed commit').toBeGreaterThan(pushed);
+    expect(merged, 'nothing is merged before those checks pass').toBeGreaterThan(waited);
   });
 
   /*
-   * The other half, and the one that is easy to leave out: a release that stops after writing has
-   * already changed five tracked files on main. Leaving them is the same fault in another coat.
+   * The suite that knows what a changelog entry looks like runs in those checks, not on the
+   * machine cutting the release: a Raspberry Pi that also runs the cluster (#539).
    */
-  it('puts the tree back when the read-back refuses, from the list it committed from', () => {
-    const body = source.slice(at('function readWhatWasWritten'), at('function main'));
-    expect(body).toContain("'checkout', '--', ...FILES_A_RELEASE_WRITES");
-    expect(source).toContain("run('git', ['add', ...FILES_A_RELEASE_WRITES]);");
+  it('runs no test on the machine cutting the release', () => {
+    expect(source).not.toMatch(/['"]vitest['"]/);
+    expect(source).not.toMatch(/execFileSync\('pnpm'/);
   });
 
   it('writes, commits and restores one list rather than three', () => {

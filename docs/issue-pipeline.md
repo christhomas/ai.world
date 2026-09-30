@@ -160,7 +160,8 @@ Each pushed head is tested once, by whichever run can see it (`only-once` in
 So after pushing a stack, every head in it carries a real `check`, `flutter` and `playtest`, and the
 top's are the ones that matter when the stack is landed through its top PR: they tested the exact
 tree that squashes into `main`. The push run's `check` also runs the merge guard, on the head merged
-into `origin/main`, so a stack cannot loosen a reachability ratchet on its way in (#534). Before #518 the push run also stood down for a stacked PR, which
+into `origin/main`, so a stack cannot loosen a reachability ratchet on its way in (#534). Before
+#518 the push run also stood down for a stacked PR, which
 left stacked heads with only skipped required checks — which GitHub counts as passing.
 
 One case the workflow cannot see: retargeting a PR from `main` onto a stacked base after its head
