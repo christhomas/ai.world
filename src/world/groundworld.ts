@@ -378,6 +378,9 @@ export class GroundWorld implements TileWorld, ChunkSource {
   /** The local road network used by a journey between villages. */
   roadGraphAt(x: number, z: number): RoadGraph { return this.country.at(x, z).graph; }
 
+  /** The square of country that answers for a point: its rock, its ranges, its villages. */
+  countryAt(x: number, z: number): TerrainSampler { return this.country.at(x, z); }
+
   heightAt(x: number, z: number): number | null {
     const hit = this.tileAt(x, z);
     if (!hit) return null;

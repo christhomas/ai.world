@@ -228,7 +228,7 @@ export function startGame(
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist, persistAsync,
+    plots, houses, sailing, mount, persist, persistStrict,
   } = openTheSave({
     store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
@@ -237,7 +237,7 @@ export function startGame(
     sky: () => skies.save(),
   });
   if (prayersResolvedAtBoot) {
-    void persistAsync().catch(() => hud.flash('The answered prayer will be saved when storage is available.'));
+    void persistStrict().catch(() => hud.flash('The answered prayer will be saved when storage is available.'));
   }
   register.rememberStablePurchases(houses.stablePurchases());
   // the days that passed while the game was shut, which only a world of one has to invent. Asked of
@@ -478,7 +478,7 @@ export function startGame(
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
-    raining: () => frames.raining(), discover, persist, persistAsync, startTalk, questLine,
+    raining: () => frames.raining(), discover, persist, persistStrict, startTalk, questLine,
     told: (delta) => online.report(delta),
     // built further down this file, and only ever asked for on a key press: see `waysin.ts`
     craft: () => craft,

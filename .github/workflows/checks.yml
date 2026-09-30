@@ -126,7 +126,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # The proposed merge may sit on a synthetic merge of a stacked base. Fetch its
-          # ancestry so the guard can inspect the PR's actual base commit as well.
+          # ancestry so the guard can inspect the PR's actual base commit as well. A push or
+          # dispatch run needs origin/main and the history between it and the head, to merge them.
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -140,8 +141,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Every run that gets this far tests a tree that could land on main, so every one is guarded.
+      # A pull_request run guards GitHub's merge commit against the request's base. A push or
+      # dispatch run has no request to ask — it is how a stacked head is tested, and the top of a
+      # stack lands whole — so the guard merges the head into origin/main and guards that (#534).
+      # On main itself the head is already on origin/main, and the guard says so and passes.
+      # The token lets a stacked head's own request carry the maintainer exception.
       - name: Guard the proposed merge result
-        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node tools/mergeguard.cjs
 
       # The same task runner the repository is driven by, pinned. `chores.yml` asks for 0.9.0 or
