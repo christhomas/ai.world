@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RecordingPipeline } from './recording';
 import { describeFrame } from './recording.test.support';
+import { ThreeFramePipeline } from './three-frame.test.support';
 
 describe('recording pipeline', () => {
   it('receives plain mesh, instance, material, light and camera data', () => {
@@ -38,7 +39,7 @@ describe('recording pipeline', () => {
     expect(frame.camera.orthographic).toBe(true);
     expect(frame.camera.layers).toBe(2);
     expect(frame.nodes.find((node) => node.kind === 'ambient')).toMatchObject({ colour: 0xabcdef, intensity: 0.7 });
-    expect(frame.nodes.find((node) => node.kind === 'directional')?.lightTarget).toEqual([-2, 0, 3]);
+    expect(frame.nodes.find((node) => node.kind === 'directional')?.target).toEqual([-2, 0, 3]);
     const recorded = frame.nodes.find((node) => node.kind === 'instances')!;
     expect(recorded.attributes?.position.size).toBe(3);
     expect(recorded.instanceMatrices).toHaveLength(16);
@@ -47,5 +48,28 @@ describe('recording pipeline', () => {
     expect(recorded.materials).toHaveLength(2);
     expect(recorded.groups).toEqual([{ start: 0, count: 18, materialIndex: 0 }, { start: 18, count: 18, materialIndex: 1 }]);
     expect(JSON.parse(JSON.stringify(frame)).nodes.some((node: { isObject3D?: boolean }) => node.isObject3D)).toBe(false);
+  });
+
+  /**
+   * The recorder and a renderer have to agree on which field says where the sun points. They once
+   * did not: the recorder wrote a field no renderer read, and a recorded sun came back aimed at the
+   * origin (#521).
+   */
+  it('hands a renderer a sun that still points where it pointed', () => {
+    const scene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(4, 8, 2);
+    sun.target.position.set(-2, 0, 3);
+    scene.add(sun, sun.target);
+    const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 100);
+    const render = vi.fn();
+
+    new ThreeFramePipeline({ render } as unknown as THREE.WebGLRenderer).draw(() => describeFrame(scene, camera));
+
+    const [drawn] = render.mock.calls[0] as [THREE.Scene];
+    let mounted: THREE.DirectionalLight | undefined;
+    drawn.traverse((object) => { if (object instanceof THREE.DirectionalLight) mounted = object; });
+    expect(mounted, 'the recorded sun was mounted').toBeInstanceOf(THREE.DirectionalLight);
+    expect(mounted!.target.getWorldPosition(new THREE.Vector3()).toArray()).toEqual([-2, 0, 3]);
   });
 });

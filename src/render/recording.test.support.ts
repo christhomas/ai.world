@@ -42,7 +42,7 @@ export function describeFrame(scene: THREE.Scene, camera: THREE.Camera): FrameDe
       if (object instanceof THREE.PointLight) { node.distance = object.distance; node.decay = object.decay; }
       if (object instanceof THREE.DirectionalLight) {
         object.target.updateMatrixWorld(true);
-        node.lightTarget = object.target.getWorldPosition(new THREE.Vector3()).toArray() as [number, number, number];
+        node.target = object.target.getWorldPosition(new THREE.Vector3()).toArray() as [number, number, number];
       }
     }
     if (object instanceof THREE.Mesh || object instanceof THREE.Points) {
