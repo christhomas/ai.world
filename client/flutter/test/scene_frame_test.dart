@@ -243,6 +243,94 @@ void main() {
     await native.dispose();
   });
 
+  /*
+   * three.js adds up every light of each kind (#512), so each bridge sums what it is sent and needs
+   * to be sent all of it: a second ambient, hemisphere or directional light, and a hidden one too,
+   * since hiding is the bridges' to honour. Nothing is merged, dropped or reordered on the way.
+   */
+  test('every light in a frame reaches the native bridges, however many of a kind there are', () async {
+    const channel = MethodChannel('world.ai/every-light-test');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 11 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    List<double> at(double x, double y, double z) =>
+        <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+    final nodes = <Map<String, dynamic>>[
+      <String, dynamic>{'id': 1, 'kind': 'ambient', 'colour': 0xffffff, 'intensity': 0.25, 'visible': true},
+      <String, dynamic>{'id': 2, 'kind': 'ambient', 'colour': 0x808080, 'intensity': 2, 'visible': true},
+      <String, dynamic>{
+        'id': 3, 'kind': 'hemisphere', 'colour': 0xffffff, 'groundColour': 0x000000,
+        'intensity': 1, 'visible': true,
+      },
+      <String, dynamic>{
+        'id': 4, 'kind': 'hemisphere', 'colour': 0x808080, 'groundColour': 0xffffff,
+        'intensity': 0.5, 'visible': true,
+      },
+      <String, dynamic>{
+        'id': 5, 'kind': 'directional', 'colour': 0xffffff, 'intensity': 2.6, 'visible': true,
+        'castShadow': true, 'world': at(38, 72, 22), 'target': <num>[0, 0, 0],
+      },
+      <String, dynamic>{
+        'id': 6, 'kind': 'directional', 'colour': 0x808080, 'intensity': 1, 'visible': true,
+        'castShadow': false, 'world': at(-10, 5, 0), 'target': <num>[0, 0, 0],
+      },
+      <String, dynamic>{
+        'id': 7, 'kind': 'directional', 'colour': 0xffffff, 'intensity': 9, 'visible': false,
+        'castShadow': false, 'world': at(0, 10, 0), 'target': <num>[0, 0, 0],
+      },
+      <String, dynamic>{
+        'id': 8, 'kind': 'point', 'colour': 0xffb060, 'intensity': 3, 'distance': 9, 'decay': 1.6,
+        'visible': true, 'world': at(1, 2, 3),
+      },
+      <String, dynamic>{
+        'id': 9, 'kind': 'point', 'colour': 0xffffff, 'intensity': 0, 'visible': true, 'world': identity,
+      },
+    ];
+    await FlutterFramePipeline(native).draw(SceneFrame.fromJson(<String, dynamic>{
+      'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
+      'background': 0,
+      'fog': null,
+      'nodes': nodes,
+    }));
+    final lights = ((calls.singleWhere((call) => call.method == 'sceneFrame').arguments as Map)['lights'] as List)
+        .cast<Map>();
+    List<double> channels(Object? values) => (values as List).cast<num>().map((v) => v.toDouble()).toList();
+
+    // every one of them, in the frame's order, carrying what it came with
+    expect(lights.map((light) => light['id']), <int>[1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(lights.map((light) => light['kind']).where((kind) => kind == 'directional'), hasLength(3));
+    for (final (index, light) in lights.indexed) {
+      for (final key in nodes[index].keys) {
+        expect(light[key], nodes[index][key], reason: '${light['id']} $key');
+      }
+    }
+    // and each with its own radiance, for the bridge to add to the others of its kind
+    final grey = _linear(0x80);
+    expect(channels(lights[0]['linear']), closeToList(<double>[.25, .25, .25]));
+    expect(channels(lights[1]['linear']), closeToList(<double>[grey * 2, grey * 2, grey * 2]));
+    expect(channels(lights[2]['linear']), closeToList(<double>[1, 1, 1]));
+    expect(channels(lights[2]['linearGround']), closeToList(<double>[0, 0, 0]));
+    expect(channels(lights[3]['linear']), closeToList(<double>[grey * .5, grey * .5, grey * .5]));
+    expect(channels(lights[3]['linearGround']), closeToList(<double>[.5, .5, .5]));
+    expect(channels(lights[4]['linear']), closeToList(<double>[2.6, 2.6, 2.6]));
+    expect(channels(lights[5]['linear']), closeToList(<double>[grey, grey, grey]));
+    expect(channels(lights[6]['linear']), closeToList(<double>[9, 9, 9]));
+    expect(channels(lights[7]['linear']),
+        closeToList(<double>[3, _linear(0xb0) * 3, _linear(0x60) * 3]));
+    expect(channels(lights[8]['linear']), closeToList(<double>[0, 0, 0]));
+    // a directional light keeps what the bridge needs to point it and to decide its shadow
+    expect(lights[4]['castShadow'], isTrue);
+    expect(lights[5]['castShadow'], isFalse);
+    // no mesh came with the lights, so none was uploaded
+    expect(calls.where((call) => call.method == 'putMesh'), isEmpty);
+    await native.dispose();
+  });
+
   test('instance transforms, unlit intent, additive blend and points reach native buffers', () async {
     const channel = MethodChannel('world.ai/instance-test');
     final calls = <MethodCall>[];
