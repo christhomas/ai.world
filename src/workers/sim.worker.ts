@@ -1,7 +1,7 @@
 import { Simulation } from '../../server/sim';
 import type { Wire } from '../../server/rooms';
 import { BrowserVault } from '../net/browservault';
-import { WORLD_PAUSE, WORLD_RESUME } from '../net/link';
+import { worldDoor } from './simdoor';
 
 /**
  * The world server, running in a thread beside the game.
@@ -40,8 +40,8 @@ const wire: Wire = {
 
 const player = sim.attach(wire);
 const capturing = self.name === 'shots-capture';
-let captureNow = 0;
-if (capturing) sim.captureAt(captureNow);
+// the harness's clock starts at nought, and `worldDoor` counts on from there
+if (capturing) sim.captureAt(0);
 else sim.start();
 
 /**
@@ -57,16 +57,8 @@ else sim.start();
  * in the background is also a tab whose world is on disk. `start()` refuses to arm a second ticker
  * and resets the clock it measures its own step from, so a world coming back from an hour in the
  * background takes one ordinary tick rather than an hour of them at once.
+ *
+ * Except in a capture, whose clock is the harness's: see `worldDoor`.
  */
-self.onmessage = (e: MessageEvent<string>) => {
-  if (capturing && e.data.startsWith('shots-step:')) {
-    const count = Number(e.data.slice('shots-step:'.length));
-    if (!Number.isInteger(count) || count < 0 || count > 100) return;
-    for (let i = 0; i < count; i++) sim.tick(captureNow += 100);
-    self.postMessage('shots-step-done');
-    return;
-  }
-  if (e.data === WORLD_PAUSE) { sim.stop(); return; }
-  if (e.data === WORLD_RESUME) { sim.start(); return; }
-  player.receive(e.data);
-};
+const door = worldDoor(sim, (text) => player.receive(text), capturing, (message) => self.postMessage(message));
+self.onmessage = (e: MessageEvent<unknown>) => door(e.data);

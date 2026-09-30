@@ -38,7 +38,7 @@ describe('a shrine in a world of your own', () => {
       online: { connected: true, away: false },
       dialogue: { start: (node: DialogueNode) => { dialogue = node; } },
       hud: { flash: vi.fn() }, sound: { chime: vi.fn() },
-      persist: vi.fn(), persistAsync: vi.fn(async () => {}),
+      persist: vi.fn(), persistStrict: vi.fn(async () => {}),
     } as unknown as Surroundings;
     const wild = wildInteractions(ctx);
 

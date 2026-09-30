@@ -23,9 +23,13 @@ you are, ask; do not assume you may merge because this file exists.
 The `check` job runs `tools/mergeguard.cjs` on GitHub's proposed PR merge commit, comparing its
 reachability guard with the merge commit's first parent (`main`). It rejects restored inline
 excuses, removed assertions, and raised ratchet allowances, including the stale-branch pattern
-from #221. If a guard really must change, a maintainer can apply the `merge-guard-exception` label
-after reviewing a PR description line beginning `Merge guard exception:` with a concrete reason of
-at least 30 characters after the prefix.
+from #221. A push or dispatch run — which is how a stacked head is tested — has no pull request to
+name a base, so the guard merges the head into `origin/main` itself and compares that result with
+`origin/main` (#534); on `main` it has nothing to guard. If a guard really must change, a
+maintainer can apply the `merge-guard-exception` label after reviewing a PR description line
+beginning `Merge guard exception:` with a concrete reason of at least 30 characters after the
+prefix. For a stack, that goes on the top PR, whose head's push run is the one guarding the tree
+that lands; a label does not start a run, so re-run it or dispatch `checks.yml` on the branch.
 The exception and the detected changes remain visible in the check log.
 
 The hosted `reference-capture` jobs photograph every scene listed by `tools/shots.cjs` twice, on
