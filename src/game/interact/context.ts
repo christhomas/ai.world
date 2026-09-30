@@ -163,8 +163,11 @@ export interface Surroundings {
   raining: () => boolean;
   discover: (name: string) => void;
   persist: () => void;
-  /** Finish the save before reloading after a world-shaping prayer. */
-  persistAsync: () => Promise<void>;
+  /**
+   * Save, and reject if the save was not written. For a world-shaping prayer, which must not be
+   * confirmed, or reloaded into, on a write a private window or a full disk quietly dropped.
+   */
+  persistStrict: () => Promise<void>;
   /** Tell everybody else in this world about something the player changed. */
   told: (delta: WorldDelta) => void;
   /**
