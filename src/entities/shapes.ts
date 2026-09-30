@@ -215,7 +215,7 @@ function placedPieces(p: PropPart): Placed[][] {
  * This is the answer the old measurement gave by rebuilding the mesh and reading its triangles
  * back — the same numbers to six decimal places for every prop in the game, the seventh being
  * where the mesh's single-precision vertices and this arithmetic part company.
- * `world/footprints.test.ts` holds the two side by side, so a shape added to the catalogue that
+ * `render/footprint.test.ts` holds the two side by side, so a shape added to the catalogue that
  * the drawing and the measuring disagree about is a failing test rather than a wall the player
  * cannot see.
  *

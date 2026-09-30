@@ -116,6 +116,16 @@ describe('the torch after dark', () => {
     }
   });
 
+  it('hands the day cycle three numbers rather than a graphics vector (#249)', () => {
+    // the frame loop passes this straight on to the day cycle, so a three.js vector here is one
+    // the game is holding without naming it
+    const gear = new HeroGear(new THREE.Group());
+    gear.update(new GameState(), hero(), true);
+    const fire = gear.lightSource();
+    expect(fire, 'a torch is out').not.toBeNull();
+    expect(fire).not.toBeInstanceOf(THREE.Vector3);
+  });
+
   it('gives the light to a lantern instead when the hero is holding one', () => {
     const gear = new HeroGear(new THREE.Group());
     const state = new GameState();

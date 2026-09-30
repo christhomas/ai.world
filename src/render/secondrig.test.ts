@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PASSES, worthAComposer } from './secondrig';
+import * as THREE from 'three';
+import { PASSES, presenterFor, worthAComposer } from './secondrig';
 
 /**
  * A second way of drawing the same scene, and when it is worth building one.
@@ -61,4 +62,36 @@ describe('what the composer draws through', () => {
   it('keeps antialiasing, because edge crawl is noise rather than style', () => {
     expect(PASSES).toContain('smaa');
   });
+});
+
+/**
+ * One presenter per rig, chosen when the rig is built (#249).
+ *
+ * The rig used to decide between the canvas and the composer inside its draw, on every frame, so
+ * the WebGL sink had two submission calls behind an `if`. The choice never changes under a running
+ * rig, because the quality it depends on is the one the rig was built with. So it is made once, and
+ * the sink hands every frame to the one presenter it got.
+ */
+describe('how a finished scene reaches the canvas', () => {
+  /** Just enough of a renderer to see what was drawn: a composer is never built for these. */
+  const aRenderer = () => {
+    const drawn: Array<[THREE.Scene, THREE.Camera]> = [];
+    const renderer = { render: (scene: THREE.Scene, camera: THREE.Camera) => { drawn.push([scene, camera]); } };
+    return { drawn, renderer: renderer as unknown as THREE.WebGLRenderer };
+  };
+
+  for (const [asked, quality] of [[false, 'high'], [false, 'medium'], [true, 'low']] as const) {
+    it(`draws straight at the canvas when the composer is ${asked ? 'refused at low' : 'not asked for'} (${quality})`, () => {
+      const { drawn, renderer } = aRenderer();
+      const presenter = presenterFor(renderer, asked, quality);
+      const scene = new THREE.Scene();
+      const camera = new THREE.OrthographicCamera();
+      presenter.draw(scene, camera);
+      presenter.draw(scene, camera);
+      expect(drawn, 'each frame is one draw of the scene the sink was handed').toEqual([[scene, camera], [scene, camera]]);
+      // and the rig can resize and dispose it without knowing which kind it got
+      presenter.resize();
+      presenter.dispose();
+    });
+  }
 });

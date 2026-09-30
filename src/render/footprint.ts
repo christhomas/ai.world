@@ -7,7 +7,7 @@ import { WALKING_BAND, type Footprint } from '../world/footprints';
  * This is not how the game answers that question any more. `entities/shapes.ts` works it out from
  * the parts a prop is written down as, with no renderer in the room, which is what let the world
  * server put its 3D library down. What is left here is the check on that: build every prop, read
- * the triangles back, and hold the two answers side by side. `world/footprints.test.ts` does it
+ * the triangles back, and hold the two answers side by side. `render/footprint.test.ts` does it
  * for every prop in the game, so a shape added to the catalogue that the two halves disagree about
  * is a failing test rather than a wall in a place nobody thought to walk.
  *
