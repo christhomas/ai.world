@@ -372,40 +372,51 @@ const finish = async () => {
    * Keep the chosen side as a value so both walks use the same ray. The on-foot control starts four
    * tiles out; the mounted walk starts farther out to give the horse room to begin moving.
    */
-  /* `page.evaluate` runs this same selection inside the game, using its live `__solid` probe. */
-  let house = nearbyHouses[0] ?? null;
-  let approach = house ? await page.evaluate(chooseHouseApproach, house) : null;
-  // The first cottage can be boxed in by the village that grew around it. The collision question
-  // needs an open ten-tile run-up, so search nearby houses before treating town scenery as a wall.
-  for (const candidate of nearbyHouses.slice(1)) {
-    if (approach?.fullRay) break;
+  /*
+   * `page.evaluate` runs this same selection inside the game, using its live `__solid` probe.
+   *
+   * The first cottage can be boxed in by the village that grew around it. The collision question
+   * needs an open ten-tile run-up, so search nearby houses before treating town scenery as a wall,
+   * and keep the first house with a clear four-tile walk in case none has one. A house with no safe
+   * side is skipped, never walked from a side already rejected: that side is usually the front, and
+   * a walk across its doorstep ends indoors and reads as a wall the hero went through.
+   */
+  let house = null, approach = null;
+  for (const candidate of nearbyHouses) {
     const ray = await page.evaluate(chooseHouseApproach, candidate);
-    if (ray.fullRay) { house = candidate; approach = ray; break; }
+    if (!ray) continue;
+    if (ray.fullRay || !approach) { house = candidate; approach = ray; }
+    if (ray.fullRay) break;
   }
-  if (!house || !approach) throw new Error('no nearby house to check collision against');
-  await go(approach.x, approach.z);
-  let footFrom = await at();
-  await face(house.x, house.z);
-  const footPress = await observedWalk('w', 5000);
-  let footTo = await at();
-  let footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
-  let retryPress = null;
-  // An occasional first key press is lost while the page settles after teleport. It has not
-  // tested the wall at all if the hero stayed four tiles away, so start that one attempt again.
-  if (footMoved < 0.5 && footPress.placed && !footPress.solid) {
+  if (!nearbyHouses.length) throw new Error('no nearby house to check collision against');
+  // Not finding a house to walk at is not a wall letting the hero through: say which it was.
+  if (!approach) say('a nearby house has a clear approach', false,
+    `no house with a clear approach: every side of all ${nearbyHouses.length} houses within 60 tiles crosses a door or is blocked within four tiles, so neither wall walk was played`);
+  else {
     await go(approach.x, approach.z);
-    footFrom = await at();
+    let footFrom = await at();
     await face(house.x, house.z);
-    retryPress = await observedWalk('w', 5000);
-    footTo = await at();
-    footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
+    const footPress = await observedWalk('w', 5000);
+    let footTo = await at();
+    let footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
+    let retryPress = null;
+    // An occasional first key press is lost while the page settles after teleport. It has not
+    // tested the wall at all if the hero stayed four tiles away, so start that one attempt again.
+    if (footMoved < 0.5 && footPress.placed && !footPress.solid) {
+      await go(approach.x, approach.z);
+      footFrom = await at();
+      await face(house.x, house.z);
+      retryPress = await observedWalk('w', 5000);
+      footTo = await at();
+      footMoved = Math.hypot(footTo.x - footFrom.x, footTo.z - footFrom.z);
+    }
+    const off = Math.hypot(footTo.x - house.x, footTo.z - house.z);
+    // Indoors, x and z are the room's, so distances to the house outside mean nothing.
+    const indoors = footTo.place !== 'surface' ? `went indoors to ${footTo.place}; ` : '';
+    say('a house stops you at its wall', !indoors && footMoved > 0.5 && off > 1.1 && off < 3,
+      `${indoors}closest ${off.toFixed(2)} tiles from its middle; moved ${footMoved.toFixed(2)}; first press ${JSON.stringify(footPress)}; retry ${JSON.stringify(retryPress)}`);
+    if (indoors) await backOutside();
   }
-  const off = Math.hypot(footTo.x - house.x, footTo.z - house.z);
-  // Indoors, x and z are the room's, so distances to the house outside mean nothing.
-  const indoors = footTo.place !== 'surface' ? `went indoors to ${footTo.place}; ` : '';
-  say('a house stops you at its wall', !indoors && footMoved > 0.5 && off > 1.1 && off < 3,
-    `${indoors}closest ${off.toFixed(2)} tiles from its middle; moved ${footMoved.toFixed(2)}; first press ${JSON.stringify(footPress)}; retry ${JSON.stringify(retryPress)}`);
-  if (indoors) await backOutside();
 
   // a tree, which is the thing that always worked, as a control
   const tree = await page.evaluate(() => {
@@ -445,63 +456,65 @@ const finish = async () => {
    * `__ride` exists because mounting is only reachable through a stable's dialogue: a person does
    * that in ten seconds and a script cannot do it at all.
    */
-  // Four tiles was enough for a person but left Dusty unable to move in the played check.
-  // Start the larger mounted body ten tiles out on the same ray.
-  const mountedApproach = {
-    x: house.x + (approach.x - house.x) * 2.5,
-    z: house.z + (approach.z - house.z) * 2.5,
-  };
-  await go(mountedApproach.x, mountedApproach.z);
-  /*
-   * Mount after `go`: the probe uses the game's teleport command, and teleporting correctly lets
-   * go of a horse rather than carrying it across the country. Mounting first made this test walk
-   * the wall on foot while an abandoned horse stood at the previous check, 8.79 tiles away.
-   */
-  const rode = await page.evaluate(() => window.__ride(true));
-  await page.waitForTimeout(150);
-  const carried = await page.evaluate(() => window.__mount());
-  const under = carried?.under;
-  say('the hero can get on a horse', rode && rode.riding === true && carried.horse !== null && typeof under === 'number' && under < 0.1,
-    `${JSON.stringify(rode)}, horse ${typeof under === 'number' ? under.toFixed(2) : 'not'} tiles under rider`);
-  const mountedFrom = await at();
-  await face(house.x, house.z);
-  const mountedPress = await observedWalk('w', 5000);
-  const rider = await at();
-  const horse = await page.evaluate(() => window.__mount());
-  const galloped = Math.hypot(rider.x - house.x, rider.z - house.z);
-  const ridden = Math.hypot(rider.x - mountedFrom.x, rider.z - mountedFrom.z);
-  const outside = await page.evaluate(() => {
-    const mount = window.__mount();
-    return {
-      rider: !window.__solid(mount.hero.x, mount.hero.z),
-      horse: mount.horse !== null && !window.__solid(mount.horse.x, mount.horse.z),
+  if (approach) {
+    // Four tiles was enough for a person but left Dusty unable to move in the played check.
+    // Start the larger mounted body ten tiles out on the same ray.
+    const mountedApproach = {
+      x: house.x + (approach.x - house.x) * 2.5,
+      z: house.z + (approach.z - house.z) * 2.5,
     };
-  });
-  const crowdOnApproach = await page.evaluate(({ from, to }) => {
-    const dx = to.x - from.x, dz = to.z - from.z, length2 = dx * dx + dz * dz;
-    return window.__entitiesFull().filter((e) => !e.dead && e.role !== 'mount').map((e) => {
-      const t = Math.max(0, Math.min(1, ((e.x - from.x) * dx + (e.z - from.z) * dz) / length2));
-      return { kind: e.kind, role: e.role, x: Number(e.x.toFixed(1)), z: Number(e.z.toFixed(1)),
-        ray: Number(Math.hypot(e.x - from.x - t * dx, e.z - from.z - t * dz).toFixed(1)) };
-    }).filter((e) => e.ray < 2.2).sort((a, b) => a.ray - b.ray).slice(0, 5);
-  }, { from: mountedFrom, to: house });
-  const terrainOnApproach = await page.evaluate(({ from, to }) => {
-    const dx = to.x - from.x, dz = to.z - from.z, length = Math.hypot(dx, dz);
-    const along = dx / length, across = -dz / length;
-    const samples = [];
-    for (let distance = 9.5; distance >= 2.5; distance -= 0.5) {
-      const blocked = [-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2]
-        .filter((side) => window.__solid(to.x - along * distance + across * side,
-          to.z - dz / length * distance - along * side));
-      if (blocked.length) samples.push({ distance: +distance.toFixed(1), blockedOffsets: blocked });
-    }
-    return samples;
-  }, { from: mountedFrom, to: house });
-  // The horse's long body reaches the wall before its centre does; its centre is several tiles
-  // farther out than a person's, so use a bound that includes the horse's length.
-  say('a house stops a horse at its wall too', approach.fullRay && ridden > 0.5 && galloped > 1.1 && galloped < 4.5 && outside.rider && outside.horse,
-    `rode ${ridden.toFixed(2)} tiles from ${Math.hypot(mountedFrom.x - house.x, mountedFrom.z - house.z).toFixed(2)} out; full ray clear ${approach.fullRay}; first press ${JSON.stringify(mountedPress)}; closest ${galloped.toFixed(2)} tiles from its middle; rider outside ${outside.rider}, horse outside ${outside.horse}, separation ${horse.under}; crowd near ray ${JSON.stringify(crowdOnApproach)}; solid nearby ${JSON.stringify(terrainOnApproach)}`);
-  await page.evaluate(() => window.__ride(false));
+    await go(mountedApproach.x, mountedApproach.z);
+    /*
+     * Mount after `go`: the probe uses the game's teleport command, and teleporting correctly lets
+     * go of a horse rather than carrying it across the country. Mounting first made this test walk
+     * the wall on foot while an abandoned horse stood at the previous check, 8.79 tiles away.
+     */
+    const rode = await page.evaluate(() => window.__ride(true));
+    await page.waitForTimeout(150);
+    const carried = await page.evaluate(() => window.__mount());
+    const under = carried?.under;
+    say('the hero can get on a horse', rode && rode.riding === true && carried.horse !== null && typeof under === 'number' && under < 0.1,
+      `${JSON.stringify(rode)}, horse ${typeof under === 'number' ? under.toFixed(2) : 'not'} tiles under rider`);
+    const mountedFrom = await at();
+    await face(house.x, house.z);
+    const mountedPress = await observedWalk('w', 5000);
+    const rider = await at();
+    const horse = await page.evaluate(() => window.__mount());
+    const galloped = Math.hypot(rider.x - house.x, rider.z - house.z);
+    const ridden = Math.hypot(rider.x - mountedFrom.x, rider.z - mountedFrom.z);
+    const outside = await page.evaluate(() => {
+      const mount = window.__mount();
+      return {
+        rider: !window.__solid(mount.hero.x, mount.hero.z),
+        horse: mount.horse !== null && !window.__solid(mount.horse.x, mount.horse.z),
+      };
+    });
+    const crowdOnApproach = await page.evaluate(({ from, to }) => {
+      const dx = to.x - from.x, dz = to.z - from.z, length2 = dx * dx + dz * dz;
+      return window.__entitiesFull().filter((e) => !e.dead && e.role !== 'mount').map((e) => {
+        const t = Math.max(0, Math.min(1, ((e.x - from.x) * dx + (e.z - from.z) * dz) / length2));
+        return { kind: e.kind, role: e.role, x: Number(e.x.toFixed(1)), z: Number(e.z.toFixed(1)),
+          ray: Number(Math.hypot(e.x - from.x - t * dx, e.z - from.z - t * dz).toFixed(1)) };
+      }).filter((e) => e.ray < 2.2).sort((a, b) => a.ray - b.ray).slice(0, 5);
+    }, { from: mountedFrom, to: house });
+    const terrainOnApproach = await page.evaluate(({ from, to }) => {
+      const dx = to.x - from.x, dz = to.z - from.z, length = Math.hypot(dx, dz);
+      const along = dx / length, across = -dz / length;
+      const samples = [];
+      for (let distance = 9.5; distance >= 2.5; distance -= 0.5) {
+        const blocked = [-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2]
+          .filter((side) => window.__solid(to.x - along * distance + across * side,
+            to.z - dz / length * distance - along * side));
+        if (blocked.length) samples.push({ distance: +distance.toFixed(1), blockedOffsets: blocked });
+      }
+      return samples;
+    }, { from: mountedFrom, to: house });
+    // The horse's long body reaches the wall before its centre does; its centre is several tiles
+    // farther out than a person's, so use a bound that includes the horse's length.
+    say('a house stops a horse at its wall too', approach.fullRay && ridden > 0.5 && galloped > 1.1 && galloped < 4.5 && outside.rider && outside.horse,
+      `rode ${ridden.toFixed(2)} tiles from ${Math.hypot(mountedFrom.x - house.x, mountedFrom.z - house.z).toFixed(2)} out; full ray clear ${approach.fullRay}; first press ${JSON.stringify(mountedPress)}; closest ${galloped.toFixed(2)} tiles from its middle; rider outside ${outside.rider}, horse outside ${outside.horse}, separation ${horse.under}; crowd near ray ${JSON.stringify(crowdOnApproach)}; solid nearby ${JSON.stringify(terrainOnApproach)}`);
+    await page.evaluate(() => window.__ride(false));
+  }
 
   // --- a fight ---
   // something with nothing solid between us: a goat in a paddock is behind a fence, and the test

@@ -1,4 +1,7 @@
-/** Pick a house side with a clear ten-tile horse approach, while retaining a four-tile foot fallback. */
+/**
+ * Pick a house side with a clear ten-tile horse approach, while retaining a four-tile foot fallback.
+ * Null when no side has even a clear four-tile foot walk that stays off the doorsteps.
+ */
 function chooseHouseApproach(
   { x, z, rot }, solid = globalThis.__solid,
   grounded = (px, pz) => globalThis.__player?.ground?.heightAt(px, pz) !== null,
@@ -40,7 +43,9 @@ function chooseHouseApproach(
     if (clear(10, true)) return { ...from, fullRay: true };
     if (!footOnly) footOnly = { ...from, fullRay: false };
   }
-  return footOnly ?? { x: x - Math.cos(rot) * 4, z: z - Math.sin(rot) * 4, angle: rot, fullRay: false };
+  // No side is safe. The front is the side most likely to hold the door, so falling back to it
+  // walked the hero indoors and blamed the wall. Say so, and let the caller try another house.
+  return footOnly;
 }
 
 /** Prefer a nearby door that already has ground under its outside tile. */
