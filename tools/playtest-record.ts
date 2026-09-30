@@ -223,6 +223,20 @@ const sample = async (page: Page, place: string): Promise<FrameDescription | nul
     args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1100, height: 720 } });
   page.on('pageerror', (e) => errs.push(e.message));
+  // A page with no WebGL to be had, which is where a record-only game has to be able to run (#529):
+  // every ask for a WebGL context is counted and refused, and the checks below still need frames.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __webglAsked: number };
+    w.__webglAsked = 0;
+    const context = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, kind: string, ...rest: unknown[]) {
+      if (/webgl/i.test(kind)) {
+        w.__webglAsked++;
+        throw new Error(`no ${kind} in a record-only run`);
+      }
+      return (context as (kind: string, ...rest: unknown[]) => RenderingContext | null).call(this, kind, ...rest);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+  });
   await page.goto(ADDRESS, { waitUntil: 'load' });
   const ready = await page.waitForFunction(() => {
     const w = window as unknown as { __world?: { online?: string }; __recording?: unknown; __teleport?: unknown };
@@ -241,9 +255,12 @@ const sample = async (page: Page, place: string): Promise<FrameDescription | nul
   await page.waitForTimeout(2000);
   const second = await counted();
   say('the game loop keeps submitting frames', second > first, `${second - first} in two seconds`);
-  // And the recorder is the only pipeline mounted, which is the claim this run exists to make. The
-  // WebGL renderer is still built in this mode, so "nothing drawn" is measured on it rather than
-  // assumed: a live mount would have drawn every one of the frames just counted (#249).
+  // And the recorder is the only pipeline mounted, which is the claim this run exists to make. No
+  // WebGL renderer is built in this mode at all (#529): the page was refused every context it asked
+  // for, and asked for none. The draw count is kept as well, a live mount would have drawn every one
+  // of the frames just counted (#249).
+  const asked = await page.evaluate(() => (window as unknown as { __webglAsked: number }).__webglAsked);
+  say('the game asked for no WebGL context, and ran without one', asked === 0, `${asked} asked for`);
   const drawnByWebGL = () => page.evaluate(() => (window as unknown as { __rig: { lastFrame(): { draws: number } } }).__rig.lastFrame().draws);
   const webgl = await drawnByWebGL();
   say('the WebGL renderer drew nothing while the recorder took the frames', webgl === 0, `${webgl} draw calls in its last frame`);
