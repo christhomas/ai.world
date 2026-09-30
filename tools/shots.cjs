@@ -975,8 +975,17 @@ async function playerJoins(browser, seed, villages = 3, world = 'endless') {
   await settleCountry(page);
   console.log('survey player streamed initial country');
   for (let n = 0; n < villages; n++) {
-    await page.evaluate((n) => { const v = window.__villages[n]; if (v) window.__teleport(v.x, v.z); }, n);
+    const v = await page.evaluate((n) => {
+      const v = window.__villages[n];
+      if (!v) return null;
+      window.__teleport(v.x, v.z);
+      return { name: v.name, x: v.x, z: v.z };
+    }, n);
     await advance(page, 12000);
+    if (v && world === 'endless' && villages > 1) {
+      await untilSurveyed(page, seed, `${v.name} settled`,
+        (book) => book.parishes.some((p) => p.name === v.name && p.souls > 0));
+    }
   }
   /*
    * And back to the first, which is the one the book lists first.
@@ -988,7 +997,55 @@ async function playerJoins(browser, seed, villages = 3, world = 'endless') {
    */
   await page.evaluate(() => { const v = window.__villages[0]; window.__teleport(v.x, v.z); });
   await advance(page, 14000);
+  if (world === 'endless' && villages > 1) {
+    const book = await untilSurveyed(page, seed, 'somebody on their feet', (one) => one.standing > 0);
+    console.log(`survey: ${book.souls} souls in ${book.parishes.map((p) => `${p.name} ${p.souls}`).join(', ')}`);
+  }
   return page;
+}
+
+/**
+ * What the world server's own survey says of a seed right now. A read: it ticks nothing.
+ *
+ * Null while the world is still being prepared or the door is busy, which both mean ask again.
+ */
+async function surveyed(seed) {
+  const res = await fetch(`http://localhost:${WORLD_PORT}/registry?seed=${seed}`, {
+    headers: { 'x-operator-token': TOKEN }, signal: AbortSignal.timeout(10000),
+  });
+  if (res.status === 503 || res.status === 429) return null;
+  if (!res.ok) throw new Error(`the survey of world ${seed} answered ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Hold the tour until the world server has actually done what the tour went there for (#538).
+ *
+ * Under the capture clock the server ticks once per `advance`, and whatever it learns between ticks
+ * — where the survey player now stands, a patch its ground worker has just finished growing — only
+ * counts at the next one. Whether that had landed before the one tick a stop was given was a race
+ * on the runner's wall clock: one capture of a commit got a book of four villages and the other a
+ * book of Blackby alone, because the tour had moved on before the other villages were settled.
+ *
+ * So each stop is read back from the survey itself, and only when it has not happened yet is the
+ * world given another step. A run where it already has takes exactly the steps it always did.
+ */
+const SURVEY_TRIES = 40;
+async function untilSurveyed(page, seed, what, done) {
+  let book = null;
+  for (let tries = 0; tries <= SURVEY_TRIES; tries++) {
+    book = await surveyed(seed);
+    if (book && done(book)) {
+      // said in the log either way, so a capture shows which stops the world was behind at
+      console.log(`survey: ${what} after ${tries} extra step${tries === 1 ? '' : 's'}`);
+      return book;
+    }
+    // wall-clock room for whatever the server is waiting on, then one more step of both clocks
+    await new Promise((r) => setTimeout(r, 750));
+    await advance(page, FRAME_MS);
+  }
+  const had = book ? book.parishes.map((p) => `${p.name} ${p.souls}`).join(', ') || 'no parishes' : 'no answer';
+  throw new Error(`world ${seed}: the survey never showed ${what} (${had})`);
 }
 
 /** Take one, and say what happened. */
