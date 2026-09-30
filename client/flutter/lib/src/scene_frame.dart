@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:convert';
 
+import 'colour.dart';
 import 'native_world_renderer.dart';
 import 'render_mesh.dart';
 
@@ -162,6 +163,7 @@ final class FlutterFramePipeline {
                 node['kind'] == 'hemisphere' ||
                 node['kind'] == 'point',
           )
+          .map(nativeLight)
           .toList(),
     );
     if (frame.cutaway case final cutaway?) {
@@ -306,8 +308,8 @@ final class FlutterFramePipeline {
       throw const FormatException('Scene mesh has invalid triangle indices');
     }
     final paint = Map<String, dynamic>.from(node['material'] as Map);
-    final tint = _linear((paint['colour'] as num?)?.toInt() ?? 0xffffff);
-    final snow = season == null ? null : _linear(season.snow);
+    final tint = linearFromHex((paint['colour'] as num?)?.toInt() ?? 0xffffff);
+    final snow = season == null ? null : linearFromHex(season.snow);
     final material = paint['intent'] == 'water'
         ? RenderMesh.waterMaterial
         : (paint['effects'] as List?)?.any(
@@ -492,13 +494,6 @@ List<double> _multiply(List<double> a, List<double> b) =>
         (k) => a[k * 4 + row] * b[column * 4 + k],
       ).reduce((x, y) => x + y);
     });
-
-List<double> _linear(int hex) => <double>[
-  for (final value in <int>[(hex >> 16) & 255, (hex >> 8) & 255, hex & 255])
-    value / 255 <= .04045
-        ? value / 255 / 12.92
-        : math.pow((value / 255 + .055) / 1.055, 2.4).toDouble(),
-];
 
 /// Inverse transpose of a column-major affine transform's upper three rows.
 List<double> _normalMatrix(List<double> m) {

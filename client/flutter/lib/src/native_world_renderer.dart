@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'colour.dart';
 import 'render_mesh.dart';
 
 final class RenderCamera {
@@ -83,7 +84,8 @@ final class NativeWorldRenderer {
     'castShadow': mesh.castShadow,
     'receiveShadow': mesh.receiveShadow,
     'opacity': mesh.opacity,
-    'emissive': mesh.emissive,
+    // linear, as the bridges add it to linear light; see colour.dart
+    'emissive': linearFromHex(mesh.emissive),
     'blend': mesh.blend,
     'depthWrite': mesh.depthWrite,
     'depthTest': mesh.depthTest,

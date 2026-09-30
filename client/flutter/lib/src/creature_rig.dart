@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'colour.dart';
 import 'render_mesh.dart';
 
 enum RigJoint { none, legL, legR, armL, armR, tail, head, wingL, wingR, cape }
@@ -227,7 +228,7 @@ final class _RigBuilder {
     final q=_rotate(point,p.rotation), n=_rotate(normal,p.rotation);
     final px=q[0]+p.at[0],py=q[1]+p.at[1],pz=q[2]+p.at[2];
     final cy=math.cos(yaw),sy=math.sin(yaw);
-    final color=_linear(p.color);
+    final color=linearFromHex(p.color);
     vertices.addAll(<double>[x+px*cy-pz*sy,y+py,z+px*sy+pz*cy,n[0]*cy-n[2]*sy,n[1],n[0]*sy+n[2]*cy,...color,0,p.joint.index.toDouble(),x+p.pivot[0]*cy-p.pivot[2]*sy,y+p.pivot[1],z+p.pivot[0]*sy+p.pivot[2]*cy,0,0]);
   }
   static List<double> _rotate(List<double> v,List<double> r) {
@@ -236,5 +237,4 @@ final class _RigBuilder {
     c=math.cos(r[1]);s=math.sin(r[1]);var nx=x*c+z*s;nz=-x*s+z*c;x=nx;z=nz;
     c=math.cos(r[2]);s=math.sin(r[2]);nx=x*c-y*s;ny=x*s+y*c;return [nx,ny,z];
   }
-  static List<double> _linear(int hex)=>[for(final v in [(hex>>16)&255,(hex>>8)&255,hex&255]) if(v/255<=.04045) v/255/12.92 else math.pow((v/255+.055)/1.055,2.4).toDouble()];
 }
