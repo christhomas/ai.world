@@ -183,7 +183,7 @@ describe('a slow first country', () => {
   }, 90_000);
 
   /** A page on a simulation with no server around it; closing its wire leaves, as a socket does. */
-  function joinSim(sim: Simulation, seed: number) {
+  function joinSim(sim: Simulation, seed: number, at = { x: 256, z: 256 }) {
     const page = { heard: [] as ServerMessage[], open: true };
     const attached = sim.attach({
       send: (text) => page.heard.push(JSON.parse(String(text)) as ServerMessage),
@@ -191,7 +191,7 @@ describe('a slow first country', () => {
       close: () => { if (page.open) { page.open = false; attached.leave(); } },
     });
     attached.receive(JSON.stringify({
-      type: 'join', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 256, z: 256,
+      type: 'join', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, x: at.x, z: at.z,
     }));
     return { ...page, get open() { return page.open; }, leave: () => { page.open = false; attached.leave(); } };
   }
@@ -250,6 +250,35 @@ describe('a slow first country', () => {
       } finally { sim.stop(); }
     }, 60_000);
   });
+
+  it('grows nothing for a page that left while its join was queued behind another (#527)', async () => {
+    let release!: () => void;
+    const answered = new Promise<void>((resolve) => { release = resolve; });
+    const answer = parts();
+    const asked: string[] = [];
+    const sim = new Simulation({
+      vault: new Forgetful(), ground: true,
+      prepare: {
+        grow: async (_seed, patch) => { asked.push(patch); await answered; return answer; },
+        growRoad: never,
+      },
+    });
+    try {
+      const first = joinSim(sim, seed);
+      await until(() => (asked.length === 1 ? true : undefined), 5000);
+      // far enough out that every patch under it is one the first page never needs
+      const gone = joinSim(sim, seed, { x: 100_000, z: 100_000 });
+      await new Promise((resume) => setTimeout(resume, 50));
+      gone.leave();
+      const third = joinSim(sim, seed);
+      release();
+      await until(() => first.heard.find((m) => m.type === 'country'), 20_000);
+      await until(() => third.heard.find((m) => m.type === 'country'), 20_000);
+      const far = asked.filter((patch) => patch.split(',').some((at) => Math.abs(Number(at)) > 20));
+      expect(far, 'no patch was grown under the page that left').toEqual([]);
+      expect(gone.heard.some((m) => m.type === 'country')).toBe(false);
+    } finally { sim.stop(); }
+  }, 60_000);
 
   describe('a survey while a world is being prepared', () => {
     /** A simulation whose source holds its answer until the test lets it go. */
