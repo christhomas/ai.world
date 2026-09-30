@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.7 — 2026-09-30
+
+A move never carries the hero, nests need a real ledge, record-only needs no WebGL, and the message log keeps its newest line
+
 ## v0.103.6 — 2026-09-30
 
 The GPU-free frame path lands, prayers stay saved, and a release tests nothing on the machine that cuts it

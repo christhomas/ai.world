@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.7 — 2026-09-30
+
+A move never carries the hero, nests need a real ledge, record-only needs no WebGL, and the message log keeps its newest line
+
 ### v0.103.6 — 2026-09-30
 
 The GPU-free frame path lands, prayers stay saved, and a release tests nothing on the machine that cuts it
@@ -626,10 +630,6 @@ Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, 
 ### v0.102.5 — 2026-09-28
 
 Fix HTTPS redirect loops behind proxy chains
-
-### v0.102.4 — 2026-09-27
-
-portable hosting setup and proxy scheme detection
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
