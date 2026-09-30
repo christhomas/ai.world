@@ -164,6 +164,78 @@ void main() {
     }
   });
 
+  // three.js adds up every light of each kind (#512). Ambient and hemisphere light are summed on the
+  // host, which is exact: three.js keeps ambient as one sum itself, and every hemisphere light the
+  // game makes points straight up. Directional lights each have their own direction, so the shader
+  // loops over up to four of them.
+  test('both native bridges add up every ambient, hemisphere and directional light', () {
+    final android = File(
+      'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
+    ).readAsStringSync();
+    final ios = File('ios/Runner/WorldRendererBridge.swift').readAsStringSync();
+
+    // nothing takes only the first light of a kind any more
+    expect(android, isNot(contains('firstOrNull')));
+    expect(ios, isNot(contains('lights.first(')));
+    expect(android, contains('ambientLight = total("ambient")'));
+    expect(android, contains('skyLight = total("hemisphere")'));
+    expect(android, contains('groundLight = total("hemisphere", "linearGround")'));
+    expect(ios, contains('ambientLight = total("ambient")'));
+    expect(ios, contains('skyLight = total("hemisphere")'));
+    expect(ios, contains('groundLight = total("hemisphere", key: "linearGround")'));
+
+    // the cap is four directional lights, stated once on each side and matched by the shader
+    expect(android, contains('private const val DIRECTIONAL_LIGHTS = 4'));
+    expect(android, contains('.take(DIRECTIONAL_LIGHTS)'));
+    expect(android, contains('uniform vec4 uSunDirections[4]; uniform vec4 uSunColours[4];'));
+    expect(android, contains('"uSunDirections[0]"), DIRECTIONAL_LIGHTS,'));
+    expect(android, contains('"uSunColours[0]"), DIRECTIONAL_LIGHTS,'));
+    expect(ios, contains('private let directionalLights = 4'));
+    expect(ios, contains('.prefix(directionalLights)'));
+    expect(ios, contains('constant float4* sunDirections [[buffer(4)]],constant float4* sunColours [[buffer(5)]]'));
+    for (final (path, source) in <(String, String)>[('android', android), ('ios', ios)]) {
+      expect(source, contains('for(int i=0;i<4;i++){'), reason: path);
+      expect(source, isNot(contains('uLightDir')), reason: path);
+      expect(source, isNot(contains('u.sun.')), reason: path);
+      expect(source, isNot(contains('uSun;')), reason: path);
+    }
+  });
+
+  // three.js r185 multiplies a shadow-casting directional light's colour by getShadow, which is
+  // mix(1, shadow, shadowIntensity) with the web's shadowIntensity at its default of one, and it
+  // leaves ambient and hemisphere light alone. The old floor of .45 lit a shadow that the web does not.
+  test('both native bridges shadow only the directional light that casts, as three.js does', () {
+    for (final path in <String>[
+      'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
+      'ios/Runner/WorldRendererBridge.swift',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(source, isNot(contains('mix(.45')), reason: path);
+      expect(source, contains('*(s.w>.5?shade:1.0);'), reason: path);
+      // the indirect term is summed before any shadow is looked at
+      expect(source, matches(RegExp(r'lit=u\.?[Aa]mbient(\.xyz)?\+mix\(u\.?[Gg]round(\.xyz)?,u\.?[Ss]ky(\.xyz)?,n\.y\*\.5\+\.5\);')),
+          reason: path);
+    }
+  });
+
+  // The web's water mixes its foam into diffuseColor at color_fragment (src/render/water.ts), so foam
+  // is lit like the water under it. Native foam went on after lighting and glowed white at night.
+  test('both native bridges whiten water with foam before lighting it, as the web does', () {
+    for (final path in <String>[
+      'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
+      'ios/Runner/WorldRendererBridge.swift',
+    ]) {
+      final source = File(path).readAsStringSync();
+      final foam = RegExp(r'albedo=mix\(albedo,(vec3|float3)\(\.95,\.98,1\.0\),').firstMatch(source);
+      expect(foam, isNotNull, reason: path);
+      final lighting = source.indexOf('c=albedo*(');
+      expect(lighting, greaterThan(foam!.start), reason: path);
+      expect(source, contains('lit*RECIPROCAL_PI)+'), reason: path);
+      // fog still mixes into the encoded colour afterwards; foam no longer does
+      expect(source, isNot(matches(RegExp(r'c=mix\(c,(vec3|float3)\(\.95'))), reason: path);
+    }
+  });
+
   test('Android renderer failures are returned and dead-thread disposal is bounded', () {
     final source = File(
       'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
