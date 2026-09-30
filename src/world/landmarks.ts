@@ -6,7 +6,8 @@ import type { RoadGraph } from './graph';
 import { pairJetties } from './piers';
 import { rand2 } from '../core/rng';
 import { derive } from '../core/salts';
-import { StructureKind, type Pier, type Settling, type Signpost, type Site, type Structure, type Village } from './structures';
+import { PREFIX } from './names';
+import { StructureKind, type Pier, type Poi, type Settling, type Signpost, type Site, type Structure, type Village } from './structures';
 import { TileType, type TerrainSampler, type TileSample } from './terrain';
 
 /**
@@ -86,6 +87,8 @@ export interface Marked {
   /** The one craft that came down here. Empty in a country that has not turned one up. */
   derelicts: Site[];
   castles: Castle[];
+  /** Shrines asked of places, in the country that cannot count; the road tree's are its `pois`. */
+  shrines: Poi[];
 }
 
 /** Everything the five of them need, which is the finished villages and the ground under them. */
@@ -251,7 +254,7 @@ export function markTheWay(o: Between): Marked {
     if (raised) castles.push(raised);
   }
 
-  return { piers, signposts, caves, wrecks, derelicts, castles };
+  return { piers, signposts, caves, wrecks, derelicts, castles, shrines: [] };
 }
 
 /**
@@ -272,6 +275,8 @@ export interface Places {
   all: Structure[];
   villages: Village[];
   footprintOk: (tx: number, tz: number, hw: number, hd: number, level: number | null) => number | null;
+  /** Whether the line from the road out to a spot can be walked: see `structures.ts`. */
+  walkableFrom: (fromX: number, fromZ: number, toX: number, toZ: number) => boolean;
   settling: Settling;
 }
 
@@ -279,6 +284,7 @@ export interface Places {
 const OF_A_POST = 0x51a7;
 const OF_A_HOLE = 0x2ca4;
 const OF_A_CROWN = 0x7b39;
+const OF_A_SHRINE = 0x3e61;
 
 /** Share of the crossroads out in the country that carry a signpost, and how far one points. */
 const POSTED = 0.34;
@@ -335,7 +341,7 @@ const CAVE_COUNTRY = 8;
 const CROWNED = 1 / 30;
 
 export function markThePlaces(o: Places): Marked {
-  const { sampler, sample, all, villages, footprintOk, settling } = o;
+  const { sampler, sample, all, villages, settling } = o;
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
@@ -373,11 +379,69 @@ export function markThePlaces(o: Places): Marked {
     const raised = seatACastle({ sampler, sample, all, villages, x: post.x, z: post.z }, side, `castle:${name}`, name);
     if (raised) castles.push(raised);
   }
-  void footprintOk;
+  /*
+   * And the shrines, last of all, so that nothing already standing moves to make room for one.
+   *
+   * The road tree has its shrines among its points of interest, which it finds on nodes deep in
+   * its tree — and a patch's graph has no depth to be deep in (see `localgraph.ts`), so until this
+   * an endless country had no shrine anywhere in it. That mattered more than scenery: the shrine
+   * prayer (#444) is answered only in a world of your own, which is an endless one, and there was
+   * nowhere in such a world to say it (#491). Asked of each crossroads, like the castles, rather
+   * than counted, for the reason `CROWNED` gives.
+   */
+  const shrines: Poi[] = [];
+  for (const post of settling.posts ?? []) {
+    const key = nameKey(post.id);
+    if (rand2(derive(seed, OF_A_SHRINE), key, 0, OF_A_SHRINE) >= SHRINED) continue;
+    const shrine = raiseShrine(o, post, key);
+    if (shrine) shrines.push(shrine);
+  }
   // no derelict out here yet. A world with an edge can say "one to a world" and mean it; the endless
   // country cannot count, so it needs the same treatment `CROWNED` gives a castle — a chance per
   // place rather than a quota — and that is a piece of work rather than a line
-  return { piers, signposts, caves, wrecks, derelicts: [], castles };
+  return { piers, signposts, caves, wrecks, derelicts: [], castles, shrines };
+}
+
+/**
+ * The share of crossroads out in the country that keep a shrine somewhere off the road.
+ *
+ * Sparse on purpose: a road-tree world has at most five shrines, one to each of its names. Measured
+ * on seed 3, the sixteen patches round the middle (2048 tiles a side) grow ten, so a shrine is
+ * a walk to find rather than one to every crossroads.
+ */
+const SHRINED = 0.2;
+
+/**
+ * What an endless country's shrines are called, from the place rather than from a list in hand.
+ *
+ * The road tree's five names are one to a world and it never runs out; a country with no edge
+ * has as many shrines as it has country, and a name here is not only a label — a shrine's vault is
+ * `dungeon:<name>` and its prayers are `highland:prayer:<name>:…`. So there are more of them, and
+ * sparse shrines keep two of one name a long way apart, as `CASTLE_NAMES` does for castles.
+ */
+const SHRINE_NAMES: readonly string[] = PREFIX.flatMap((p) =>
+  p === 'Stone' ? [`${p} Shrine`] : [`${p} Shrine`, `Shrine of the ${p} Stone`]);
+
+/** Mirrors the road tree's rule for a point of interest: off the road, clear of villages, reachable. */
+function raiseShrine(o: Places, post: { id: string; x: number; z: number }, key: number): Poi | null {
+  const { sampler, all, villages, footprintOk, walkableFrom } = o;
+  if (villages.some((v) => Math.hypot(v.x - post.x, v.z - post.z) < v.radius + 12)) return null;
+  const probe = sampler.landProbe(post.x, post.z);
+  if (!probe) return null;
+  const roll = (n: number) => rand2(derive(sampler.seed, OF_A_SHRINE), key, n, OF_A_SHRINE);
+  const side = roll(1) < 0.5 ? -1 : 1;
+  const lat = probe.roadWidth + 4 + roll(2) * Math.max(2, probe.landWidth - probe.roadWidth - 8);
+  const tx = Math.floor(post.x - probe.uz * lat * side), tz = Math.floor(post.z + probe.ux * lat * side);
+  // inside the patch that grew it, because Enter asks the patch the hero is standing in
+  const w = sampler.within;
+  if (w && (tx - 5 < w.x0 || tx + 5 >= w.x1 || tz - 5 < w.z0 || tz + 5 >= w.z1)) return null;
+  const level = footprintOk(tx, tz, 2, 2, null);
+  if (level === null || !walkableFrom(post.x, post.z, tx + 0.5, tz + 0.5)) return null;
+  const structure: Structure = { kind: StructureKind.Shrine, tx, tz, hw: 2, hd: 2, level,
+    rot: roll(3) * Math.PI * 2, biome: sampler.biomeOf(tx + 0.5, tz + 0.5), path: [] };
+  all.push(structure);
+  return { name: SHRINE_NAMES[key % SHRINE_NAMES.length], kind: StructureKind.Shrine,
+    x: tx + 0.5, z: tz + 0.5, structure };
 }
 
 /**

@@ -4,7 +4,7 @@ import { rangesAsMassifs } from '../world/ranges';
 import { buildSkyIsland, SKY, type SkyIsland, type SkySite } from '../world/skyisland';
 import { EYRIE, planEyries, type Eyrie } from './eyries';
 import { layTheCarcass, nestsOn, type Bait } from './baiting';
-import type { Anchor, Manifest } from '../world/manifest';
+import { ANCHOR_VERSION, type Anchor, type Manifest } from '../world/manifest';
 import type { Massif } from '../world/mountains';
 import type { Within } from '../world/window';
 import type { SkyIslands } from '../render/skyisland';
@@ -162,10 +162,14 @@ export class HighCountry {
     this.setBaited(anchor.id, present ? anchor : null);
   }
 
-  /** Only a nest someone baited may be taken down; planned crags are part of the country. */
+  /**
+   * Only a nest someone baited may be taken down; planned crags are part of the country, and an
+   * editor's sky eyrie (version 2, tied to its island) is the way up rather than a nest.
+   */
   baitedAt(x: number, z: number): Anchor | null {
     return this.manifest.byKind('eyrie').find((anchor) =>
-      Math.hypot(anchor.x - x, anchor.z - z) <= EYRIE.REACH) ?? null;
+      anchor.version === ANCHOR_VERSION.eyrie && anchor.parent === null
+      && Math.hypot(anchor.x - x, anchor.z - z) <= EYRIE.REACH) ?? null;
   }
 
   /** Take down a nearby baited nest locally; the server's reply settles its final state. */

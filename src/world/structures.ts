@@ -628,7 +628,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
    * ports and ferries instead, which is `localsea` and its own piece of work.
    */
   const between = settling
-    ? markThePlaces({ sampler, sample, all, villages, footprintOk, settling })
+    ? markThePlaces({ sampler, sample, all, villages, footprintOk, walkableFrom, settling })
     : markTheWay({ sampler, graph, sample, rng, all, villages, footprintOk });
   piers.push(...between.piers);
   signposts.push(...between.signposts);
@@ -636,6 +636,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   wrecks.push(...between.wrecks);
   derelicts.push(...between.derelicts);
   castles.push(...between.castles);
+  pois.push(...between.shrines);
 
   // --- doorways: every house, shop and chapel can be walked into ---
   for (const v of villages) {

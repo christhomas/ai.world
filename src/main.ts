@@ -83,7 +83,7 @@ import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
 import { GameState } from './game/state';
 import { Manifest } from './world/manifest';
-import { answerDueHighlands } from './game/prayers';
+import { answerDueHighlands, prayersAnsweredHere } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
@@ -92,13 +92,14 @@ export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
 ): void {
-  // A due prayer changes the land itself, so resolve it before the generator sees the manifest.
+  // A due prayer changes the land itself, so resolve it before the generator sees the manifest —
+  // in a solo endless world only, under the same rule `boot.ts` answers by.
   // Advance the same saved clock the normal boot path will use, and persist the updated cursor with
   // the anchor so a reload cannot apply offline days twice.
   let prayersResolvedAtBoot = false;
-  if (saved) {
+  if (saved && prayersAnsweredHere(url.searchParams.has('server'), world)) {
     const bootState = GameState.from(saved.state);
-    bootState.day += daysToLive(bootState.awayFor, url.searchParams.has('server'));
+    bootState.day += daysToLive(bootState.awayFor, false);
     const bootManifest = new Manifest(seed, saved.manifest);
     if (answerDueHighlands(bootManifest, bootState.prayers, bootState.day) > 0) {
       saved = { ...saved, state: bootState.toJSON(), manifest: bootManifest.toJSON() };
