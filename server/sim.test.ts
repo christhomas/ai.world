@@ -293,6 +293,26 @@ describe('the simulation, hosted by nothing at all', () => {
       .toContainEqual({ kind: 'eyrie', anchor: near, present: true });
   });
 
+  it('corrects a refused report about an editor-placed sky eyrie too', () => {
+    const sim = new Simulation({ vault: new Forgetful() });
+    const rowan = new Pretend(sim).join(7, 'Rowan');
+    const manifest = sim.rooms.get(7)!.world.manifest;
+    const site = manifest.ensure('sky:0,0', 'skyisle', 0, 0, null);
+    site.skySite = { radius: 22, y: 26 };
+    const placed = skyEyrieAnchor(manifest, site.id, 4, 0, 'eyrie:edit:00000000-0000-4000-8000-000000000322')!;
+    manifest.anchors.set(placed.id, placed);
+    expect(manifest.get(placed.id)).toEqual(placed);
+
+    // an older page that took this one down as if it were baited: the server keeps it, and says so
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: placed, present: false } });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: placed.id, anchor: placed }]);
+    expect(manifest.get(placed.id)).toEqual(placed);
+
+    // and any other eyrie id it cannot place is answered as absent rather than ignored
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: { ...placed, id: 'eyrie:elsewhere' }, present: true } });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: 'eyrie:elsewhere', anchor: null });
+  });
+
   it('sends the server holding daybook to a joining player', () => {
     const sim = new Simulation({ vault: new Forgetful() });
     new Pretend(sim).join(7, 'Rowan');

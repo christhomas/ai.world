@@ -4,6 +4,10 @@ import { Manifest } from '../../world/manifest';
 import type { SkyIslands } from '../../render/skyisland';
 import type { DialogueNode } from '../../ui/dialogue';
 import { HighCountry } from '../highcountry';
+import { Skies } from '../skies';
+import type { IslandInfo } from '../../world/graph';
+import { buildSkyIsland, planSkyIslands } from '../../world/skyisland';
+import { skyEyrieAnchor } from '../../world/worldediting';
 import { travelInteractions } from './travel';
 
 describe('the nest on the ledge', () => {
@@ -64,5 +68,35 @@ describe('the nest on the ledge', () => {
     expect(travel.tryEagle()).toBe(true);
     expect((dialogue as DialogueNode | null)?.choices?.map((choice) => choice.label))
       .toEqual(['Fly (18g)', 'Walk round']);
+  });
+
+  it('leaves an editor-placed sky eyrie to the flight up rather than offering to take it down', () => {
+    const island: IslandInfo = { id: 'isle:0,0', seed: 1, x: 0, z: 0, radius: 90, biome: 0, hub: 0, firstNode: 0 };
+    const [site] = planSkyIslands(1, [island], []);
+    const manifest = new Manifest(1);
+    manifest.anchors.set(site.id, { id: site.id, kind: 'skyisle', x: site.x, z: site.z,
+      seed: 777, parent: site.over, version: 1, skySite: { radius: site.radius, y: site.y } });
+    const placed = skyEyrieAnchor(manifest, site.id, site.x + 40, site.z,
+      'eyrie:edit:00000000-0000-4000-8000-000000000322')!;
+    manifest.anchors.set(placed.id, placed);
+    const high = new HighCountry(1, manifest, {} as SkyIslands);
+    const player = { x: placed.x, z: placed.z };
+    const skies = new Skies({ player, persist: () => {} } as never, [buildSkyIsland(site, 777)], manifest);
+    let dialogue: DialogueNode | null = null;
+    const travel = travelInteractions({
+      player, eyries: [], high, skies, state: { inventory: { gold: 100 } },
+      dialogue: { start: (node: DialogueNode) => { dialogue = node; } },
+    } as never);
+
+    // the precondition: this is the editor's eyrie, standing where its island's birds answer
+    expect(placed.version).toBe(2);
+    expect(skies.calledFrom(player.x, player.z)).not.toBeNull();
+
+    expect(high.baitedAt(player.x, player.z)).toBeNull();
+    expect(high.removeBaitedAt(player.x, player.z)).toBeNull();
+    expect(manifest.get(placed.id)).toEqual(placed);
+    expect(travel.tryEagle(true)).toBe(false);
+    expect(travel.trySkyward()).toBe(true);
+    expect((dialogue as DialogueNode | null)?.choices?.[0]?.label).toMatch(/^Fly up \(\d+g\)$/);
   });
 });

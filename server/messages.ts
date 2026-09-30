@@ -790,9 +790,16 @@ function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessag
   rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
 }
 
-/** Reply with the stored nest even when the report was stale, duplicate, or malformed. */
+/**
+ * Reply with the stored nest even when the report was stale, duplicate, or malformed.
+ *
+ * Every eyrie id, not only a baited nest's: a page that took down an editor's sky eyrie
+ * (`eyrie:edit:…`) is refused by `cleanDelta`, and a refusal nobody answers leaves the page
+ * without its way up for good. Anything not an eyrie id is left alone, because the page deletes
+ * whatever id an absent answer names.
+ */
 function answerEyrie(rooms: Rooms, me: Client, room: Room, id: unknown): void {
-  if (typeof id !== 'string' || id.length > LIMITS.THING_ID || !/^eyrie:-?\d+,-?\d+$/.test(id)) return;
+  if (typeof id !== 'string' || id.length > LIMITS.THING_ID || !id.startsWith('eyrie:')) return;
   const current = room.world.manifest.get(id);
   rooms.send(me, { type: 'eyrie-state', id, anchor: current?.kind === 'eyrie' ? current : null });
 }
