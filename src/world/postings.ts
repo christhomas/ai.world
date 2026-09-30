@@ -362,10 +362,11 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
  *
  * ## Hall holdings and wages
  *
- * Farm proceeds go to the hall after paying its worker from the take (`shareTheTake`). Guards and
- * yard crews are paid from the treasury, under the same one-fifth-of-the-purse daily limit as a
- * personal owner. The hand receives the wage and the transfer goes in the holding daybook. #415.
- * A post somebody stands on their own holding moves no money.
+ * A hall's farm pays its hand a day out of the cattle take and keeps the rest of it, and keeps its
+ * field crop's dinner money too, exactly as a personal owner does (`shareTheTake`, `fieldCrop`,
+ * #486). Guards and yard crews are paid from the treasury, under the same one-fifth-of-the-purse
+ * daily limit as a personal owner. The hand receives the wage and the transfer goes in the holding
+ * daybook. #415. A post somebody stands on their own holding moves no money.
  *
  * ## And the morning is written down
  *

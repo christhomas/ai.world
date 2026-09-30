@@ -1,7 +1,7 @@
 import { FOOD, broughtIn, cellarCap, eat, theirField } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
-import { ownedBy, BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing, type Owner } from './holdings';
+import { ownedBy, BEASTS_PER_FARM, THE_HALL_OWNER, mannedFarms, shareTheTake, type Standing, type Owner } from './holdings';
 import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
@@ -256,10 +256,10 @@ export function whoFed(
    * nowhere — `pay` calls it `unplaced` and says it *"should never happen at all"*.
    *
    * Dropped rather than redirected, because `shareOut` hands out a pool in proportion: one share
-   * fewer is the same money divided among the people who are still at the table, which is what
-   * actually happens to a dead man's dinner.
+   * fewer is the same money divided among whoever is still at the table — the hall among them, as
+   * the owner of a farm whose crop `fieldCrop` addresses to it (#486).
    */
-  const here = new Set(people.map(ownedBy));
+  const here = new Set([...people.map(ownedBy), THE_HALL_OWNER]);
   for (const [owner, crop] of fromFields ?? []) {
     if (!here.has(owner)) continue;
     shares.set(owner, (shares.get(owner) ?? 0) + crop);

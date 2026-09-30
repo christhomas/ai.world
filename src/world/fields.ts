@@ -1,7 +1,7 @@
 import { WORLD } from '../core/config';
 import { TREES, type PropKind } from './biomes';
 import { homesOf } from './homes';
-import { ownedBy, type Holding, type Owner, type Standing } from './holdings';
+import { isTheHall, ownedBy, type Holding, type Owner, type Standing } from './holdings';
 import type { Person } from './people';
 import type { ChunkData, TerrainSampler } from './terrain';
 import type { Structure, Village } from './structures';
@@ -154,6 +154,12 @@ export function withoutClearedTrees<T extends { kind: PropKind; x: number; z: nu
  * So the deed is honoured where there is somebody to honour it to, and otherwise the crop is the
  * worker's — which is the truthful answer as well as the payable one: they stood in the field.
  *
+ * The hall is somebody to honour it to. It is not on the roll, but it is a purse `pay` knows by
+ * name, and a hall that owns a farm keeps what the farm makes after its hand's wage — the rule
+ * `shareTheTake` already kept for the cattle, and the one `postings.ts` writes down. The hand's day
+ * is paid out of the cattle take, as a personal owner's hand's is, and the field's dinner money is
+ * the owner's. It used to fall through to the worker, because the hall is not a person. #486.
+ *
  * `meals` is the same total the larder takes, so the village is fed by the number it pays for. See
  * `whoFed`, which is the other half of that agreement.
  *
@@ -191,7 +197,7 @@ export function fieldCrop(
       const worker = byId.get(farm.worker ?? '');
       if (!worker) continue;
       const owner = farm.owner ?? ownedBy(worker);
-      const paid = here.has(owner) ? owner : ownedBy(worker);
+      const paid = here.has(owner) || isTheHall(owner) ? owner : ownedBy(worker);
       const crop = grownBy(worker) + foodAt(works, farm.id ?? '');
       add(paid, crop);
       if (farm.id) byHolding.push({ holding: farm.id, owner: paid, meals: crop });
