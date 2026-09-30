@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.4 — 2026-09-30
+
+endless worlds grow shrines so the prayer can be said, an editor's sky eyrie offers the flight up, and the native renderers take colour the way the web does
+
 ### v0.103.3 — 2026-09-30
 
 holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle pools stop uploading, and the editor drops a refusal that could never fire
@@ -626,10 +630,6 @@ tools portal access and HTTPS redirect
 ### v0.102.2 — 2026-09-27
 
 a forward swimming pose with alternating strokes
-
-### v0.102.1 — 2026-09-27
-
-world routing, terrain and water authoring, carrier replay, wildlife sync, and browser playtesting
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
