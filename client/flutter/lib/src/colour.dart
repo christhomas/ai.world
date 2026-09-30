@@ -37,7 +37,8 @@ double _decode(int bits) {
 ///
 /// Alongside the node itself: `linear`, its colour in linear RGB with its intensity applied, the
 /// unclamped `linearColour` preferred to the hex as `bindLightMount` prefers it; `linearGround`,
-/// the same for a hemisphere's ground.
+/// the same for a hemisphere's ground; and for a point light its `distance` and `decay`, with
+/// three.js's defaults where the frame gives none.
 Map<String, Object?> nativeLight(Map<String, dynamic> node) {
   final intensity = (node['intensity'] as num?)?.toDouble() ?? 0;
   List<double> radiance(Object? linear, Object? hex) => <double>[
@@ -53,5 +54,9 @@ Map<String, Object?> nativeLight(Map<String, dynamic> node) {
     'linear': radiance(node['linearColour'], node['colour']),
     if (kind == 'hemisphere')
       'linearGround': radiance(node['linearGroundColour'], node['groundColour']),
+    if (kind == 'point') ...<String, Object?>{
+      'distance': (node['distance'] as num?)?.toDouble() ?? 0,
+      'decay': (node['decay'] as num?)?.toDouble() ?? 2,
+    },
   };
 }

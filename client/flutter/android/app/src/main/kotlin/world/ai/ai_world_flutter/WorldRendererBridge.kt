@@ -250,6 +250,7 @@ private class GLWorldRenderer(
                 pointColours[offset] = rgb[0]
                 pointColours[offset + 1] = rgb[1]
                 pointColours[offset + 2] = rgb[2]
+                pointColours[offset + 3] = (point["decay"] as? Number)?.toFloat() ?: 2f
             }
         }
         if (fog != null) {
@@ -596,10 +597,13 @@ out vec4 color;
 const float RECIPROCAL_PI=0.3183098861837907;
 // three.js's sRGBTransferOETF: lit in linear, written out encoded (client/flutter/lib/src/colour.dart)
 vec3 encodeSrgb(vec3 c){return mix(pow(c,vec3(0.41666))*1.055-vec3(0.055),c*12.92,lessThanEqual(c,vec3(0.0031308)));}
+// three.js r185's getDistanceAttenuation (lights_pars_begin): d^-decay, windowed to nothing at the
+// cutoff when there is one
+float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0.0){float x=d/cutoff;x*=x;x*=x;float w=clamp(1.0-x,0.0,1.0);f*=w*w;}return f;}
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
 float ripple(vec2 w){return sin(dot(w,vec2(.77,.64))*1.9+uTime*1.3)*.5+sin(dot(w,vec2(-.6,.8))*2.7-uTime*.9)*.3;}
 float shadow(){vec3 q=vShadow.xyz/vShadow.w*.5+.5;if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.0;float s=0.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)s+=texture(uShadow,vec3(q.xy+vec2(x,y)/1024.0,q.z-.002));return s/9.0;}
-void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){vec4 p=uPointPositions[i];float distance=length(p.xyz-vWorld);if(p.w>0.0&&distance<p.w)lit+=uPointColours[i].rgb*max(0.0,dot(n,normalize(p.xyz-vWorld)))*pow(1.0-distance/p.w,2.0);}vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,uOpacity);}
+void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}vec3 n=normalize(vNormal);float shade=mix(1.0,shadow(),uReceiveShadow);vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5)+uSun*max(0.0,dot(n,normalize(uLightDir)))*mix(.45,1.0,shade);for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;lit+=q.rgb*max(0.0,dot(n,normalize(l)))*attenuation(length(l),p.w,q.w);}vec3 c=vColor*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));c=mix(c,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,uOpacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es
 precision highp float; in vec3 aPosition; in float aJoint; in vec3 aPivot; uniform mat4 uMvp; uniform float uTime;

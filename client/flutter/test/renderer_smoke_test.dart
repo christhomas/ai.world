@@ -144,6 +144,26 @@ void main() {
     }
   });
 
+  // three.js r185's getDistanceAttenuation, which the game's lights were tuned against: an interior
+  // lamp at intensity 14 and decay 1.4 drew several times brighter under `(1 - d/distance)^2` (#499).
+  test('both native bridges fade point lights as three.js does, with the decay Dart sends', () {
+    for (final path in <String>[
+      'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
+      'ios/Runner/WorldRendererBridge.swift',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(source, contains('"decay"'), reason: path);
+      expect(
+        source,
+        contains('float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);'
+            'if(cutoff>0'),
+        reason: path,
+      );
+      expect(source, contains('*attenuation(length('), reason: path);
+      expect(source, isNot(contains('pow(1')), reason: path);
+    }
+  });
+
   test('Android renderer failures are returned and dead-thread disposal is bounded', () {
     final source = File(
       'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',

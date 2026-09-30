@@ -226,7 +226,12 @@ void main() {
         closeToList(<double>[_linear(0x40) * 2, _linear(0x20) * 2, _linear(0x10) * 2]));
     expect(channels(lights[2]['linear']),
         closeToList(<double>[3, _linear(0xa0) * 3, _linear(0x20) * 3]));
+    // point lights carry their decay, and one without takes three.js's default of two
     expect(channels(lights[3]['linear']), closeToList(<double>[14, 14, 14]));
+    expect(lights[3]['decay'], 1.4);
+    expect(lights[3]['distance'], 9);
+    expect(lights[4]['decay'], 2);
+    expect(lights[4]['distance'], 0);
 
     // emissive is added to linear light in three.js, so it leaves Dart decoded too
     final mesh = calls.singleWhere((call) => call.method == 'putMesh').arguments as Map;
