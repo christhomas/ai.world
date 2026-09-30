@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { IsoCamera } from './camera';
+import { nativeCamera, type IsoCamera } from './camera';
 import type { SceneGraph } from '../core/scenegraph';
 import { patchShader } from './shaderpatch';
 
@@ -158,13 +158,13 @@ if (uCutOn > 0.5 && vCutWorld.y > uCutHero.y + uCutAbove) {
   }
 
   /** Tell the hole where the hero is and which way the camera is looking at him. */
-  look(hero: THREE.Vector3, camera: THREE.Camera, target: THREE.Vector3): void {
+  look(hero: THREE.Vector3, camera: THREE.Camera, target: THREE.Vector3Like): void {
     this.uniforms.uCutHero.value.copy(hero);
     this.uniforms.uCutLook.value.copy(target).sub(camera.position).normalize();
   }
 
   lookAt(hero: { x: number; y: number; z: number }, camera: IsoCamera, graph?: SceneGraph): void {
-    this.look(new THREE.Vector3(hero.x, hero.y, hero.z), camera.camera, camera.target);
+    this.look(new THREE.Vector3(hero.x, hero.y, hero.z), nativeCamera(camera), camera.target);
     if (graph) graph.cutaway = { enabled: this.on, hero: [hero.x, hero.y, hero.z] };
   }
 

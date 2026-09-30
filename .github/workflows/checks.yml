@@ -21,9 +21,10 @@ name: Checks
 
 on:
   push:
-    # A stacked PR can advance its base branch without emitting a synchronize event for
-    # the downstream PR. Running on every branch push keeps required checks attached to
-    # the commit instead of making somebody dispatch this workflow by hand.
+    # Every branch push, because this is the run that tests a stacked PR's head. A pull
+    # request whose base is not `main` does not run checks itself (see `only-once`), and a
+    # stack is landed by merging its top PR, which squashes the whole stack into `main` — so
+    # the push run is what puts real required checks on each stacked head's exact tree.
     branches: ['**']
   pull_request:
   # so a failing bench can be re-run without pushing anything
@@ -65,14 +66,26 @@ jobs:
   # Whether this run is the one that should report, so that one commit gets one set of check runs.
   #
   # `push` fires for every branch, and `pull_request` fires for the same commit the moment that
-  # branch has a request open. Both are wanted — the push trigger is what keeps a stacked pull
-  # request's checks attached to its commit when advancing a base emits no `synchronize` — but only
-  # one of them should answer for the commit, and a cancelled duplicate is worse than no duplicate
-  # because protection reads its conclusion rather than ignoring it.
+  # branch has a request open. Only one of them should answer for the commit — a full hosted
+  # playtest twice over is waste, and a cancelled duplicate is worse than no duplicate because
+  # protection reads its conclusion rather than ignoring it. The rule is:
   #
-  # So the push run stands down when a pull request already covers this commit. It asks GitHub
-  # rather than guessing: `commits/<sha>/pulls` lists the open requests whose head is this commit.
-  # A branch nobody has opened a request for gets its answer from the push run exactly as before.
+  #   - a `pull_request` run answers when the request's base is `main`, and stands down otherwise;
+  #   - a `push` run stands down only when an open request whose head is this commit has base
+  #     `main`, because that request's own run will test it; otherwise it answers.
+  #
+  # So a branch with no request, and the head of a stacked request (base = the branch below it),
+  # are tested by their push run; the bottom of a stack, or any request to `main`, by its
+  # `pull_request` run. Each pushed head is tested once, and none is left carrying only skipped
+  # required checks — which GitHub counts as passing, and which is how a stack landed through
+  # its top PR could once put a tree nothing had tested onto `main` (#518).
+  #
+  # The push run asks GitHub rather than guessing, and the answer is only as good as the moment it
+  # was asked. A request opened against `main` (or retargeted to it) after the push run has decided
+  # costs a second run of the same commit, never a missing one. A request retargeted *away* from
+  # `main` after the push run stood down gets no new run from either event — `edited` is not a
+  # trigger — so after retargeting a request onto a stacked base, push its head again or dispatch
+  # this workflow on it. Anything that fails the lookup runs: a duplicate is cheap, a gap is not.
   only-once:
     runs-on: ubuntu-latest
     outputs:
@@ -82,21 +95,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # A feature-based review branch is validated with the final batch PR to main.
-          # Do not spend a full hosted playtest on every intermediate branch push.
+          # A stacked request (base is not main): its head was pushed, and that push run
+          # found no request to main covering it, so the push run is the one that tests it.
           if [ "${{ github.event_name }}" = 'pull_request' ] && [ "$GITHUB_BASE_REF" != 'main' ]; then
-            echo "pull request targets $GITHUB_BASE_REF — final batch will run checks"
+            echo "pull request targets $GITHUB_BASE_REF — the push run tests this head"
             echo 'run=no' >> "$GITHUB_OUTPUT"; exit 0
           fi
           if [ "${{ github.event_name }}" != 'push' ]; then
             echo 'run=yes' >> "$GITHUB_OUTPUT"; exit 0
           fi
-          open=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-                   --jq '[.[] | select(.state == "open")] | length' 2>/dev/null || echo 0)
-          if [ "${open:-0}" -gt 0 ]; then
-            echo "a pull request already covers ${{ github.sha }} — standing down"
+          # Only a request to main runs checks of its own, so only one of those may stand this
+          # run down. A stacked request covering the commit does not: its run is skipped.
+          covered=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+                      --jq '[.[] | select(.state == "open" and .base.ref == "main"
+                                           and .head.sha == "${{ github.sha }}")] | length' \
+                      2>/dev/null || echo 0)
+          if [ "${covered:-0}" -gt 0 ]; then
+            echo "a pull request to main has ${{ github.sha }} as its head — its run tests it; standing down"
             echo 'run=no' >> "$GITHUB_OUTPUT"
           else
+            echo "no open pull request to main has ${{ github.sha }} as its head — testing it here"
             echo 'run=yes' >> "$GITHUB_OUTPUT"
           fi
 

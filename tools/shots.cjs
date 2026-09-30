@@ -1117,7 +1117,7 @@ async function take(browser, shot) {
     await page.addStyleTag({ content: '#actionCard, #debug { visibility: hidden !important; }' });
     const at = await page.evaluate(() => ({
       hero: [window.__player.entity.x, window.__player.entity.y, window.__player.entity.z],
-      target: window.__iso.target.toArray(), lift: window.__iso.lift,
+      target: [window.__iso.target.x, window.__iso.target.y, window.__iso.target.z], lift: window.__iso.lift,
       angle: window.__iso.rotation, zoom: window.__iso.zoom,
       sky: window.__rig.graph.background, sun: window.__rig.lighting.sun.intensity,
     }));

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { IsoCamera } from './camera';
+import { nativeCamera, type IsoCamera } from './camera';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import type { EntityRenderer } from './entities';
@@ -101,7 +101,7 @@ export class OtherPlayers {
     for (const [id, body] of this.bodies) {
       const el = this.labels.get(id);
       if (!el || el.style.display === 'none') continue;
-      point.set(body.x, body.y + 2.1, body.z).project(camera.camera);
+      point.set(body.x, body.y + 2.1, body.z).project(nativeCamera(camera));
       if (point.z > 1) { el.style.display = 'none'; continue; }
       el.style.left = `${(point.x * 0.5 + 0.5) * width}px`;
       el.style.top = `${(-point.y * 0.5 + 0.5) * height}px`;

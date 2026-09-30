@@ -5,6 +5,8 @@ name: Renderer parity
 #
 # Or dispatch with `base` and `head` instead of `pr` to photograph every documented scene on two
 # arbitrary commits, for a change that landed as several pull requests and was never compared whole.
+# `base` alone compares against the tip of the ref the run was dispatched on; `head` alone is refused,
+# because without a base there is nothing to compare it with.
 on:
   pull_request:
     types: [labeled]
@@ -23,7 +25,7 @@ on:
         required: false
         type: string
       head:
-        description: Any commit or ref photographed as after; its shots.cjs drives both
+        description: Any commit or ref photographed as after; its shots.cjs drives both (default, with base, is the dispatched ref)
         required: false
         type: string
 
@@ -36,6 +38,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
+      - name: Refuse a head without a base
+        if: github.event_name == 'workflow_dispatch' && inputs.head != ''
+        run: |
+          echo "::error::head was given without base. Set base as well to compare two commits, or pass only pr."
+          exit 1
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -118,7 +126,7 @@ jobs:
   # so a difference is in the game rather than in how it was driven. The base must already answer
   # the capture probes that script asks for; anything before #452 has to have them ported first.
   capture:
-    if: github.event_name == 'workflow_dispatch' && inputs.base != '' && inputs.head != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.base != ''
     strategy:
       fail-fast: false
       matrix:
@@ -128,7 +136,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.head }}
+          ref: ${{ inputs.head || github.sha }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -144,7 +152,7 @@ jobs:
 
       - name: Check out and prepare the ${{ matrix.side }} commit
         env:
-          REF: ${{ matrix.side == 'base' && inputs.base || inputs.head }}
+          REF: ${{ matrix.side == 'base' && inputs.base || inputs.head || github.sha }}
           TREE: ${{ runner.temp }}/render-tree
         run: |
           git fetch --no-tags origin "$REF"
@@ -176,13 +184,13 @@ jobs:
 
   compare-commits:
     needs: capture
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.base != '' && inputs.head != ''
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.base != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.head }}
+          ref: ${{ inputs.head || github.sha }}
 
       - uses: pnpm/action-setup@v4
         with:

@@ -8,7 +8,7 @@ import { CAMERA } from '../core/config';
 const DESKTOP = { innerWidth: 1600, innerHeight: 900 };
 const fakeWindow = { ...DESKTOP };
 (globalThis as { window?: unknown }).window = fakeWindow;
-const { IsoCamera, zoomBand } = await import('./camera');
+const { IsoCamera, nativeCamera, zoomBand } = await import('./camera');
 
 /** Run something with the window pretending to be a different size, and put it back after. */
 const atWindow = <T>(width: number, height: number, body: () => T): T => {
@@ -83,8 +83,8 @@ describe('which way the keys move you', () => {
     // applyPosition is private and runs on update; nudging the rig through its own update is the
     // honest way to get the camera where the rotation says it should be
     iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
-    iso.camera.updateMatrixWorld(true);
-    const e = iso.camera.matrixWorld.elements;
+    nativeCamera(iso).updateMatrixWorld(true);
+    const e = nativeCamera(iso).matrixWorld.elements;
     return { iso, rightX: e[0], rightZ: e[2] };
   };
 
@@ -113,11 +113,11 @@ describe('neutral frame camera', () => {
       iso.target.set(14, 2, -8);
       iso.lift = 5;
       iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
-      iso.camera.updateMatrixWorld(true);
+      nativeCamera(iso).updateMatrixWorld(true);
       const frame = iso.frameCamera();
       expect(frame.orthographic).toBe(true);
-      frame.world.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.matrixWorld.elements[at], 10));
-      frame.projection.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.projectionMatrix.elements[at], 10));
+      frame.world.forEach((value, at) => expect(value).toBeCloseTo(nativeCamera(iso).matrixWorld.elements[at], 10));
+      frame.projection.forEach((value, at) => expect(value).toBeCloseTo(nativeCamera(iso).projectionMatrix.elements[at], 10));
     }));
   }
 
@@ -129,8 +129,8 @@ describe('neutral frame camera', () => {
     // the skyline eases the lift up the mountain, and the rig carries both at its next move
     iso.target.set(14.2, 2.1, -8.3);
     iso.lift = 0.4;
-    iso.camera.updateMatrixWorld(true);
-    iso.frameCamera().world.forEach((value, at) => expect(value).toBeCloseTo(iso.camera.matrixWorld.elements[at], 10));
+    nativeCamera(iso).updateMatrixWorld(true);
+    iso.frameCamera().world.forEach((value, at) => expect(value).toBeCloseTo(nativeCamera(iso).matrixWorld.elements[at], 10));
   }));
 });
 
@@ -302,5 +302,32 @@ describe('the ground the camera can see', () => {
     expect(iso.zoom, 'the wheel actually moved it').toBeGreaterThan(CAMERA.START_ZOOM * 0.5);
     const far = across(iso.groundCorners(0));
     expect(far / near).toBeCloseTo(iso.zoom / CAMERA.START_ZOOM, 1);
+  });
+});
+
+/**
+ * What the game holds of the camera is numbers (#249).
+ *
+ * No file outside `render/` names a three.js type, and `seam.test.ts` checks that. But the game
+ * could still hold one without naming it. It wrote the aim through a `THREE.Vector3` and passed
+ * the `THREE.OrthographicCamera` back into four renderers every frame. A second pipeline could
+ * offer neither, so the game was quietly depending on three.js all the same. Now the aim is a plain
+ * point that keeps `.set`, and only render code can get the lens, through `nativeCamera`.
+ */
+describe('what the game is handed of the camera', () => {
+  it('aims with a plain point rather than a graphics vector', async () => {
+    const THREE = await import('three');
+    const iso = new IsoCamera();
+    iso.target.set(3, 1, -2);
+    expect(iso.target, 'the aim still moves by `set`').toMatchObject({ x: 3, y: 1, z: -2 });
+    expect(iso.target).not.toBeInstanceOf(THREE.Vector3);
+  });
+
+  it('keeps the graphics camera off the object the game holds', async () => {
+    const iso = new IsoCamera();
+    expect('camera' in iso, 'the game can reach the three.js camera as `iso.camera`').toBe(false);
+    iso.target.set(14, 2, -8);
+    iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
+    expect(iso.height, 'the one fact the weather wanted from it').toBeCloseTo(nativeCamera(iso).position.y, 10);
   });
 });

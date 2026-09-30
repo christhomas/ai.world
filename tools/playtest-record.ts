@@ -241,6 +241,12 @@ const sample = async (page: Page, place: string): Promise<FrameDescription | nul
   await page.waitForTimeout(2000);
   const second = await counted();
   say('the game loop keeps submitting frames', second > first, `${second - first} in two seconds`);
+  // And the recorder is the only pipeline mounted, which is the claim this run exists to make. The
+  // WebGL renderer is still built in this mode, so "nothing drawn" is measured on it rather than
+  // assumed: a live mount would have drawn every one of the frames just counted (#249).
+  const drawnByWebGL = () => page.evaluate(() => (window as unknown as { __rig: { lastFrame(): { draws: number } } }).__rig.lastFrame().draws);
+  const webgl = await drawnByWebGL();
+  say('the WebGL renderer drew nothing while the recorder took the frames', webgl === 0, `${webgl} draw calls in its last frame`);
 
   type Probe = Record<string, (...args: never[]) => unknown>;
   const ask = <T>(fn: (w: Probe) => T): Promise<T> =>
@@ -324,6 +330,9 @@ const sample = async (page: Page, place: string): Promise<FrameDescription | nul
       `afloat ${afloat}; water ${water}; coast field ${sea?.coast ? `${sea.coast.size}²` : 'none'}`);
   }
 
+  // every place above swapped the graph being drawn, and a swap is where a second mount could slip in
+  const after = await drawnByWebGL();
+  say('and drew nothing in any of the places either', after === 0, `${after} draw calls in its last frame`);
   await finish();
 })().catch(async (e: unknown) => {
   say('the record-only playtest ran to the end', false, (e instanceof Error && e.message) || String(e));

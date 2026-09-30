@@ -145,6 +145,28 @@ open the PR against it:
 Say in the body which PR it is stacked on. Most of a day's work can be stacked three or four deep;
 "the parent has not merged" is not a reason to stop.
 
+### How a stack is tested
+
+Each pushed head is tested once, by whichever run can see it (`only-once` in
+`.github/workflows/checks.yml`):
+
+- a PR whose base is `main` — the bottom of a stack, or an ordinary PR — is tested by its
+  `pull_request` run, and the push run for that head stands down;
+- a stacked PR (base is the branch below it) is tested by the **push** run on its head. Its
+  `pull_request` run is skipped, and the push run does not stand down for it, because only a PR to
+  `main` runs checks of its own;
+- a branch with no PR is tested by its push run.
+
+So after pushing a stack, every head in it carries a real `check`, `flutter` and `playtest`, and the
+top's are the ones that matter when the stack is landed through its top PR: they tested the exact
+tree that squashes into `main`. Before #518 the push run also stood down for a stacked PR, which
+left stacked heads with only skipped required checks — which GitHub counts as passing.
+
+One case the workflow cannot see: retargeting a PR from `main` onto a stacked base after its head
+was pushed. The push run stood down (the PR was to `main` then) and a base change triggers nothing,
+so push the head again or run `gh workflow run checks.yml --ref <branch>`. Retargeting *to* `main`
+is harmless — the head already has its push run's checks, and the next push is tested by the PR.
+
 ### After the parent merges
 
 The stack is a development relationship, not the final integration base. When a parent PR lands in
@@ -161,8 +183,9 @@ next dependent branch. Do not leave a child pointed at a branch that has already
 permanently behind or conflicted, and a stacked-branch update can leave the current head without the
 required checks.
 
-The checks workflow also runs on branch pushes so a rebase or update triggers CI automatically. A
-manual workflow dispatch is a recovery measure for a missed run, not the normal merge process.
+The checks workflow also runs on branch pushes so a rebase or update triggers CI automatically (see
+"How a stack is tested" above). A manual workflow dispatch is a recovery measure for a missed run,
+not the normal merge process.
 
 ## Review follow-ups
 
