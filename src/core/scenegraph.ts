@@ -27,7 +27,9 @@ export type SceneNode =
   | { kind: 'point'; colour: LightColour; intensity: number; distance: number; decay: number; position: [number, number, number] }
   | { kind: 'directional'; colour: LightColour; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
   | { kind: 'prop-batch'; parts: readonly ScenePropPart[]; glowParts?: readonly ScenePropPart[];
-      glowColour?: number; placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean }
+      glowColour?: number; placements: readonly ScenePlacement[]; castShadow: boolean; receiveShadow: boolean;
+      /** The body's material effects; see `FrameDescription['nodes'][number]['effects']`. */
+      effects?: string[] }
   | { kind: 'instances'; geometry: SceneGeometry; colour: number; count: number;
       matrices: Float32Array; colours?: Float32Array; castShadow: boolean; receiveShadow: boolean;
       renderOrder?: number; material?: {
@@ -121,6 +123,7 @@ export class SceneGraph {
           ...base, kind: 'prop-batch' as const, castShadow: node.castShadow,
           receiveShadow: node.receiveShadow, parts: node.parts,
           glowParts: node.glowParts, glowColour: node.glowColour, placements: node.placements,
+          effects: node.effects,
         };
         if (node.kind === 'instances') return {
           ...base, kind: 'instances' as const, visible: node.count > 0, castShadow: node.castShadow,
