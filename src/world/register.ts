@@ -17,13 +17,13 @@ import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks, planCarrying, type CarryingOutcome } from './carriers';
 import { CarrierBook, cartFinished, cartLoaded, type CarrierFact, type CartFinished, type CartLoaded } from './carrierbook';
-import { standPostsIn, whoWouldStand, type Post } from './postings';
+import { standPostsIn, wagesOf, whoWouldStand, type Post } from './postings';
 import { DayBook } from './daybook';
 import { HoldingBook } from './holdingbook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
-import { THE_HALL_OWNER, whatTheVillageHolds, type Holding } from './holdings';
+import { THE_HALL_OWNER, whatTheVillageHolds, type Holding, type Owner } from './holdings';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -356,11 +356,8 @@ export class Register {
     if (!load || !buyer || (outcome === 'delivered' && buyer.food + load.meals > cellarFor(buyer))) return null;
     return cartFinished(this.day, load, outcome, this.villages); }
 
-  /**
-   * Every morning any holding paid for a man, kept for the life of the save. See `holdingbook.ts`.
-   * Not in the day book above: a post is a fact about a *holding* rather than about somebody's day,
-   * and is kept for good rather than cleared. Handed out for `cartsToday`'s reason.
-   */
+  /** Every morning any holding paid for a man or earned its owner anything: `holdingbook.ts`. Kept
+   *  for good, not cleared like the day book above, and handed out for `cartsToday`'s reason. */
   readonly holdingsBook = new HoldingBook();
 
   /** And what a post paid them, or cost them, on the last morning this village lived through. */
@@ -373,8 +370,13 @@ export class Register {
    *  come, which is what `aMorning` will stand, and what was stood for one already lived. #485 */
   whoIsSpokenFor(day: number): ReadonlyMap<string, readonly Post[]> {
     const morning = Math.floor(day);
-    if (morning <= this.day) return this.posted;
-    return whoWouldStand(this.villages, (v) => this.pressure.on(v, morning), morning);
+    return morning <= this.day ? this.posted : whoWouldStand(this.villages, (v) => this.pressure.on(v, morning), morning);
+  }
+
+  /** What tomorrow's posts will move at dawn, before anything else: where the roll's forecast starts. */
+  wagesAtDawn(village: string): ReadonlyMap<Owner, number> {
+    const here = this.villages.get(village), posts = this.whoIsSpokenFor(this.day + 1).get(village);
+    return here && posts ? wagesOf(here, posts) : new Map();
   }
 
   /** What every village stood this morning, which is what a page reads back after a day turns. */
@@ -386,8 +388,7 @@ export class Register {
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
     const here = this.villages.get(village);
-    if (!here) return 'well';
-    return fortuneOf(here.people.length, here.founded);
+    return here ? fortuneOf(here.people.length, here.founded) : 'well';
   }
 
   /**

@@ -383,27 +383,12 @@ export function standPostsIn(
 ): readonly Post[] {
   const posts = postsToday(village.people, (village.holdings ?? []) as readonly Held[], pressure, day, village.hall.purse);
   if (posts.length === 0) return posts;
-  const onTheRoll = new Set<Owner>([THE_HALL_OWNER, ...village.people.map((person) => ownedBy(person))]);
-  const owed = new Map<Owner, number>();
-  const facts: HoldingDay[] = [];
-  for (const post of posts) {
-    const man = ownerFromSave(post.who);
-    /*
-     * Whether a coin actually crosses, which is a different question from what the morning was
-     * worth and is why the book keeps both. A man standing his own yard is doing a real day at a
-     * real price with both ends of the hand-over in one purse, and a funder who is not on this
-     * roll is the hall, whose treasury pays by the same rule as a personal owner.
-     */
-    const moves = post.funder !== man && onTheRoll.has(post.funder) && onTheRoll.has(man);
-    if (moves) {
-      owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
-      owed.set(man, (owed.get(man) ?? 0) + post.wage);
-    }
-    facts.push({
-      day, holding: post.holding, kind: post.kind, who: post.who,
-      funder: post.funder, wage: post.wage, paid: moves ? post.wage : 0,
-    });
-  }
+  const crosses = moverOf(village);
+  const owed = wagesOf(village, posts);
+  const facts: HoldingDay[] = posts.map((post) => ({
+    day, holding: post.holding, kind: post.kind, who: post.who,
+    funder: post.funder, wage: post.wage, paid: crosses(post) ? post.wage : 0,
+  }));
   if (owed.size > 0) payAndSweep(village, owed);
   /*
    * Written whether or not anything moved, because a morning on which a man stood his own yard is
@@ -413,6 +398,35 @@ export function standPostsIn(
    */
   book.stood(name, day, facts, owed);
   return posts;
+}
+
+/**
+ * Whether a post's wage actually crosses between purses, which is a different question from what
+ * the morning was worth and is why the book keeps both. A man standing his own yard is doing a real
+ * day at a real price with both ends of the hand-over in one purse, and a funder who is not on this
+ * roll is the hall, whose treasury pays by the same rule as a personal owner.
+ */
+function moverOf(village: Settlement): (post: Post) => boolean {
+  const onTheRoll = new Set<Owner>([THE_HALL_OWNER, ...village.people.map((person) => ownedBy(person))]);
+  return (post) => {
+    const man = ownerFromSave(post.who);
+    return post.funder !== man && onTheRoll.has(post.funder) && onTheRoll.has(man);
+  };
+}
+
+/**
+ * What a morning's posts move, purse by purse: paid by `standPostsIn`, and forecast by the roll,
+ * which since #485 has to start its day from the purses the posts leave at dawn.
+ */
+export function wagesOf(village: Settlement, posts: readonly Post[]): Map<Owner, number> {
+  const crosses = moverOf(village);
+  const owed = new Map<Owner, number>();
+  for (const post of posts.filter(crosses)) {
+    owed.set(post.funder, (owed.get(post.funder) ?? 0) - post.wage);
+    const man = ownerFromSave(post.who);
+    owed.set(man, (owed.get(man) ?? 0) + post.wage);
+  }
+  return owed;
 }
 
 /**

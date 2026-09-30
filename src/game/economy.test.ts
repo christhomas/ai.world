@@ -255,8 +255,11 @@ describe('the coin in a village, against the books that village keeps', () => {
              * died, having paid a tax four times the one written in her last row. Repeating last
              * night's figure read the difference as a gold nobody could account for.
              */
-            const least = had.purse - had.spends - had.food - had.tax - taxOn({ purse: had.purse } as Person);
-            if (stone.left + 1e-6 < least) { lost += least - stone.left; void village; }
+            // and whatever a post moved that morning, which was stood before they died: a wage they
+            // paid a neighbour is still in the village, and one they were paid is in the estate
+            const posted = run.postedByTheDead.get(village)?.get(evenings[n].day)?.get(who(had)) ?? 0;
+            const least = had.purse - had.spends - had.food - had.tax - taxOn({ purse: had.purse } as Person) + posted;
+            if (stone.left + 1e-6 < least) lost += least - stone.left;
 
           }
         }
