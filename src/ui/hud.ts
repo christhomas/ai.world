@@ -28,7 +28,7 @@ export function meter(share: number): string {
 /** Below this share of your own maximum, the bar says so in colour. */
 const LOW_ON_HEALTH = 0.3;
 
-import { describeGpu, type Quality, type SceneRig } from '../render/scene';
+import type { Quality, SceneRig } from '../render/scene';
 import { ITEMS, SLOTS } from '../game/items';
 import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';

@@ -287,8 +287,6 @@ export interface SceneRig {
    * has an opinion about how the picture got there.
    */
   readonly canvas: HTMLCanvasElement;
-  /** Diagnostic hook used by fixed scene capture to freeze native actor layers. */
-  debugScene(): unknown;
   /** Give the graphics context back. The renderer's, and nobody else's business how. */
   dispose(): void;
   /**
@@ -554,7 +552,6 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       };
     },
     get canvas() { return renderer.domElement; },
-    debugScene() { return scene; },
     dispose() {
       for (const unmount of unmountLights) unmount();
       detachGraph();

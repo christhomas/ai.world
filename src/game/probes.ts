@@ -207,7 +207,6 @@ export function installProbes(ctx: Probed): void {
     __teleport?: (x: number, z: number) => void; __standAtCounter?: () => void;
   };
   debug.__state = state;
-  (debug as { __scene?: unknown }).__scene = rig.debugScene();
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;
@@ -218,7 +217,7 @@ export function installProbes(ctx: Probed): void {
     const now = worldSeconds(state.day, state.time);
     return pods().flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
   };
-  exposeRenderer(debug);
+  exposeRenderer(debug, rig);
   (debug as { __online?: unknown }).__online = online;
   debug.__doors = structures.doors;
   (debug as { __villages?: unknown }).__villages = structures.villages;

@@ -47,6 +47,18 @@ describe('where a frame is submitted', () => {
     expect(rig, 'the public rig still exposes the WebGL renderer').not.toMatch(/\brenderer\s*:/);
   });
 
+  it('does not hand the WebGL scene out for the debug hooks either', () => {
+    // `window.__scene` is for `tools/shots.cjs`, which switches layers off on the live scene. The
+    // render layer publishes it; a game file that fetched it from the rig would be holding the
+    // WebGL scene, however briefly, and the rig would have a native door in its public face
+    const rig = readFileSync(join('src', 'render', 'scene.ts'), 'utf8')
+      .split('export interface SceneRig {')[1]?.split('\n}')[0] ?? '';
+    expect(rig, 'the public rig still hands out its WebGL scene').not.toMatch(/\bdebugScene\b/);
+    expect(outside().filter((f) => /\bdebugScene\b/.test(readFileSync(f, 'utf8')))).toEqual([]);
+    // and nothing out here asks for the chip by handing over a renderer: `rig.chip()` answers it
+    expect(outside().filter((f) => /\bdescribeGpu\b/.test(readFileSync(f, 'utf8')))).toEqual([]);
+  });
+
   it('does not reach into the lights from outside, but asks the rig', () => {
     const reaching = outside().filter((f) => /\brig\.(sun|hemi|ambient)\b/.test(readFileSync(f, 'utf8')));
     expect(reaching, 'a light held by name outside the render layer is a light a second rig cannot have')
