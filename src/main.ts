@@ -120,6 +120,8 @@ export function startGame(
   const touch = new TouchControls(input);
   const props = new PropLibrary();
   const seasonTintMaterials = new SeasonTintMaterials();
+  // the season is said on the scene graph, and the tinted materials take it from each frame drawn
+  rig.followFrames((frame) => seasonTintMaterials.show(frame.season));
   // the ground this game is played on, and everything standing on it that was settled before
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
@@ -621,7 +623,7 @@ export function startGame(
   const frames = createFrame({
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places, endless, grower, mountains, cutaway,
     skyline, high, rock, daycycle, weather, updraughts, swallows, seaEyes, shafts, holes, beam,
-    couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
+    couldBeAShaft: (x, z) => openCountry(chunks, x, z), skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,

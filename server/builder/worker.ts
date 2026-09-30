@@ -63,6 +63,15 @@ export interface WorkerOptions {
   buildPage?: (worktree: string, out: string) => Promise<void>;
 }
 
+/**
+ * The `codex exec` argv for one prompt. No shell, so the prompt is one argv element whatever it
+ * holds, and `--` ends the options first, so a prompt that starts with a dash is still a prompt
+ * and not a flag.
+ */
+export function codexArgs(prompt: string): string[] {
+  return ['exec', '--model', 'gpt-6-sol', '--sandbox', 'workspace-write', '--json', '--', prompt];
+}
+
 /** What changed in the worktree, as git sees it. The answer the audit actually wants. */
 export function changedIn(worktree: string): string[] {
   try {
@@ -198,13 +207,7 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
       })();
     };
 
-    // No shell: the prompt is one argv element, regardless of its contents.
-    const how = options.command ?? {
-      run: 'codex',
-      args: (prompt: string) => [
-        'exec', '--model', 'gpt-6-sol', '--sandbox', 'workspace-write', '--json', prompt,
-      ],
-    };
+    const how = options.command ?? { run: 'codex', args: codexArgs };
     const child = spawn(how.run, how.args(asked.prompt), { cwd: worktree, stdio: ['ignore', 'pipe', 'pipe'] });
 
     const timer = setTimeout(() => {

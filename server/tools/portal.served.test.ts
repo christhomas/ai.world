@@ -41,10 +41,10 @@ describe('the tools portal, served', () => {
   const at = (path: string): string => `http://127.0.0.1:${server!.port}${path}`;
   const get = (path: string, cookie?: string): Promise<Response> =>
     fetch(at(path), { redirect: 'manual', headers: cookie ? { cookie } : {} });
-  const signIn = async (name: string, password: string): Promise<Response> =>
+  const signIn = async (name: string, password: string, headers: Record<string, string> = {}): Promise<Response> =>
     fetch(at('/tools/login'), {
       method: 'POST', redirect: 'manual',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
       body: new URLSearchParams({ name, password }).toString(),
     });
   const cookieOut = (res: Response): string => (res.headers.get('set-cookie') ?? '').split(';')[0];
@@ -82,6 +82,17 @@ describe('the tools portal, served', () => {
     expect(set).toContain('SameSite=Strict');
     // plain http in a test, so it must NOT be Secure or the browser would drop it
     expect(set, 'a Secure cookie over http is a login that never sticks').not.toContain('Secure');
+  });
+
+  // Production's proxy reports its own internal hop as http (#421). The browser's Origin does not.
+  it('marks the cookie Secure when the browser says it is on https, whatever the proxy says', async () => {
+    const res = await signIn('chris', 'a long enough password',
+      { 'x-forwarded-proto': 'http', origin: 'https://aiworld.example' });
+    expect(res.status).toBe(303);
+    expect(res.headers.get('set-cookie')).toContain('Secure');
+    const out = await fetch(at('/tools/logout'), { method: 'POST', redirect: 'manual',
+      headers: { 'x-forwarded-proto': 'http', origin: 'https://aiworld.example' } });
+    expect(out.headers.get('set-cookie'), 'and takes it away with the same attributes').toContain('Secure');
   });
 
   it('shows the catalogue, with both tools on it, to somebody signed in', async () => {

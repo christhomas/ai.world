@@ -10,6 +10,10 @@ import { growPatch } from '../src/world/growworld';
 import { partsOf } from '../src/world/endless';
 import { Simulation } from './sim';
 import { Forgetful } from './vault';
+import { countryStamp, growWorld, islandsFor } from '../src/world/growworld';
+import { Manifest } from '../src/world/manifest';
+import { TerrainSampler } from '../src/world/terrain';
+import { rebuildRoad, roadPartsOf } from './groundsource';
 
 describe('a slow first country', () => {
   let server: RunningServer | null = null;
@@ -57,9 +61,12 @@ describe('a slow first country', () => {
     const parts = partsOf(growPatch(seed, boundsOf('0,0')));
     server = await startServer({
       port: 0, dataDir: directory, durableDb: null, quiet: true,
-      preparePatch: async () => {
-        await new Promise((resume) => setTimeout(resume, 1500));
-        return parts;
+      prepare: {
+        grow: async () => {
+          await new Promise((resume) => setTimeout(resume, 1500));
+          return parts;
+        },
+        growRoad: async () => { throw new Error('an endless world has no road country'); },
       },
     });
 
@@ -81,15 +88,76 @@ describe('a slow first country', () => {
     expect(updates.at(-1)).toMatchObject({ done: updates.at(-1)?.total });
   }, 90_000);
 
+  it('grows a road world away from the event loop and keeps telling the page', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'aiworld-slow-country-'));
+    const seed = 161803;
+    // The parts a worker hands back: the whole road country, grown here before the server starts
+    // so the growing is not what the lag monitor below measures.
+    const islands = islandsFor(new Manifest(seed), seed);
+    const grown = new TerrainSampler(growWorld(seed, islands));
+    const parts = structuredClone(roadPartsOf(islands, grown));
+    // What crosses the worker boundary has to rebuild the country that was grown, tile for tile.
+    const rebuilt = rebuildRoad(structuredClone(parts));
+    const a = grown.newSample(), b = rebuilt.newSample();
+    let differ = 0, land = 0;
+    for (let x = -600; x <= 600; x += 9) for (let z = -600; z <= 600; z += 9) {
+      grown.sampleTile(x, z, a);
+      rebuilt.sampleTile(x, z, b);
+      if (a.type !== b.type || a.height !== b.height || a.biome !== b.biome || a.roadDist !== b.roadDist) differ++;
+      if (a.height > 0) land++;
+    }
+    expect(land, 'the sampled square has country in it').toBeGreaterThan(1000);
+    expect(differ, 'the rebuilt road country paints what was grown').toBe(0);
+    expect(rebuilt.structures.villages.length).toBe(grown.structures.villages.length);
+    let asked = 0;
+    server = await startServer({
+      port: 0, dataDir: directory, durableDb: null, quiet: true,
+      prepare: {
+        grow: async () => { throw new Error('a road world has no patches'); },
+        growRoad: async (_seed, islands) => {
+          asked++;
+          expect(islands, 'a fresh world has planned no islands yet').toEqual([]);
+          await new Promise((resume) => setTimeout(resume, 1500));
+          return structuredClone(parts);
+        },
+      },
+    });
+    let worst = 0;
+    let last = Date.now();
+    const lag = setInterval(() => { const now = Date.now(); worst = Math.max(worst, now - last); last = now; }, 20);
+    try {
+      const socket = new WebSocket(`ws://localhost:${server.port}`);
+      sockets.push(socket);
+      const seen: ServerMessage[] = [];
+      socket.on('message', (raw, binary) => { if (!binary) seen.push(JSON.parse(String(raw)) as ServerMessage); });
+      await new Promise<void>((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+      socket.send(JSON.stringify({
+        type: 'join', worldName: 'Roadside', kind: 'road', seed, name: 'Rowan',
+        version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 0, z: 0,
+      }));
+      await until(() => seen.find((m) => m.type === 'welcome'), 3000);
+      const country = await until(() => seen.find((m) => m.type === 'country'));
+      expect(asked, 'the road country came from the source rather than this thread').toBe(1);
+      expect(country).toMatchObject({ kind: 'road', stamp: countryStamp(parts.graph) });
+      const updates = seen.filter((m) => m.type === 'country-progress');
+      expect(updates.length, 'progress arrives while the country grows').toBeGreaterThan(2);
+      expect(updates.at(-1)).toMatchObject({ done: updates.at(-1)?.total });
+      expect(worst, 'no one piece of the road country holds the event loop').toBeLessThan(1500);
+    } finally { clearInterval(lag); }
+  }, 120_000);
+
   it('answers chunk requests heard while the first country was being prepared', async () => {
     directory = mkdtempSync(join(tmpdir(), 'aiworld-slow-country-'));
     const seed = 271828;
     const parts = partsOf(growPatch(seed, boundsOf('0,0')));
     server = await startServer({
       port: 0, dataDir: directory, durableDb: null, quiet: true,
-      preparePatch: async () => {
-        await new Promise((resume) => setTimeout(resume, 500));
-        return parts;
+      prepare: {
+        grow: async () => {
+          await new Promise((resume) => setTimeout(resume, 500));
+          return parts;
+        },
+        growRoad: async () => { throw new Error('an endless world has no road country'); },
       },
     });
     const socket = new WebSocket(`ws://localhost:${server.port}`);
@@ -114,6 +182,128 @@ describe('a slow first country', () => {
     expect(parcels).toBe(view.length);
   }, 90_000);
 
+  /** A page on a simulation with no server around it; closing its wire leaves, as a socket does. */
+  function joinSim(sim: Simulation, seed: number) {
+    const page = { heard: [] as ServerMessage[], open: true };
+    const attached = sim.attach({
+      send: (text) => page.heard.push(JSON.parse(String(text)) as ServerMessage),
+      get open() { return page.open; },
+      close: () => { if (page.open) { page.open = false; attached.leave(); } },
+    });
+    attached.receive(JSON.stringify({
+      type: 'join', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, x: 256, z: 256,
+    }));
+    return { ...page, get open() { return page.open; }, leave: () => { page.open = false; attached.leave(); } };
+  }
+
+  // One patch of one endless seed, grown once for the cases below that need a real answer.
+  const seed = 57721;
+  let grown: ReturnType<typeof partsOf> | null = null;
+  const parts = () => (grown ??= partsOf(growPatch(seed, boundsOf('0,0'))));
+  const never = <T>() => new Promise<T>(() => {});
+
+  describe('a ground source that never answers', () => {
+
+    it('tells the preparing page it failed after a limit, and the next join tries again', async () => {
+      const answer = parts();
+      let asked = 0;
+      const sim = new Simulation({
+        vault: new Forgetful(), ground: true, prepareTimeout: 200,
+        prepare: {
+          grow: () => (++asked === 1 ? never() : Promise.resolve(answer)),
+          growRoad: never,
+        },
+      });
+      try {
+        const first = joinSim(sim, seed);
+        await until(() => first.heard.find((m) => m.type === 'country-progress'), 1000);
+        const refused = await until(() => first.heard.find((m) => m.type === 'error'), 3000);
+        expect(refused).toMatchObject({ reason: expect.stringMatching(/too long/) });
+        expect(first.open, 'the page that was refused is let go').toBe(false);
+        expect(first.heard.some((m) => m.type === 'country')).toBe(false);
+
+        const second = joinSim(sim, seed);
+        await until(() => second.heard.find((m) => m.type === 'country'), 20_000);
+        expect(asked, 'the second join asked the source again rather than waiting on the first').toBe(2);
+      } finally { sim.stop(); }
+    }, 60_000);
+
+    it('does not keep the next join waiting on a page that has already left', async () => {
+      const answer = parts();
+      let asked = 0;
+      const sim = new Simulation({
+        vault: new Forgetful(), ground: true,
+        prepare: {
+          grow: () => (++asked === 1 ? never() : Promise.resolve(answer)),
+          growRoad: never,
+        },
+      });
+      try {
+        const first = joinSim(sim, seed);
+        await new Promise((resume) => setTimeout(resume, 50));
+        expect(asked, 'the first join is waiting on the source').toBe(1);
+        first.leave();
+        const second = joinSim(sim, seed);
+        await until(() => second.heard.find((m) => m.type === 'country'), 20_000);
+        expect(second.heard.filter((m) => m.type === 'country-progress').length).toBeGreaterThan(0);
+        expect(asked).toBe(2);
+      } finally { sim.stop(); }
+    }, 60_000);
+  });
+
+  describe('a survey while a world is being prepared', () => {
+    /** A simulation whose source holds its answer until the test lets it go. */
+    function held() {
+      let release!: () => void;
+      const answered = new Promise<void>((resolve) => { release = resolve; });
+      let asked = 0;
+      const answer = parts();
+      const sim = new Simulation({
+        vault: new Forgetful(), ground: true,
+        prepare: {
+          grow: async () => { asked++; await answered; return answer; },
+          growRoad: never,
+        },
+      });
+      return { sim, release, asked: () => asked };
+    }
+
+    it('answers that the world is busy rather than growing it on this thread', async () => {
+      const { sim, release, asked } = held();
+      try {
+        const page = joinSim(sim, seed);
+        await until(() => page.heard.find((m) => m.type === 'country-progress'), 5000);
+        await until(() => (asked() === 1 ? true : undefined), 5000);
+        expect(sim.surveyOf(seed)).toBe('preparing');
+        expect(sim.rooms.groundOf(seed), 'the survey grew no ground').toBeNull();
+        release();
+        await until(() => page.heard.find((m) => m.type === 'country'), 20_000);
+        const book = sim.surveyOf(seed);
+        expect(book, 'once it is ready, the world is surveyed').not.toBe('preparing');
+        expect(book).toMatchObject({ seed });
+      } finally { sim.stop(); }
+    }, 60_000);
+
+    it('keeps the patch set behind a ground grown while it was being prepared', async () => {
+      const { sim, release, asked } = held();
+      // `patchworks` is private; what is asked is whether the live ground and the kept set are one.
+      const kept = () => (sim as unknown as { patchworks: Map<number, unknown> }).patchworks.get(seed);
+      try {
+        const page = joinSim(sim, seed);
+        await until(() => (asked() === 1 ? true : undefined), 5000);
+        // Anything on this thread that grows the world mid-preparation, as a survey used to.
+        const ground = sim.groundOf(seed);
+        const behind = kept();
+        expect(ground, 'the precondition: a ground was grown mid-preparation').not.toBeNull();
+        expect(behind).toBeDefined();
+        release();
+        await until(() => page.heard.find((m) => m.type === 'country'), 20_000);
+        expect(sim.groundOf(seed)).toBe(ground);
+        expect(kept(), 'the preparation kept the patch set that ground reads').toBe(behind);
+      } finally { sim.stop(); }
+    }, 60_000);
+  });
+
   it('does not count server preparation as player silence', async () => {
     const heard: ServerMessage[] = [];
     let open = true;
@@ -121,7 +311,7 @@ describe('a slow first country', () => {
     const waiting = new Promise<ReturnType<typeof partsOf>>((_resolve, reject) => { stopWaiting = reject; });
     const sim = new Simulation({
       vault: new Forgetful(), ground: true, timeout: 100,
-      preparePatch: async () => waiting,
+      prepare: { grow: async () => waiting, growRoad: async () => { throw new Error('not a road world'); } },
     });
     sim.attach({
       send: (text) => heard.push(JSON.parse(String(text)) as ServerMessage),
