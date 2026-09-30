@@ -1,5 +1,6 @@
 import { $ } from './dom';
 import { greeting } from '../core/version';
+import { Follow } from './follow';
 
 const MAX_LINES = 60;
 
@@ -18,6 +19,8 @@ export class Chat {
   private readonly panel = $('chatPanel');
   private readonly log = $('chatLog');
   private readonly input = $<HTMLInputElement>('chatInput');
+  private readonly follow = new Follow(this.log);
+  private resized: ResizeObserver | null = null;
   private typing = false;
   private asConsole = false;
 
@@ -29,6 +32,14 @@ export class Chat {
     // the pointer leaves the log — and, worse, a page that ever gets the event scrolls the world
     // behind a console somebody is reading.
     this.panel.addEventListener('wheel', (e) => e.stopPropagation());
+    // The newest line stays in view however the log's box changes around it — see `Follow`. The
+    // log is watched for its own size, and each line for its own, because a line that wraps
+    // differently makes the log taller without the log's box changing at all.
+    this.log.addEventListener('scroll', () => this.follow.scrolled());
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resized = new ResizeObserver(() => this.follow.settle());
+      this.resized.observe(this.log);
+    }
     this.input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
@@ -70,7 +81,7 @@ export class Chat {
     this.input.classList.add('show');
     this.input.placeholder = asConsole ? 'Say something, ? for help, / for a command' : 'Say something, then Enter';
     this.input.focus();
-    this.log.scrollTop = this.log.scrollHeight;
+    this.follow.resume();
     // the key that opened the box would otherwise land in it
     window.setTimeout(() => { this.input.value = ''; }, 0);
   }
@@ -106,24 +117,26 @@ export class Chat {
   }
 
   /**
-   * Whether the log is showing its newest line.
+   * Say something in the log.
    *
    * A line arriving pulls the log down to the bottom, which is right until somebody has scrolled up
-   * to read what was said earlier — then it is the box snatching itself out of their hands. Within
-   * a couple of pixels, because a scroll position is a float and lands a hair short.
+   * to read what was said earlier — then it is the box snatching itself out of their hands, so it
+   * does that only while the log is following (see `Follow`). The panel is shown first, because a
+   * box that is not displayed has no bottom to go to.
    */
-  private get atBottom(): boolean {
-    return this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 4;
-  }
-
   line(text: string, kind: 'chat' | 'sys' = 'chat'): void {
-    const following = this.atBottom;
     const el = document.createElement('div');
     if (kind === 'sys') el.className = 'sys';
     el.textContent = text;
     this.log.appendChild(el);
-    while (this.log.childElementCount > MAX_LINES) this.log.firstElementChild?.remove();
-    if (following) this.log.scrollTop = this.log.scrollHeight;
+    this.resized?.observe(el);
+    while (this.log.childElementCount > MAX_LINES) {
+      const oldest = this.log.firstElementChild;
+      if (!oldest) break;
+      this.resized?.unobserve(oldest);
+      oldest.remove();
+    }
     this.show();
+    this.follow.settle();
   }
 }
