@@ -1063,9 +1063,9 @@ export class Simulation {
   private lift(client: Client, room: Room, message: Extract<ClientMessage, { type: 'open' }>): void {
     lidLifted({
       floor: this.floors.get(`${client.seed}|${client.standingIn}`) ?? null,
-      // where the world has him: the position it walked him to out of doors, and the one it was last
-      // told below ground, which are the same object either way
-      hero: client.hero ?? client.presence,
+      // where he is on the floor, which is where his page last said: the world walks nobody below
+      // ground, and its own hero waits at the stairhead until he comes back up (#524)
+      hero: client.presence,
       standingIn: client.standingIn,
       apply: (delta) => room.world.apply(delta),
       broadcast: (delta) => this.rooms.broadcast(client.seed, { type: 'delta', delta, from: client.presence.id }, client),
@@ -1183,6 +1183,11 @@ export class Simulation {
   /** Prepare the first view without making the HTTP and socket event loop grow its patches. */
   private async readyForAsync(client: Client, message: Extract<ClientMessage, { type: 'join' }>): Promise<void> {
     const seed = client.seed;
+    const stillHere = () => client.wire.open && this.rooms.get(seed)?.clients.has(client) === true;
+    // A page that left while queued behind another join has no wait of its own for `leave` to stop,
+    // so it is asked here, before any growth: otherwise its country is grown for nobody, and every
+    // join queued behind it waits on that (#527).
+    if (!stillHere()) return;
     const x = Number(message.x), z = Number(message.z);
     const standing = Number.isFinite(x) && Number.isFinite(z);
     const kind = this.rooms.get(seed)?.kind ?? 'endless';
@@ -1214,7 +1219,7 @@ export class Simulation {
       if (growsRoad && this.prepare) {
         road = await this.preparations.wait(client,
           this.prepare.growRoad(seed, this.rooms.manifestOf(seed).byKind('island')));
-        if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+        if (!stillHere()) return;
         done++;
         progress();
         // The rebuild and the people are the next long piece; let this progress go out first.
@@ -1224,13 +1229,13 @@ export class Simulation {
         const layers = this.layersOf(seed), terrain = this.terrainOf(seed);
         for (const patch of patches) {
           const parts = await this.preparations.wait(client, this.prepare.grow(seed, patch, layers, terrain));
-          if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+          if (!stillHere()) return;
           patchwork!.put(patch, rebuildPatch(seed, boundsOf(patch), parts));
           done++;
           progress();
         }
       }
-      if (!client.wire.open || !this.rooms.get(seed)?.clients.has(client)) return;
+      if (!stillHere()) return;
       const ground = this.groundOf(seed, road);
       if (ground && standing) {
         const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);

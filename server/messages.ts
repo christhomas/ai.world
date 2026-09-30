@@ -7,6 +7,7 @@ import {
 import type { Entity } from '../src/entities/entity';
 import { WORLD } from '../src/core/config';
 import { GroundWorld } from '../src/world/groundworld';
+import type { Anchor } from '../src/world/manifest';
 import { BOAT, helm } from '../src/game/sailing';
 import { cropLifted, seedSown } from './farming';
 import { JUMP } from '../src/entities/leap';
@@ -14,10 +15,11 @@ import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
 import { callTownVote } from './voting';
-import { cartActionPosition, cartGuarded, robLoadedCart } from './cartrobbery';
+import { cartGuarded, robLoadedCart } from './cartrobbery';
+import { walkedFoot } from './footing';
 import { carrierOnRoad } from './carrieractor';
 import type { CartLoaded } from '../src/world/carrierbook';
-import { mayChangeEyrie } from './eyries';
+import { baitWouldTake, mayChangeEyrie } from './eyries';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -172,8 +174,9 @@ const AT_A_PIER = 12;
  *
  * The same bargain as a walk: the client says what it asked of the boat and the world moves it
  * against its own water, so two people watching a boat are watching it in one place. The boat
- * starts wherever they said they boarded — the world has never been told where a boat is moored —
- * and from there it is the world's until they step off.
+ * starts where the world had them when they boarded — the `stood` that boards one puts them beside
+ * it, and the world has never been told where a boat is moored — and from there it is the world's
+ * until they step off.
  */
 function sailed(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'helm' }>): void {
   const water = rooms.groundOf(me.seed);
@@ -183,7 +186,11 @@ function sailed(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
   if (seq <= me.steered) return;
   me.steered = seq;
   const p = me.presence;
-  const boat = me.boat ?? (me.boat = { x: p.x, z: p.z, yaw: p.yaw });
+  // moored where the world last had him rather than where a move says the boat is: a move never
+  // carries the world's hero, and a boat he rides would carry him anywhere a move could (#524).
+  // Boarding one is a `stood`, which has already put him beside it.
+  const at = me.hero ?? p;
+  const boat = me.boat ?? (me.boat = { x: at.x, z: at.z, yaw: p.yaw });
   helm(boat, {
     forward: Number(message.forward) || 0,
     turn: Number(message.turn) || 0,
@@ -394,10 +401,13 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
   // the claim is settled rather than judged, and `youAre` below is what puts him right
   answer(true);
   if (!hero) return;
+  // And a hero the world never saw go in by any door comes out where it last had him. Only a
+  // `move` gets somebody indoors without one, and a move is not a way of travelling (#524).
   const door = me.leftSurfaceAt;
-  const wandered = door !== null && Math.hypot(x - door.x, z - door.z) > SAME_DOOR;
-  hero.x = wandered ? door.x : x;
-  hero.z = wandered ? door.z : z;
+  const wandered = door === null || Math.hypot(x - door.x, z - door.z) > SAME_DOOR;
+  const out = wandered ? door ?? { x: hero.x, z: hero.z } : { x, z };
+  hero.x = out.x;
+  hero.z = out.z;
   if (wandered) { p.x = hero.x; p.z = hero.z; }
   settle(rooms, me, hero);
   rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
@@ -532,27 +542,32 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
   switch (message.type) {
     case 'move': {
       const p = me.presence;
-      // A hero the server is walking is not moved by what a client says about him — that is the
-      // whole of owning him. But a hero can still be *put* somewhere by things the server has no
-      // idea about: a teleport, a staircase, a ferry, a boat, the first placing when somebody
-      // joins. Those all move him further in one message than any walk could, so a long jump is
-      // taken as a warp and a short one is ignored, and the client goes on owning everywhere the
-      // server does not: indoors, underground, and at sea.
       // The server owns him only where it walks him: out of doors, on his own feet, on ground it
       // has grown. There, a move says nothing about where he is standing — that is what owning him
-      // means. Everywhere else the client is the authority and this is how it says so, and a jump
-      // from one to the other arrives as `stood` rather than being guessed at from a distance.
+      // means. Everywhere else the client is the authority over where the page draws him, and this
+      // is how it says so.
+      //
+      // What a move never does is put the world's own hero anywhere (#524). Indoors, underground,
+      // on a horse or at sea he stays where the world last had him, and every way off the surface
+      // and back onto it is a `stood`, which is checked: a door against the doorways, a saddle or a
+      // gangplank against where he was standing. A move that could carry him used to be a way of
+      // skipping all of that — say you are in an inn beside a cart, say you are back out, take one
+      // step, and the world had walked you to the cart.
       const walked = me.hero;
       const ground = rooms.groundOf(me.seed);
       const outside = String(message.place) === 'surface' && message.riding === 'foot';
       const standing = walked !== null && ground !== null && ground.heightAt(walked.x, walked.z) !== null;
       const theirs = !outside || !standing;
       if (theirs) me.serverFootAt = null;
-      // A horse is client-moved, but its coordinates are not a server-verified foot position.
-      // Keep the last walked hero pose so mounting and dismounting cannot teleport a later robbery.
-      const surfaceRide = p.place === 'surface' && String(message.place) === 'surface';
-      if (theirs && walked && !surfaceRide) { walked.x = message.x; walked.z = message.z; }
       if (theirs) { p.x = message.x; p.z = message.z; }
+      // Back up onto the surface, and so standing wherever the world's hero is. After an honest
+      // door that is where the door's `stood` just put him; after no door at all it is where he
+      // was before, and the door he went in by, if any, is spent — it is not a way back out of the
+      // next place he says he is in.
+      if (p.place !== 'surface' && String(message.place) === 'surface') {
+        me.leftSurfaceAt = null;
+        if (walked) { p.x = walked.x; p.z = walked.z; }
+      }
       p.yaw = message.yaw; p.walk = message.walk;
       p.place = String(message.place).slice(0, LIMITS.PLACE);
       // Which world they are in, which decides whose creatures they are told about and where their
@@ -635,10 +650,10 @@ function robTheCart(
     fact.kind === 'cart-loaded' && fact.day === message.loadedOn);
   const from = world?.villages.find((village) => village.name === load?.from);
   const ground = rooms.groundOf(me.seed);
-  const footAt = cartActionPosition(me, ground);
+  const footAt = walkedFoot(me, ground);
   const carrier = register && ground instanceof GroundWorld
     ? carrierOnRoad(register, world.villages, ground, Math.floor(room.world.clock.day), room.world.clock.time) : null;
-  const guards = [...room.clients].filter((client) => client === me || cartActionPosition(client, ground));
+  const guards = [...room.clients].filter((client) => client === me || walkedFoot(client, ground));
   const guarded = cartGuarded(guards, me, message.loadedOn, carrier);
   const robbed = !guarded && register && footAt && robLoadedCart(
     register, Math.floor(room.world.clock.day), room.world.clock.time,
@@ -660,7 +675,7 @@ function escortTheCart(
   }
   const world = me.standingIn === 'surface' ? rooms.worldOf(me.seed, 'surface') : null;
   const ground = rooms.groundOf(me.seed);
-  const footAt = cartActionPosition(me, ground);
+  const footAt = walkedFoot(me, ground);
   const carrier = world?.register && ground instanceof GroundWorld
     ? carrierOnRoad(world.register, world.villages, ground,
       Math.floor(room.world.clock.day), room.world.clock.time) : null;
@@ -751,6 +766,17 @@ function civicVote(rooms: Rooms, me: Client, room: Room, message: Extract<Client
   rooms.broadcast(me.seed, { type: 'delta', delta: vote, from: me.presence.id });
 }
 
+/**
+ * A nest is added only where the world's own ground and day say the bait would have taken (#525):
+ * on ground it has grown, since asking must not grow a patch on this thread.
+ */
+function baitTook(rooms: Rooms, me: Client, room: Room, anchor: Anchor): boolean {
+  const ground = rooms.groundOf(me.seed);
+  if (!(ground instanceof GroundWorld) || ground.heightAt(anchor.x, anchor.z) === null) return false;
+  return baitWouldTake(room.world.manifest, me.seed, Math.floor(room.world.clock.day),
+    ground.countryAt(anchor.x, anchor.z), anchor);
+}
+
 /** The short log of what players have altered about the world, passed on to everybody else in it. */
 function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
   if (message.type !== 'delta') return;
@@ -762,8 +788,11 @@ function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessag
   // a change that has a command of its own cannot also be announced as a fact, or the command is a
   // suggestion rather than a check: see `mayReport`
   if (!mayReport(delta)) return;
-  if (delta.kind === 'eyrie' && (me.presence.place !== 'surface'
-    || !mayChangeEyrie(room.world.manifest, me.hero ?? me.presence, delta))) {
+  // judged from where the world walked him, never from where his page says he is: a join or a move
+  // can say anywhere at all (#524)
+  if (delta.kind === 'eyrie'
+    && (!mayChangeEyrie(room.world.manifest, walkedFoot(me, rooms.groundOf(me.seed)), delta)
+      || (delta.present && !baitTook(rooms, me, room, delta.anchor)))) {
     answerEyrie(rooms, me, room, delta.anchor.id);
     return;
   }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
 import { WAIT_FOR_THE_WORLD, unpackChunk } from '../src/world/chunkparcel';
@@ -9,6 +9,10 @@ import { DAY_LENGTH } from './protocol';
 import { homelandsOf } from '../src/entities/homeland';
 import { provinceOfHome } from '../src/world/provinces';
 import { Manifest } from '../src/world/manifest';
+import { baitWouldTake } from './eyries';
+import { EYRIE } from '../src/game/eyries';
+import { rangesAsMassifs } from '../src/world/ranges';
+import { boundsOf, patchOf } from '../src/world/patchwork';
 import { endlessStamp } from '../src/world/growworld';
 import { generateDungeon } from '../src/dungeon/generate';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../src/world/chests';
@@ -18,8 +22,10 @@ import { migrateDomain } from './durable/db';
 import { MINDS_SCHEMA, keepMinds, mindsOf } from './durable/minds';
 import type { Person } from '../src/world/people';
 import { HoldingBook } from '../src/world/holdingbook';
-import { ownerFromSave } from '../src/world/holdings';
+import { ownedBy, ownerFromSave } from '../src/world/holdings';
 import { mountainAnchor, skyEyrieAnchor } from '../src/world/worldediting';
+import { Register } from '../src/world/register';
+import { cartLoaded, cartPosition } from '../src/world/carrierbook';
 
 describe('private prayer manifests', () => {
   it('keeps long-lived worlds with more than 32 answered prayers joinable', () => {
@@ -193,6 +199,32 @@ class Pretend {
   }
 }
 
+/**
+ * A ledge on seed 3 where the world's own bait rule keeps an eagle today (#525).
+ *
+ * Found rather than written down, because the roll is keyed to the day the room's clock reads: the
+ * ranges of the square at the origin, walked in from their skirts, until one tile takes.
+ */
+function aLedgeThatTakes(sim: Simulation): ReturnType<Manifest['ensure']> {
+  const ground = sim.groundOf(3)!;
+  const room = sim.rooms.get(3)!;
+  const day = Math.floor(room.world.clock.day);
+  const country = ground.countryAt(0, 0);
+  const { x0, z0, x1, z1 } = boundsOf(patchOf(0, 0));
+  const ranges = (country.ranges ? rangesAsMassifs(country.ranges, country.mesh) : country.massifs)
+    .filter((massif) => massif.radius >= EYRIE.WORTH_FLYING);
+  for (const massif of ranges) {
+    for (let share = 0.3; share < 1; share += 0.1) for (let turn = 0; turn < Math.PI * 2; turn += 0.3) {
+      const x = Math.round(massif.x + Math.cos(turn) * massif.radius * share);
+      const z = Math.round(massif.z + Math.sin(turn) * massif.radius * share);
+      if (x < x0 + 8 || z < z0 + 8 || x >= x1 - 8 || z >= z1 - 8) continue;
+      const anchor = new Manifest(3).ensure(`eyrie:${x},${z}`, 'eyrie', x, z);
+      if (baitWouldTake(room.world.manifest, 3, day, country, anchor)) return anchor;
+    }
+  }
+  throw new Error('no ledge on the square at the origin of seed 3 keeps an eagle today');
+}
+
 describe('the simulation, hosted by nothing at all', () => {
   it('welcomes a player, and tells them the world they arrived in', () => {
     const sim = new Simulation({ vault: new Forgetful() });
@@ -246,18 +278,35 @@ describe('the simulation, hosted by nothing at all', () => {
     expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'cleared', mine: 'Barrow', many: 4 }]);
   });
 
+  /*
+   * A nest is changed from where the world walked the hero, not from where his page says he is:
+   * #524. So every nest below is reported by somebody the world has walked, on ground it can walk
+   * him on, and the nest is beside where it got him to.
+   */
+  const onALedge = () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    // a real ledge now, not any spot beside him: the world asks the bait rule itself (#525)
+    const ledge = aLedgeThatTakes(sim);
+    rowan.say({ type: 'move', x: ledge.x, z: ledge.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const at = rowan.of('youAre').at(-1);
+    expect(at, 'the world never walked him, so no nest could be his').toBeDefined();
+    expect(Math.hypot(at!.x - ledge.x, at!.z - ledge.z), 'and he stands at the ledge').toBeLessThan(8);
+    return { sim, rowan, anchor: ledge };
+  };
+
   it('broadcasts a baited nest and replays its latest state to a joining player', () => {
-    const sim = new Simulation({ vault: new Forgetful() });
-    const rowan = new Pretend(sim).join(7, 'Rowan');
-    const wren = new Pretend(sim).join(7, 'Wren');
-    const anchor = new Manifest(7).ensure('eyrie:0,0', 'eyrie', 0, 0);
+    const { sim, rowan, anchor } = onALedge();
+    const wren = new Pretend(sim).join(3, 'Wren');
     const added = { kind: 'eyrie', anchor, present: true } as const;
     const removed = { kind: 'eyrie', anchor, present: false } as const;
 
     rowan.say({ type: 'delta', delta: added });
     expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor });
     expect(wren.of('delta').map((m) => m.delta)).toEqual([added]);
-    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toContainEqual(added);
+    expect(new Pretend(sim).join(3, 'Alder').of('welcome')[0].deltas).toContainEqual(added);
     rowan.say({ type: 'delta', delta: added });
     expect(rowan.of('eyrie-state')).toHaveLength(2);
     expect(wren.of('delta')).toHaveLength(1);
@@ -265,7 +314,7 @@ describe('the simulation, hosted by nothing at all', () => {
     rowan.say({ type: 'delta', delta: removed });
     expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
     expect(wren.of('delta').at(-1)?.delta).toEqual(removed);
-    expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
+    expect(new Pretend(sim).join(3, 'Birch').of('welcome')[0].deltas)
       .toContainEqual(removed);
     rowan.say({ type: 'delta', delta: removed });
     expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor: null });
@@ -273,24 +322,72 @@ describe('the simulation, hosted by nothing at all', () => {
   });
 
   it('corrects refused and malformed nest reports without changing the other player or replay', () => {
-    const sim = new Simulation({ vault: new Forgetful() });
-    const rowan = new Pretend(sim).join(7, 'Rowan');
-    const wren = new Pretend(sim).join(7, 'Wren');
-    const far = new Manifest(7).ensure('eyrie:100,100', 'eyrie', 100, 100);
+    const { sim, rowan, anchor: near } = onALedge();
+    const wren = new Pretend(sim).join(3, 'Wren');
+    const far = new Manifest(3).ensure('eyrie:100,100', 'eyrie', 100, 100);
 
     rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: far, present: true } });
     expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: far.id, anchor: null }]);
     expect(wren.of('delta')).toEqual([]);
-    expect(new Pretend(sim).join(7, 'Alder').of('welcome')[0].deltas).toEqual([]);
+    expect(new Pretend(sim).join(3, 'Alder').of('welcome')[0].deltas).toEqual([]);
 
     // A malformed attempt against an existing nest must return that nest, not the bad claim.
-    const near = new Manifest(7).ensure('eyrie:0,0', 'eyrie', 0, 0);
     rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: near, present: true } });
     rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: { ...near, seed: -1 }, present: false } });
     expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: near.id, anchor: near });
     expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'eyrie', anchor: near, present: true }]);
-    expect(new Pretend(sim).join(7, 'Birch').of('welcome')[0].deltas)
+    expect(new Pretend(sim).join(3, 'Birch').of('welcome')[0].deltas)
       .toContainEqual({ kind: 'eyrie', anchor: near, present: true });
+  });
+
+  it('will not take a nest from a page the world has never walked, however near it says it is', () => {
+    // #524: the guard used to fall back to the page's own presence until the first steer, and a
+    // join or a move is all it takes to set that anywhere in the world
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const wren = new Pretend(sim).join(3, 'Wren');
+    const anchor = aLedgeThatTakes(sim);
+    const nest = { kind: 'eyrie', anchor, present: true } as const;
+    rowan.say({ type: 'move', x: anchor.x, z: anchor.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    const room = sim.rooms.get(3)!;
+    const rowansPresence = [...room.clients].find((c) => c.presence.name === 'Rowan')!.presence;
+    expect(Math.hypot(rowansPresence.x - anchor.x, rowansPresence.z - anchor.z), 'his page puts him beside it')
+      .toBeLessThan(2);
+
+    rowan.say({ type: 'delta', delta: nest });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: anchor.id, anchor: null }]);
+    expect(room.world.manifest.get(anchor.id), 'a nest the world never walked him to').toBeUndefined();
+    expect(wren.of('delta')).toEqual([]);
+
+    // and the same report from the same spot is taken once the world has walked him there, so what
+    // refused it above was the walking rather than the nest
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    rowan.say({ type: 'delta', delta: nest });
+    expect(rowan.of('eyrie-state').at(-1)).toEqual({ type: 'eyrie-state', id: anchor.id, anchor });
+    expect(wren.of('delta').map((m) => m.delta)).toEqual([nest]);
+  });
+
+  it('will not take a nest the bait would not have kept, however well he stands (#525)', () => {
+    const { sim, rowan } = onALedge();
+    const wren = new Pretend(sim).join(3, 'Wren');
+    const room = sim.rooms.get(3)!;
+    const ground = sim.groundOf(3)!;
+    const day = Math.floor(room.world.clock.day);
+    const at = rowan.of('youAre').at(-1)!;
+    // a spot beside him the rule turns down, whatever the reason: the page says it took
+    let refused: ReturnType<Manifest['ensure']> | null = null;
+    for (let dz = -6; dz <= 6 && !refused; dz++) for (let dx = -6; dx <= 6 && !refused; dx++) {
+      const x = Math.round(at.x) + dx, z = Math.round(at.z) + dz;
+      if (ground.heightAt(x, z) === null) continue;
+      const anchor = new Manifest(3).ensure(`eyrie:${x},${z}`, 'eyrie', x, z);
+      if (!baitWouldTake(room.world.manifest, 3, day, ground.countryAt(x, z), anchor)) refused = anchor;
+    }
+    expect(refused, 'some tile near a ledge fails the roll or the footing').not.toBeNull();
+    rowan.say({ type: 'delta', delta: { kind: 'eyrie', anchor: refused!, present: true } });
+    expect(rowan.of('eyrie-state')).toEqual([{ type: 'eyrie-state', id: refused!.id, anchor: null }]);
+    expect(room.world.manifest.get(refused!.id)).toBeUndefined();
+    expect(wren.of('delta')).toEqual([]);
   });
 
   it('corrects a refused report about an editor-placed sky eyrie too', () => {
@@ -651,6 +748,166 @@ describe('the simulation holding the ground itself', () => {
     sim.tick(Date.now() + 200);
     rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
     expect(rowan.of('youAre').at(-1)!.x).toBeCloseTo(walkedX, 1);
+  });
+
+  /*
+   * #524. A `move` into somewhere the world does not own used to carry the world's own hero to
+   * wherever the page said, with none of the door's checks: say you are in an inn by the cart, say
+   * you are back outside, take one step, and the world has walked you to the cart. What it walks
+   * him from now is where it last had him, and the only ways off the surface and back are `stood`.
+   */
+  const CART_FROM = 'Bramgate';
+  const CART_TO = 'Stonedale';
+
+  /**
+   * A loaded cart on the road between two of seed 3's villages, and the book it is written in.
+   *
+   * The book is laid in rather than lived into: the world only founds a village when somebody walks
+   * into it, and no cart leaves one until days later. The villages and the road are the world's own
+   * — Bramgate to Stonedale is one of the pairs of seed 3 joined by a road — so where the cart is
+   * standing is the world's answer, not the test's.
+   */
+  const aCartOnTheRoad = (sim: Simulation) => {
+    const alive = sim.livesIn(3)!;
+    const room = sim.rooms.get(3)!;
+    const day = Math.floor(room.world.clock.day);
+    const book = new Register(3, day - 1, () => {}, 'journaled');
+    book.settle(CART_FROM, 6, ['farmer', 'seller', 'builder', 'innkeeper']);
+    book.settle(CART_TO, 6, ['builder', 'seller', 'innkeeper', 'doctor']);
+    const seller = book.living(CART_FROM)[0];
+    const buyer = [...book.living(CART_TO)].sort((a, b) => b.purse - a.purse)[0];
+    const load = cartLoaded(day, { from: CART_FROM, to: CART_TO, meals: 1, price: 0.01,
+      paying: new Map([[ownedBy(buyer), -0.01]]), paid: new Map([[ownedBy(seller), 0.01]]) });
+    expect(book.recordCarrier(load)).toBe(true);
+    book.advance(day);
+    vi.spyOn(alive, 'register', 'get').mockReturnValue(book);
+    // where the world will judge a robbery against: the same road, the same clock, and none of the
+    // ground under it needing to have been grown yet
+    const from = alive.villages.find((village) => village.name === CART_FROM)!;
+    const road = sim.groundOf(3)!.roadGraphAt(from.x, from.z);
+    const at = () => cartPosition(load, room.world.clock.time, alive.villages, road);
+    expect(at(), 'no road between the two villages for a cart to be on').not.toBeNull();
+    return { book, day, at: () => at()! };
+  };
+
+  it('will not let a doorway nobody walked through carry the hero to a cart', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    let now = Date.now();
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walked = rowan.of('youAre').at(-1)!;
+    const cart = aCartOnTheRoad(sim);
+    const there = cart.at();
+    expect(Math.hypot(there.x - walked.x, there.z - walked.z), 'the cart is a long walk away').toBeGreaterThan(100);
+
+    // into an inn beside the cart, by the page's word alone, and straight back out of it
+    rowan.say({ type: 'move', x: there.x, z: there.z, yaw: 0, walk: 0, place: 'the inn', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: there.x, z: there.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
+
+    const after = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(after.x - walked.x, after.z - walked.z), 'walked on from where the world had him').toBeLessThan(2);
+    const client = [...sim.rooms.get(3)!.clients].find((c) => c.presence.name === 'Rowan')!;
+    expect(client.serverFootAt, 'a foot position the world walked him to').not.toBeNull();
+    expect(Math.hypot(client.serverFootAt!.x - walked.x, client.serverFootAt!.z - walked.z)).toBeLessThan(2);
+
+    rowan.say({ type: 'rob-cart', loadedOn: cart.day });
+    expect(rowan.of('cart-robbed')).toEqual([{ type: 'cart-robbed', loadedOn: cart.day, ok: false }]);
+    expect(cart.book.carrierFacts().filter((fact) => fact.kind === 'cart-finished')).toEqual([]);
+
+    // and somebody the world has walked to the cart does rob it, so what refused Rowan was where
+    // he stood and not the cart. A join's position is still the page's word — #432 took that
+    // knowingly, and it is not what this is about
+    const now2 = cart.at();
+    const wren = new Pretend(sim).joinAt(3, 'Wren', now2.x, now2.z);
+    sim.tick(now += 100);
+    wren.say({ type: 'steer', seq: 1, dx: 0, dz: 0, pace: 0, ms: 100 });
+    expect(wren.of('youAre'), 'the world never walked Wren beside the cart').not.toHaveLength(0);
+    wren.say({ type: 'rob-cart', loadedOn: cart.day });
+    expect(wren.of('cart-robbed')).toEqual([{ type: 'cart-robbed', loadedOn: cart.day, ok: true }]);
+  });
+
+  it('lets nobody out of a door the world never saw him go in by', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    let now = Date.now();
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walked = rowan.of('youAre').at(-1)!;
+
+    // indoors by the page's word, with no step through any door, and then a step out of that
+    // "door" at the far side of the county
+    rowan.say({ type: 'move', ...FAR_CLEAR, yaw: 0, walk: 0, place: 'the inn', riding: 'foot', gear: [] });
+    rowan.say({ type: 'stood', ...FAR_CLEAR, why: 'place' });
+    const out = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(out.x - walked.x, out.z - walked.z), 'came out where the world had him').toBeLessThan(0.01);
+
+    rowan.say({ type: 'move', ...FAR_CLEAR, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const after = rowan.of('youAre').at(-1)!;
+    expect(after.seq).toBe(2);
+    expect(Math.hypot(after.x - walked.x, after.z - walked.z)).toBeLessThan(2);
+  });
+
+  it('will not let a boat nobody boarded carry the hero to a cart', () => {
+    // the same hop by the water: say you are aboard a boat beside the cart, and the boat the world
+    // sails from that moment used to be moored wherever the page said, with the hero riding on it
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    let now = Date.now();
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walked = rowan.of('youAre').at(-1)!;
+    const cart = aCartOnTheRoad(sim);
+    const there = cart.at();
+    expect(Math.hypot(there.x - walked.x, there.z - walked.z), 'the cart is a long walk away').toBeGreaterThan(100);
+
+    rowan.say({ type: 'move', x: there.x, z: there.z, yaw: 0, walk: 0, place: 'surface', riding: 'boat', gear: [] });
+    rowan.say({ type: 'helm', seq: 2, forward: 0, turn: 0, ms: 100 });
+    rowan.say({ type: 'move', x: there.x, z: there.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 3, dx: 1, dz: 0, pace: 1, ms: 200 });
+
+    const after = rowan.of('youAre').at(-1)!;
+    expect(after.seq, 'the world walked him').toBe(3);
+    expect(Math.hypot(after.x - walked.x, after.z - walked.z), 'walked on from where the world had him').toBeLessThan(2);
+    rowan.say({ type: 'rob-cart', loadedOn: cart.day });
+    expect(rowan.of('cart-robbed')).toEqual([{ type: 'cart-robbed', loadedOn: cart.day, ok: false }]);
+    expect(cart.book.carrierFacts().filter((fact) => fact.kind === 'cart-finished')).toEqual([]);
+  });
+
+  it('does not keep an old door to let him out of a later one he never went in by', () => {
+    // alone, so a teleport is his to take: it is only a way of getting a long way from the door
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    let now = Date.now();
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const door = rowan.of('youAre').at(-1)!;
+    // an honest visit: in by a door, out by it, back on the street
+    rowan.say({ type: 'stood', x: 5, z: 5, why: 'place' });
+    rowan.say({ type: 'move', x: 5, z: 5, yaw: 0, walk: 0, place: 'the shop', riding: 'foot', gear: [] });
+    rowan.say({ type: 'stood', x: door.x, z: door.z, why: 'place' });
+    rowan.say({ type: 'move', x: door.x, z: door.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+
+    rowan.say({ type: 'stood', ...FAR_CLEAR, why: 'teleport' });
+    sim.tick(now += 100);
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const away = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(away.x - FAR_CLEAR.x, away.z - FAR_CLEAR.z)).toBeLessThan(2);
+
+    // indoors by the page's word alone, and out at the shop door he used an hour ago
+    rowan.say({ type: 'move', x: 5, z: 5, yaw: 0, walk: 0, place: 'the shop', riding: 'foot', gear: [] });
+    rowan.say({ type: 'stood', x: door.x, z: door.z, why: 'place' });
+    const out = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(out.x - away.x, out.z - away.z), 'carried back to an old door').toBeLessThan(0.01);
   });
 
   it('keeps the hero at the door while he is somewhere it does not own', () => {
@@ -1588,6 +1845,22 @@ describe('a chest, and whether it was yours to open', () => {
     const [answer] = rowan.of('opened');
     expect(answer).toMatchObject({ seq: 1, ok: true, index: 0 });
     expect(answer.gold).toBe(whatAChestHolds(seedOf(3), 0, chests[0], () => false).gold);
+  });
+
+  it('opens one for a hero the world walks up top, from where he stands on the floor', () => {
+    // the world's hero stays at the stairhead while he is down there (#524), so the reach is
+    // measured from where his page says he is on the floor, as it is for everybody down there
+    const sim = world();
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    expect(rowan.of('youAre'), 'the world never walked him').not.toHaveLength(0);
+    const chests = chestsOf(3);
+    rowan.say({ type: 'stood', x: chests[0].x + 0.5, z: chests[0].z + 0.5, why: 'place' });
+    goDown(rowan, 'Barrow:1', chests[0].x + 0.5, chests[0].z + 0.5);
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:1', index: 0, owns: [] });
+    expect(rowan.of('opened')[0]).toMatchObject({ seq: 1, ok: true, index: 0 });
   });
 
   it('refuses a chest across the room', () => {
