@@ -218,6 +218,24 @@ void main() {
     }
   });
 
+  // The web's water mixes its foam into diffuseColor at color_fragment (src/render/water.ts), so foam
+  // is lit like the water under it. Native foam went on after lighting and glowed white at night.
+  test('both native bridges whiten water with foam before lighting it, as the web does', () {
+    for (final path in <String>[
+      'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
+      'ios/Runner/WorldRendererBridge.swift',
+    ]) {
+      final source = File(path).readAsStringSync();
+      final foam = RegExp(r'albedo=mix\(albedo,(vec3|float3)\(\.95,\.98,1\.0\),').firstMatch(source);
+      expect(foam, isNotNull, reason: path);
+      final lighting = source.indexOf('c=albedo*(');
+      expect(lighting, greaterThan(foam!.start), reason: path);
+      expect(source, contains('lit*RECIPROCAL_PI)+'), reason: path);
+      // fog still mixes into the encoded colour afterwards; foam no longer does
+      expect(source, isNot(matches(RegExp(r'c=mix\(c,(vec3|float3)\(\.95'))), reason: path);
+    }
+  });
+
   test('Android renderer failures are returned and dead-thread disposal is bounded', () {
     final source = File(
       'android/app/src/main/kotlin/world/ai/ai_world_flutter/WorldRendererBridge.kt',
