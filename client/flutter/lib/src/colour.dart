@@ -11,6 +11,9 @@
 /// - the bridges light in linear, with three.js's Lambert BRDF (albedo / pi), then encode the
 ///   result to sRGB in the fragment shader before writing it to a plain 8-bit target. Blending then
 ///   happens on encoded values, as it does in the web's default framebuffer.
+/// - every light in a frame is sent, and each bridge adds up the lights of each kind as
+///   `WebGLLights` does (#512): ambient and hemisphere on the host, exactly, and up to four
+///   directional lights in the shader, of which the first that casts a shadow takes it.
 /// - the background and the fog colour are the exceptions, because three.js hands both to the GPU
 ///   in the output colour space: the clear colour is the hex itself, and fog is mixed toward the
 ///   hex after the encoding (`fog_fragment` follows `colorspace_fragment`). The bridges take those
