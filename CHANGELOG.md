@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.3 — 2026-09-30
+
+holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle pools stop uploading, and the editor drops a refusal that could never fire
+
 ## v0.103.2 — 2026-09-30
 
 world creation never freezes the server, the season reaches the Dart renderer, and the tools cookie is Secure
