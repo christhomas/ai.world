@@ -20,6 +20,16 @@ export class Chat {
   private readonly input = $<HTMLInputElement>('chatInput');
   private typing = false;
   private asConsole = false;
+  /**
+   * Whether the log is following its newest line, kept rather than measured when a line arrives.
+   *
+   * Measuring it then was wrong whenever the log had no layout: lines that arrive while the HUD is
+   * still hidden all measure as "at the bottom" of a box with no height, the scroll that should
+   * pin them there does nothing, and the log comes up showing its oldest lines. Whether it did
+   * depended on when the news arrived against when the HUD appeared, which is why two captures of
+   * the same commit disagreed about the message panel (#535). Only a scroll changes this now.
+   */
+  private following = true;
 
   /** Called with a finished line when the player presses Enter. */
   onSend: ((text: string) => void) | null = null;
@@ -29,6 +39,11 @@ export class Chat {
     // the pointer leaves the log — and, worse, a page that ever gets the event scrolls the world
     // behind a console somebody is reading.
     this.panel.addEventListener('wheel', (e) => e.stopPropagation());
+    // a box with no layout has no bottom to be at, so it cannot say whether it is being followed
+    this.log.addEventListener('scroll', () => { if (this.log.clientHeight > 0) this.following = this.atBottom; });
+    // and when it gets a layout back, or a font arrives and the lines grow, it goes where it was
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.pin()).observe(this.log);
+    document.fonts?.addEventListener?.('loadingdone', () => this.pin());
     this.input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
@@ -70,7 +85,8 @@ export class Chat {
     this.input.classList.add('show');
     this.input.placeholder = asConsole ? 'Say something, ? for help, / for a command' : 'Say something, then Enter';
     this.input.focus();
-    this.log.scrollTop = this.log.scrollHeight;
+    this.following = true;
+    this.pin();
     // the key that opened the box would otherwise land in it
     window.setTimeout(() => { this.input.value = ''; }, 0);
   }
@@ -108,22 +124,27 @@ export class Chat {
   /**
    * Whether the log is showing its newest line.
    *
-   * A line arriving pulls the log down to the bottom, which is right until somebody has scrolled up
-   * to read what was said earlier — then it is the box snatching itself out of their hands. Within
-   * a couple of pixels, because a scroll position is a float and lands a hair short.
+   * Read when the log scrolls, to decide `following`. A line arriving pulls the log down to the
+   * bottom, which is right until somebody has scrolled up to read what was said earlier — then it
+   * is the box snatching itself out of their hands. Within a couple of pixels, because a scroll
+   * position is a float and lands a hair short.
    */
   private get atBottom(): boolean {
     return this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 4;
   }
 
+  /** Put the log on its newest line, if that is where it is being kept. */
+  private pin(): void {
+    if (this.following) this.log.scrollTop = this.log.scrollHeight;
+  }
+
   line(text: string, kind: 'chat' | 'sys' = 'chat'): void {
-    const following = this.atBottom;
     const el = document.createElement('div');
     if (kind === 'sys') el.className = 'sys';
     el.textContent = text;
     this.log.appendChild(el);
     while (this.log.childElementCount > MAX_LINES) this.log.firstElementChild?.remove();
-    if (following) this.log.scrollTop = this.log.scrollHeight;
     this.show();
+    this.pin();
   }
 }
