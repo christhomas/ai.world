@@ -23,7 +23,8 @@ export function boatRecord(graph: SceneGraph, visible: boolean, mesh: THREE.Grou
 } {
   const pose: ScenePlacement = { x: 0, y: WORLD.WATER_Y - 0.12, z: 0, rot: 0 };
   const placements: ScenePlacement[] = visible ? [pose] : [];
-  const node = graph.add({ kind: 'prop-batch', parts: BOAT_PARTS, placements,
+  // WebGL draws the boat in plain materials of its own, which neither the season nor the cutaway patches
+  const node = graph.add({ kind: 'prop-batch', parts: BOAT_PARTS, placements, effects: [],
     castShadow: true, receiveShadow: false }) as Extract<SceneNode, { kind: 'prop-batch' }>;
   bindGraphMount(graph, node, (frame) => {
     const at = frame.placements?.[0];

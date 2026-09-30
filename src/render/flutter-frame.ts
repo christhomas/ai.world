@@ -16,6 +16,9 @@ function geometry(parts: NonNullable<FrameDescription['nodes'][number]['parts']>
   return value;
 }
 
+/** What WebGL does to the one prop material every prop batch is drawn with unless it says otherwise. */
+const PROP_MATERIAL_EFFECTS = ['cutaway', 'season'];
+
 export function expandForFlutter(frame: FrameDescription): FrameDescription {
   const nodes: FrameDescription['nodes'] = [];
   const remap: number[] = [];
@@ -46,8 +49,8 @@ export function expandForFlutter(frame: FrameDescription): FrameDescription {
         material: {
           intent: partIndex === 0 ? 'lit' : 'unlit', colour: partIndex === 0 ? 0xffffff : node.glowColour ?? 0xffffff,
           emissive: 0, vertexColours: true, transparent: false, opacity: 1,
-          // the body is drawn with the prop material, which is cut away and seasoned; the glow is not
-          depthWrite: true, side: 'front', effects: partIndex === 0 ? ['cutaway', 'season'] : [],
+          // the body takes whatever its WebGL material takes (the prop material's, unless it says); the glow nothing
+          depthWrite: true, side: 'front', effects: partIndex === 0 ? [...(node.effects ?? PROP_MATERIAL_EFFECTS)] : [],
         },
         attributes: {
           position: { size: 3, values: positions.array as Float32Array },

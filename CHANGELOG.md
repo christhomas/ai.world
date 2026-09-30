@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.5 — 2026-09-30
+
+An idle scene costs next to nothing to describe each frame, and boats on the Flutter client keep their colours in every season
+
 ## v0.103.4 — 2026-09-30
 
 endless worlds grow shrines so the prayer can be said, an editor's sky eyrie offers the flight up, and the native renderers take colour the way the web does
