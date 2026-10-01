@@ -127,7 +127,8 @@ export function createAuthority(ctx: Authority) {
    * hero standing in a field.
    */
   const outdoors = (): boolean =>
-    places.indoors === null && !places.underground && !sailing.sailing && !player.riding && !aloft();
+    places.indoors === null && !places.underground && !sailing.sailing && !player.riding &&
+    !player.entity.mounted && !aloft();
 
   /** Whichever of the world's flocks is the one this message is about, and null when neither is. */
   const theirs = (place: string): Wildlife | null =>

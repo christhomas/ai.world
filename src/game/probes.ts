@@ -10,7 +10,6 @@ import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../render/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
-import { spaceNear } from '../entities/entity';
 import type { Manifest } from '../world/manifest';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
@@ -30,6 +29,7 @@ import type { CommandWorld } from './commands';
 import { installCreatureProbes } from './probesCreatures';
 import { installPeopleProbes } from './probesPeople';
 import { installBaitProbes } from './probesBait';
+import { installMountProbes } from './probesMount';
 import type { Director } from './director';
 import type { Eyrie } from './eyries';
 import type { Plots } from './farming';
@@ -481,48 +481,7 @@ export function installProbes(ctx: Probed): void {
       'castle', castle.id);
     return { castle: castle.name, id: castle.id };
   };
-  /**
-   * Get on a horse, or off one, without going to a stable and having a conversation about it.
-   *
-   * Mounting is only reachable through a stable's dialogue, which a person does in ten seconds and
-   * a script cannot do at all — and a mounted hero is the case that made stepping over things
-   * visible in the first place, so the played test has never once ridden. Buys a horse where the
-   * hero is standing if he has none, which is the only part a stable was really for.
-   *
-   * Returns what he is on and how fast it goes, because "am I actually mounted" is the question a
-   * test asks next and reading it off the screen is guesswork.
-   */
-  (debug as { __ride?: (on?: boolean) => unknown }).__ride = (on = true) => {
-    if (!on) {
-      mount.dismount(player, chunks);
-      return { riding: mount.riding };
-    }
-    if (!mount.owned) mount.buy(player.x, player.z, chunks, overworldRenderer);
-    else mount.restore(chunks, overworldRenderer);
-    // The playtest can summon an owned horse after teleporting to a hunt site. Place that
-    // horse on ground it can use before boarding; ordinary play still requires proximity.
-    if (mount.entity && !mount.near(player.x, player.z)) {
-      const at = spaceNear(chunks, mount.entity.kind, player.x, player.z);
-      if (at) { mount.entity.x = at.x; mount.entity.z = at.z; mount.entity.y = chunks.heightAt(at.x, at.z) ?? 0; }
-    }
-    mount.mount(player);
-    return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
-  };
-  /**
-   * Where the rider and the body carrying them actually are.
-   *
-   * A mounted collision check cannot infer the horse from the rider alone: it needs to prove that
-   * the longer body stopped with him and did not cross the wall while its rider stayed outside.
-   */
-  (debug as { __mount?: () => unknown }).__mount = () => {
-    const horse = mount.entity;
-    return {
-      hero: { x: player.x, z: player.z },
-      horse: horse ? { x: horse.x, z: horse.z } : null,
-      cargo: mount.cargo,
-      under: horse ? Math.hypot(player.x - horse.x, player.z - horse.z) : null,
-    };
-  };
+  installMountProbes(debug, mount, player, chunks, overworldRenderer);
   (debug as { __mines?: () => unknown }).__mines = () =>
     minesWorked().map((w) => ({
       inAMine: fightingInAMine(),
