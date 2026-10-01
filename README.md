@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.8 — 2026-10-01
+
+The Domesday shot waits for every toured village to settle
+
 ### v0.103.7 — 2026-09-30
 
 A move never carries the hero, nests need a real ledge, record-only needs no WebGL, and the message log keeps its newest line
@@ -626,10 +630,6 @@ villages catch illness, carts haul carcasses to the crags, holdings report their
 ### v0.102.6 — 2026-09-29
 
 Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, worlds that start without stalling joins, and releases that trust CI
-
-### v0.102.5 — 2026-09-28
-
-Fix HTTPS redirect loops behind proxy chains
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
