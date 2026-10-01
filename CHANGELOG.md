@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.8 — 2026-10-01
+
+The Domesday shot waits for every toured village to settle
+
 ## v0.103.7 — 2026-09-30
 
 A move never carries the hero, nests need a real ledge, record-only needs no WebGL, and the message log keeps its newest line
