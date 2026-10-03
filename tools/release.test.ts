@@ -15,7 +15,7 @@ describe('reading release API output', () => {
   });
 
   it('throws the HTTP error instead of returning its JSON body as release data', () => {
-    expect(() => read('process.stdout.write(JSON.stringify({message:"API rate limit exceeded"})); process.stderr.write("gh: HTTP 403"); process.exit(1)')))
+    expect(() => read('process.stdout.write(JSON.stringify({message:"API rate limit exceeded"})); process.stderr.write("gh: HTTP 403"); process.exit(1)'))
       .toThrow(/gh: HTTP 403[\s\S]*API rate limit exceeded/);
   });
 
