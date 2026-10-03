@@ -22,13 +22,14 @@ def save(**fields):
     STATE.write_text(json.dumps(state, indent=2))
 
 
-def command(args, timeout=600, cwd=ROOT):
+def command(args, timeout=600, cwd=ROOT, check=True):
     with (OUT / 'commands.log').open('a') as log:
         log.write(json.dumps(args) + '\n')
         log.flush()
         result = subprocess.run(args, cwd=cwd, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
-    if result.returncode:
+    if result.returncode and check:
         raise RuntimeError(f'Command failed ({result.returncode}): {args}')
+    return result.returncode
 
 
 def output(args):
@@ -40,6 +41,7 @@ def prepare(platform):
     save(platform=platform, source_sha=output(['git', 'rev-parse', 'HEAD']),
          status='provisioning', gameplay='pending', seed=3,
          fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
+         requested_render_time_ms=1000,
          scenarios=['recorded-interior-native-renderer'],
          configuration={'flutter': '3.47.1', 'android_api': 35, 'ios': '18.5',
                         'xcode': '16.4', 'backend': 'GLES3 / SwiftShader' if platform == 'android' else 'Metal simulator'},
@@ -94,6 +96,12 @@ def capture(platform):
                      '-destination', f'id={device}', '-only-testing:RunnerTests',
                      '-resultBundlePath', str(OUT / 'RunnerTests.xcresult'), 'CODE_SIGNING_ALLOWED=NO', 'FLUTTER_TARGET=lib/hosted_replay.dart'],
                     timeout=900, cwd=APP / 'ios')
+            # XCTest can shut the original device down after running on its testing clone.
+            devices = json.loads(output([*sim, 'list', 'devices', '-j']))['devices']
+            state = next(d['state'] for group in devices.values() for d in group if d['udid'] == device)
+            if state != 'Booted':
+                command([*sim, 'boot', device])
+            command([*sim, 'bootstatus', device, '-b'], timeout=180)
             command([*sim, 'install', device, str(APP / 'build/ios/iphonesimulator/Runner.app')])
             logs = OUT / 'native.log'
             handles.append(logs.open('w'))
@@ -145,10 +153,11 @@ def capture(platform):
         for handle in handles:
             handle.close()
         if device and platform == 'ios':
-            command([*sim, 'shutdown', device])
-            command([*sim, 'delete', device])
+            # Preserve the real test/capture failure; an already-stopped device needs no shutdown.
+            command([*sim, 'shutdown', device], check=False)
+            command([*sim, 'delete', device], check=False)
         elif device:
-            command(['adb', '-s', device, 'shell', 'am', 'force-stop', 'world.ai.ai_world_flutter'])
+            command(['adb', '-s', device, 'shell', 'am', 'force-stop', 'world.ai.ai_world_flutter'], check=False)
 
 
 def report(platform):
