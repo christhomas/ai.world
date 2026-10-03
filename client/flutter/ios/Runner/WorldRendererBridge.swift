@@ -62,7 +62,8 @@ final class WorldRendererBridge: NSObject, FlutterPlugin {
         }
         renderer.setSceneFrame(projection: projection.data, world: world.data,
           background: Int(arguments.number("background")), lights: arguments["lights"] as? [[String: Any]] ?? [],
-          coast: arguments["coast"] as? [String: Any], fog: arguments["fog"] as? [String: Any])
+          coast: arguments["coast"] as? [String: Any], fog: arguments["fog"] as? [String: Any],
+          renderTimeMs: (arguments["renderTimeMs"] as? NSNumber)?.doubleValue)
       case "cutaway": renderer.setCutaway(
         enabled: arguments["enabled"] as? Bool == true,
         x: arguments.float("heroX"), y: arguments.float("heroY"), z: arguments.float("heroZ")
@@ -140,7 +141,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private var depthTexture: MTLTexture
   private var shadowTexture: MTLTexture
   private var coastTexture: MTLTexture
-  private var coastArea = SIMD4<Float>(repeating: 0)
+  private var coastArea = SIMD4<Float>(0, 0, 0, 64)
+  private var sceneRenderTimeMs: Double?
   private var pending: [String: CpuMesh] = [:]
   private var meshes: [String: GpuMesh] = [:]
   private var displayLink: CADisplayLink?
@@ -270,13 +272,14 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   }
   func removeMesh(id: String) { pending.removeValue(forKey: id); meshes.removeValue(forKey: id) }
   func setCamera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) {
-    sceneProjection = nil; sceneWorld = nil
+    sceneProjection = nil; sceneWorld = nil; sceneRenderTimeMs = nil
     target = SIMD3(x,y,z); self.yaw = yaw; self.pitch = pitch; self.zoom = max(4,min(80,zoom))
   }
   func setSceneFrame(projection: Data, world: Data, background: Int,
-                     lights: [[String: Any]], coast: [String: Any]?, fog: [String: Any]?) {
+                     lights: [[String: Any]], coast: [String: Any]?, fog: [String: Any]?, renderTimeMs: Double?) {
     guard let projection = Self.matrix(projection), let world = Self.matrix(world) else { return }
     sceneProjection = importedMetalProjection(projection); sceneWorld = world; self.background = background
+    sceneRenderTimeMs = renderTimeMs
     target = SIMD3(world.columns.3.x, world.columns.3.y, world.columns.3.z) -
       SIMD3(world.columns.2.x, world.columns.2.y, world.columns.2.z) * 30
     // Dart has already decoded each light to linear and applied its intensity (colour.dart)
@@ -356,8 +359,9 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
         }
       }
       coastArea = ready ? SIMD4((coast?["x0"] as? NSNumber)?.floatValue ?? 0,
-        (coast?["z0"] as? NSNumber)?.floatValue ?? 0, 1 / span, 0) : SIMD4(repeating: 0)
-    } else { coastArea = SIMD4(repeating: 0) }
+        (coast?["z0"] as? NSNumber)?.floatValue ?? 0, 1 / span,
+        (coast?["range"] as? NSNumber)?.floatValue ?? 64) : SIMD4(0, 0, 0, 64)
+    } else { coastArea = SIMD4(0, 0, 0, 64) }
   }
   private static func matrix(_ data: Data) -> simd_float4x4? {
     guard data.count == 64 else { return nil }
@@ -375,7 +379,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   @objc private func frame() {
     guard !disposed, let drawable = CVMetalTextureGetTexture(colorTexture), let commands = queue.makeCommandBuffer() else { return }
     uploadPending()
-    let uniforms = makeUniforms(time: Float(CACurrentMediaTime()))
+    let uniforms = makeUniforms(time: metalRenderTimeSeconds(renderTimeMs: sceneRenderTimeMs,
+      fallbackSeconds: CACurrentMediaTime()))
 
     let shadowPass = MTLRenderPassDescriptor()
     shadowPass.depthAttachment.texture = shadowTexture
@@ -566,6 +571,11 @@ func importedMetalProjection(_ projection: simd_float4x4) -> simd_float4x4 {
   return depth * projection
 }
 
+func metalRenderTimeSeconds(renderTimeMs: Double?, fallbackSeconds: Double) -> Float {
+  if let milliseconds = renderTimeMs, milliseconds.isFinite { return Float(milliseconds / 1000) }
+  return Float(fallbackSeconds)
+}
+
 func orthographic(left:Float,right:Float,bottom:Float,top:Float,near:Float,far:Float) -> simd_float4x4 {
   simd_float4x4(columns:(
     SIMD4(2/(right-left),0,0,0), SIMD4(0,2/(top-bottom),0,0), SIMD4(0,0,1/(near-far),0),
@@ -595,10 +605,64 @@ float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay)
 float hash(float2 p){return fract(sin(dot(floor(p),float2(12.9898,78.233)))*43758.5453);}
 // Light depth is already Metal depth; viewport/texture Y starts at the top.
 float3 shadowCoordinates(float4 clip){float3 ndc=clip.xyz/clip.w;return float3(ndc.x*.5+.5,.5-ndc.y*.5,ndc.z);}
-fragment float4 worldFragment(VOut in [[stage_in]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],constant float4* sunDirections [[buffer(4)]],constant float4* sunColours [[buffer(5)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}
-float3 n=normalize(in.normal);float3 albedo=in.color;
+constant float PI2 = 6.283185307179586;
+float shoreAt(float2 w, float4 coastArea, texture2d<float> coastMap) {
+  if (coastArea.z <= 0.0) return coastArea.w;
+  float2 uv = (w - coastArea.xy) * coastArea.z;
+  float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+  constexpr sampler cs(coord::normalized,address::clamp_to_edge,filter::linear);
+  float d = coastMap.sample(cs, clamp(uv, 0.0, 1.0), level(0)).r * coastArea.w;
+  return mix(coastArea.w, d, inside);
+}
+float rippleAt(float2 w, float t) {
+  return sin(dot(w, float2(0.77, 0.64)) * 1.9 + t * 1.3) * 0.5
+    + sin(dot(w, float2(-0.6, 0.8)) * 2.7 - t * 0.9) * 0.3;
+}
+float waveAt(float2 w, float d, float t, float range) {
+  float shoreward = sqrt(max(d, 0.0)) * 2.200;
+  float refract = 1.0 - smoothstep(range * 0.4, range * 0.95, d);
+  float p1 = mix(dot(w, float2(0.80, 0.60)) / 23.0, shoreward, refract);
+  float p2 = mix(dot(w, float2(-0.55, 0.84)) / 16.0, shoreward * 0.61, refract);
+  float wob = sin(w.x * 0.021 + t * 0.11) + sin(w.y * 0.017 - t * 0.09);
+  float a = sin((p1 + t * 0.30) * PI2 + wob * 0.9);
+  float b = sin((p2 + t * 0.19) * PI2 + wob * 1.5 + 2.1);
+  float swell = a * 0.62 + b * 0.38;
+  float shoal = smoothstep(0.0, 2.6, d) * mix(2.4, 1.0, smoothstep(0.0, 34.0, d));
+  return swell * shoal;
+}
+struct WaterSurface { float3 albedo; float3 normal; float opacity; float shore; float crest; float foam; };
+WaterSurface waterSurface(float3 world, float3 geometryNormal, float3 albedo, float flow, float sea,
+    float t, float faceDirection, float4 coastArea, texture2d<float> coastMap) {
+  float2 alongX = float2(1.10, 0.0);
+  float2 alongZ = float2(0.0, 1.10);
+  float gShore = mix(coastArea.w, shoreAt(world.xz, coastArea, coastMap), sea);
+  float h0 = mix(rippleAt(world.xz, t), waveAt(world.xz, gShore, t, coastArea.w), sea);
+  float hx = mix(rippleAt(world.xz + alongX, t),
+    waveAt(world.xz + alongX, shoreAt(world.xz + alongX, coastArea, coastMap), t, coastArea.w), sea);
+  float hz = mix(rippleAt(world.xz + alongZ, t),
+    waveAt(world.xz + alongZ, shoreAt(world.xz + alongZ, coastArea, coastMap), t, coastArea.w), sea);
+  float3 gWave = normalize(float3((h0 - hx) * 0.045, 1.10, (h0 - hz) * 0.045));
+  float deep = smoothstep(1.5, coastArea.w * 0.45, gShore);
+  albedo *= mix(float3(0.72, 1.18, 1.06), float3(0.86, 0.94, 1.10), deep);
+  float opacity = mix(0.60, 0.88, deep);
+  float breaker = smoothstep(1.6, 2.3, h0) * smoothstep(14.0, 2.0, gShore);
+  float wash = 1.0 - smoothstep(0.0, 1.1 + h0 * 0.55, gShore);
+  float glint = smoothstep(1.0, 1.7, h0) * 0.09;
+  float foam = clamp(breaker * 0.45 + wash * 0.7 + glint, 0.0, 1.0) * sea;
+  float fall = fract(world.y * 1.6 - t * 1.8 + sin((world.x + world.z) * 2.0) * 0.2);
+  float streak = smoothstep(0.55, 0.7, fall) * (1.0 - smoothstep(0.85, 1.0, fall));
+  float white = mix(foam, 0.35 + streak * 0.6, flow);
+  albedo=mix(albedo,float3(.95,.98,1.0),white);
+  opacity = mix(mix(opacity, 0.94, foam), 0.9, flow);
+  WaterSurface result;
+  result.albedo = albedo; result.opacity = opacity; result.shore = gShore; result.crest = h0; result.foam = foam;
+  result.normal = normalize(mix(gWave, normalize(geometryNormal), flow)) * faceDirection;
+  return result;
+}
+fragment float4 worldFragment(VOut in [[stage_in]],bool frontFacing [[front_facing]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],constant float4* sunDirections [[buffer(4)]],constant float4* sunColours [[buffer(5)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}
+float3 n=normalize(in.normal);float3 albedo=in.color;float opacity=u.renderFlags.x;
 // foam whitens the water's own colour before any light reaches it, as the web's water does at color_fragment (src/render/water.ts)
-if(in.material>1.5&&in.material<2.5){float coast=1;if(u.coastArea.z>0){constexpr sampler cs(coord::normalized,address::clamp_to_edge,filter::linear);coast=coastMap.sample(cs,(in.world.xz-u.coastArea.xy)*u.coastArea.z).r;}float shore=mix(64.0,coast*64.0,in.sea);float wave=mix(sin(dot(in.world.xz,float2(.77,.64))*1.9+u.lookAndTime.w*1.3)*.5+sin(dot(in.world.xz,float2(-.6,.8))*2.7-u.lookAndTime.w*.9)*.3,sin(shore*2.2+u.lookAndTime.w*.9),in.sea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=in.sea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(in.world.y*1.6-u.lookAndTime.w*1.8+sin((in.world.x+in.world.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));albedo=mix(albedo,float3(.95,.98,1.0),mix(foam,.35+streak*.6,in.flow));}
+if(in.material>1.5&&in.material<2.5){WaterSurface water=waterSurface(in.world,in.normal,albedo,in.flow,in.sea,u.lookAndTime.w,frontFacing?1.0:-1.0,u.coastArea,coastMap);albedo=water.albedo;n=water.normal;opacity=water.opacity;}
 // three.js r185's lights_fragment_begin: ambient and hemisphere are the indirect term and take no shadow
 float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
@@ -606,5 +670,5 @@ float3 q=shadowCoordinates(in.shadow);constexpr sampler ss(coord::normalized,add
 for(int i=0;i<4;i++){float4 d=sunDirections[i];float4 s=sunColours[i];if(all(s.xyz==0.0))continue;lit+=s.xyz*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
 for(int i=0;i<16;i++){float4 p=pointPositions[i];float4 q=pointColours[i];if(all(q.xyz==0.0))continue;float3 toPoint=p.xyz-in.world;lit+=q.xyz*max(0.0,dot(n,normalize(toPoint)))*attenuation(length(toPoint),p.w,q.w);}
 float3 c=albedo*(in.material>2.5?float3(1):lit*RECIPROCAL_PI)+u.emissive.xyz;
-c=encodeSrgb(c);if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,smoothstep(u.fogRange.x,u.fogRange.y,dot(in.world-u.cameraPosition.xyz,u.lookAndTime.xyz)));return float4(c,u.renderFlags.x);}
+c=encodeSrgb(c);if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,smoothstep(u.fogRange.x,u.fogRange.y,dot(in.world-u.cameraPosition.xyz,u.lookAndTime.xyz)));return float4(c,opacity);}
 """
