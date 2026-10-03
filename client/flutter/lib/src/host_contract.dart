@@ -62,6 +62,7 @@ class HostRequestGate {
       require(p['renderTimeMs'] >= _time, 'out-of-order'); _time = p['renderTimeMs'] as num;
     }
     _ids.add(r['id'] as String); _sequence++;
+    if (_ids.length > 4096) _ids.remove(_ids.first);
     if (r['type'] == 'dispose') _disposed = true;
     return r;
   }

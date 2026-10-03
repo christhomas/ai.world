@@ -30,6 +30,18 @@ describe('portable host contract v1', () => {
     gate.accept({ ...fixture.start, id: 'dispose', sequence: 1, type: 'dispose', payload: {} });
     expect(() => gate.accept(fixture.step)).toThrow('disposed');
   });
+  it('bounds completed ID history while still rejecting lifetime sequence replays', () => {
+    const gate = new RequestGate('fixture:1');
+    gate.accept(fixture.start);
+    const lifecycle = (sequence: number, requestId: string) => ({
+      ...fixture.start, sequence, id: requestId, type: 'lifecycle',
+      payload: { state: 'active', renderTimeMs: sequence },
+    });
+    expect(() => gate.accept(lifecycle(1, fixture.start.id))).toThrow('out-of-order');
+    for (let sequence = 1; sequence <= 4096; sequence++) gate.accept(lifecycle(sequence, `life:${sequence}`));
+    expect(gate.accept(lifecycle(4097, fixture.start.id)).sequence).toBe(4097);
+    expect(() => gate.accept(fixture.start)).toThrow('out-of-order');
+  });
   it('parks world input for every overlay and text owner', () => {
     const r = validateRequest(fixture.step); if (r.type !== 'step') throw new Error('step');
     for (const busy of ['reading', 'talking', 'framing', 'typing'] as const) {
