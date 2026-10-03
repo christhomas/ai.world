@@ -31,8 +31,12 @@ loop is interrupted, its exception consumed and the same engine executes a recov
 and then the complete real-game workload. Ten fresh native runtimes each execute initial and
 recovered workloads. Reports include per-cycle source/state/geometry hashes, create/dispose timing,
 heap bytes, before/after-dispose RSS and zero pending jobs at disposal. RSS is measured, not gated
-as physical-device retained memory evidence. Peak RSS units are platform native (Apple bytes,
-Linux KiB). A new iOS simulator QuickJS target compiles and runs the identical C host and archive.
+as physical-device retained memory evidence. `peakRssBytes` uses Apple's public Mach
+`mach_task_basic_info.resident_size_max`; Linux `getrusage.ru_maxrss` is converted from KiB
+to bytes. An unavailable peak measurement fails explicitly. Darwin's strict POSIX headers hide
+the `ru_maxrss` alias, so the Apple target uses its public Mach API. Engine output uses the
+configured `CONFIG_VERSION`, matching the pinned 2026-06-04 archive. A new iOS simulator
+QuickJS target compiles and runs the identical C host and archive.
 It provides the public interrupt-handler alternative without private JavaScriptCore APIs.
 
 The Apple host uses public JSContext and ArrayBuffer C APIs from the simulator's JavaScriptCore.
