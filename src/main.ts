@@ -88,7 +88,8 @@ import { answerDueHighlands, prayersAnsweredHere } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
-import { returnToTitle, shutDownGame, suspendWhenHidden } from './game/lifecycle';
+import { SessionLifetime, shutDownGame } from './game/lifecycle';
+import { observeVisibility, returnToTitle } from './platform/browser-lifecycle';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -408,15 +409,19 @@ export function startGame(
     guiltOf: () => standing.guilt,
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
-  const shutDown = (): void => shutDownGame({
-    stop: () => loop.stop(), controls: [input, touch],
-    disconnect: () => online.disconnect(), clear: () => others.clear(),
-    resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
-      skyRenderer, packField, cropField, buildingSite, props, rig],
+  const session = new SessionLifetime({
+    frame: (dt, time) => frames.frame(dt, time),
+    pause: () => { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); },
+    resume: () => { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); },
+    release: () => shutDownGame({
+      stop: () => loop.stop(), controls: [input, touch],
+      disconnect: () => online.disconnect(), clear: () => others.clear(),
+      resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
+        skyRenderer, packField, cropField, buildingSite, props, rig],
+    }),
   });
 
-  const toTitle = () => returnToTitle(persist, shutDown);
-  suspendWhenHidden({ stop: () => loop.stop(), start: () => loop.start() }, chunks, sound, online);
+  const toTitle = () => returnToTitle(persist, () => session.dispose());
 
   // the panels, and the noises they make
   hud.setVolume(sound.volume);
@@ -641,6 +646,8 @@ export function startGame(
     runClock: (dt) => interactions.runClock(dt),
     carcasses: () => interactions.carcasses(),
   });
-  const loop = new GameLoop((dt, time) => frames.frame(dt, time));
-  loop.start();
+  const loop = new GameLoop((dt, time) => session.frame(dt, time));
+  // Every callback target now exists. A hidden page must not start ticking, and a disposed
+  // world's visibility listener must never restart its workers, audio or frame loop.
+  session.own(observeVisibility((active) => session.setActive(active)));
 }
