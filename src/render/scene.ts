@@ -415,7 +415,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   // the dark "deep" plane underneath makes open water read as depth.
   const waterMat = new WaterMaterial();
   const coast = new CoastField();
-  graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, values: coast.samples };
+  graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, range: COAST.RANGE, values: coast.samples };
   const coastArea = new THREE.Vector4();
   waterMat.setCoast(coast.texture, coast.area(coastArea));
   const seaGeo = new THREE.PlaneGeometry(900, 900, 1, 1).rotateX(-Math.PI / 2);
@@ -519,11 +519,12 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     },
     seaAround(x, z, source) {
       if (coast.update(x, z, source, performance.now())) {
-        graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, values: coast.samples };
+        graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, range: COAST.RANGE, values: coast.samples };
         waterMat.setCoast(coast.texture, coast.area(coastArea));
       }
     },
     updateWater(time) {
+      graph.renderTimeMs = time * 1000;
       waterMat.update(time);
     },
     fitShadow() {
@@ -549,6 +550,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       presenter?.resize();
     },
     draw(what, camera) {
+      what.renderTimeMs = graph.renderTimeMs;
       what.camera = camera.frameCamera();
       const sinks: FramePipeline[] = [];
       if (presenter) {

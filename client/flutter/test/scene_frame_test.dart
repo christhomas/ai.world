@@ -65,6 +65,19 @@ void main() {
     await native.dispose();
   });
 
+  test('captured render time accepts a frozen zero and rejects invalid epochs', () {
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    final packet = <String, dynamic>{
+      'camera': {'orthographic': true, 'projection': identity, 'world': identity},
+      'nodes': <dynamic>[],
+    };
+    expect(SceneFrame.fromJson(packet).renderTimeMs, isNull);
+    expect(SceneFrame.fromJson({...packet, 'renderTimeMs': 0}).renderTimeMs, 0);
+    for (final invalid in <Object>[-1, double.nan, double.infinity, 'seconds']) {
+      expect(() => SceneFrame.fromJson({...packet, 'renderTimeMs': invalid}), throwsFormatException);
+    }
+  });
+
   test('a neutral game frame drives native camera, lights, coast, cutaway and geometry', () async {
     const channel = MethodChannel('world.ai/scene-test');
     final calls = <MethodCall>[];
@@ -81,6 +94,7 @@ void main() {
     final pipeline = FlutterFramePipeline(native);
     const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
     final frame = SceneFrame.fromJson(<String, dynamic>{
+      'renderTimeMs': 1234.5,
       'camera': <String, dynamic>{
         'orthographic': true,
         'projection': identity,
@@ -93,6 +107,7 @@ void main() {
         'z0': 4,
         'span': 4,
         'size': 2,
+        'range': 32,
         'values': <int>[0, 64, 128, 255],
       },
       'cutaway': <String, dynamic>{
@@ -173,6 +188,8 @@ void main() {
             as Map;
     expect(scene['projection'], isA<Float32List>());
     expect(scene['background'], 0x123456);
+    expect(scene['renderTimeMs'], 1234.5);
+    expect((scene['coast'] as Map)['range'], 32);
     expect((scene['lights'] as List), hasLength(4));
     expect(((scene['coast'] as Map)['values'] as Uint8List).toList(), <int>[
       0,

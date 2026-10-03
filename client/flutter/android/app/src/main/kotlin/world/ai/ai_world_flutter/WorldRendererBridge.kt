@@ -76,7 +76,8 @@ class WorldRendererBridge(
                     check(projection.size == 16 && world.size == 16) { "scene camera matrices must have 16 elements" }
                     val lights = call.argument<List<Map<String, Any>>>("lights") ?: emptyList()
                     renderer(call).sceneFrame(projection, world, call.argument<Int>("background") ?: 0x080b18,
-                        lights, call.argument<Map<String, Any>>("coast"), call.argument<Map<String, Any>>("fog"))
+                        lights, call.argument<Map<String, Any>>("coast"), call.argument<Map<String, Any>>("fog"),
+                        call.argument<Number>("renderTimeMs")?.toDouble())
                     result.success(null)
                 }
                 "cutaway" -> renderer(call).cutaway(
@@ -151,6 +152,7 @@ private class GLWorldRenderer(
     private var cutOn = 1f
     private var hero = floatArrayOf(8f, 1f, 8f)
     private var sceneProjection: FloatArray? = null
+    private var sceneRenderTimeSeconds: Float? = null
     private var sceneWorld: FloatArray? = null
     private var background = 0x080b18
     /** Where the shadow map looks from: the shadow-casting directional light, pointing at the scene. */
@@ -225,12 +227,14 @@ private class GLWorldRenderer(
         gpu.remove(id)?.let { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
     }
     fun camera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) = post {
-        sceneProjection = null; sceneWorld = null
+        sceneProjection = null; sceneWorld = null; sceneRenderTimeSeconds = null
         target = floatArrayOf(x, y, z); this.yaw = yaw; this.pitch = pitch; this.zoom = zoom.coerceIn(4f, 80f)
     }
     fun sceneFrame(projection: FloatArray, world: FloatArray, sky: Int,
-        lights: List<Map<String, Any>>, coast: Map<String, Any>?, fog: Map<String, Any>?) = post {
+        lights: List<Map<String, Any>>, coast: Map<String, Any>?, fog: Map<String, Any>?, renderTimeMs: Double?) = post {
         sceneProjection = projection.copyOf(); sceneWorld = world.copyOf(); background = sky
+        sceneRenderTimeSeconds = renderTimeMs?.takeIf { it.isFinite() && it >= 0.0 }
+            ?.let { (it / 1000.0).toFloat() }?.takeIf { it.isFinite() }
         target = floatArrayOf(world[12] - world[8] * 30f, world[13] - world[9] * 30f, world[14] - world[10] * 30f)
         // Dart has already decoded each light to linear and applied its intensity (colour.dart)
         fun colour(node: Map<String, Any>?, key: String = "linear"): FloatArray =
@@ -379,7 +383,7 @@ private class GLWorldRenderer(
     private fun drawLoop() {
         if (!running) return
         upload()
-        val now = (System.nanoTime() / 1_000_000_000.0).toFloat()
+        val now = sceneRenderTimeSeconds ?: (System.nanoTime() / 1_000_000_000.0).toFloat()
         val matrices = matrices()
         if (sunCastsShadow) drawShadow(matrices.second, now)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
