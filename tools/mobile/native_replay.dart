@@ -15,6 +15,8 @@ Future<void> main() async {
       try {
         debugPrint('HOSTED_NATIVE_CREATED texture=${renderer.textureId}');
         final packet = jsonDecode(hostedFixture) as Map<String, dynamic>;
+        // Consumers implementing the captured clock use this exact epoch on both passes.
+        (packet['frame'] as Map)['renderTimeMs'] = 1000.0;
         final frame = SceneFrame.fromJson(packet, geometryCache: SceneGeometryCache());
         final meshes = frame.nodes.where((node) => node['kind'] == 'mesh').toList();
         final instanceGroups = frame.nodes.where((node) => node['kind'] == 'instances').toList();
