@@ -17,9 +17,10 @@ Future<void> main() async {
         final packet = jsonDecode(hostedFixture) as Map<String, dynamic>;
         final frame = SceneFrame.fromJson(packet, geometryCache: SceneGeometryCache());
         final meshes = frame.nodes.where((node) => node['kind'] == 'mesh').toList();
-        final instances = frame.nodes.where((node) => node['kind'] == 'instances').toList();
+        final instanceGroups = frame.nodes.where((node) => node['kind'] == 'instances').toList();
+        final instances = instanceGroups.where((node) => (node['instanceMatrices'] as List).isNotEmpty).toList();
         final lights = frame.nodes.where((node) => const ['ambient', 'hemisphere', 'directional', 'point'].contains(node['kind'])).length;
-        // This recorded room has three shell meshes and 25 furniture instance groups.
+        // Three shell meshes and 23 populated furniture groups; two empty HUD groups are dormant.
         // Validate real geometry and transforms before allowing any image assertion.
         final drawable = [...meshes, ...instances];
         final populated = drawable.every((node) {
@@ -27,10 +28,10 @@ Future<void> main() async {
           final indices = node['indices'] as List?;
           final matrices = node['instanceMatrices'] as List?;
           return node['visible'] == true && positions != null && positions.length >= 9 &&
-              indices != null && indices.length >= 3 &&
+              (indices == null ? positions.length % 9 == 0 : indices.length >= 3 && indices.length % 3 == 0) &&
               (node['kind'] != 'instances' || (matrices != null && matrices.length >= 16 && matrices.length % 16 == 0));
         });
-        if (meshes.length != 3 || instances.length != 25 || lights == 0 || !populated) {
+        if (meshes.length != 3 || instanceGroups.length != 25 || instances.length != 23 || lights == 0 || !populated) {
           throw StateError('Recorded interior preconditions missing: meshes=${meshes.length} instances=${instances.length} lights=$lights populated=$populated');
         }
         await FlutterFramePipeline(renderer).draw(frame);
