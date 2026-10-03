@@ -10,7 +10,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = Path(os.environ.get('MOBILE_EVIDENCE', '/tmp/mobile-evidence'))
+OUT = Path(os.environ.get('MOBILE_EVIDENCE', str(Path(os.environ.get('RUNNER_TEMP', '/tmp')) / 'mobile-evidence')))
 APP = ROOT / 'client/flutter'
 OUT.mkdir(parents=True, exist_ok=True)
 STATE = OUT / 'manifest.json'
