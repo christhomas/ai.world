@@ -44,6 +44,13 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          if [ ! -c /dev/kvm ]; then
+            echo '::error::Hosted runner has no /dev/kvm device; accelerated Android provisioning cannot continue.'
+            exit 1
+          fi
+          sudo chmod 0666 /dev/kvm
+          ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
       - name: Run dedicated GLES emulator
         uses: reactivecircus/android-emulator-runner@v2
