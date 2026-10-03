@@ -25,6 +25,19 @@ static unsigned long long resident_bytes(void) {
   return read == 2 ? (unsigned long long)resident * (unsigned long long)sysconf(_SC_PAGESIZE) : 0;
 #endif
 }
+/* Strict POSIX exposes only ru_opaque on Darwin. Use its public Mach maximum,
+ * and normalize Linux getrusage's KiB to bytes rather than emitting mixed units. */
+static unsigned long long peak_resident_bytes(void) {
+#ifdef __APPLE__
+  struct mach_task_basic_info info; mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count) != KERN_SUCCESS) return 0;
+  return info.resident_size_max;
+#else
+  struct rusage usage;
+  if (getrusage(RUSAGE_SELF, &usage) != 0 || usage.ru_maxrss <= 0) return 0;
+  return (unsigned long long)usage.ru_maxrss * 1024u;
+#endif
+}
 static double now_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
 static int interrupt(JSRuntime *rt, void *opaque) { (void)rt; (void)opaque; return now_ms() > deadline; }
 static JSValue now(JSContext *ctx, JSValueConst self, int argc, JSValueConst *argv) { (void)self; (void)argc; (void)argv; return JS_NewFloat64(ctx, now_ms()); }
@@ -88,9 +101,10 @@ int main(int argc, char **argv) {
   if (status < 0) return exception(job); if (!reported || JS_IsJobPending(rt)) return 6;
   printf(",\n{\"nativeCycle\":%u,\"phase\":\"recovered\",\"sourceHash\":\"%08x\",\"workload\":%s}", native_cycle, source_hash, report_text);
   JSMemoryUsage memory; JS_ComputeMemoryUsage(rt, &memory);
-  struct rusage usage; getrusage(RUSAGE_SELF, &usage);
+  unsigned long long peak_rss = peak_resident_bytes();
+  if (!peak_rss) { fprintf(stderr, "peak resident memory measurement unavailable\n"); return 7; }
   double dispose_start = now_ms(); JS_FreeContext(ctx); JS_FreeRuntime(rt);
-  fprintf(stderr, "{\"engine\":\"quickjs-2026-06-04\",\"nativeCycle\":%u,\"sourceHash\":\"%08x\",\"contextCreateMs\":%.6f,\"cycleMs\":%.6f,\"disposeMs\":%.6f,\"heapBytesBeforeDispose\":%lld,\"rssBeforeBytes\":%llu,\"rssAfterDisposeBytes\":%llu,\"peakRssNativeUnits\":%ld,\"pendingJobsAtDispose\":0,\"budgetRecovered\":true}\n", native_cycle, source_hash, context_ms, now_ms() - created, now_ms() - dispose_start, (long long)memory.memory_used_size, before_rss, resident_bytes(), usage.ru_maxrss);
+  fprintf(stderr, "{\"engine\":\"quickjs-%s\",\"nativeCycle\":%u,\"sourceHash\":\"%08x\",\"contextCreateMs\":%.6f,\"cycleMs\":%.6f,\"disposeMs\":%.6f,\"heapBytesBeforeDispose\":%lld,\"rssBeforeBytes\":%llu,\"rssAfterDisposeBytes\":%llu,\"peakRssBytes\":%llu,\"pendingJobsAtDispose\":0,\"budgetRecovered\":true}\n", CONFIG_VERSION, native_cycle, source_hash, context_ms, now_ms() - created, now_ms() - dispose_start, (long long)memory.memory_used_size, before_rss, resident_bytes(), peak_rss);
   free(report_text); report_text = NULL;
   }
   puts("\n]}"); free(source); return 0;
