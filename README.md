@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.9 — 2026-10-03
+
+Native mobile renderer fixes and portable host foundations
+
 ### v0.103.8 — 2026-10-01
 
 The Domesday shot waits for every toured village to settle
@@ -626,10 +630,6 @@ autumn light, wild-camp tents and amber night windows are back, and the game can
 ### v0.103.0 — 2026-09-29
 
 villages catch illness, carts haul carcasses to the crags, holdings report their income, and the country is a stack of layers you can shape
-
-### v0.102.6 — 2026-09-29
-
-Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, worlds that start without stalling joins, and releases that trust CI
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
