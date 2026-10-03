@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.9 — 2026-10-03
+
+Native mobile renderer fixes and portable host foundations
+
 ## v0.103.8 — 2026-10-01
 
 The Domesday shot waits for every toured village to settle
