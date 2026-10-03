@@ -8,7 +8,8 @@ mkdir -p "$RUNNER_TEMP/quickjs"
 tar -xJf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/quickjs" --strip-components=1
 qsrc="$RUNNER_TEMP/quickjs"
 ndk="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android29-clang"
-"$ndk" -O2 -D_GNU_SOURCE -DCONFIG_VERSION='"2026-06-04"' -I "$qsrc" tools/mobile-runtime-spike/native/quickjs-host.c "$qsrc/quickjs.c" "$qsrc/dtoa.c" "$qsrc/libregexp.c" "$qsrc/libunicode.c" "$qsrc/cutils.c" -lm -ldl -lpthread -o runtime-spike-out/quickjs-host
+# Android's Bionic libc exports pthread functions; there is no separate libpthread.
+"$ndk" -O2 -D_GNU_SOURCE -DCONFIG_VERSION='"2026-06-04"' -I "$qsrc" tools/mobile-runtime-spike/native/quickjs-host.c "$qsrc/quickjs.c" "$qsrc/dtoa.c" "$qsrc/libregexp.c" "$qsrc/libunicode.c" "$qsrc/cutils.c" -lm -ldl -o runtime-spike-out/quickjs-host
 adb push runtime-spike-out/quickjs-host runtime-spike-out/workload.js /data/local/tmp/
 adb shell chmod 755 /data/local/tmp/quickjs-host
 adb shell /data/local/tmp/quickjs-host /data/local/tmp/workload.js > runtime-spike-out/android.json 2> runtime-spike-out/android-metrics.log
