@@ -76,7 +76,8 @@ class WorldRendererBridge(
                     check(projection.size == 16 && world.size == 16) { "scene camera matrices must have 16 elements" }
                     val lights = call.argument<List<Map<String, Any>>>("lights") ?: emptyList()
                     renderer(call).sceneFrame(projection, world, call.argument<Int>("background") ?: 0x080b18,
-                        lights, call.argument<Map<String, Any>>("coast"), call.argument<Map<String, Any>>("fog"))
+                        lights, call.argument<Map<String, Any>>("coast"), call.argument<Map<String, Any>>("fog"),
+                        call.argument<Number>("renderTimeMs")?.toDouble())
                     result.success(null)
                 }
                 "cutaway" -> renderer(call).cutaway(
@@ -142,7 +143,7 @@ private class GLWorldRenderer(
     private var shadowProgram = 0
     private var shadowTexture = 0
     private var coastTexture = 0
-    private var coastArea = floatArrayOf(0f, 0f, 0f)
+    private var coastArea = floatArrayOf(0f, 0f, 0f, 64f)
     private var shadowFrameBuffer = 0
     private var target = floatArrayOf(8f, 0f, 8f)
     private var yaw = .78f
@@ -151,6 +152,7 @@ private class GLWorldRenderer(
     private var cutOn = 1f
     private var hero = floatArrayOf(8f, 1f, 8f)
     private var sceneProjection: FloatArray? = null
+    private var sceneRenderTimeSeconds: Float? = null
     private var sceneWorld: FloatArray? = null
     private var background = 0x080b18
     /** Where the shadow map looks from: the shadow-casting directional light, pointing at the scene. */
@@ -225,12 +227,14 @@ private class GLWorldRenderer(
         gpu.remove(id)?.let { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
     }
     fun camera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) = post {
-        sceneProjection = null; sceneWorld = null
+        sceneProjection = null; sceneWorld = null; sceneRenderTimeSeconds = null
         target = floatArrayOf(x, y, z); this.yaw = yaw; this.pitch = pitch; this.zoom = zoom.coerceIn(4f, 80f)
     }
     fun sceneFrame(projection: FloatArray, world: FloatArray, sky: Int,
-        lights: List<Map<String, Any>>, coast: Map<String, Any>?, fog: Map<String, Any>?) = post {
+        lights: List<Map<String, Any>>, coast: Map<String, Any>?, fog: Map<String, Any>?, renderTimeMs: Double?) = post {
         sceneProjection = projection.copyOf(); sceneWorld = world.copyOf(); background = sky
+        sceneRenderTimeSeconds = renderTimeMs?.takeIf { it.isFinite() && it >= 0.0 }
+            ?.let { (it / 1000.0).toFloat() }?.takeIf { it.isFinite() }
         target = floatArrayOf(world[12] - world[8] * 30f, world[13] - world[9] * 30f, world[14] - world[10] * 30f)
         // Dart has already decoded each light to linear and applied its intensity (colour.dart)
         fun colour(node: Map<String, Any>?, key: String = "linear"): FloatArray =
@@ -306,8 +310,9 @@ private class GLWorldRenderer(
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
             coastArea = floatArrayOf((coast["x0"] as Number).toFloat(),
-                (coast["z0"] as Number).toFloat(), 1f / (coast["span"] as Number).toFloat())
-        } else coastArea = floatArrayOf(0f, 0f, 0f)
+                (coast["z0"] as Number).toFloat(), 1f / (coast["span"] as Number).toFloat(),
+                (coast["range"] as? Number)?.toFloat() ?: 64f)
+        } else coastArea = floatArrayOf(0f, 0f, 0f, 64f)
     }
     fun cutaway(on: Boolean, x: Float, y: Float, z: Float) = post { cutOn = if (on) 1f else 0f; hero = floatArrayOf(x, y, z) }
 
@@ -378,7 +383,7 @@ private class GLWorldRenderer(
     private fun drawLoop() {
         if (!running) return
         upload()
-        val now = (System.nanoTime() / 1_000_000_000.0).toFloat()
+        val now = sceneRenderTimeSeconds ?: (System.nanoTime() / 1_000_000_000.0).toFloat()
         val matrices = matrices()
         if (sunCastsShadow) drawShadow(matrices.second, now)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
@@ -409,7 +414,7 @@ private class GLWorldRenderer(
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, coastTexture)
         GLES30.glUniform1i(GLES30.glGetUniformLocation(program, "uCoast"), 1)
-        GLES30.glUniform3fv(GLES30.glGetUniformLocation(program, "uCoastArea"), 1, coastArea, 0)
+        GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uCoastArea"), 1, coastArea, 0)
         drawMeshes(program, false)
         EGL14.eglSwapBuffers(display, eglSurface)
         handler.postDelayed(::drawLoop, 16)
@@ -616,7 +621,7 @@ uniform highp sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; u
 uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec4 uSunDirections[4]; uniform vec4 uSunColours[4]; uniform vec4 uPointPositions[16]; uniform vec4 uPointColours[16];
 uniform vec3 uCameraPos; uniform vec3 uFogColour; uniform vec2 uFogRange;
 uniform vec3 uEmissive;
-uniform sampler2D uCoast; uniform vec3 uCoastArea;
+uniform sampler2D uCoast; uniform vec4 uCoastArea;
 out vec4 color;
 const float RECIPROCAL_PI=0.3183098861837907;
 // three.js's sRGBTransferOETF: lit in linear, written out encoded (client/flutter/lib/src/colour.dart)
@@ -625,12 +630,61 @@ vec3 encodeSrgb(vec3 c){return mix(pow(c,vec3(0.41666))*1.055-vec3(0.055),c*12.9
 // cutoff when there is one
 float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0.0){float x=d/cutoff;x*=x;x*=x;float w=clamp(1.0-x,0.0,1.0);f*=w*w;}return f;}
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
-float ripple(vec2 w){return sin(dot(w,vec2(.77,.64))*1.9+uTime*1.3)*.5+sin(dot(w,vec2(-.6,.8))*2.7-uTime*.9)*.3;}
+// Kept formula-for-formula with src/render/water.ts by android-water.test.ts.
+const float PI2 = 6.283185307179586;
+float shoreAt(vec2 w) {
+  if (uCoastArea.z <= 0.0) return uCoastArea.w;
+  vec2 uv = (w - uCoastArea.xy) * uCoastArea.z;
+  float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+  float d = texture(uCoast, clamp(uv, 0.0, 1.0)).r * uCoastArea.w;
+  return mix(uCoastArea.w, d, inside);
+}
+float rippleAt(vec2 w, float t) {
+  return sin(dot(w, vec2(0.77, 0.64)) * 1.9 + t * 1.3) * 0.5
+    + sin(dot(w, vec2(-0.6, 0.8)) * 2.7 - t * 0.9) * 0.3;
+}
+float waveAt(vec2 w, float d, float t) {
+  float shoreward = sqrt(max(d, 0.0)) * 2.200;
+  float refract = 1.0 - smoothstep(uCoastArea.w * 0.4, uCoastArea.w * 0.95, d);
+  float p1 = mix(dot(w, vec2(0.80, 0.60)) / 23.0, shoreward, refract);
+  float p2 = mix(dot(w, vec2(-0.55, 0.84)) / 16.0, shoreward * 0.61, refract);
+  float wob = sin(w.x * 0.021 + t * 0.11) + sin(w.y * 0.017 - t * 0.09);
+  float a = sin((p1 + t * 0.30) * PI2 + wob * 0.9);
+  float b = sin((p2 + t * 0.19) * PI2 + wob * 1.5 + 2.1);
+  float swell = a * 0.62 + b * 0.38;
+  float shoal = smoothstep(0.0, 2.6, d) * mix(2.4, 1.0, smoothstep(0.0, 34.0, d));
+  return swell * shoal;
+}
 float shadow(){vec3 q=vShadow.xyz/vShadow.w*.5+.5;if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.0;float s=0.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)s+=texture(uShadow,vec3(q.xy+vec2(x,y)/1024.0,q.z-.002));return s/9.0;}
 void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}
-vec3 n=normalize(vNormal);vec3 albedo=vColor;
+vec3 n=normalize(vNormal);vec3 albedo=vColor;float opacity=uOpacity;
 // foam whitens the water's own colour before any light reaches it, as the web's water does at color_fragment (src/render/water.ts)
-if(vMaterial>1.5&&vMaterial<2.5){float coast=1.0;if(uCoastArea.z>0.0)coast=texture(uCoast,(vWorld.xz-uCoastArea.xy)*uCoastArea.z).r;float shore=mix(64.0,coast*64.0,vSea);float wave=mix(ripple(vWorld.xz),sin(shore*2.2+uTime*.9),vSea);float wash=1.0-smoothstep(0.0,1.1+wave*.55,shore);float foam=vSea*clamp(wash*.7+smoothstep(.65,.95,wave)*.09,0.0,1.0);float fall=fract(vWorld.y*1.6-uTime*1.8+sin((vWorld.x+vWorld.z)*2.0)*.2);float streak=smoothstep(.55,.7,fall)*(1.0-smoothstep(.85,1.0,fall));albedo=mix(albedo,vec3(.95,.98,1.0),mix(foam,.35+streak*.6,vFlow));}
+if(vMaterial>1.5&&vMaterial<2.5){
+  float t = uTime;
+  vec2 alongX = vec2(1.10, 0.0);
+  vec2 alongZ = vec2(0.0, 1.10);
+  float gShore = mix(uCoastArea.w, shoreAt(vWorld.xz), vSea);
+  float h0 = mix(rippleAt(vWorld.xz, t), waveAt(vWorld.xz, gShore, t), vSea);
+  float hx = mix(rippleAt(vWorld.xz + alongX, t),
+    waveAt(vWorld.xz + alongX, shoreAt(vWorld.xz + alongX), t), vSea);
+  float hz = mix(rippleAt(vWorld.xz + alongZ, t),
+    waveAt(vWorld.xz + alongZ, shoreAt(vWorld.xz + alongZ), t), vSea);
+  vec3 gWave = normalize(vec3((h0 - hx) * 0.045, 1.10, (h0 - hz) * 0.045));
+  float deep = smoothstep(1.5, uCoastArea.w * 0.45, gShore);
+  albedo *= mix(vec3(0.72, 1.18, 1.06), vec3(0.86, 0.94, 1.10), deep);
+  opacity = mix(0.60, 0.88, deep);
+  float breaker = smoothstep(1.6, 2.3, h0) * smoothstep(14.0, 2.0, gShore);
+  float wash = 1.0 - smoothstep(0.0, 1.1 + h0 * 0.55, gShore);
+  float glint = smoothstep(1.0, 1.7, h0) * 0.09;
+  float foam = clamp(breaker * 0.45 + wash * 0.7 + glint, 0.0, 1.0) * vSea;
+  float fall = fract(vWorld.y * 1.6 - t * 1.8 + sin((vWorld.x + vWorld.z) * 2.0) * 0.2);
+  float streak = smoothstep(0.55, 0.7, fall) * (1.0 - smoothstep(0.85, 1.0, fall));
+  float white = mix(foam, 0.35 + streak * 0.6, vFlow);
+  albedo=mix(albedo,vec3(.95,.98,1.0),white);
+  opacity = mix(mix(opacity, 0.94, foam), 0.9, vFlow);
+  // World-space wave and geometry normals share the lighting space; match three's faceDirection.
+  n = normalize(mix(gWave, n, vFlow)) * (gl_FrontFacing ? 1.0 : -1.0);
+}
 // three.js r185's lights_fragment_begin: ambient and hemisphere are the indirect term and take no shadow
 vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
@@ -638,7 +692,7 @@ float shade=mix(1.0,shadow(),uReceiveShadow);
 for(int i=0;i<4;i++){vec4 d=uSunDirections[i];vec4 s=uSunColours[i];if(all(equal(s.rgb,vec3(0.0))))continue;lit+=s.rgb*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
 for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;lit+=q.rgb*max(0.0,dot(n,normalize(l)))*attenuation(length(l),p.w,q.w);}
 vec3 c=albedo*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;
-c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,uOpacity);}
+c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,opacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es
 precision highp float; in vec3 aPosition; in float aJoint; in vec3 aPivot; uniform mat4 uMvp; uniform float uTime;

@@ -1,0 +1,13 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createContext, Script } from 'node:vm';
+import { performance } from 'node:perf_hooks';
+let identity = 0;
+const context = createContext({ host: { now: () => performance.now(), uuid: () => `00000000-0000-4000-8000-${String(identity++).padStart(12, '0')}`, echo: bytes => bytes.slice(0), report: console.log } });
+const bundledBytes = readFileSync('runtime-spike-out/workload.js');
+let fingerprint = 2166136261;
+for (const byte of bundledBytes) fingerprint = Math.imul(fingerprint ^ byte, 16777619);
+const sourceHash = (fingerprint >>> 0).toString(16).padStart(8, '0');
+new Script(bundledBytes.toString('utf8')).runInContext(context, { timeout: 30000 });
+const result = await new Script('MobileSpike.run()').runInContext(context, { timeout: 30000 });
+writeFileSync('runtime-spike-out/reference.json', JSON.stringify({ host: 'Node reference (not phone evidence)', node: process.version, sourceHash, ...result }, null, 2));
+console.log(result);

@@ -7,6 +7,19 @@ const triangle = (): Extract<SceneNode, { kind: 'mesh' }> => ({ kind: 'mesh', ma
   normals: Float32Array.of(0, 1, 0, 0, 1, 0, 0, 1, 0),
 } });
 
+it('captures the engine animation epoch and coast range without sampling a host clock', () => {
+  const graph = new SceneGraph(0);
+  graph.camera = { orthographic: true, projection: identity, world: identity };
+  graph.renderTimeMs = 1234.5;
+  graph.coast = { x0: 0, z0: 0, span: 2, size: 1, range: 32, values: Uint8Array.of(255) };
+  const first = graph.frame();
+  expect(first.renderTimeMs).toBe(1234.5);
+  expect(first.coast?.range).toBe(32);
+  graph.renderTimeMs = 0;
+  expect(graph.frame().renderTimeMs).toBe(0);
+  expect(first.renderTimeMs).toBe(1234.5);
+});
+
 /*
  * A native renderer keeps what it has baked under the node's id. When that id was the node's place
  * in the frame, a chunk unloading from the middle renamed everything after it and every later mesh

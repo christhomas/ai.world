@@ -1,4 +1,4 @@
-import { IndexedDbStore } from './save/store';
+import { IndexedDbStore } from './save/indexeddb';
 import { serverOf } from './game/joining';
 import { kindOf, type SessionSave, type WorldKind } from './save/store';
 import type { WorldInvite } from '../server/protocol';

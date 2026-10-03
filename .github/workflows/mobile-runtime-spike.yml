@@ -1,0 +1,117 @@
+name: Mobile runtime spike
+on:
+  push:
+    branches: ['feat/mobile-runtime-spike']
+  pull_request:
+    paths:
+      - 'tools/mobile-runtime-spike/**'
+      - '.github/workflows/mobile-runtime-spike.yml'
+      - 'shared/mobile/**'
+      - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mobile-runtime-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node --test tools/mobile-runtime-spike/compare.test.mjs
+      - run: node tools/mobile-runtime-spike/build.mjs
+      - run: node tools/mobile-runtime-spike/reference.mjs
+      - run: sha256sum runtime-spike-out/workload.js > runtime-spike-out/bundle.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mobile-runtime-bundle
+          path: runtime-spike-out/
+  ios-jsc:
+    needs: bundle
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mobile-runtime-bundle
+          path: runtime-spike-out
+      - run: bash tools/mobile-runtime-spike/native/run-ios.sh
+      - run: node tools/mobile-runtime-spike/compare.mjs runtime-spike-out/reference.json runtime-spike-out/ios.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ios-jsc-spike
+          path: runtime-spike-out/
+  ios-quickjs:
+    needs: bundle
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mobile-runtime-bundle
+          path: runtime-spike-out
+      - run: bash tools/mobile-runtime-spike/native/run-ios-quickjs.sh
+      - run: node tools/mobile-runtime-spike/compare.mjs runtime-spike-out/reference.json runtime-spike-out/ios-quickjs.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ios-quickjs-spike
+          path: runtime-spike-out/
+  android-quickjs:
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mobile-runtime-bundle
+          path: runtime-spike-out
+      - name: Enable hosted KVM and select the NDK
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo 'ANDROID_NDK_HOME='"$ANDROID_HOME/ndk/$(ls "$ANDROID_HOME/ndk" | sort -V | tail -1)" >> "$GITHUB_ENV"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -c /dev/kvm
+          sudo chmod 0666 /dev/kvm
+          ls -l /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Run QuickJS on a dedicated accelerated emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          avd-name: runtime-spike
+          force-avd-creation: true
+          emulator-boot-timeout: 300
+          disable-animations: true
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -accel on -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash tools/mobile-runtime-spike/native/run-android.sh
+      - run: node tools/mobile-runtime-spike/compare.mjs runtime-spike-out/reference.json runtime-spike-out/android.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: android-quickjs-spike
+          path: runtime-spike-out/

@@ -22,6 +22,8 @@ export interface SeasonLook {
 
 /** A scene description independent of the graphics API that displays it. */
 export interface FrameDescription {
+  /** Captured engine animation time, in milliseconds; null on legacy/native-generated frames. */
+  renderTimeMs?: number | null;
   camera: { projection: number[]; world: number[]; orthographic: boolean; layers?: number };
   background: number | null;
   fog: { colour: number; near: number; far: number } | null;
@@ -34,7 +36,7 @@ export interface FrameDescription {
    */
   season?: SeasonLook | null;
   /** World-space coast distance field sampled by open water. */
-  coast?: { x0: number; z0: number; span: number; size: number; values: Uint8Array | number[] } | null;
+  coast?: { x0: number; z0: number; span: number; size: number; range?: number; values: Uint8Array | number[] } | null;
   nodes: Array<{
     /**
      * The node's own name, kept for as long as it is in the graph and never given to another. A

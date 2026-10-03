@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-world:mobile:host-request:1",
+  "title": "AI World in-process game host request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "session", "sequence", "id", "type", "payload"],
+  "properties": {
+    "version": {"const": 1},
+    "session": {"type": "string", "minLength": 1, "maxLength": 256},
+    "sequence": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "type": {"enum": ["start", "load", "step", "action", "cancel", "resync", "lifecycle", "dispose"]},
+    "payload": {"type": "object"}
+  },
+  "$comment": "Envelope schema only. Exact discriminated payload constraints and finite/depth checks are canonical in host-contract.ts and mirrored in Dart; JSON Schema alone cannot enforce session ordering or binary ownership."
+}
