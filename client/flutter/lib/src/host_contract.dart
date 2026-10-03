@@ -36,7 +36,7 @@ Map<String, dynamic> validateHostRequest(dynamic value) {
     default: valid = false;
   }
   if (!valid) fail('invalid');
-  return Map<String, dynamic>.from(value as Map);
+  return Map<String, dynamic>.from(value);
 }
 
 class HostRequestGate {
