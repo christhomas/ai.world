@@ -274,7 +274,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test test/renderer_smoke_test.dart test/workflow_test.dart test/scene_frame_test.dart
+      - run: flutter test
       - run: flutter build apk --debug
       - run: flutter build ios --simulator --debug
 
