@@ -45,7 +45,6 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           test -r /dev/kvm && test -w /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -accel-check
       - name: Run dedicated GLES emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
