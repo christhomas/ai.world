@@ -90,9 +90,9 @@ def capture(platform):
             command([*sim, 'boot', device])
             command([*sim, 'bootstatus', device, '-b'], timeout=180)
             # Execute XCTest on this exact simulator, including production Metal runtime coverage.
-            command(['xcodebuild', 'test', '-workspace', 'Runner.xcworkspace', '-scheme', 'Runner',
+            command(['xcodebuild', 'test', '-workspace', 'Runner.xcworkspace', '-scheme', 'Runner', '-configuration', 'Debug',
                      '-destination', f'id={device}', '-only-testing:RunnerTests',
-                     '-resultBundlePath', str(OUT / 'RunnerTests.xcresult'), 'CODE_SIGNING_ALLOWED=NO'],
+                     '-resultBundlePath', str(OUT / 'RunnerTests.xcresult'), 'CODE_SIGNING_ALLOWED=NO', 'FLUTTER_TARGET=lib/hosted_replay.dart'],
                     timeout=900, cwd=APP / 'ios')
             command([*sim, 'install', device, str(APP / 'build/ios/iphonesimulator/Runner.app')])
             logs = OUT / 'native.log'
