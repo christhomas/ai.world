@@ -3,7 +3,35 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { FILES_A_RELEASE_WRITES, WAIT_FOR_CI, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, outOfPatience, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, whatWasAsked, whereTheChecksAre, type Stands } from './release';
+import { FILES_A_RELEASE_WRITES, WAIT_FOR_CI, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, outOfPatience, readCommandOutput, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, whatWasAsked, whereTheChecksAre, type Stands } from './release';
+
+describe('reading release API output', () => {
+  const read = (source: string, timeout?: number): string =>
+    readCommandOutput(process.execPath, ['-e', source], timeout);
+
+  it('returns a successful response unchanged except for surrounding whitespace', () => {
+    expect(read('console.log(JSON.stringify([{tag_name:"v0.103.8"}]))'))
+      .toBe('[{"tag_name":"v0.103.8"}]');
+  });
+
+  it('throws the HTTP error instead of returning its JSON body as release data', () => {
+    expect(() => read('process.stdout.write(JSON.stringify({message:"API rate limit exceeded"})); process.stderr.write("gh: HTTP 403"); process.exit(1)'))
+      .toThrow(/gh: HTTP 403[\s\S]*API rate limit exceeded/);
+  });
+
+  it('rejects a failed command even when stdout looks like valid release data', () => {
+    expect(() => read('process.stdout.write("[]"); process.exit(1)')).toThrow('[]');
+  });
+
+  it('fails the deadline even after receiving a valid-looking partial response', () => {
+    expect(() => read('process.stdout.write(JSON.stringify({check_runs:[]})); setInterval(() => {}, 1000)', 500))
+      .toThrow('did not return before the release deadline');
+  });
+
+  it('reports failures that have no response body', () => {
+    expect(() => read('process.exit(1)')).toThrow('failed without output');
+  });
+});
 
 /**
  * Which issues a release gets to claim.

@@ -42,13 +42,11 @@ const run = (cmd: string, args: string[]): string =>
   execFileSync(cmd, args, { encoding: 'utf8' }).trim();
 
 /**
- * The same, for a command whose exit code is an answer rather than a failure.
- *
- * `gh pr checks` exits non-zero while anything is pending or red, which is exactly the state it is
- * being asked about. What it printed is the answer either way; an empty output is only accepted
- * when the command itself succeeded, so authentication and network failures stay actionable.
+ * Read API output only after the command succeeds. GitHub HTTP errors also have JSON bodies on
+ * stdout; accepting those on a failed command turns an authentication or rate-limit error into
+ * release data. A deadline must still fail even when the command already printed part of a body.
  */
-const ask = (cmd: string, args: string[], timeout?: number): string => {
+export const readCommandOutput = (cmd: string, args: string[], timeout?: number): string => {
   try {
     return execFileSync(cmd, args, {
       encoding: 'utf8',
@@ -62,13 +60,13 @@ const ask = (cmd: string, args: string[], timeout?: number): string => {
       status?: number | null;
       signal?: string | null;
     };
-    const stdout = String(failure.stdout ?? '').trim();
-    if (stdout) return stdout;
     if (failure.signal === 'SIGTERM' && failure.status == null) {
-      throw new Error('gh pr checks did not return before the release deadline');
+      throw new Error(`${cmd} ${args[0] ?? ''} did not return before the release deadline`);
     }
     const stderr = String(failure.stderr ?? '').trim();
-    throw new Error(stderr || `gh ${args.join(' ')} failed without output`);
+    const stdout = String(failure.stdout ?? '').trim();
+    const detail = [stderr, stdout].filter(Boolean).join('\n');
+    throw new Error(detail || `${cmd} ${args.join(' ')} failed without output`);
   }
 };
 
@@ -258,7 +256,7 @@ const REPO = 'christhomas/ai.world';
 
 /** A REST call that returns parsed JSON, or a thrown error carrying what GitHub said. */
 function rest<T>(args: string[], timeout?: number): T {
-  return JSON.parse(ask('gh', ['api', ...args], timeout) || 'null') as T;
+  return JSON.parse(readCommandOutput('gh', ['api', ...args], timeout) || 'null') as T;
 }
 
 /**
