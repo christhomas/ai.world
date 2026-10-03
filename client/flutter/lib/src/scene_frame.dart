@@ -16,6 +16,10 @@ final class SceneFrame {
     final packet = json['frame'] is Map
         ? Map<String, dynamic>.from(json['frame'] as Map)
         : json;
+    final time = packet['renderTimeMs'];
+    if (time != null && (time is! num || !time.isFinite || time < 0)) {
+      throw const FormatException('Scene animation time must be finite nonnegative milliseconds');
+    }
     geometryCache?.accept(json['geometries']);
     final nodes = (packet['nodes'] as List).map((raw) {
       final node = Map<String, dynamic>.from(raw as Map);
@@ -28,6 +32,7 @@ final class SceneFrame {
       return <String, dynamic>{...node, ...geometry};
     }).toList();
     return SceneFrame._(
+      renderTimeMs: (time as num?)?.toDouble(),
       camera: Map<String, dynamic>.from(packet['camera'] as Map),
       background: packet['background'] as int?,
       coast: packet['coast'] == null
@@ -49,6 +54,7 @@ final class SceneFrame {
   }
 
   const SceneFrame._({
+    required this.renderTimeMs,
     required this.camera,
     required this.background,
     required this.coast,
@@ -59,6 +65,7 @@ final class SceneFrame {
   });
 
   final Map<String, dynamic> camera;
+  final double? renderTimeMs;
   final int? background;
   final Map<String, dynamic>? coast;
   final Map<String, dynamic>? cutaway;
@@ -153,6 +160,7 @@ final class FlutterFramePipeline {
       projection: Float32List.fromList(projection),
       world: Float32List.fromList(world),
       background: frame.background ?? 0x080b18,
+      renderTimeMs: frame.renderTimeMs,
       fog: frame.fog,
       coast: frame.coast,
       nodes: frame.nodes

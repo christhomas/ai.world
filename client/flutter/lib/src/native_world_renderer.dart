@@ -106,6 +106,7 @@ final class NativeWorldRenderer {
     required Float32List projection,
     required Float32List world,
     required int background,
+    double? renderTimeMs,
     Map<String, dynamic>? fog,
     Map<String, dynamic>? coast,
     required List<Map<String, dynamic>> nodes,
@@ -116,6 +117,12 @@ final class NativeWorldRenderer {
       'background': background,
       'lights': nodes,
     };
+    if (renderTimeMs != null) {
+      if (!renderTimeMs.isFinite || renderTimeMs < 0) {
+        throw const FormatException('Scene animation time must be finite nonnegative milliseconds');
+      }
+      message['renderTimeMs'] = renderTimeMs;
+    }
     if (fog != null) message['fog'] = fog;
     if (coast != null) {
       message['coast'] = <String, Object>{
@@ -123,6 +130,7 @@ final class NativeWorldRenderer {
         'z0': coast['z0'] as num,
         'span': coast['span'] as num,
         'size': coast['size'] as int,
+        'range': coast['range'] as num? ?? 64,
         'values': Uint8List.fromList((coast['values'] as List).cast<int>()),
       };
     }
