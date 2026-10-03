@@ -1,6 +1,8 @@
 /** In-process app ABI. Never use this number as server PROTOCOL_VERSION. */
 export const HOST_CONTRACT_VERSION = 1;
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+/** Existing world Link protocol: JSON words and binary terrain parcels. */
+export type HostParcel = string | ArrayBuffer;
 export type FocusOwner = 'WORLD' | 'BOOK' | 'TYPING';
 export type Busy = null | 'reading' | 'talking' | 'framing' | 'typing';
 export type FailureCode = 'version' | 'invalid' | 'stale-session' | 'out-of-order' | 'cancelled' | 'disposed' | 'port-failed' | 'resync-required';
@@ -42,8 +44,8 @@ export interface HostPorts {
   audio: { play(cue: string, gain: number): void; mute(muted: boolean): void; dispose(): void };
   capture: { save(session: string, revision: number): Promise<string> };
   scene: { submit(scene: SceneSubmission): Promise<void>; reset(session: string): Promise<void> };
-  localWorld: { send(message: ArrayBuffer): Promise<ArrayBuffer>; dispose(): Promise<void> };
-  remoteWorld: { connect(url: string, credential: string): Promise<void>; send(message: ArrayBuffer): Promise<void>; subscribe(listener: (message: ArrayBuffer) => void): () => void; dispose(): Promise<void> };
+  localWorld: { send(message: HostParcel): Promise<void>; subscribe(listener: (message: HostParcel) => void): () => void; dispose(): Promise<void> };
+  remoteWorld: { connect(url: string): Promise<void>; send(message: HostParcel): Promise<void>; subscribe(listener: (message: HostParcel) => void): () => void; dispose(): Promise<void> };
 }
 export interface GameHostSession {
   request(request: HostRequest): Promise<HostResult>;
@@ -97,6 +99,8 @@ export class RequestGate {
     if (r.type === 'step') { this.tick = r.payload.tick; this.time = r.payload.renderTimeMs; }
     if (r.type === 'lifecycle') this.time = r.payload.renderTimeMs;
     this.ids.add(r.id); this.sequence++;
+    // Sequence rejects lifetime replays; only recent ID collisions need retained history.
+    if (this.ids.size > 4096) this.ids.delete(this.ids.values().next().value!);
     if (r.type === 'dispose') this.disposed = true;
     return r;
   }

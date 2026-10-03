@@ -20,7 +20,7 @@ Unsupported ABI is an explicit version error before allocating game resources.
 ## Requests, results and cancellation
 
 A host creates a unique generation string on every start/load; it never reuses a generation.
-Requests carry version, session generation, contiguous sequence beginning at zero, unique request
+Requests carry version, session generation, contiguous sequence beginning at zero, request
 ID, discriminant and exact payload. Reject unknown fields/types, nonfinite numbers and unsafe
 integers. IDs for actions/entities/items/worlds are stable strings; never encode uint64 IDs in JSON
 numbers. `action` args are bounded-depth JSON; #562 defines domain-specific argument validation.
@@ -35,7 +35,11 @@ gets its own result; a cancelled target receives exactly one `cancelled` termina
 target cancels as a no-op. Disposal fences the generation immediately, releases subscriptions,
 awaits outstanding buffer owners, closes links/audio, and rejects further requests. Late results
 from a replaced generation cannot mutate storage, UI or scene. Adapters must bound pending queue
-and completed-ID retention; the example gate retains IDs for its short fixture session only.
+and completed-ID retention. The gate retains at most 4,096 recent request IDs. IDs must not be reused
+while pending or within that window; the session sequence rejects all older replayed messages without
+retaining them. The executing adapter separately tracks a bounded pending/result-correlation table
+and rejects a full queue before accepting a request. Completed ID reuse after the window cannot
+make an old message valid, because its sequence is still obsolete.
 
 ## Input and presentation
 
@@ -78,7 +82,11 @@ reconnect or session resume requests resync; reject deltas until a full snapshot
 Removal IDs explicitly retire entities/buffers. Storage commits are atomic and errors visible,
 never silent success; saves include versioned migrations and whole local authoritative world.
 Bundled asset reads never fetch executable code. Remote links use TLS and preserve protocol checks;
-credentials stay in native secure storage. Audio respects mute/interruption, capture binds to an
+the existing player identity/join protocol remains authoritative without a new mandatory login.
+Local and remote links both carry JSON strings and binary terrain buffers, deliver replies/events
+through subscriptions, and never assume every send has exactly one synchronous reply.
+Any future authentication extension belongs to the existing protocol and native secure storage.
+Audio respects mute/interruption, capture binds to an
 acknowledged scene revision. Port failures produce a typed error and recovery state.
 
 ## Proposed support and measurement gates

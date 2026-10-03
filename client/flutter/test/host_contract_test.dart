@@ -25,6 +25,20 @@ void main() {
     expect(gate.accept(start)['sequence'], 0);
     expect(() => gate.accept(start), throwsFormatException);
   });
+  test('completed ID retention is bounded without accepting old sequence replays', () {
+    final start = Map<String, dynamic>.from(fixture['start'] as Map);
+    final gate = HostRequestGate('fixture:1'); gate.accept(start);
+    Map<String, dynamic> lifecycle(int sequence, String id) => {
+      ...start, 'sequence': sequence, 'id': id, 'type': 'lifecycle',
+      'payload': {'state': 'active', 'renderTimeMs': sequence},
+    };
+    expect(() => gate.accept(lifecycle(1, start['id'] as String)), throwsFormatException);
+    for (var sequence = 1; sequence <= 4096; sequence++) {
+      gate.accept(lifecycle(sequence, 'life:$sequence'));
+    }
+    expect(gate.accept(lifecycle(4097, start['id'] as String))['sequence'], 4097);
+    expect(() => gate.accept(start), throwsFormatException);
+  });
   testWidgets('fake session renders shared presentation and accepts a touch action', (tester) async {
     final gate = HostRequestGate('fixture:1'); gate.accept(fixture['start']);
     final models = fixture['presentation']['models'] as Map;
