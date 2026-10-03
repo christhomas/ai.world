@@ -32,10 +32,10 @@ class WorldSocketConfig {
     final address = InternetAddress.tryParse(endpoint.host);
     final bytes = address?.rawAddress;
     final privateAddress = address?.isLoopback == true ||
-        (bytes?.length == 4 && (bytes![0] == 10 ||
+        (bytes != null && bytes.length == 4 && (bytes[0] == 10 ||
           (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
           (bytes[0] == 192 && bytes[1] == 168))) ||
-        (bytes?.length == 16 && ((bytes![0] & 0xfe) == 0xfc ||
+        (bytes != null && bytes.length == 16 && ((bytes[0] & 0xfe) == 0xfc ||
           (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80)));
     final developmentHost = endpoint.host == 'localhost' || endpoint.host.endsWith('.local') || privateAddress;
     if (endpoint.host.isEmpty || endpoint.userInfo.isNotEmpty || endpoint.hasFragment ||
@@ -138,13 +138,13 @@ class NativeWorldSocketLink {
     final Object owned;
     final int size;
     if (parcel is String) { owned = parcel; size = utf8.encode(parcel).length; }
-    else if (parcel is Uint8List) { owned = Uint8List.fromList(parcel); size = parcel.length; }
+    else if (parcel is Uint8List) { owned = parcel; size = parcel.length; }
     else { return Future.error(ArgumentError('A world parcel must be text or Uint8List.')); }
     if (size > config.maxParcelBytes || _writes.length + (_activeWrite == null ? 0 : 1) >= config.maxQueuedParcels ||
         _queuedBytes + size > config.maxQueuedBytes) {
       return Future.error(StateError('The world transport send queue is full.'));
     }
-    final write = _Write(owned, size);
+    final write = _Write(owned is Uint8List ? Uint8List.fromList(owned) : owned, size);
     _queuedBytes += size;
     _writes.add(write);
     if (_activeWrite == null) unawaited(_flush(_socket!, _generation));
