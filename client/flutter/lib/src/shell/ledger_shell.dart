@@ -115,7 +115,10 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
             child: IgnorePointer(ignoring: parked, child: ExcludeSemantics(excluding: parked, child: widget.actionCard!))),
           if (parked && !showBook) Positioned(left: 56, bottom: 64, child: _slab('CONTROLS PARKED', t)),
           if (showBook) Positioned(left: 0, top: 0, bottom: 0, width: bookWidth,
-            child: FocusScope(node: _bookFocus, autofocus: true, child: Focus(onKeyEvent: (_, event) {
+            child: FocusScope(node: _bookFocus, autofocus: true, onKeyEvent: (_, event) {
+              if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) { c.back(); return KeyEventResult.handled; }
+              return KeyEventResult.ignored;
+            }, child: Focus(onKeyEvent: (_, event) {
               if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) { c.back(); return KeyEventResult.handled; }
               return KeyEventResult.ignored;
             }, child: AnimatedContainer(key: const ValueKey('ledger-book'),
@@ -134,6 +137,10 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
             child: _slab('CONTROLS PARKED · CLOSE PUTS THE BOOK AWAY', t)),
           if (c.input.owner == InputOwner.typing && widget.typingBuilder != null)
             Positioned.fill(child: ColoredBox(color: t.surface, child: FocusScope(node: _typingFocus, autofocus: true,
+              onKeyEvent: (_, event) {
+                if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) { c.finishTyping(); return KeyEventResult.handled; }
+                return KeyEventResult.ignored;
+              },
               child: Focus(onKeyEvent: (_, event) {
                 if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) { c.finishTyping(); return KeyEventResult.handled; }
                 return KeyEventResult.ignored;
