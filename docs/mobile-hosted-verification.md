@@ -12,6 +12,10 @@ Existing web and mobile build checks remain unchanged. This workflow is new grou
 than a declaration that repository required-check or release acceptance configuration is complete.
 
 Android uses Ubuntu 24.04, API 35 google_apis x86_64, Pixel 6, Java 17 and GLES3 through SwiftShader.
+The disposable hosted runner enables the emulator action's documented KVM permissions and checks
+KVM access before boot. VM acceleration is required; unsupported acceleration fails provisioning
+instead of falling back to software CPU emulation and waiting for a boot timeout. SwiftShader
+remains the graphics backend, independently of KVM's CPU acceleration.
 iOS uses macOS 15, Xcode 16.4, iOS 18.5 and a newly created iPhone 16 simulator with Metal.
 Flutter is pinned to 3.47.1. Each job records the installed tools/device properties; missing pinned
 runtime or backend initialization fails provisioning instead of substituting a different device.
