@@ -18,7 +18,7 @@ export function prayerInteractions(ctx: Surroundings) {
 
   const choicesAt = (shrine: { name: string; x: number; z: number }): DialogueChoice[] => [{
     label: 'Ask the stones to raise high ground',
-    next: (): DialogueNode => {
+    next: (): DialogueNode | null => {
       if (!prayerHost.isLive()) return null;
       if (!online.connected || online.away || !ctx.sampler.within) return {
         speaker: shrine.name, emoji: '⛩️',
