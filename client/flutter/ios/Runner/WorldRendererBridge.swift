@@ -276,7 +276,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   func setSceneFrame(projection: Data, world: Data, background: Int,
                      lights: [[String: Any]], coast: [String: Any]?, fog: [String: Any]?) {
     guard let projection = Self.matrix(projection), let world = Self.matrix(world) else { return }
-    sceneProjection = projection; sceneWorld = world; self.background = background
+    sceneProjection = importedMetalProjection(projection); sceneWorld = world; self.background = background
     target = SIMD3(world.columns.3.x, world.columns.3.y, world.columns.3.z) -
       SIMD3(world.columns.2.x, world.columns.2.y, world.columns.2.z) * 30
     // Dart has already decoded each light to linear and applied its intensity (colour.dart)
@@ -441,6 +441,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   }
 
   private func draw(_ encoder: MTLRenderCommandEncoder, uniforms: Uniforms, shadow: Bool) {
+    // Both passes consume the same counterclockwise mesh indices. Depth conversion leaves XY intact.
+    encoder.setFrontFacing(.counterClockwise)
     let camera = sceneWorld.map { SIMD3($0.columns.3.x, $0.columns.3.y, $0.columns.3.z) } ?? target
     let ordered = meshes.values.sorted { left, right in
       if left.style.renderOrder != right.style.renderOrder { return left.style.renderOrder < right.style.renderOrder }
@@ -554,7 +556,17 @@ private func lookAt(eye: SIMD3<Float>, center: SIMD3<Float>, up: SIMD3<Float>) -
     SIMD4(-simd_dot(s,eye),-simd_dot(u,eye),simd_dot(f,eye),1)
   ))
 }
-private func orthographic(left:Float,right:Float,bottom:Float,top:Float,near:Float,far:Float) -> simd_float4x4 {
+/// Imported web cameras have OpenGL clip depth -w...w; Metal clips at 0...w.
+/// Apply once when accepting a frame, never to native fallback or light projections.
+func importedMetalProjection(_ projection: simd_float4x4) -> simd_float4x4 {
+  let depth = simd_float4x4(columns: (
+    SIMD4<Float>(1,0,0,0), SIMD4<Float>(0,1,0,0),
+    SIMD4<Float>(0,0,0.5,0), SIMD4<Float>(0,0,0.5,1)
+  ))
+  return depth * projection
+}
+
+func orthographic(left:Float,right:Float,bottom:Float,top:Float,near:Float,far:Float) -> simd_float4x4 {
   simd_float4x4(columns:(
     SIMD4(2/(right-left),0,0,0), SIMD4(0,2/(top-bottom),0,0), SIMD4(0,0,1/(near-far),0),
     SIMD4(-(right+left)/(right-left),-(top+bottom)/(top-bottom),near/(near-far),1)
@@ -565,7 +577,7 @@ private func orthographic(left:Float,right:Float,bottom:Float,top:Float,near:Flo
 /// this long.
 private let directionalLights = 4
 
-private let metalSource = """
+let metalSource = """
 #include <metal_stdlib>
 using namespace metal;
 struct VIn { float3 position [[attribute(0)]]; float3 normal [[attribute(1)]]; float3 color [[attribute(2)]]; float material [[attribute(3)]]; float joint [[attribute(4)]]; float3 pivot [[attribute(5)]]; float flow [[attribute(6)]]; float sea [[attribute(7)]]; };
@@ -581,6 +593,8 @@ float3 encodeSrgb(float3 c){return select(pow(c,float3(0.41666))*1.055-0.055,c*1
 // cutoff when there is one
 float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0){float x=d/cutoff;x*=x;x*=x;float w=saturate(1.0-x);f*=w*w;}return f;}
 float hash(float2 p){return fract(sin(dot(floor(p),float2(12.9898,78.233)))*43758.5453);}
+// Light depth is already Metal depth; viewport/texture Y starts at the top.
+float3 shadowCoordinates(float4 clip){float3 ndc=clip.xyz/clip.w;return float3(ndc.x*.5+.5,.5-ndc.y*.5,ndc.z);}
 fragment float4 worldFragment(VOut in [[stage_in]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],constant float4* sunDirections [[buffer(4)]],constant float4* sunColours [[buffer(5)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}
 float3 n=normalize(in.normal);float3 albedo=in.color;
 // foam whitens the water's own colour before any light reaches it, as the web's water does at color_fragment (src/render/water.ts)
@@ -588,7 +602,7 @@ if(in.material>1.5&&in.material<2.5){float coast=1;if(u.coastArea.z>0){constexpr
 // three.js r185's lights_fragment_begin: ambient and hemisphere are the indirect term and take no shadow
 float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
-float3 q=in.shadow.xyz/in.shadow.w*.5+.5;constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}
+float3 q=shadowCoordinates(in.shadow);constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}
 for(int i=0;i<4;i++){float4 d=sunDirections[i];float4 s=sunColours[i];if(all(s.xyz==0.0))continue;lit+=s.xyz*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
 for(int i=0;i<16;i++){float4 p=pointPositions[i];float4 q=pointColours[i];if(all(q.xyz==0.0))continue;float3 toPoint=p.xyz-in.world;lit+=q.xyz*max(0.0,dot(n,normalize(toPoint)))*attenuation(length(toPoint),p.w,q.w);}
 float3 c=albedo*(in.material>2.5?float3(1):lit*RECIPROCAL_PI)+u.emissive.xyz;
