@@ -49,9 +49,11 @@ rejection, path/symlink attacks and export/import replacement confirmation. The 
 documented shared-shaped fixture, not falsely described as a save recorded from installed gameplay.
 Actual exported shared-save fixtures and installed upgrade/resume proof remain pending.
 
-All tests must run on GitHub. Existing `checks.yml` names only three Flutter test files and
-does not execute this new suite; the hosted mobile workflow's full `flutter test` command will
-execute it when branches are integrated. No local tests, builds or dependencies were run.
+All tests run on GitHub. Both the required Flutter check and hosted mobile workflow
+now discover the complete Flutter suite, including these checkpoint regressions.
+Invalid UTF-8 bytes are decoded inside the corruption handler, so a valid previous
+checkpoint can recover while real file-read errors retain their I/O classification.
+No local tests, builds or dependencies were run.
 Production list/rename/delete confirmation UI, stable identity creation, settings integration,
 app-private directory lookup, lifecycle flush hookup and both-platform installed resume/update
 journeys remain #577 acceptance work. This change deliberately does not close that issue.

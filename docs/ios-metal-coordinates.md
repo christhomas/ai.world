@@ -23,11 +23,12 @@ materials retain back, front and no culling respectively. This is a convention
 fix, not proof that it explains the missing interior floor and counter.
 
 Negative-determinant world/instance transforms reverse triangle area. The Dart
-scene-frame packer currently bakes such transforms into vertices while retaining
-raw indices; correcting that requires transform-aware index handling before the
-Swift bridge, which receives no model matrices. Mirrored instances remain a
-separate pending criterion; changing one global winding cannot correct a mesh
-containing both mirrored and ordinary instances.
+scene-frame packer bakes the composed transform into vertices and normals.
+It now swaps the last two triangle indices for each
+negative-determinant composed world/instance transform before sending buffers to
+Swift, which receives no model matrices. Ordinary instances keep their indices;
+two reflections compose to positive determinant and also keep their indices.
+Captured mixed mirrored/ordinary geometry remains a separate pending criterion.
 
 Apple's [Metal coordinate and culling documentation](https://developer.apple.com/library/archive/documentation/Miscellaneous/Conceptual/MetalProgrammingGuide/Render-Ctx/Render-Ctx.html)
 defines the depth, viewport origin and explicit winding state used here.

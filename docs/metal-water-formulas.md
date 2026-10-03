@@ -25,8 +25,10 @@ absent/nonfinite value preserves the existing native monotonic fallback. Capture
 time remains fixed until another scene frame updates it.
 
 The optional `sceneFrame.coast.range` supplies the fourth coast-area channel in
-world units, defaulting to the current web range of 64. Dart frame transport still
-needs to send both fields. Android's shared clock transport is also pending.
+world units, defaulting to the current web range of 64. The shared scene and Dart
+frame transport now send both fields to Metal and Android. Android likewise
+converts captured milliseconds to shader seconds and preserves its monotonic
+fallback for legacy frames with no captured time.
 
 ## Hosted verification boundary
 

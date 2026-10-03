@@ -40,7 +40,9 @@ Map<String, dynamic> validateHostRequest(dynamic value) {
 }
 
 class HostRequestGate {
-  HostRequestGate(this.session);
+  HostRequestGate(this.session) {
+    if (session.isEmpty || session.length > 256) throw const FormatException('invalid');
+  }
   final String session;
   int _sequence = 0;
   int _tick = -1;

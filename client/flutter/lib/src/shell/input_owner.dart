@@ -9,9 +9,10 @@ class InputOwnerController extends ChangeNotifier {
   final InputSink send;
   InputOwner owner = InputOwner.world;
   String? busy;
-  bool _inactive = false;
+  bool _appInactive = false;
+  bool _sessionParked = false;
   final Map<Object, Map<String, Object>> _holds = {};
-  bool get acceptsWorld => !_inactive && owner == InputOwner.world && busy == null;
+  bool get acceptsWorld => !_appInactive && !_sessionParked && owner == InputOwner.world && busy == null;
 
   void hold(Object token, {List<double> move = const [0, 0], List<double> look = const [0, 0], bool guard = false, bool run = false}) {
     if (!acceptsWorld) return;
@@ -31,7 +32,8 @@ class InputOwnerController extends ChangeNotifier {
     _emit();
     notifyListeners();
   }
-  void lifecycle(bool active) { _holds.clear(); _inactive = !active; _emit(); notifyListeners(); }
+  void lifecycle(bool active) { _holds.clear(); _appInactive = !active; _emit(); notifyListeners(); }
+  void session(bool ready) { _holds.clear(); _sessionParked = !ready; _emit(); notifyListeners(); }
   void cancelAll() { _holds.clear(); _emit(); }
   void _emit({List<String> actions = const []}) {
     final held = acceptsWorld ? _holds.values.toList() : <Map<String, Object>>[];

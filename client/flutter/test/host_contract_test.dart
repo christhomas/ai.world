@@ -6,6 +6,15 @@ import 'package:ai_world_flutter/src/host_contract.dart';
 
 void main() {
   final fixture = jsonDecode(File('../../shared/mobile/fixtures/session-v1.json').readAsStringSync()) as Map<String, dynamic>;
+  test('gate constructor enforces the shared session ID boundaries', () {
+    for (final session in ['', List.filled(257, 'a').join()]) {
+      expect(() => HostRequestGate(session), throwsFormatException);
+    }
+    for (final session in ['a', List.filled(256, 'a').join()]) {
+      final start = Map<String, dynamic>.from(fixture['start'] as Map)..['session'] = session;
+      expect(HostRequestGate(session).accept(start)['session'], session);
+    }
+  });
   test('identical fixture validates and preserves Float64 precision', () {
     final gate = HostRequestGate('fixture:1');
     expect(gate.accept(fixture['start'])['type'], 'start');

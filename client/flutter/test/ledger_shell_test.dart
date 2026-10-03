@@ -86,6 +86,40 @@ void main() {
     });
   }
 
+  testWidgets('session readiness and app resume cannot unpark each other', (tester) async {
+    final sent = <Map<String, Object?>>[];
+    final input = InputOwnerController(sent.add);
+    final controller = LedgerController(input);
+    addTearDown(() => tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed));
+    Future<void> show(SessionSurface surface) async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: LedgerShell(
+        world: const SizedBox.expand(), controller: controller, pages: const {}, surface: surface))));
+      await tester.pump();
+    }
+    void requireParked() {
+      input.hold('hardware', move: [1, 0], guard: true);
+      input.action('interact');
+      expect(input.acceptsWorld, false);
+      expect(sent.last['move'], [0, 0]);
+      expect(sent.last['held'], {'guard': false, 'run': false});
+      expect(sent.last['actions'], isEmpty);
+    }
+    await show(SessionSurface.recoverableError);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    requireParked();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await show(SessionSurface.ready);
+    requireParked();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    expect(input.acceptsWorld, true);
+    expect(sent.last['move'], [0, 0]);
+    input.hold('hardware', move: [1, 0], guard: true);
+    input.action('interact');
+    expect(sent.last['move'], [1, 0]);
+    expect(sent.last['actions'], ['interact']);
+  });
+
   testWidgets('guard pointer cancellation and book/text transitions release held input', (tester) async {
     final sent = <Map<String, Object?>>[];
     final input = InputOwnerController(sent.add);

@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'bounded_upgrade_client.dart';
 
 enum WorldTransportState { offline, connecting, ready, retrying }
 
@@ -74,6 +75,7 @@ class NativeWorldSocketLink {
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   Timer? _retry;
+  BoundedUpgradeClient? _connectingClient;
   final _writes = ListQueue<_Write>();
   _Write? _activeWrite;
   int _generation = 0, _failures = 0, _queuedBytes = 0;
@@ -95,8 +97,11 @@ class NativeWorldSocketLink {
     if (!_current(generation)) return;
     onStatus(const WorldTransportStatus(WorldTransportState.connecting, 'Connecting to the world.'));
     if (!_current(generation)) return;
-    final connecting = WebSocket.connect(config.endpoint.toString());
-    // timeout does not cancel the OS handshake; dispose a socket that arrives late.
+    final client = BoundedUpgradeClient(config.maxParcelBytes);
+    _connectingClient = client;
+    final connecting = WebSocket.connect(config.endpoint.toString(), customClient: client,
+      compression: CompressionOptions.compressionOff, maxPayloadLength: config.maxParcelBytes);
+    // Generation fencing also closes a socket detached just before cancellation.
     unawaited(connecting.then<void>((socket) {
       if (!_current(generation)) unawaited(socket.close());
     }, onError: (Object error, StackTrace stack) {}));
@@ -128,6 +133,9 @@ class NativeWorldSocketLink {
       _lost(generation, 'The world connection timed out.');
     } catch (_) {
       _lost(generation, 'Could not reach the world server.');
+    } finally {
+      if (identical(_connectingClient, client)) _connectingClient = null;
+      client.close(force: true);
     }
   }
 
@@ -177,6 +185,7 @@ class NativeWorldSocketLink {
   void _lost(int generation, String reason) {
     if (!_current(generation)) return;
     _generation++;
+    _connectingClient?.close(force: true); _connectingClient = null;
     final socket = _socket; _socket = null;
     unawaited(_subscription?.cancel()); _subscription = null;
     if (socket != null) unawaited(socket.close());
@@ -204,6 +213,7 @@ class NativeWorldSocketLink {
   /// Manual leave fences callbacks immediately and disables every pending retry.
   Future<void> close() async {
     _wanted = false; _generation++;
+    _connectingClient?.close(force: true); _connectingClient = null;
     _retry?.cancel(); _retry = null;
     final socket = _socket; _socket = null;
     final subscription = _subscription; _subscription = null;

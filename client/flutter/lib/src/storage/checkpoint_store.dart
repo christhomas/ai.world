@@ -135,8 +135,9 @@ class CheckpointStore {
   }
 
   Future<Checkpoint> _read(File file, String key, {bool recovered = false}) async {
-    final text = await file.readAsString();
+    final bytes = await file.readAsBytes();
     try {
+      final text = utf8.decode(bytes);
       final envelope = jsonDecode(text) as Map<String, dynamic>;
       if (envelope['schema'] is! int || envelope['contract'] is! int ||
           (envelope['schema'] as int) < 1 || (envelope['contract'] as int) < 1) {

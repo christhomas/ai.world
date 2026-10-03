@@ -34,14 +34,22 @@ part of this adapter.
 the six-second quiet-world check and reconnect. When a runtime host deliberately
 uses native reconnect instead, the adapter backs off from one second to thirty,
 times out each handshake after six seconds and rejects all unsent parcels when a
-session ends. `admitted()` resets backoff only when the engine accepts its join;
+session ends. Each attempt owns a separate SDK HttpClient that is force-closed
+on timeout or manual leave, aborting the pending HTTP upgrade. `admitted()` resets
+backoff only when the engine accepts its join;
 an open TCP socket alone does not reset a flapping connection. WebSocket ping/pong
 also detects transport silence. Never enable both retry owners.
 
 Outgoing application buffering is bounded by parcel count and byte count. Writes
 to an unready link, oversized parcels and a full queue fail rather than waiting
-for another session. Incoming parcels have a configurable byte limit and otherwise
-remain uninterpreted, including malformed JSON and truncated ground buffers, so
+for another session. Incoming frames use the SDK's `maxPayloadLength` and a
+streaming guard on the detached socket that checks total fragmented-message bytes
+before the SDK accumulates/decodes the payload. The guard retains at most ten
+header bytes and aborts violations immediately. WebSocket compression is disabled
+so compressed payloads cannot bypass the wire-byte budget. TLS, certificate and
+upgrade verification remain in `dart:io`; the adapter wraps only the SDK upgrade
+port and decrypted byte stream. Parcels otherwise remain uninterpreted, including
+malformed JSON and truncated ground buffers, so
 the shared engine remains the protocol validator. Late handshakes and callbacks
 from abandoned sessions close or disappear before reaching the engine.
 
@@ -54,6 +62,10 @@ The binary case supplies a version-2 chunk with nonzero height, proves decoding
 before transmission, compares every received byte and decodes the received chunk.
 Malformed text and truncated binary are deliberately preserved for downstream
 validation. These servers are transport fixtures, not the AI World server.
+Additional real-socket regressions leave HTTP upgrades unanswered to verify
+timeout/retry/manual-leave teardown, and send raw oversized/fragmented headers
+without their oversized bodies. Valid fragmented messages retain every byte and
+reset the budget for the next message. These regressions execute on GitHub.
 
 No local test, build, playtest, formatter, dependency installation or emulator was
 run. `flutter test test/world_socket_link_test.dart` and the full Flutter suite must

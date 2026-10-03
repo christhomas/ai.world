@@ -38,10 +38,10 @@ for daylight, dusk and night; open sea/shore, river/lake and waterfall; hero poi
 light present/absent; transparency and double-sided surfaces; and non-water
 interior/autumn regression checks.
 
-Two contract gaps remain outside this shader patch. `NativeWorldRenderer.sceneFrame`
-currently omits `coast.range` when constructing the method-channel payload, and no
-shared render time reaches the bridge. Android instead computes float seconds from
-`System.nanoTime()`, whereas web water uses the caller's `WaterMaterial.update(time)`.
-The shared frame must carry the actual range and fixed render time before a
-controlled capture can establish visual parity. Swift water integration and Metal
-runtime verification are separate work. Neither #568 nor #512 is complete here.
+The shared frame now carries the engine's `renderTimeMs` and `coast.range` through
+Dart to both native bridges. Android converts captured milliseconds once to shader
+seconds and holds that time until the next frame. Legacy frames without captured
+time use `System.nanoTime()`; absent coast range defaults to 64. Metal also ports
+the water formulas. These fields permit controlled captures, but multi-scene native
+pixel parity and hosted GPU verification remain acceptance work. Neither #568 nor
+#512 is complete here.

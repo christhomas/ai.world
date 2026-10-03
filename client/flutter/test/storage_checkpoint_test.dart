@@ -95,6 +95,24 @@ void main() {
     expect(await File('${store.directory.path}/slot-a.json').readAsBytes(), bytes);
   });
 
+  test('invalid UTF-8 recovers the committed backup and permits a new checkpoint', () async {
+    final store = await CheckpointStore.open(root, scope);
+    await store.commit('slot-a', {'position': 1});
+    await store.commit('slot-a', {'position': 2});
+    await File('${store.directory.path}/slot-a.json').writeAsBytes([0xff, 0xfe]);
+    final recovered = await store.inspect('slot-a');
+    expect(recovered, isNotNull);
+    expect(recovered!.recovered, true);
+    expect(recovered.revision, 1);
+    expect(recovered.value, {'position': 1});
+    await store.commit('slot-a', {'position': 3});
+    expect(await store.load('slot-a'), {'position': 3});
+    await File('${store.directory.path}/slot-a.json').writeAsBytes([0xff]);
+    expect(await store.load('slot-a'), {'position': 1});
+    await File('${store.directory.path}/slot-a.previous').writeAsBytes([0xfe]);
+    await expectLater(store.load('slot-a'), throwsA(isA<StorageFailure>().having((e) => e.code, 'code', StorageError.corrupt)));
+  });
+
   test('same-instance concurrent writes are sequential and snapshots cannot mutate', () async {
     final store = await CheckpointStore.open(root, scope);
     final first = {'counter': 1};

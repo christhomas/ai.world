@@ -47,7 +47,12 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
   final FocusScopeNode _bookFocus = FocusScopeNode(debugLabel: 'BOOK');
   final FocusScopeNode _typingFocus = FocusScopeNode(debugLabel: 'TYPING');
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); widget.controller.addListener(_changed); widget.controller.input.addListener(_changed); if (widget.surface != SessionSurface.ready) widget.controller.input.lifecycle(false); }
+  void initState() { super.initState(); _syncInput(); WidgetsBinding.instance.addObserver(this); widget.controller.addListener(_changed); widget.controller.input.addListener(_changed); }
+  void _syncInput() {
+    widget.controller.input.session(widget.surface == SessionSurface.ready);
+    final state = WidgetsBinding.instance.lifecycleState;
+    widget.controller.input.lifecycle(state == null || state == AppLifecycleState.resumed);
+  }
   void _changed() {
     if (!mounted) return;
     setState(() {});
@@ -61,9 +66,10 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
     super.didUpdateWidget(old);
     if (old.controller != widget.controller) {
       old.controller.removeListener(_changed); old.controller.input.removeListener(_changed);
+      _syncInput();
       widget.controller.addListener(_changed); widget.controller.input.addListener(_changed);
     }
-    if (old.surface != widget.surface) widget.controller.input.lifecycle(widget.surface == SessionSurface.ready);
+    if (old.surface != widget.surface) widget.controller.input.session(widget.surface == SessionSurface.ready);
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) => widget.controller.input.lifecycle(state == AppLifecycleState.resumed);

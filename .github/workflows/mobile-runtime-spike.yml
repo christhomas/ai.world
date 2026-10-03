@@ -7,6 +7,9 @@ on:
       - 'tools/mobile-runtime-spike/**'
       - '.github/workflows/mobile-runtime-spike.yml'
       - 'shared/mobile/**'
+      - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
 permissions:
   contents: read
