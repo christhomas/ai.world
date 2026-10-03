@@ -1,6 +1,6 @@
 interface Disposable { dispose(): void }
 
-interface GameLifetime {
+interface GameResources {
   stop(): void;
   controls: Disposable[];
   disconnect(): void;
@@ -9,30 +9,64 @@ interface GameLifetime {
 }
 
 /** Put the running world away before returning to the title screen. */
-export function shutDownGame({ stop, controls, disconnect, clear, resources }: GameLifetime): void {
-  stop();
-  for (const control of controls) control.dispose();
-  disconnect();
-  clear();
-  for (const resource of resources) resource.dispose();
+export function shutDownGame({ stop, controls, disconnect, clear, resources }: GameResources): void {
+  releaseAll([
+    stop, ...controls.map((control) => () => control.dispose()), disconnect, clear,
+    ...resources.map((resource) => () => resource.dispose()),
+  ]);
 }
 
-/** Return to a clean title page after all of this world's resources have been released. */
-export function returnToTitle(persist: () => void, shutDown: () => void): void {
-  persist();
-  shutDown();
-  window.setTimeout(() => { window.location.href = window.location.pathname; }, 150);
+interface SessionPorts {
+  frame(dtSeconds: number, renderTimeSeconds: number): void;
+  pause(): void;
+  resume(): void;
+  release(): void;
 }
 
-/** Stand down workers and audio while the page is hidden. */
-export function suspendWhenHidden(
-  loop: { stop(): void; start(): void },
-  chunks: { pause(): void; resume(): void },
-  sound: { quiet(hidden: boolean): void },
-  online: { quiet(hidden: boolean): void },
-): void {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); }
-    else { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); }
-  });
+/** Own one running world's callbacks. Browser and installed hosts supply the same activity port. */
+export class SessionLifetime {
+  private active: boolean | null = null;
+  private disposed = false;
+  private readonly subscriptions = new Set<() => void>();
+
+  constructor(private readonly ports: SessionPorts) {}
+
+  frame(dtSeconds: number, renderTimeSeconds: number): void {
+    if (this.active === true && !this.disposed) this.ports.frame(dtSeconds, renderTimeSeconds);
+  }
+
+  setActive(active: boolean): void {
+    if (this.disposed || active === this.active) return;
+    if (active) {
+      this.ports.resume();
+      this.active = true;
+    } else {
+      this.active = false;
+      this.ports.pause();
+    }
+  }
+
+  /** A subscription arriving after disposal is released immediately, never attached to a new game. */
+  own(unsubscribe: () => void): void {
+    if (this.disposed) unsubscribe();
+    else this.subscriptions.add(unsubscribe);
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    // Fence first: an unsubscribe or port may synchronously deliver one last callback.
+    this.disposed = true;
+    this.active = false;
+    const subscriptions = [...this.subscriptions];
+    this.subscriptions.clear();
+    releaseAll([...subscriptions, () => this.ports.release()]);
+  }
+}
+
+function releaseAll(releases: ReadonlyArray<() => void>): void {
+  const failures: unknown[] = [];
+  for (const release of releases) {
+    try { release(); } catch (error) { failures.push(error); }
+  }
+  if (failures.length) throw new AggregateError(failures, 'Game cleanup failed');
 }
