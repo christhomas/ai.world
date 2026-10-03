@@ -33,6 +33,17 @@ export async function run(): Promise<Record<string, unknown>> {
   const bridgeStart = host.now(); const echoed = host.echo(bridge);
   insist(JSON.stringify(decodeScalars(echoed)) === JSON.stringify(decodeScalars(bridge)), 'native binary copy loses precision');
   const bridgeMs = host.now() - bridgeStart;
+  const golden = encodeScalars([0, -0.5, 1]);
+  const hex = (bytes: ArrayBuffer): string => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
+  const goldenHex = '4d574941010008000300000000000000' + '0000000000000000' + '000000000000e0bf' + '000000000000f03f';
+  insist(hex(golden) === goldenHex, 'binary golden layout mismatch');
+  const copiedGolden = host.echo(golden);
+  insist(copiedGolden !== golden && hex(copiedGolden) === goldenHex, 'native must return independent owned bytes');
+  new Uint8Array(golden).fill(0);
+  insist(hex(copiedGolden) === goldenHex, 'native retained borrowed source bytes');
+  let invalidBufferRejected = false;
+  try { host.echo(null as unknown as ArrayBuffer); } catch { invalidBufferRejected = true; }
+  insist(invalidBufferRejected, 'native buffer precondition missing');
   let microtasks = 0; await Promise.resolve().then(() => microtasks++); insist(microtasks === 1, 'microtasks not delivered');
   let errorCaught = false; try { throw new Error('Ólafur 雪 🐺'); } catch (e) { errorCaught = (e as Error).message === 'Ólafur 雪 🐺'; }
   insist(errorCaught, 'UTF-8 exception mismatch');
@@ -71,5 +82,5 @@ export async function run(): Promise<Record<string, unknown>> {
   insist(new Set(cycleHashes).size === 1, 'create/dispose cycles diverge');
   insist(movedSteps > 0 && blockedSteps > 0, 'collision fixture must exercise both outcomes');
   stepTimes.sort((a, b) => a - b);
-  return { contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: cycleHashes[0], geometryHash, movedSteps, blockedSteps, meshBytes, microtasks, utf8: 'Ólafur 雪 🐺', bridgeMs, stepP95Ms: stepTimes[Math.floor(stepTimes.length * 0.95)], totalMs: host.now() - started };
+  return { contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: cycleHashes[0], geometryHash, movedSteps, blockedSteps, meshBytes, microtasks, utf8: 'Ólafur 雪 🐺', goldenHex, invalidBufferRejected, bridgeMs, stepP95Ms: stepTimes[Math.floor(stepTimes.length * 0.95)], totalMs: host.now() - started };
 }

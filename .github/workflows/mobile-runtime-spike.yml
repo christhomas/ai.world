@@ -49,6 +49,23 @@ jobs:
         with:
           name: ios-jsc-spike
           path: runtime-spike-out/
+  ios-quickjs:
+    needs: bundle
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mobile-runtime-bundle
+          path: runtime-spike-out
+      - run: bash tools/mobile-runtime-spike/native/run-ios-quickjs.sh
+      - run: node tools/mobile-runtime-spike/compare.mjs runtime-spike-out/reference.json runtime-spike-out/ios-quickjs.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ios-quickjs-spike
+          path: runtime-spike-out/
   android-quickjs:
     needs: bundle
     runs-on: ubuntu-24.04
