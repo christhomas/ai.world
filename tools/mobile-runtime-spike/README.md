@@ -27,14 +27,21 @@ The source archive was fetched only to calculate its digest, never built or exec
 Android API 35 x86_64 emulator runs an NDK API 29 release-optimized standalone process. QuickJS
 owns one runtime/context on one process thread, 128 MiB heap ceiling, 1 MiB stack and 30-second
 interrupt budget. Native copy and step p95 timings, heap and peak RSS are emitted. A real infinite
-loop is interrupted, its exception consumed and the same engine executes a recovery expression.
+loop is interrupted, its exception consumed and the same engine executes a recovery expression
+and then the complete real-game workload. Ten fresh native runtimes each execute initial and
+recovered workloads. Reports include per-cycle source/state/geometry hashes, create/dispose timing,
+heap bytes, before/after-dispose RSS and zero pending jobs at disposal. RSS is measured, not gated
+as physical-device retained memory evidence. Peak RSS units are platform native (Apple bytes,
+Linux KiB). A new iOS simulator QuickJS target compiles and runs the identical C host and archive.
+It provides the public interrupt-handler alternative without private JavaScriptCore APIs.
 
 The Apple host uses public JSContext and ArrayBuffer C APIs from the simulator's JavaScriptCore.
 Official API: https://developer.apple.com/documentation/javascriptcore/jscontext. JSC is supplied by
 the selected Xcode simulator SDK/OS, not a redistributable runtime pinned by this repo; workflow
 artifacts record OS/device and the runner image pins the toolchain family. The native process
 compiles for the simulator architecture and executes through simctl spawn. It emits resident
-memory and native copy/step timings and clears host callbacks on completion. Apple SDK licensing
+memory and native copy/step timings across ten newly created contexts and clears host callbacks
+on each completion. It reports its lack of recoverable interruption explicitly. Apple SDK licensing
 applies; no JavaScriptCore source is redistributed.
 
 ## Hosted commands and evidence
@@ -47,6 +54,7 @@ then executes that exact artifact in each native target and compares determinist
 - `node tools/mobile-runtime-spike/reference.mjs`
 - `bash tools/mobile-runtime-spike/native/run-ios.sh`
 - `bash tools/mobile-runtime-spike/native/run-android.sh`
+- `bash tools/mobile-runtime-spike/native/run-ios-quickjs.sh`
 - `node tools/mobile-runtime-spike/compare.mjs <reference.json> <native.json>`
 
 Published artifacts retain bundle/digest, reference report, native reports/metrics, iOS devices
@@ -56,9 +64,12 @@ This standalone console process is engine evidence, not a Flutter integration or
 ## Pending criteria and decision limits
 
 Do not close #559 or choose a runtime yet. Public JSC recoverable stuck-job cancellation is not
-implemented; process/job timeout is only containment, not a recoverable Flutter error. Native
-runtime create/dispose cycles and retained-growth measurements, timers/lifecycle, native-to-Dart
+implemented; process/job timeout is only containment, not a recoverable Flutter error. Physical
+retained-growth profiling, timers/lifecycle, native-to-Dart
 buffer transfer, renderer integration, engine-thread scheduling/CPU profiles, cold engine-start
 measurement, supported physical release/profile results and bundled asset API remain pending.
-The ten workload cycles release game state, not ten fresh native runtimes. Emulated console
+Ten game-state cycles occur within each workload; native cycles now create ten fresh runtimes.
+Follow-up started 2026-10-03 19:01:34 UTC against #588 / 36428188. Native byte-copy preconditions
+reject invalid buffers; a fixed endian golden parcel must copy independently of mutated source
+bytes. Source fingerprints match Node's exact bundle bytes in every native cycle. Emulated console
 measurements must not be reported as physical phone or installed gameplay results.
