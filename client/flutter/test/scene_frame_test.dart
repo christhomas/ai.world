@@ -10,6 +10,61 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('baked reflections keep triangle fronts aligned with their normals', () async {
+    const channel = MethodChannel('world.ai/mirrored-triangles');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'create' ? 71 : null;
+        });
+    final native = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    final pipeline = FlutterFramePipeline(native);
+    List<double> scale(double x) => <double>[x, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 0, 0, 0, 1];
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    final cases = <Map<String, dynamic>>[
+      {'world': scale(2), 'expected': <int>[0, 1, 2]},
+      {'world': scale(-2), 'expected': <int>[0, 2, 1]},
+      {'world': identity, 'instances': <double>[...identity, ...scale(-2)], 'expected': <int>[0, 1, 2, 3, 5, 4]},
+      {'world': scale(-2), 'instances': scale(-2), 'expected': <int>[0, 1, 2]},
+    ];
+    for (var i = 0; i < cases.length; i++) {
+      calls.clear();
+      final data = cases[i];
+      await pipeline.draw(SceneFrame.fromJson(<String, dynamic>{
+        'camera': {'orthographic': true, 'projection': identity, 'world': identity},
+        'nodes': <Map<String, dynamic>>[{
+          'id': i, 'kind': data.containsKey('instances') ? 'instances' : 'mesh',
+          'world': data['world'],
+          if (data.containsKey('instances')) 'instanceMatrices': data['instances'],
+          'material': {'intent': 'lit', 'colour': 0xffffff, 'side': 'front'},
+          'attributes': {
+            'position': {'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 1, 0]},
+            'normal': {'size': 3, 'values': <num>[0, 0, 1, 0, 0, 1, 0, 0, 1]},
+          },
+          'indices': <int>[0, 1, 2],
+        }],
+      }));
+      final mesh = calls.singleWhere((call) => call.method == 'putMesh').arguments as Map;
+      final indices = mesh['indices'] as Int32List;
+      final vertices = mesh['vertices'] as Float32List;
+      expect(indices.toList(), data['expected'], reason: 'transform case $i');
+      expect(mesh['doubleSided'], false);
+      // A real submitted triangle's geometric normal must point with its lighting normal.
+      for (var face = 0; face < indices.length; face += 3) {
+        final a = indices[face] * RenderMesh.floatsPerVertex;
+        final b = indices[face + 1] * RenderMesh.floatsPerVertex;
+        final c = indices[face + 2] * RenderMesh.floatsPerVertex;
+        final ab = List<double>.generate(3, (k) => vertices[b + k] - vertices[a + k]);
+        final ac = List<double>.generate(3, (k) => vertices[c + k] - vertices[a + k]);
+        final cross = <double>[ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+        final alignment = List<double>.generate(3, (k) => cross[k] * vertices[a + 3 + k]).reduce((x, y) => x + y);
+        expect(alignment, greaterThan(0), reason: 'transform case $i, triangle $face');
+      }
+    }
+    await native.dispose();
+  });
+
   test('a neutral game frame drives native camera, lights, coast, cutaway and geometry', () async {
     const channel = MethodChannel('world.ai/scene-test');
     final calls = <MethodCall>[];
