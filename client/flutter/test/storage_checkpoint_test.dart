@@ -152,6 +152,12 @@ void main() {
     expect(await store.load('slot-b'), {'keep': true});
     await store.importData('slot-b', exported, replaceRevision: 1);
     expect(await store.load('slot-b'), save);
-    expect(jsonDecode(await File('${store.directory.path}/slot-b.previous').readAsString())['revision'], 1);
+    expect((await store.inspect('slot-b'))!.revision, 2);
+    await File('${store.directory.path}/slot-b.json').writeAsString('{interrupted');
+    final recovered = await store.inspect('slot-b');
+    expect(recovered, isNotNull);
+    expect(recovered!.recovered, true);
+    expect(recovered.revision, 1);
+    expect(recovered.value, {'keep': true});
   });
 }
