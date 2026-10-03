@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(os.environ.get('MOBILE_EVIDENCE', str(Path(os.environ.get('RUNNER_TEMP', '/tmp')) / 'mobile-evidence')))
@@ -36,6 +37,13 @@ def output(args):
     return subprocess.check_output(args, text=True, timeout=30).strip()
 
 
+def validate_android_ui(xml):
+    packages = {node.get('package') for node in ET.fromstring(xml).iter('node') if node.get('package')}
+    if packages != {'world.ai.ai_world_flutter'}:
+        raise RuntimeError(f'Native capture is obscured or app is absent: UI packages={sorted(packages)}')
+    return sorted(packages)
+
+
 def prepare(platform):
     fixture = APP / 'test/fixtures/interior_frame.json'
     save(platform=platform, source_sha=output(['git', 'rev-parse', 'HEAD']),
@@ -49,6 +57,7 @@ def prepare(platform):
     # Generate only inside the disposable hosted checkout; no bundled fixture or app edits land.
     (APP / 'lib/hosted_fixture.dart').write_text('const hostedFixture = ' + json.dumps(fixture.read_text()).replace('$', '\\$') + ';\n')
     (APP / 'lib/hosted_replay.dart').write_text((ROOT / 'tools/mobile/native_replay.dart').read_text())
+    command([sys.executable, '-m', 'unittest', 'discover', '-s', 'tools/mobile', '-p', 'test_*.py'])
     command(['flutter', '--version'])
     command(['flutter', 'pub', 'get'], cwd=APP)
     command(['flutter', 'test'], timeout=600, cwd=APP)
@@ -77,6 +86,10 @@ def capture(platform):
             device = available[0]
             adb = ['adb', '-s', device]
             command([*adb, 'shell', 'getprop'])
+            # Match Android's own CTS setup so its first-fullscreen tutorial cannot cover the scene.
+            command([*adb, 'shell', 'settings', 'put', 'secure', 'immersive_mode_confirmations', 'confirmed'])
+            if output([*adb, 'shell', 'settings', 'get', 'secure', 'immersive_mode_confirmations']) != 'confirmed':
+                raise RuntimeError('Could not confirm Android fullscreen tutorial on the dedicated emulator')
             command([*adb, 'install', '-r', str(APP / 'build/app/outputs/flutter-apk/app-debug.apk')])
             command([*adb, 'logcat', '-c'])
             logs = OUT / 'native.log'
@@ -127,6 +140,14 @@ def capture(platform):
             if platform == 'android':
                 with png.open('wb') as file:
                     subprocess.run([*adb, 'exec-out', 'screencap', '-p'], stdout=file, check=True, timeout=30)
+                remote_ui = f'/sdcard/mobile-{pass_name}-ui.xml'
+                command([*adb, 'shell', 'uiautomator', 'dump', '--compressed', remote_ui], timeout=60)
+                xml = output([*adb, 'exec-out', 'cat', remote_ui])
+                (OUT / f'{pass_name}-ui.xml').write_text(xml)
+                packages = validate_android_ui(xml)
+                state = json.loads(STATE.read_text())
+                save(assertions=state['assertions'] + [{'name': pass_name + '-unobscured-app',
+                     'passed': True, 'ui_packages': packages}])
             else:
                 command([*sim, 'io', device, 'screenshot', str(png)])
             # OS capture includes native Texture. No label/HUD exists in this replay target.
