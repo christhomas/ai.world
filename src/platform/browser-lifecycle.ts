@@ -1,3 +1,14 @@
+import type { PrayerHost } from '../game/interact/context';
+
+/** The web host keeps the existing saved roll and page-reload behavior. */
+export function createPrayerHost(isLive: () => boolean): PrayerHost {
+  return {
+    isLive,
+    randomSeed: () => crypto.getRandomValues(new Uint32Array(1))[0],
+    restart: () => window.location.reload(),
+  };
+}
+
 /** Browser navigation belongs to the page adapter, not to the portable game lifetime. */
 export function returnToTitle(persist: () => void, shutDown: () => void): void {
   try { persist(); }

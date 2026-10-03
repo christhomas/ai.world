@@ -31,6 +31,9 @@ export class SessionLifetime {
 
   constructor(private readonly ports: SessionPorts) {}
 
+  /** Pending host operations must fence their continuations against this lifetime. */
+  get isDisposed(): boolean { return this.disposed; }
+
   frame(dtSeconds: number, renderTimeSeconds: number): void {
     if (this.active === true && !this.disposed) this.ports.frame(dtSeconds, renderTimeSeconds);
   }
