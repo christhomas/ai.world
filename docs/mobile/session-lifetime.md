@@ -18,8 +18,9 @@ starting a hidden game.
 
 This is a partial implementation of #560, not the production `GameHostSession` ABI or a complete
 portable bootstrap. Browser UI/scene composition, viewport picking, worker and asset ports,
-prayer reload/randomness, cancellable start/load and installed runtime wiring remain to be
-extracted. No installed gameplay or phone performance claim follows from this lifetime owner.
+cancellable start/load and installed runtime wiring remain to be extracted. Prayer reload and
+randomness now use the separate [prayer host ports](prayer-host.md). No installed gameplay or phone
+performance claim follows from this lifetime owner.
 
 Regressions exercise headless frame fencing, initial inactivity, repeated transitions, callbacks
 delivered during disposal, late subscriptions, cleanup failures and the browser listener's actual

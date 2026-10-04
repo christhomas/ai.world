@@ -89,7 +89,7 @@ import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 import { SessionLifetime, shutDownGame } from './game/lifecycle';
-import { observeVisibility, returnToTitle } from './platform/browser-lifecycle';
+import { createPrayerHost, observeVisibility, returnToTitle } from './platform/browser-lifecycle';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -485,6 +485,7 @@ export function startGame(
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
     raining: () => frames.raining(), discover, persist, persistStrict, startTalk, questLine,
+    prayerHost: createPrayerHost(() => !session.isDisposed),
     told: (delta) => online.report(delta),
     // built further down this file, and only ever asked for on a key press: see `waysin.ts`
     craft: () => craft,

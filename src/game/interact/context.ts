@@ -59,6 +59,13 @@ import type { FerryVisual } from '../../render/ferries';
  */
 export type { DialogueChoice, DialogueNode };
 
+/** Host services used by world-shaping prayers; no browser navigation or Web Crypto assumption. */
+export interface PrayerHost {
+  randomSeed(): number;
+  restart(): void;
+  isLive(): boolean;
+}
+
 export interface Surroundings {
   // where the hero is, and what they are carrying
   player: Player;
@@ -168,6 +175,7 @@ export interface Surroundings {
    * confirmed, or reloaded into, on a write a private window or a full disk quietly dropped.
    */
   persistStrict: () => Promise<void>;
+  prayerHost: PrayerHost;
   /** Tell everybody else in this world about something the player changed. */
   told: (delta: WorldDelta) => void;
   /**

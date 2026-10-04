@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { observeVisibility, returnToTitle } from './browser-lifecycle';
+import { createPrayerHost, observeVisibility, returnToTitle } from './browser-lifecycle';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -18,6 +18,24 @@ function page(hidden = false) {
 }
 
 describe('browser lifetime adapter', () => {
+  it('keeps web prayer randomness, reload and the owning session fence in the browser adapter', () => {
+    const getRandomValues = vi.fn((values: Uint32Array) => { values[0] = 0xffffffff; return values; });
+    const reload = vi.fn();
+    vi.stubGlobal('crypto', { getRandomValues });
+    vi.stubGlobal('window', { location: { reload } });
+    let live = true;
+    const host = createPrayerHost(() => live);
+    expect(host.randomSeed()).toBe(0xffffffff);
+    expect(getRandomValues).toHaveBeenCalledOnce();
+    expect(getRandomValues.mock.calls[0][0]).toBeInstanceOf(Uint32Array);
+    expect(getRandomValues.mock.calls[0][0].length).toBe(1);
+    host.restart();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(host.isLive()).toBe(true);
+    live = false;
+    expect(host.isLive()).toBe(false);
+  });
+
   it('delivers initial visibility, observes changes and removes its actual listener on shutdown', () => {
     const browser = page(true);
     const activity = vi.fn();
