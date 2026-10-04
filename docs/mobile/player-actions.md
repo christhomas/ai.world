@@ -21,6 +21,8 @@ a photo timer could announce a save after its session had been discarded.
 
 Regression coverage retains the existing keyboard ownership assertions and adds semantic commands
 without browser globals, unknown/retired commands, post-photo behavior, actual browser event
-unsubscribe and cancellation/late-delivery fencing. Validation runs on GitHub only. Complete
+unsubscribe and cancellation/late-delivery fencing. The portable frame entry also exports these
+bindings; its import guard and GitHub bundle proof exercise keyboard and semantic attack commands
+through the same callback, including retirement fencing. Validation runs on GitHub only. Complete
 session composition, installed runtime, native widgets and touch-driven installed acceptance
 remain unfinished; these ports do not prove an installable playable app.

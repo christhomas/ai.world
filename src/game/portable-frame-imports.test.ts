@@ -62,6 +62,7 @@ describe('portable frame runtime boundary', () => {
   it('keeps browser, Node, workers, networking and GPU adapters out of runtime imports', () => {
     const files = inspect('src/game/portable-frame.ts');
     expect(files).toContain('src/game/frame.ts');
+    expect(files).toContain('src/game/keys.ts');
     expect(files).toContain('src/render/camera.ts');
     expect(files).not.toContain('src/render/scene.ts');
     expect(files).not.toContain('src/core/input.ts');
