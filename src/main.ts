@@ -17,6 +17,7 @@ import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
+import { browserWorldLink } from './platform/browser-world-link';
 import { createReadouts } from './ui/readouts';
 import { Places } from './game/places';
 import { SeasonTintMaterials } from './render/seasontint';
@@ -369,6 +370,7 @@ export function startGame(
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
+    worldLink: browserWorldLink,
     register, hires,
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso,
     dialogue, hud, chat, sound, questList, discovered, high, seed,

@@ -1,4 +1,4 @@
-import { WORLD_PAUSE, WORLD_RESUME, socketLink, workerLink, type Link, type LinkEvents } from '../net/link';
+import { WORLD_PAUSE, WORLD_RESUME, type Link, type LinkEvents } from '../net/link-contract';
 import {
   EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type Presence, type ServerMessage,
@@ -47,6 +47,9 @@ const RETRY = { FIRST: 1, GROWTH: 2, LONGEST: 30 };
  */
 const GRACE = 2;
 
+/** Announce open on a later turn, after handing back the owned link. */
+export type WorldLinkFactory = (url: string, events: LinkEvents) => Link | null;
+
 /** A join carries the page's country kind and position, plus authored terrain for its private worker. */
 export interface CountryHere {
   /** Where the hero is standing, so the world can have that ground ready before it is asked. */
@@ -66,6 +69,7 @@ export interface CountryHere {
  */
 export class Online {
   private link: Link | null = null;
+  private attempt = 0;
   /**
    * True when the world is the one in this tab rather than one on a server.
    *
@@ -127,8 +131,7 @@ export class Online {
    */
   constructor(
     private readonly events: OnlineEvents,
-    private readonly linkFor: (url: string, events: LinkEvents) => Link | null =
-      (url, events) => (url ? socketLink(url, events) : workerLink(events)),
+    private readonly linkFor: WorldLinkFactory,
   ) {}
 
   get connected(): boolean { return this.status === 'online'; }
@@ -173,14 +176,16 @@ export class Online {
       ? savedPlayerId : globalThis.crypto.randomUUID();
     this.joined = { seed, clock, country, worldName, playerId };
 
+    const attempt = this.attempt;
     const events: LinkEvents = {
-      onOpen: () => this.send({
+      onOpen: () => { if (attempt !== this.attempt) return; this.send({
         type: 'join', worldName, seed, kind: country.kind, name: this.name, playerId, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
         x: country.at?.x, z: country.at?.z,
         terrain: this.local ? country.terrain : undefined,
         highlands: this.local ? country.highlands : undefined,
-      }),
+      }); },
       onMessage: (parcel) => {
+        if (attempt !== this.attempt) return;
         this.sinceHeard = 0;
         // words are what everything says today; bytes are the world itself, and nothing sends one
         // yet — so anything that is not words is kept rather than guessed at
@@ -188,20 +193,30 @@ export class Online {
         else this.events.onParcel?.(parcel);
       },
       onClose: (why) => {
-        if (this.status !== 'offline' && !this.local) this.events.onSystem(why);
-        // nobody is telling us what lives here any more
-        this.events.onWorldSilent();
+        if (attempt !== this.attempt) return;
+        this.attempt++;
+        const link = this.link;
+        this.link = null;
+        const announce = this.status !== 'offline' && !this.local;
         this.status = 'offline';
         this.players.clear();
-        this.link = null;
         // and if they meant to be here, they still do: wait a little and knock again
         if (this.wanted) this.retryIn = this.backoff();
+        link?.close();
+        if (announce) this.events.onSystem(why);
+        // nobody is telling us what lives here any more
+        this.events.onWorldSilent();
       },
     };
-    const link = this.linkFor(url, events);
+    let link: Link | null;
+    try { link = this.linkFor(url, events); } catch { link = null; }
+    // A failing factory can announce close before returning its resource.
+    if (attempt !== this.attempt) { link?.close(); return; }
     if (!link) {
+      this.attempt++;
       this.status = 'offline';
-      this.events.onSystem(`Could not reach ${url}.`);
+      this.retryIn = this.backoff();
+      this.events.onSystem(url ? `Could not reach ${url}.` : 'Could not open this world.');
       return;
     }
     this.link = link;
@@ -248,10 +263,12 @@ export class Online {
 
   /** Let go of the link without letting go of the intention. */
   private drop(): void {
+    this.attempt++;
     if (!this.link) return;
     this.status = 'offline';
-    this.link.close();
+    const link = this.link;
     this.link = null;
+    link.close();
     this.players.clear();
     // Nobody is telling us what lives here any more, so this client takes the wildlife back. Said
     // here as well as on the socket's own close, because a link that is closed from this side may

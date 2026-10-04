@@ -108,6 +108,13 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/workers/chunkgen.worker.ts');
     expect(files).not.toContain('src/render/chunkworkers.ts');
   });
+  it('keeps browser transport factories out of the shared world protocol client', () => {
+    const files = inspect('src/game/portable-online.ts');
+    expect(files).toContain('src/game/online.ts');
+    expect(files).toContain('src/game/heard.ts');
+    expect(files).not.toContain('src/net/link.ts');
+    expect(files).not.toContain('src/platform/browser-world-link.ts');
+  });
   it('keeps browser, Node, workers, networking and GPU adapters out of runtime imports', () => {
     const files = inspect('src/game/portable-frame.ts');
     expect(files).toContain('src/game/frame.ts');

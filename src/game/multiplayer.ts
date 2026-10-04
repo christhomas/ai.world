@@ -2,7 +2,7 @@ import {
   type CreatureSnap, PING_LIFE } from '../../server/protocol';
 import { ITEMS, SLOTS } from './items';
 import { spoils } from './combat';
-import { Online, applyTrade, type Presence, type TradeOffer, type WorldDelta } from './online';
+import { Online, applyTrade, type Presence, type TradeOffer, type WorldDelta, type WorldLinkFactory } from './online';
 import { Market } from './market';
 import { Party } from './party';
 import { Duel } from './duel';
@@ -49,6 +49,7 @@ import { claimCartCargo } from './cartloot';
  * objects sits there costing nothing until somebody joins.
  */
 export interface MultiplayerContext {
+  worldLink: WorldLinkFactory;
   high: HighCountry;
   player: Player;
   state: GameState;
@@ -405,7 +406,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       hud.flash(iSent ? `Gave ${what}` : `Received ${what}`);
       persist();
     },
-  });
+  }, ctx.worldLink);
 
 
   /** Keep the bout's standing in front of the fighters while it lasts. */
