@@ -92,7 +92,8 @@ export function prayerInteractions(ctx: Surroundings) {
       if (!eligible()) { reloading = false; return; }
       try { prayerHost.restart(); }
       catch {
-        reloading = false;
+        // The answer is already saved. Keep it latched until the player reopens the game,
+        // rather than writing the same answer and retrying a broken host on every frame.
         hud.flash('The answer was saved, but the world could not reopen. Please reopen your game.');
       }
     }, () => {

@@ -184,7 +184,7 @@ describe('prayers through an owned host', () => {
     expect(w.host.restart).not.toHaveBeenCalled();
   });
 
-  it('distinguishes a failed restart from a failed save and can retry', async () => {
+  it('distinguishes a failed restart from a failed save and waits for manual reopen', async () => {
     const w = world();
     due(w);
     w.host.restart.mockImplementation(() => { throw new Error('host unavailable'); });
@@ -192,8 +192,14 @@ describe('prayers through an owned host', () => {
     await Promise.resolve();
     expect(w.hud.flash).toHaveBeenCalledWith('The answer was saved, but the world could not reopen. Please reopen your game.');
     expect(w.hud.flash).not.toHaveBeenCalledWith('The answer could not be saved. The stones will try again.');
-    w.prayer.tick();
-    await Promise.resolve();
-    expect(w.host.restart).toHaveBeenCalledTimes(2);
+    // Surface frames continue while the player reads the error. They must not write the
+    // already-saved answer, spam the HUD or keep invoking a failing restart service.
+    for (let frame = 0; frame < 2000; frame++) {
+      w.prayer.tick();
+      await Promise.resolve();
+    }
+    expect(w.persistStrict).toHaveBeenCalledOnce();
+    expect(w.host.restart).toHaveBeenCalledOnce();
+    expect(w.hud.flash).toHaveBeenCalledTimes(2);
   });
 });

@@ -15,7 +15,8 @@ Asynchronous save callbacks check the same session's disposal fence before touch
 rolling back its model or requesting a restart. Disposal does not undo a write already committed;
 it prevents the old session's completion from affecting another world. A due answer also rechecks
 local authority after the save. Storage failures, including synchronous port exceptions, retain
-the existing retry behavior. A restart failure reports that the save succeeded and permits retry.
+the existing retry behavior. A restart failure reports that the save succeeded and waits for the
+player to reopen the game manually; subsequent frames do not save again or retry the broken host.
 
 Headless regressions remove window/document/crypto and exercise actual prayer decisions through
 the supplied ports, duplicate confirmations, disposed sessions, authority changes, invalid seeds
