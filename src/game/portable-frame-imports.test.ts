@@ -87,6 +87,7 @@ describe('portable frame runtime boundary', () => {
     expect(files).toContain('server/sim.ts');
     expect(files).toContain('server/world.ts');
     expect(files).toContain('src/workers/simdoor.ts');
+    expect(files).toContain('src/workers/local-world-host.ts');
     expect(files).not.toContain('src/net/link.ts');
     expect(files).not.toContain('src/net/browservault.ts');
   });

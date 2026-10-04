@@ -1,5 +1,5 @@
 import { systemClock } from '../../server/host-clock';
-import { LocalWorldHost } from '../game/local-world-host';
+import { LocalWorldHost } from './local-world-host';
 import { BrowserVault } from '../net/browservault';
 
 /**

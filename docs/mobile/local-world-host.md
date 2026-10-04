@@ -2,7 +2,8 @@
 
 Refs #560, #563, #564, #577, #579.
 
-`LocalWorldHost` owns one connection to the production `Simulation`. The browser's existing
+`LocalWorldHost` in `src/workers/local-world-host.ts` owns one connection to the production
+`Simulation`, below game rules in the worker layer. The browser's existing
 `sim.worker.ts` now composes it with the worker port, `BrowserVault`, and standard JavaScript
 timers. `portable-world.ts` exports the same implementation without importing a browser worker,
 socket, storage adapter, or Node filesystem/database implementation.
