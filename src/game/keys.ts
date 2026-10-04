@@ -8,6 +8,7 @@ import type { Online } from './online';
 import type { Places } from './places';
 import type { Screen } from './screen';
 import { PING_LIFE } from '../../server/protocol';
+import { createPlayerActions } from './player-actions';
 
 /**
  * What every key does, in one place.
@@ -23,8 +24,8 @@ import { PING_LIFE } from '../../server/protocol';
  */
 export interface Keys {
   seed: number;
-  input: Input;
-  rig: SceneRig;
+  input: Pick<Input, 'onKey'>;
+  rig: Pick<SceneRig, 'draw' | 'graph'>;
   iso: IsoCamera;
   player: Player;
   places: Places;
@@ -33,6 +34,10 @@ export interface Keys {
 
   /** Everything a key does to the screen, in the game's own words. */
   screen: Screen;
+  host: {
+    isLive(): boolean;
+    afterPhotoSaved(name: string): void;
+  };
 
   // and what the game itself is being told to do
   attack: () => void;
@@ -57,9 +62,9 @@ export interface Keys {
   partySize: () => number;
 }
 
-export function bindKeys(ctx: Keys): void {
+export function bindKeys(ctx: Keys): ReturnType<typeof createPlayerActions> {
   const {
-    seed, input, rig, iso, player, places, online, sound, screen,
+    seed, input, rig, iso, player, places, online, sound, screen, host,
     attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
     persist, rally, partySize, takeToTheAir,
   } = ctx;
@@ -108,6 +113,7 @@ export function bindKeys(ctx: Keys): void {
     | 'always';
 
   const allowed = (when: When): boolean => {
+    if (!host.isLive()) return false;
     const who = screen.busy();
     if (when === 'always') return true;
     if (when === 'free') return who === null;
@@ -118,9 +124,12 @@ export function bindKeys(ctx: Keys): void {
   };
 
   /** Put a key on the keyboard, having said when it is allowed to mean anything. */
+  const bound = new Map<string, () => void>();
   const bind = (keys: string | string[], when: When, act: () => void): void => {
     for (const key of typeof keys === 'string' ? [keys] : keys) {
-      input.onKey(key, () => { if (allowed(when)) act(); });
+      const run = (): void => { if (allowed(when)) act(); };
+      bound.set(key, run);
+      input.onKey(key, run);
     }
   };
 
@@ -255,7 +264,7 @@ export function bindKeys(ctx: Keys): void {
       rig.draw(rig.graph, iso);
       const name = screen.takePhoto();
       sound.chime();
-      window.setTimeout(() => screen.say(`Saved ${name}`), 50);
+      host.afterPhotoSaved(name);
       return;
     }
     if (who === 'talking') screen.advanceTalk(); else talkNearest();
@@ -266,6 +275,5 @@ export function bindKeys(ctx: Keys): void {
   // to sell, on a menu that offers a number. Rows without one simply ignore it.
   bind(['arrowleft', 'a'], 'talking', () => screen.nudgeTalk(-1));
   bind(['arrowright', 'd'], 'talking', () => screen.nudgeTalk(1));
-  window.addEventListener('resize', () => { rig.resize(); iso.resize(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+  return createPlayerActions({ press: (key) => bound.get(key)?.() }, () => host.isLive());
 }

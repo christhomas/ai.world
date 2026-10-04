@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Input } from '../core/input';
 import { bindKeys, type Keys } from './keys';
 import type { Screen } from './screen';
@@ -23,13 +23,7 @@ import type { Screen } from './screen';
  * failure is always one that was forgotten.
  */
 
-/*
- * `bindKeys` ends by listening for a resize and for the page being hidden, which are the two things
- * about a window it cares about. Neither is what this file is about, and neither exists in a
- * worker, so they are answered rather than exercised.
- */
-const listening = { addEventListener: () => {} };
-Object.assign(globalThis, { window: listening, document: listening });
+afterEach(() => vi.unstubAllGlobals());
 
 const KEYS = [
   'k', 'l', 'r', 'o', 'f', 't', 'g', 'y', 'p', 'm', 'c', '+', '=', '-', 'x', 'z', 'b', 'h', 'u',
@@ -42,6 +36,7 @@ function aKeyboard(initialBusy: ReturnType<Screen['busy']>) {
   const handlers = new Map<string, Array<() => void>>();
   const did: string[] = [];
   let busy = initialBusy;
+  let live = true;
   const note = (what: string) => () => { did.push(what); };
   const player = { mode: 'follow', x: 0, z: 0, jump: () => { did.push('jump'); return true; } };
   const input = {
@@ -72,7 +67,8 @@ function aKeyboard(initialBusy: ReturnType<Screen['busy']>) {
 
   const ctx = {
     seed: 1, input, screen,
-    rig: { resize: () => {} },
+    host: { isLive: () => live, afterPhotoSaved: note('photo saved') },
+    rig: { graph: {}, draw: note('draw') },
     iso: { resize: () => {} },
     player,
     places: {}, online: { connected: true, ping: note('ping') },
@@ -85,15 +81,39 @@ function aKeyboard(initialBusy: ReturnType<Screen['busy']>) {
     rally: [], partySize: () => 0,
   } as unknown as Keys;
 
-  bindKeys(ctx);
+  const actions = bindKeys(ctx);
   return {
-    did, player,
+    did, player, actions,
+    retire: () => { live = false; },
     press(key: string): void { for (const handler of handlers.get(key) ?? []) handler(); },
     pressEverything(): void { for (const key of KEYS) this.press(key); },
   };
 }
 
 describe('a key pressed while somebody else has the keyboard', () => {
+  it('runs semantic actions through the same rules without browser globals', () => {
+    vi.stubGlobal('window', undefined); vi.stubGlobal('document', undefined);
+    const board = aKeyboard(null);
+    expect(board.actions.dispatch('attack')).toBe(true);
+    expect(board.actions.dispatch('inventory')).toBe(true);
+    expect(board.actions.dispatch('map')).toBe(true);
+    expect(board.did).toEqual(['attack', 'rucksack', 'map']);
+    const talking = aKeyboard('talking');
+    talking.actions.dispatch('attack'); talking.actions.dispatch('interact');
+    expect(talking.did).toEqual(['advance talk']);
+    const framing = aKeyboard('framing');
+    framing.actions.dispatch('interact');
+    expect(framing.did).toEqual(['draw', 'take photo', 'photo saved']);
+  });
+
+  it('rejects unknown actions and both keyboard and semantic callbacks after retirement', () => {
+    const board = aKeyboard(null);
+    expect(board.actions.dispatch('constructor' as never)).toBe(false);
+    board.retire();
+    board.pressEverything();
+    expect(board.actions.dispatch('close')).toBe(false);
+    expect(board.did).toEqual([]);
+  });
   it('does nothing at all while a text box is taking the letters', () => {
     // the whole of the bug: a chat box swallows a keypress on the way to the game, and it did not
     const board = aKeyboard('typing');
