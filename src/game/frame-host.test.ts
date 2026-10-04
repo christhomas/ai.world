@@ -4,7 +4,7 @@ import { SceneGraph } from '../core/scenegraph';
 import type { Viewport } from '../core/viewport';
 import { Player } from '../entities/player';
 import type { EntityRenderer } from '../render/entities';
-import { AutoQuality } from '../render/autoquality';
+import { AUTO, AutoQuality } from '../render/autoquality';
 import { Biome } from '../world/biomes';
 import { Breath } from './breath';
 import { Fishing } from './fishing';
@@ -79,6 +79,8 @@ describe('the production frame under an installed host', () => {
     expect(h.state.time).not.toBe(time);
     expect(h.rig.draw).toHaveBeenCalled();
     expect(h.persist).toHaveBeenCalledTimes(1);
+    // Autosave occurs before the quality sampler has settled; exercise its full window too.
+    for (let n = 0; n < AUTO.SETTLE + AUTO.SAMPLE; n++) h.frame.frame(0.1, n * 0.1);
     expect(h.rig.setQuality).toHaveBeenCalledWith('medium');
     expect(h.hostPorts.qualityReduced).toHaveBeenCalledWith('medium');
     expect(h.input.isDown('w')).toBe(true);

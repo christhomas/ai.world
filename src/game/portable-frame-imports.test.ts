@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { parse } from '@babel/parser';
 import { describe, expect, it } from 'vitest';
@@ -31,7 +31,8 @@ function inspect(entry: string): string[] {
           const name = source.value;
           if (name.startsWith('.')) {
             const base = resolve(dirname(file), name);
-            const found = [base + '.ts', base + '.json', resolve(base, 'index.ts')].find(existsSync);
+            const found = [base, base + '.ts', base + '.json', resolve(base, 'index.ts')]
+              .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
             if (!found) throw new Error(`Unresolved portable import: ${file} -> ${name}`);
             visit(found);
           } else if (name !== 'three') throw new Error(`Non-CPU portable dependency: ${file} -> ${name}`);
