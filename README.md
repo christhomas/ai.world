@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.10 — 2026-10-04
+
+Portable game session ownership and host-driven gameplay
+
 ### v0.103.9 — 2026-10-03
 
 Native mobile renderer fixes and portable host foundations
@@ -626,10 +630,6 @@ world creation never freezes the server, the season reaches the Dart renderer, a
 ### v0.103.1 — 2026-09-29
 
 autumn light, wild-camp tents and amber night windows are back, and the game can be played with nothing drawn
-
-### v0.103.0 — 2026-09-29
-
-villages catch illness, carts haul carcasses to the crags, holdings report their income, and the country is a stack of layers you can shape
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
