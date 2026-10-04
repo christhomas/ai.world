@@ -1,7 +1,6 @@
-import { Simulation } from '../../server/sim';
-import type { Wire } from '../../server/rooms';
+import { systemClock } from '../../server/host-clock';
+import { LocalWorldHost } from '../game/local-world-host';
 import { BrowserVault } from '../net/browservault';
-import { worldDoor } from './simdoor';
 
 /**
  * The world server, running in a thread beside the game.
@@ -26,23 +25,14 @@ import { worldDoor } from './simdoor';
  * grows the same terrain the page is drawing, spawns the herds on it, steps them, and tells the
  * page what is near. The page stops inventing its own the moment it is told anything.
  */
-const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault(), ground: true, localAuthoring: true });
-
-/** The page, as the roster sees it: exactly what a websocket looks like from the same angle. */
-const wire: Wire = {
+const host = new LocalWorldHost({
+  vault: new BrowserVault(), clock: systemClock,
   // bytes are handed over rather than copied, which is what makes passing a chunk of country
   // between the world and the page next door cost nothing
-  send: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
+  post: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
   // a worker's port is open for as long as the worker is, and the page ends it by terminating us
-  open: true,
-  close: () => {},
-};
-
-const player = sim.attach(wire);
-const capturing = self.name === 'shots-capture';
-// the harness's clock starts at nought, and `worldDoor` counts on from there
-if (capturing) sim.captureAt(0);
-else sim.start();
+  closed: () => self.close(),
+}, {}, self.name === 'shots-capture');
 
 /**
  * Everything the page says, and the two things it says to this thread rather than through it.
@@ -60,5 +50,4 @@ else sim.start();
  *
  * Except in a capture, whose clock is the harness's: see `worldDoor`.
  */
-const door = worldDoor(sim, (text) => player.receive(text), capturing, (message) => self.postMessage(message));
-self.onmessage = (e: MessageEvent<unknown>) => door(e.data);
+self.onmessage = (e: MessageEvent<unknown>) => host.receive(e.data);

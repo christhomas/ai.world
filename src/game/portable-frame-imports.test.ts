@@ -59,6 +59,14 @@ function inspect(entry: string): string[] {
 }
 
 describe('portable frame runtime boundary', () => {
+  it('keeps the shared offline authority free of browser and Node runtime imports', () => {
+    const files = inspect('src/game/portable-world.ts');
+    expect(files).toContain('server/sim.ts');
+    expect(files).toContain('server/world.ts');
+    expect(files).toContain('src/workers/simdoor.ts');
+    expect(files).not.toContain('src/net/link.ts');
+    expect(files).not.toContain('src/net/browservault.ts');
+  });
   it('keeps browser, Node, workers, networking and GPU adapters out of runtime imports', () => {
     const files = inspect('src/game/portable-frame.ts');
     expect(files).toContain('src/game/frame.ts');

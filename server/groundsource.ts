@@ -6,6 +6,7 @@ import type { Hydrology } from '../src/world/rivers';
 import type { Structures } from '../src/world/structures';
 import { TerrainSampler } from '../src/world/terrain';
 import type { TerrainLayer } from '../src/world/terrainlayers';
+import { systemClock, type HostClock } from './host-clock';
 
 /**
  * A road country grown somewhere else, as the parts that survive a `postMessage`.
@@ -62,7 +63,7 @@ export const PREPARE_TIMEOUT = 180_000;
 export class Preparations {
   private readonly stops = new Map<object, (error: Error) => void>();
 
-  constructor(private readonly timeout = PREPARE_TIMEOUT) {}
+  constructor(private readonly timeout = PREPARE_TIMEOUT, private readonly clock: HostClock = systemClock) {}
 
   wait<T>(page: object, asked: Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
@@ -71,11 +72,11 @@ export class Preparations {
       const finish = (settle: () => void) => {
         if (over) return;
         over = true;
-        clearTimeout(timer);
+        cancel();
         if (this.stops.get(page) === stop) this.stops.delete(page);
         settle();
       };
-      const timer = setTimeout(() => stop(new Error('The country took too long to grow. Try joining again.')), this.timeout);
+      const cancel = this.clock.after(() => stop(new Error('The country took too long to grow. Try joining again.')), this.timeout);
       this.stops.set(page, stop);
       asked.then((value) => finish(() => resolve(value)), (error: unknown) => finish(() => reject(error)));
     });

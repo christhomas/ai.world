@@ -8,6 +8,10 @@ on:
       - '.github/workflows/mobile-runtime-spike.yml'
       - 'shared/mobile/**'
       - 'src/**'
+      - 'server/**'
+      - 'models/**'
+      - 'properties/**'
+      - 'behaviours/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
   workflow_dispatch:
