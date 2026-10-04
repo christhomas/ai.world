@@ -91,6 +91,7 @@ import { createAuthority } from './game/authority';
 import { SessionLifetime, shutDownGame } from './game/lifecycle';
 import { createPrayerHost, observeVisibility, returnToTitle } from './platform/browser-lifecycle';
 import { createBrowserFrameHost } from './platform/browser-frame';
+import { createBrowserGameEvents } from './platform/browser-game-events';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -588,15 +589,23 @@ export function startGame(
     companyInput: () => multiplayer.playerListInput,
   });
 
-  hud.onMapTap = () => screen.toggleMap();
+  hud.onMapTap = () => actions.dispatch('map');
 
   // the air, the ground and the sea: a wing, a shaft and a whirlpool. See `game/waysin.ts`.
   const { air, craft, shafts, swallows } = createWaysIn({
     seed, state, places, player, sailing, chunks, discover,
     say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
   // and what every key does, in one place
-  bindKeys({
+  const gameEvents = createBrowserGameEvents({
+    isLive: () => !session.isDisposed,
+    resize: () => { rig.resize(); iso.resize(); },
+    persist,
+    say: (message) => screen.say(message),
+  });
+  session.own(() => gameEvents.dispose());
+  const actions = bindKeys({
     seed, input, rig, iso, player, places, online, sound, screen,
+    host: gameEvents,
     attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
     persist, rally, takeToTheAir: () => air.open(),
     partySize: () => party.size,

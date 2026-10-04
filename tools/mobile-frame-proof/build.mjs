@@ -53,9 +53,15 @@ const result = runInNewContext(`(() => {
   let frames = 0, releases = 0;
   const session = new PortableFrame.SessionLifetime({ frame: () => frames++, pause() {}, resume() {}, release: () => releases++ });
   session.setActive(true); session.frame(0.1, 0); session.dispose(); session.frame(0.1, 1);
-  return { frames, releases, rotation: camera.rotation, projection: camera.frameCamera().projection };
+  let attacks = 0, actionLive = true;
+  const actions = PortableFrame.bindKeys({ input, screen: { busy: () => null },
+    host: { isLive: () => actionLive }, attack: () => attacks++ });
+  actions.dispatch('attack'); input.press('x');
+  actionLive = false; actions.dispatch('attack'); input.press('x');
+  return { frames, releases, attacks, rotation: camera.rotation, projection: camera.frameCamera().projection };
 })()`, sandbox, { timeout: 5000 });
 assert.equal(result.frames, 1); assert.equal(result.releases, 1);
+assert.equal(result.attacks, 2);
 assert.ok(result.rotation > Math.PI / 4);
 assert.ok(result.projection.every(Number.isFinite));
 await writeFile('mobile-frame-proof-out/dependencies.json', JSON.stringify([...modules].sort(), null, 2) + '\n');
