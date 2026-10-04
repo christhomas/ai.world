@@ -27,21 +27,21 @@ const heroPixels = (height: number, zoom: number) =>
  */
 describe('how far back a place lets you stand', () => {
   it('opens all the way out under the sky', () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.limitZoom(CAMERA.MAX_ZOOM);
     iso.zoom = CAMERA.MAX_ZOOM;
     expect(iso.zoom).toBe(CAMERA.MAX_ZOOM);
   });
 
   it('pulls the view in with the ceiling rather than waiting to be scrolled', () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.zoom = CAMERA.MAX_ZOOM;
     iso.limitZoom(CAMERA.SHUT_IN_ZOOM);
     expect(iso.zoom, 'left pulled back until the player happens to scroll').toBe(CAMERA.SHUT_IN_ZOOM);
   });
 
   it('leaves a view already closer than the ceiling alone', () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.zoom = CAMERA.MIN_ZOOM + 1;
     iso.limitZoom(CAMERA.SHUT_IN_ZOOM);
     expect(iso.zoom).toBe(CAMERA.MIN_ZOOM + 1);
@@ -50,7 +50,7 @@ describe('how far back a place lets you stand', () => {
   // the floor was CAMERA.MIN_ZOOM until the band learned to answer to the size of the screen; on a
   // desktop window it is that number still, and on a phone it is the closer one the phone gets
   it('will not let a very small room lock the camera shut', () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.limitZoom(1);
     iso.zoom = CAMERA.MAX_ZOOM;
     iso.limitZoom(1);
@@ -78,7 +78,7 @@ describe('how far back a place lets you stand', () => {
  */
 describe('which way the keys move you', () => {
   const axes = (rotation: number) => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.rotation = rotation;
     // applyPosition is private and runs on update; nudging the rig through its own update is the
     // honest way to get the camera where the rotation says it should be
@@ -108,7 +108,7 @@ describe('which way the keys move you', () => {
 describe('neutral frame camera', () => {
   for (const rotation of [0, Math.PI / 4, Math.PI, -Math.PI / 3]) {
     it(`matches the interaction camera at ${rotation.toFixed(2)} radians`, () => atWindow(1280, 720, () => {
-      const iso = new IsoCamera();
+      const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
       iso.rotation = rotation;
       iso.target.set(14, 2, -8);
       iso.lift = 5;
@@ -122,7 +122,7 @@ describe('neutral frame camera', () => {
   }
 
   it('shows where the rig stands, not where the hero and the skyline have since asked it to go', () => atWindow(1280, 720, () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.target.set(14, 2, -8);
     iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
     // what the frame loop does after the rig has moved: the hero takes the target to his feet and
@@ -187,7 +187,7 @@ describe('how far back the game opens, on the screen it is opened on', () => {
   // the zoom for a screen the player was told not to play on
   it('picks again when the phone is turned, having only ever picked for itself', () => {
     atWindow(390, 750, () => {
-      const iso = new IsoCamera();
+      const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
       fakeWindow.innerWidth = 750; fakeWindow.innerHeight = PHONE;
       iso.resize();
       expect(iso.zoom).toBe(zoomBand(PHONE).start);
@@ -196,7 +196,7 @@ describe('how far back the game opens, on the screen it is opened on', () => {
 
   it('leaves a zoom somebody has an opinion about alone when the window changes', () => {
     atWindow(390, 750, () => {
-      const iso = new IsoCamera();
+      const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
       iso.zoom = 20;
       fakeWindow.innerWidth = 750; fakeWindow.innerHeight = PHONE;
       iso.resize();
@@ -213,14 +213,14 @@ describe('how far back the game opens, on the screen it is opened on', () => {
  */
 describe('the zoom a save was left at', () => {
   it('is given back untouched when the screen can still show it', () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.restoreZoom(60);
     expect(iso.zoom).toBe(60);
   });
 
   it('is held to what a phone can show, rather than reopening five hundred metres up', () => {
     atWindow(750, 342, () => {
-      const iso = new IsoCamera();
+      const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
       iso.restoreZoom(CAMERA.START_ZOOM);
       expect(iso.zoom).toBe(zoomBand(342).max);
       expect(iso.zoom).toBeLessThan(CAMERA.START_ZOOM);
@@ -229,14 +229,14 @@ describe('the zoom a save was left at', () => {
 
   it('keeps a player who played close, close', () => {
     atWindow(750, 342, () => {
-      const iso = new IsoCamera();
+      const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
       iso.restoreZoom(8);
       expect(iso.zoom).toBe(8);
     });
   });
 
   it('ignores a save with no number in it', () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     const was = iso.zoom;
     iso.restoreZoom(Number.NaN);
     expect(iso.zoom).toBe(was);
@@ -255,7 +255,7 @@ describe('the zoom a save was left at', () => {
 describe('the ground the camera can see', () => {
   /** A rig settled at the origin, with the frustum and position it will actually draw with. */
   const settled = (): InstanceType<typeof IsoCamera> => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.target.set(0, 0, 0);
     iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
     return iso;
@@ -317,14 +317,14 @@ describe('the ground the camera can see', () => {
 describe('what the game is handed of the camera', () => {
   it('aims with a plain point rather than a graphics vector', async () => {
     const THREE = await import('three');
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     iso.target.set(3, 1, -2);
     expect(iso.target, 'the aim still moves by `set`').toMatchObject({ x: 3, y: 1, z: -2 });
     expect(iso.target).not.toBeInstanceOf(THREE.Vector3);
   });
 
   it('keeps the graphics camera off the object the game holds', async () => {
-    const iso = new IsoCamera();
+    const iso = new IsoCamera(() => ({ width: fakeWindow.innerWidth, height: fakeWindow.innerHeight }));
     expect('camera' in iso, 'the game can reach the three.js camera as `iso.camera`').toBe(false);
     iso.target.set(14, 2, -8);
     iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);

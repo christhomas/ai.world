@@ -17,8 +17,9 @@ navigation. The browser adapter also observes initial visibility rather than unc
 starting a hidden game.
 
 This is a partial implementation of #560, not the production `GameHostSession` ABI or a complete
-portable bootstrap. Browser UI/scene composition, viewport picking, worker and asset ports,
-cancellable start/load and installed runtime wiring remain to be extracted. Prayer reload and
+portable bootstrap. Browser UI/scene composition, worker and asset ports, cancellable start/load
+and installed runtime wiring remain to be extracted. The [portable frame](portable-frame.md) now
+owns host input and viewport picking without browser globals. Prayer reload and
 randomness now use the separate [prayer host ports](prayer-host.md). No installed gameplay or phone
 performance claim follows from this lifetime owner.
 

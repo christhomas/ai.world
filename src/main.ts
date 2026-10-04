@@ -90,6 +90,7 @@ import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 import { SessionLifetime, shutDownGame } from './game/lifecycle';
 import { createPrayerHost, observeVisibility, returnToTitle } from './platform/browser-lifecycle';
+import { createBrowserFrameHost } from './platform/browser-frame';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -115,7 +116,7 @@ export function startGame(
   if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
   const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);
-  const iso = new IsoCamera();
+  const iso = new IsoCamera(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const input = new Input(rig.canvas);
   // the on-screen controls speak to the game only through `input`, so a thumb and a key are the
   // same press by the time anything below reads them
@@ -633,7 +634,9 @@ export function startGame(
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
-    autoQuality, director, walked, castbar, blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,
+    autoQuality, director, walked,
+    host: createBrowserFrameHost(rig.canvas, castbar, (message) => hud.flash(message)),
+    blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,
     noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,
