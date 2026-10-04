@@ -108,6 +108,8 @@ describe('host-owned local authority', () => {
   it('uses the production ground authority to answer movement', () => {
     const game = harness(new Forgetful(), true, true); game.join();
     game.say({ type: 'move', x: 0.5, z: -13.5, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    // The authority grows ground around the new position on its next ordinary tick.
+    game.host.receive('shots-step:1');
     game.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
     const moved = game.heard.find((message) => message.type === 'youAre');
     expect(moved).toMatchObject({ type: 'youAre', seq: 1 });
