@@ -205,6 +205,8 @@ export function whatCarriesHim(own: AnimalKind, mount: AnimalKind | null): Anima
 /** One slice of a move: the whole of it if it fits, else along whichever axis does. */
 function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
   const k = whatCarriesHim(e.kind, e.mounted);
+  // The rider is drawn at saddle height. Hooves step from their ground, not from the saddle.
+  const fromY = e.mounted ? groundY(world, k, e.x, e.z) ?? e.y : e.y;
   /*
    * Whoever is standing there stops you — unless you are already standing in them.
    *
@@ -271,12 +273,12 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
     if (mx === 0 && mz === 0) continue;
     const nx = e.x + mx, nz = e.z + mz;
     if (boxedIn) {
-      if (!standable(world, k, nx, nz, e.y)) continue;
+      if (!standable(world, k, nx, nz, fromY)) continue;
       // no deeper than it already is, with a whisker of slack so that a step across the middle of
       // something is not refused by the last bit of a float
       if (wasIn > 0 && world.depth!(nx, nz, bodyBox(k, e.yaw, over)) > wasIn + DEEPER) continue;
     } else {
-      if (!canStand(world, k, nx, nz, e.y, e.yaw, over)) continue;
+      if (!canStand(world, k, nx, nz, fromY, e.yaw, over)) continue;
       // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
       // length of the step that crossed it. Not for anything that flies: a bird goes over a cottage
       // rather than round it, which is what `canStand` says by letting it stand anywhere, and a path
