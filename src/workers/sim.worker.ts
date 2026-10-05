@@ -3,6 +3,7 @@ import { LocalWorldHost } from './local-world-host';
 import { BrowserVault } from '../net/browservault';
 import { Forgetful } from '../../server/vault';
 import { bootWorld } from './world-boot';
+import { checkpointId, WORLD_FLUSH, WORLD_FLUSHED } from '../net/world-checkpoint';
 
 /**
  * The world server, running in a thread beside the game.
@@ -32,10 +33,11 @@ const boot = bootWorld(async () => {
   const vault = capturing ? new Forgetful() : await BrowserVault.open();
   const host = new LocalWorldHost({
     vault, clock: systemClock,
+    flush: async () => { if (!(vault instanceof Forgetful)) await vault.flush(); },
     // bytes are handed over rather than copied, which is what makes passing a chunk of country
     // between the world and the page next door cost nothing
     post: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
-    // A normal host close waits for accepted writes. Link.close still needs its own acknowledgement.
+    // Explicit exit waits for persist()'s acknowledgement before Link.close terminates us.
     closed: () => {
       if (vault instanceof Forgetful) { self.close(); return; }
       void vault.flush().then(() => self.close(), failStorage);
@@ -43,6 +45,11 @@ const boot = bootWorld(async () => {
   }, {}, capturing);
   return {
     receive(parcel: unknown) {
+      const checkpoint = checkpointId(parcel, WORLD_FLUSH);
+      if (checkpoint !== null) {
+        void host.persist().then(() => self.postMessage(WORLD_FLUSHED + checkpoint), failStorage);
+        return;
+      }
       host.receive(parcel);
       // Every simulation write already enters the ordered durable queue. A message boundary
       // observes failures, including the strict save done when the page parks the authority.

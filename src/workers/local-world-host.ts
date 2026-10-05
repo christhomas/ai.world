@@ -9,6 +9,7 @@ export interface LocalWorldPorts {
   clock: HostClock;
   post(parcel: Parcel): void;
   closed(): void;
+  flush?(): Promise<void>;
 }
 
 /** One private authority, driven by the same messages as a network server. */
@@ -66,6 +67,14 @@ export class LocalWorldHost {
 
   receive(parcel: unknown): void {
     if (this.live) this.door(parcel);
+  }
+
+  /** Park the actual simulation and await the host's durable writes before acknowledgement. */
+  async persist(): Promise<void> {
+    if (!this.live) throw new Error('Cannot save a retired world');
+    this.simulation.stop(true);
+    await this.ports.flush?.();
+    if (!this.live) throw new Error('The world retired during its save');
   }
 
   /** Fence delivery first, flush and detach even if storage fails, then report every failure. */

@@ -6,6 +6,8 @@ export const WORLD_RESUME = 'resume';
 export interface Link {
   send(parcel: Parcel): void;
   close(): void;
+  /** Local authorities acknowledge a durable save before their owner terminates them. */
+  flush?(): Promise<void>;
   readonly ready: boolean;
 }
 

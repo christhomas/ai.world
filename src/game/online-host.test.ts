@@ -30,6 +30,32 @@ function transport() {
 describe('host-supplied world transport', () => {
   afterEach(() => { if (vi.isFakeTimers()) vi.clearAllTimers(); vi.useRealTimers(); });
 
+  it('awaits a local checkpoint and rejects an acknowledgement from a replaced authority', async () => {
+    const { events } = listening(); let callbacks!: LinkEvents, done!: () => void;
+    const flush = vi.fn(() => new Promise<void>(resolve => { done = resolve; }));
+    const online = new Online(events, (_url, given) => {
+      callbacks = given; return { ready: true, send() {}, close() {}, flush };
+    });
+    online.connect('', 3, 'Rowan', { day: 2, time: 0.4 });
+    callbacks.onOpen(); callbacks.onMessage(JSON.stringify(welcome('first')));
+    const saving = online.flushWorld(), failed = expect(saving).rejects.toThrow('changed');
+    expect(flush).toHaveBeenCalledTimes(1);
+    online.connect('', 4, 'Rowan', { day: 2, time: 0.4 });
+    done(); await failed;
+    callbacks.onOpen(); callbacks.onMessage(JSON.stringify(welcome('second')));
+    const next = online.flushWorld(); done(); await next;
+    online.disconnect(); await expect(online.flushWorld()).rejects.toThrow('not ready');
+  });
+
+  it('requires local storage acknowledgement but leaves shared server persistence to its owner', async () => {
+    const { events } = listening(), wire = transport(), online = new Online(events, wire.factory);
+    online.connect('', 3, 'Rowan', { day: 2, time: 0.4 });
+    wire.attempts[0].events.onOpen(); wire.attempts[0].events.onMessage(JSON.stringify(welcome('local')));
+    await expect(online.flushWorld()).rejects.toThrow('not ready');
+    online.connect('ws://remote', 3, 'Rowan', { day: 2, time: 0.4 });
+    await expect(online.flushWorld()).resolves.toBeUndefined(); online.disconnect();
+  });
+
   it('rejects messages, bytes, open and close callbacks from a replaced or disconnected link', () => {
     const { events, calls } = listening(), wire = transport(), online = new Online(events, wire.factory);
     online.connect('ws://first', 3, 'Rowan', { day: 2, time: 0.4 });

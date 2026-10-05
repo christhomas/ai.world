@@ -261,6 +261,15 @@ export class Online {
     this.link.send(hidden ? WORLD_PAUSE : WORLD_RESUME);
   }
 
+  /** A local world must confirm its durable checkpoint before session resources are released. */
+  async flushWorld(): Promise<void> {
+    if (!this.local) return;
+    const link = this.link, attempt = this.attempt;
+    if (!this.connected || !link?.ready || !link.flush) throw new Error('The local world is not ready to save');
+    await link.flush();
+    if (attempt !== this.attempt || link !== this.link) throw new Error('The world changed during its save');
+  }
+
   /** Let go of the link without letting go of the intention. */
   private drop(): void {
     this.attempt++;

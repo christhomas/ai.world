@@ -418,7 +418,8 @@ export function startGame(
   });
 
   const leaveToTitle = savedExit({ park: () => session.setActive(false),
-    resume: () => session.setActive(!document.hidden), save: persistStrict,
+    resume: () => session.setActive(!document.hidden),
+    save: async () => { await persistStrict(); await online.flushWorld(); },
     release: () => session.dispose(), depart: () => returnToTitle(() => {}, () => {}) });
   const toTitle = () => { void leaveToTitle().catch(() => hud.flash(session.isDisposed
     ? 'Your game was saved, but cleanup failed.' : 'Could not save. Your game remains open; retry when storage is available.')); };

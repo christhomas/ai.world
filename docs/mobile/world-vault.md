@@ -19,8 +19,8 @@ bounded startup queues and retired authorities. A hosted Chromium proof opens th
 in a Worker, keeps a cleared-mine delta and clock, waits for IndexedDB durability, terminates that
 Worker, then restores both in another Worker on the same origin. It verifies localStorage is absent.
 
-This does not complete installed gameplay or native disk storage. The browser's existing Link.close
-still terminates its worker immediately; an explicit durable shutdown acknowledgement and composition
-with the player save/exit owner remain necessary. A forced browser/process kill can interrupt a pending
-transaction. World/player snapshots are not yet one atomic checkpoint. Full iOS/Android fresh-install,
+This does not complete installed gameplay or native disk storage. The browser's return-to-title path
+now awaits an explicit durable acknowledgement before Link.close terminates its worker; see
+[session-world-checkpoint.md](session-world-checkpoint.md). A forced browser/process kill can interrupt
+a pending transaction. World/player snapshots are not yet one atomic checkpoint. Full iOS/Android fresh-install,
 walk/interact/save/terminate/continue acceptance, signing and device evidence remain open.
