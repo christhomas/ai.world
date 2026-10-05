@@ -22,7 +22,9 @@ void main() {
       multiLine: true,
     ).allMatches(flutterJob).map((match) => match.group(1)!).toList();
 
-    expect(uses, hasLength(3));
+    expect(uses, hasLength(5));
+    expect(flutterJob.indexOf('node tools/mobile/build-engine.mjs'), greaterThanOrEqualTo(0));
+    expect(flutterJob.indexOf('node tools/mobile/build-engine.mjs'), lessThan(flutterJob.indexOf('flutter pub get')));
     for (final action in uses) {
       expect(action, matches(RegExp(r'^[^@]+@[0-9a-f]{40}$')), reason: action);
     }

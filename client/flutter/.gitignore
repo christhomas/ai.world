@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Built from the repository sources before Flutter packaging.
+/assets/engine/engine.js
+/assets/engine/manifest.json

@@ -45,6 +45,7 @@ def validate_android_ui(xml):
 
 
 def prepare(platform):
+    command(['node', 'tools/mobile/build-engine.mjs'])
     fixture = APP / 'test/fixtures/interior_frame.json'
     save(platform=platform, source_sha=output(['git', 'rev-parse', 'HEAD']),
          status='provisioning', gameplay='pending', seed=3,
@@ -129,6 +130,12 @@ def capture(platform):
             if 'HOSTED_NATIVE_FAILED' in text:
                 raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
             if 'HOSTED_NATIVE_READY' in text:
+                if platform == 'ios' and 'HOSTED_STATE_ENGINE_READY' not in text:
+                    raise RuntimeError('Installed iOS state engine proof did not complete')
+                if platform == 'ios':
+                    state = json.loads(STATE.read_text())
+                    save(assertions=state['assertions'] + [{'name': 'installed-ios-hero-state-vm',
+                         'passed': True, 'cycles': 3, 'scope': 'hero-state-only'}])
                 break
             time.sleep(1)
         else:
