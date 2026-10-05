@@ -1,32 +1,25 @@
-import type { Vault } from '../../server/vault';
+import { createStore, entries, set } from 'idb-keyval';
+import { WorldVault } from '../save/world-vault';
 
 /**
  * Where a world is kept when the server is a thread in somebody's browser.
  *
- * `localStorage` rather than IndexedDB, and that is a considered choice rather than a shortcut: a
- * world file is a few kilobytes of JSON, the vault is synchronous by design, and IndexedDB is not.
- * Making the vault asynchronous to use a store nothing here needs would spread promises through the
- * clock, the market and the post shelf to buy storage nobody is running out of.
- *
- * A Worker can reach `localStorage` in every browser this game runs in. Where it cannot — a very
- * old one, or a page with site data blocked — the world simply lasts as long as the tab, which is
- * what a world kept nowhere always did.
+ * IndexedDB is available inside the worker; localStorage is not. Load durable room files before
+ * creating the simulation, then preserve its synchronous reads and writes through WorldVault.
+ * Storage failures stay visible to flush callers instead of silently creating a forgetful world.
  */
-export class BrowserVault implements Vault {
-  read(name: string): string | null {
-    try {
-      return self.localStorage?.getItem(`ai.world/${name}`) ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  write(name: string, text: string): void {
-    try {
-      self.localStorage?.setItem(`ai.world/${name}`, text);
-    } catch {
-      // out of room, or a browser that will not keep anything: the world lasts as long as the tab,
-      // and saying so in a log nobody reads would not make it last longer
-    }
+export class BrowserVault {
+  static async open(): Promise<WorldVault> {
+    const store = createStore('ai-world-authority', 'files');
+    return WorldVault.open({
+      load: async () => {
+        const kept = await entries<string, string>(store);
+        if (kept.some(([name, text]) => typeof name !== 'string' || typeof text !== 'string')) {
+          throw new Error('World storage contains invalid room records');
+        }
+        return kept;
+      },
+      write: (name, text) => set(name, text, store),
+    });
   }
 }
