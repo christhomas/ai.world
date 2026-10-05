@@ -92,6 +92,13 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/render/scene.ts');
     expect(files).not.toContain('src/world/countryworker.ts');
   });
+  it('keeps owned country growth separate from platform workers', () => {
+    const files = inspect('src/game/portable-country-jobs.ts');
+    expect(files).toContain('src/world/grower.ts');
+    expect(files).toContain('src/world/endless.ts');
+    expect(files).not.toContain('src/world/countryworker.ts');
+    expect(files).not.toContain('src/main.ts');
+  });
   it('distinguishes local parameters from host globals without leaking bindings into siblings', () => {
     const entry = resolve('src/game/.portable-boundary-regression.ts');
     const source = (text: string) => new Map([[entry, text]]);
