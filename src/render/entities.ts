@@ -1,17 +1,15 @@
 import * as THREE from 'three';
 import { nativeCamera, type IsoCamera } from './camera';
-import { worldView } from './scene';
+import { worldView, type WorldView } from './scene-view';
 import { HealthBars, heightOf } from './healthbars';
 import type { AnimRole, AnimalKind, PartDef } from '../entities/animals';
 import type { Entity } from '../entities/entity';
 import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from '../entities/motion';
 import type { SceneGraph, SceneNode } from '../core/scenegraph';
 import { applyInstanceFrame, bindGraphMount } from './graphmount';
-import { sceneForGraph } from './scenegraph';
-
-/** Mount a place's creatures through its neutral scene graph. */
-export function entityRendererFor(graph: SceneGraph): EntityRenderer {
-  return new EntityRenderer(sceneForGraph(graph), graph);
+/** Generate the production creature buffers without a browser scene or GPU context. */
+export function createEntityScene(graph: SceneGraph, view: () => WorldView | null = () => null): EntityRenderer {
+  return new EntityRenderer(new THREE.Scene(), graph, view);
 }
 
 /**
@@ -270,6 +268,7 @@ function unitGeometry(p: PartDef): THREE.BufferGeometry {
 }
 
 export class EntityRenderer {
+  private retired = false;
   private readonly pools = new Map<string, KindPool>();
   private readonly root = new THREE.Matrix4();
   private readonly m = new THREE.Matrix4();
@@ -293,7 +292,8 @@ export class EntityRenderer {
   /** What is left of whatever is being fought, drawn over its head. */
   private readonly bars: HealthBars;
 
-  constructor(private readonly scene: THREE.Scene, private readonly graph?: SceneGraph) {
+  constructor(private readonly scene: THREE.Scene, private readonly graph?: SceneGraph,
+    private readonly view: () => WorldView | null = () => worldView(scene)) {
     this.bars = new HealthBars(scene, graph);
   }
 
@@ -304,6 +304,7 @@ export class EntityRenderer {
   }
 
   add(e: Entity): boolean {
+    if (this.retired) return false;
     const p = this.pool(e.kind);
     if (p.entities.length >= CAPACITY) { e.slot = -1; return false; }
     e.slot = p.entities.length;
@@ -313,6 +314,7 @@ export class EntityRenderer {
   }
 
   remove(e: Entity): void {
+    if (this.retired) return;
     if (e.slot < 0) return;
     const p = this.pool(e.kind);
     const i = e.slot;
@@ -331,6 +333,7 @@ export class EntityRenderer {
 
   /** Resolve a screen pointer entirely inside the rendering implementation. */
   pick(x: number, y: number, camera: IsoCamera): Entity | null {
+    if (this.retired) return null;
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(x, y), nativeCamera(camera));
     for (const hit of ray.intersectObjects(this.pickables(), false)) {
@@ -342,6 +345,7 @@ export class EntityRenderer {
 
   /** Whoever owns the instance a ray hit, or null if the hit was on nothing living. */
   entityAt(hit: THREE.Intersection): Entity | null {
+    if (this.retired) return null;
     const part = hit.object.userData.part as PartMesh | undefined;
     if (!part || hit.instanceId === undefined || hit.instanceId >= part.count) return null;
     const e = part.drawn[hit.instanceId] ?? null;
@@ -364,7 +368,8 @@ export class EntityRenderer {
    * only what is on screen.
    */
   update(camera?: IsoCamera): void {
-    const view = worldView(this.scene);
+    if (this.retired) return;
+    const view = this.view();
     const reach = view ? view.radius * view.radius : 0;
     // the bars go where the creatures go, so they are filled in on the same walk of the same list:
     // anything skipped here is off screen, indoors or in pieces, and none of those has a bar
@@ -478,7 +483,7 @@ export class EntityRenderer {
   }
 
   /** How many creatures are showing what they have left, for the draw line to say. */
-  get barsShowing(): number { return this.bars.showing; }
+  get barsShowing(): number { return this.retired ? 0 : this.bars.showing; }
 
   /**
    * Break one block away from the body it belongs to.
@@ -532,7 +537,10 @@ export class EntityRenderer {
   }
 
   dispose(): void {
+    if (this.retired) return;
+    this.retired = true;
     for (const p of this.pools.values()) {
+      for (const entity of p.entities) entity.slot = -1;
       for (const part of p.meshes) {
         part.unmount?.();
         if (part.node) this.graph?.remove(part.node);

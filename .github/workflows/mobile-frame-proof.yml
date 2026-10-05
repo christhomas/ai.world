@@ -84,6 +84,10 @@ jobs:
         env:
           WORLD_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node tools/mobile-frame-proof/production-worker.mjs
+      - name: Compare original creature buffers with portable bare-host scene production
+        env:
+          ENTITY_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node tools/mobile-frame-proof/entities.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
