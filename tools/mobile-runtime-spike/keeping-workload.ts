@@ -19,11 +19,15 @@ export async function keepingWorkload(): Promise<string> {
   first.state.discovered.add('Ashford'); first.state.day = 12; first.persist();
   now = 2000; x = 18; await first.persistStrict(); await first.saves.close();
   const saved = records.get('offline') as SessionSave;
+  if (saved.player?.x !== 18 || saved.player.z !== -8) throw new Error('Native production save lost player position');
+  // Position restoration belongs to session/Player construction, not openTheSave.
+  // Discard the previous live coordinate so state continuation cannot reuse it.
+  x = -999;
   now += 3 * 86400000;
   const continued = open(JSON.parse(JSON.stringify(saved)));
   if (continued.state.playerId !== identity || continued.state.inventory.gold !== 123 ||
       continued.state.worn('hand')?.id !== 'sword' || continued.state.day !== 12 || continued.state.awayFor !== 3 ||
-      !continued.state.discovered.has('Ashford') || saved.player?.x !== 18) throw new Error('Native production save lost progress');
+      !continued.state.discovered.has('Ashford')) throw new Error('Native production save lost progress');
   const state = continued.state.toJSON(); await continued.saves.close();
   return JSON.stringify({ saved, continued: state });
 }
