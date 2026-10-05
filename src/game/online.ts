@@ -178,6 +178,7 @@ export class Online {
 
     const attempt = this.attempt;
     const events: LinkEvents = {
+      onStorageFailure: why => { if (attempt === this.attempt) this.events.onSystem(why); },
       onOpen: () => { if (attempt !== this.attempt) return; this.send({
         type: 'join', worldName, seed, kind: country.kind, name: this.name, playerId, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
         x: country.at?.x, z: country.at?.z,
@@ -259,6 +260,15 @@ export class Online {
   quiet(hidden: boolean): void {
     if (!this.local || !this.link?.ready) return;
     this.link.send(hidden ? WORLD_PAUSE : WORLD_RESUME);
+  }
+
+  /** A local world must confirm its durable checkpoint before session resources are released. */
+  async flushWorld(): Promise<void> {
+    if (!this.local) return;
+    const link = this.link, attempt = this.attempt;
+    if (!this.connected || !link?.ready || !link.flush) throw new Error('The local world is not ready to save');
+    await link.flush();
+    if (attempt !== this.attempt || link !== this.link) throw new Error('The world changed during its save');
   }
 
   /** Let go of the link without letting go of the intention. */

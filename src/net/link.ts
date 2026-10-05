@@ -20,6 +20,7 @@
  * transfer, so this is a widening rather than a second channel.
  */
 import type { Parcel, Link, LinkEvents } from './link-contract';
+import { WorldCheckpoint } from './world-checkpoint';
 export { WORLD_PAUSE, WORLD_RESUME, type Parcel, type Link, type LinkEvents } from './link-contract';
 
 /**
@@ -71,22 +72,41 @@ export function workerLink(events: LinkEvents): Link {
     type: 'module', name: capture ? 'shots-capture' : undefined,
   });
   let up = false;
+  let retired = false;
+  const checkpoint = new WorldCheckpoint({ send: (parcel) => worker.postMessage(parcel),
+    after: (callback, milliseconds) => {
+      const timer = setTimeout(callback, milliseconds);
+      return () => clearTimeout(timer);
+    },
+  });
+  const close = () => { if (retired) return; retired = true; up = false; checkpoint.close(); worker.terminate(); };
   const waiting: Array<() => void> = [];
   if (capture) capture.worldStep = (count) => new Promise<void>((resolve) => {
     waiting.push(resolve);
     worker.postMessage(`shots-step:${count}`);
   });
   worker.onmessage = (e: MessageEvent<Parcel>) => {
+    if (retired || checkpoint.receive(e.data)) return;
+    if (e.data === 'world-storage-warning') {
+      events.onStorageFailure?.('Could not keep the world on this device. Your world remains open; retry saving when storage is available.');
+      return;
+    }
+    if (e.data === 'world-storage-failed') {
+      close();
+      events.onClose('Could not keep the world on this device. Check available storage.');
+      return;
+    }
     if (capture && e.data === 'shots-step-done') { waiting.shift()?.(); return; }
     events.onMessage(e.data);
   };
-  worker.onerror = () => events.onClose('The world in this tab stopped.');
-  queueMicrotask(() => { up = true; events.onOpen(); });
+  worker.onerror = () => { if (retired) return; close(); events.onClose('The world in this tab stopped.'); };
+  queueMicrotask(() => { if (retired) return; up = true; events.onOpen(); });
   return {
     // an ArrayBuffer is handed over rather than copied: the sender loses it, which is what makes a
     // chunk of country cost nothing to pass between threads
     send: (parcel) => worker.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
-    close: () => { up = false; worker.terminate(); },
+    close,
+    flush: () => checkpoint.flush(),
     get ready(): boolean { return up; },
   };
 }

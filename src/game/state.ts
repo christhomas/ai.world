@@ -154,8 +154,16 @@ function newPlayerId(): string {
   return globalThis.crypto.randomUUID();
 }
 
+export interface StateHost {
+  /** Wall time in milliseconds, for saved-at and offline elapsed days. */
+  now(): number;
+  newPlayerId(): string;
+}
+const systemStateHost: StateHost = { now: () => Date.now(), newPlayerId };
+
 export class GameState {
-  playerId = newPlayerId();
+  playerId: string;
+  constructor(private readonly host: StateHost = systemStateHost) { this.playerId = host.newPlayerId(); }
   hp = BASE_MAX_HP;
   maxHp = BASE_MAX_HP;
   /** Fraction of the day, 0 = midnight, 0.5 = noon. */
@@ -469,7 +477,7 @@ export class GameState {
     return {
       playerId: this.playerId,
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
-      savedAt: Date.now(), lodged: this.lodged,
+      savedAt: this.host.now(), lodged: this.lodged,
       inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
       claimedCarts: [...this.claimedCarts],
       explored: [...this.explored],
@@ -487,17 +495,17 @@ export class GameState {
   }
 
   /** A fresh hero: starting kit already on the body. */
-  static fresh(): GameState {
-    const g = new GameState();
+  static fresh(host?: StateHost): GameState {
+    const g = new GameState(host);
     for (const [id, n] of Object.entries(STARTING_KIT.carried)) g.give(id, n);
     for (const id of STARTING_KIT.worn) { g.give(id, 1); g.equip(id); }
     g.version = 0;
     return g;
   }
 
-  static from(json: Partial<GameStateJson> | undefined): GameState {
-    if (!json) return GameState.fresh();
-    const g = new GameState();
+  static from(json: Partial<GameStateJson> | undefined, host?: StateHost): GameState {
+    if (!json) return GameState.fresh(host);
+    const g = new GameState(host);
     if (typeof json.playerId === 'string' && /^[0-9a-f-]{36}$/i.test(json.playerId)) g.playerId = json.playerId;
     if (typeof json.hp === 'number') g.hp = json.hp;
     if (typeof json.practice === 'number') g.practice = json.practice;
@@ -515,7 +523,7 @@ export class GameState {
      * for. `awaytime.ts` decides how many days that is; living them is the register's business
      * through the door it already has.
      */
-    if (typeof json.savedAt === 'number') g.awayFor = daysAway((Date.now() - json.savedAt) / 1000);
+    if (typeof json.savedAt === 'number') g.awayFor = daysAway((g.host.now() - json.savedAt) / 1000);
     if (json.inventory) {
       const inv = Inventory.from(json.inventory);
       g.inventory.gold = inv.gold;

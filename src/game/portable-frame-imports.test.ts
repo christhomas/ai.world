@@ -99,6 +99,15 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/world/countryworker.ts');
     expect(files).not.toContain('src/main.ts');
   });
+  it('opens and owns production saves without browser storage or presentation imports', () => {
+    const files = inspect('src/game/portable-keeping.ts');
+    expect(files).toContain('src/game/keeping.ts');
+    expect(files).toContain('src/game/state.ts');
+    expect(files).toContain('src/save/owner.ts');
+    expect(files).not.toContain('src/save/indexeddb.ts');
+    expect(files).not.toContain('src/main.ts');
+    expect(files).not.toContain('src/platform/browser-lifecycle.ts');
+  });
   it('distinguishes local parameters from host globals without leaking bindings into siblings', () => {
     const entry = resolve('src/game/.portable-boundary-regression.ts');
     const source = (text: string) => new Map([[entry, text]]);
@@ -124,6 +133,11 @@ describe('portable frame runtime boundary', () => {
     expect(files).toContain('src/workers/local-world-host.ts');
     expect(files).not.toContain('src/net/link.ts');
     expect(files).not.toContain('src/net/browservault.ts');
+  });
+  it('keeps durable world ordering and startup ownership behind host storage ports', () => {
+    expect(inspect('src/save/world-vault.ts')).toEqual(['src/save/world-vault.ts']);
+    expect(inspect('src/workers/world-boot.ts')).toEqual(['src/workers/world-boot.ts']);
+    expect(inspect('src/net/world-checkpoint.ts')).toEqual(['src/net/world-checkpoint.ts']);
   });
   it('keeps production terrain jobs free of host runtime globals', () => {
     const files = inspect('src/game/portable-chunks.ts');
