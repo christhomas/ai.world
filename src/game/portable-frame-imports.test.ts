@@ -134,6 +134,10 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/net/link.ts');
     expect(files).not.toContain('src/net/browservault.ts');
   });
+  it('keeps durable world ordering and startup ownership behind host storage ports', () => {
+    expect(inspect('src/save/world-vault.ts')).toEqual(['src/save/world-vault.ts']);
+    expect(inspect('src/workers/world-boot.ts')).toEqual(['src/workers/world-boot.ts']);
+  });
   it('keeps production terrain jobs free of host runtime globals', () => {
     const files = inspect('src/game/portable-chunks.ts');
     expect(files).toContain('src/workers/chunkmesher.ts');

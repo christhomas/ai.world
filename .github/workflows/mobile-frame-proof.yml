@@ -37,7 +37,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Exercise the production frame with host ports
-        run: pnpm exec vitest run src/game/frame-host.test.ts src/game/portable-frame-imports.test.ts src/render/camera-host.test.ts src/core/game-input.test.ts src/platform/browser-frame.test.ts src/game/keys.test.ts src/platform/browser-game-events.test.ts src/game/local-world-host.test.ts src/workers/simdoor.test.ts server/async-country.test.ts src/architecture.test.ts src/render/scene-state.test.ts src/render/scenegraph.test.ts src/render/scene.test.ts src/workers/chunkmesher.test.ts src/render/chunkjobs.test.ts src/render/chunkreplacement.test.ts src/render/chunkwanted.test.ts src/world/chunkpump.test.ts src/game/online.test.ts src/game/online-host.test.ts src/game/country-state.test.ts src/world/growworld.test.ts src/world/patchview.test.ts src/game/player-opening.test.ts src/entities/player.test.ts src/world/opening.test.ts src/world/grower.test.ts src/world/country-jobs.test.ts src/world/countryworker.test.ts src/save/owner.test.ts src/game/state-host.test.ts src/game/keeping.test.ts src/game/saved-exit.test.ts src/platform/browser-lifecycle.test.ts
+        run: pnpm exec vitest run src/game/frame-host.test.ts src/game/portable-frame-imports.test.ts src/render/camera-host.test.ts src/core/game-input.test.ts src/platform/browser-frame.test.ts src/game/keys.test.ts src/platform/browser-game-events.test.ts src/game/local-world-host.test.ts src/workers/simdoor.test.ts server/async-country.test.ts src/architecture.test.ts src/render/scene-state.test.ts src/render/scenegraph.test.ts src/render/scene.test.ts src/workers/chunkmesher.test.ts src/render/chunkjobs.test.ts src/render/chunkreplacement.test.ts src/render/chunkwanted.test.ts src/world/chunkpump.test.ts src/game/online.test.ts src/game/online-host.test.ts src/game/country-state.test.ts src/world/growworld.test.ts src/world/patchview.test.ts src/game/player-opening.test.ts src/entities/player.test.ts src/world/opening.test.ts src/world/grower.test.ts src/world/country-jobs.test.ts src/world/countryworker.test.ts src/save/owner.test.ts src/game/state-host.test.ts src/game/keeping.test.ts src/game/saved-exit.test.ts src/platform/browser-lifecycle.test.ts src/save/world-vault.test.ts src/net/browservault.test.ts src/workers/world-boot.test.ts
       - name: Bundle and execute without browser or Node host globals
         env:
           FRAME_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -66,6 +66,12 @@ jobs:
         env:
           KEEPING_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node tools/mobile-frame-proof/keeping.mjs
+      - name: Install hosted Chromium for actual Worker storage verification
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Save and restore actual simulation state across browser Workers
+        env:
+          WORLD_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node tools/mobile-frame-proof/worker-world.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

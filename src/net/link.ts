@@ -77,6 +77,12 @@ export function workerLink(events: LinkEvents): Link {
     worker.postMessage(`shots-step:${count}`);
   });
   worker.onmessage = (e: MessageEvent<Parcel>) => {
+    if (e.data === 'world-storage-failed') {
+      up = false;
+      worker.terminate();
+      events.onClose('Could not keep the world on this device. Check available storage.');
+      return;
+    }
     if (capture && e.data === 'shots-step-done') { waiting.shift()?.(); return; }
     events.onMessage(e.data);
   };
