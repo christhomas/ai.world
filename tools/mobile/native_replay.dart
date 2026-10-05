@@ -15,7 +15,7 @@ Future<void> main() async {
     home: Scaffold(body: NativeWorldView(onCreated: (renderer) async {
       try {
         debugPrint('HOSTED_NATIVE_CREATED texture=${renderer.textureId}');
-        if (Platform.isIOS) await proveInstalledStateEngine();
+        if (Platform.isIOS || Platform.isAndroid) await proveInstalledStateEngine();
         final packet = jsonDecode(hostedFixture) as Map<String, dynamic>;
         // Consumers implementing the captured clock use this exact epoch on both passes.
         (packet['frame'] as Map)['renderTimeMs'] = 1000.0;
@@ -51,7 +51,7 @@ Future<void> main() async {
 Future<void> proveInstalledStateEngine() async {
   final identities = <String>{};
   for (var cycle = 0; cycle < 3; cycle++) {
-    final engine = await StateEngine.open('installed-state:$cycle');
+    final engine = await StateEngine.open('installed-state:Ólafur 雪 🐺:$cycle');
     try {
       Map<String, dynamic> hero(Map<String, dynamic> reply) {
         if (reply['type'] != 'result') throw StateError('State engine request failed: $reply');
@@ -80,5 +80,32 @@ Future<void> proveInstalledStateEngine() async {
     try { await engine.request('resync', {'reason': 'retired'}); } catch (_) { rejected = true; }
     if (!rejected) throw StateError('Retired engine accepted a request');
   }
-  debugPrint('HOSTED_STATE_ENGINE_READY cycles=3 actions=unequip,equip parked=true isolated=true');
+  await proveNativeOwnerBoundary();
+  debugPrint('HOSTED_STATE_ENGINE_READY platform=${Platform.operatingSystem} cycles=3 actions=unequip,equip parked=true isolated=true utf8=true nativeRetirement=true');
+}
+
+Future<void> proveNativeOwnerBoundary() async {
+  const channel = MethodChannel('world.ai/state-engine');
+  final manifest = jsonDecode(await rootBundle.loadString('assets/engine/manifest.json')) as Map;
+  final asset = await rootBundle.load('assets/engine/engine.js');
+  final source = asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes);
+  var rejectedCorruption = false;
+  try {
+    await channel.invokeMethod<String>('create', {'session': 'corruption', 'source': source,
+      'bundleSha256': '0' * 64});
+  } on PlatformException { rejectedCorruption = true; }
+  if (!rejectedCorruption) throw StateError('Native bundle integrity check missing');
+  final token = await channel.invokeMethod<String>('create', {'session': 'native-owner', 'source': source,
+    'bundleSha256': manifest['bundleSha256']});
+  if (token == null) throw StateError('Native owner missing');
+  await channel.invokeMethod<void>('dispose', {'token': token});
+  await channel.invokeMethod<void>('dispose', {'token': token});
+  var rejectedRetirement = false;
+  try {
+    await channel.invokeMethod<String>('request', {'token': token, 'request': jsonEncode({
+      'version': 1, 'session': 'native-owner', 'sequence': 0, 'id': 'late', 'type': 'start',
+      'payload': {'mode': 'local', 'world': 'installed-state'},
+    })});
+  } on PlatformException { rejectedRetirement = true; }
+  if (!rejectedRetirement) throw StateError('Native retired owner accepted a request');
 }
