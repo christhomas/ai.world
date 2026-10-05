@@ -4,9 +4,15 @@ import { createServer } from 'node:http';
 import { resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
+import { build } from 'vite';
 
 const directory = resolve('mobile-frame-proof-out');
-const bundle = await readFile(resolve(directory, 'worker-world.js'), 'utf8');
+// Serve ES modules so the actual new Worker(new URL(..., import.meta.url)) retains its URL base.
+// The separate original proof keeps its bare IIFE bundle for execution inside Blob Workers.
+await build({ configFile: false, build: { target: 'es2022', minify: false,
+  outDir: directory, emptyOutDir: false,
+  lib: { entry: 'tools/mobile-frame-proof/production-worker-entry.ts', formats: ['es'],
+    fileName: () => 'production-worker.js' } } });
 const server = createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   if (pathname === '/') {
@@ -24,8 +30,8 @@ try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}`);
-  await page.addScriptTag({ content: bundle });
   const evidence = await page.evaluate(async () => {
+    const WorldProof = await import('/production-worker.js');
     const run = phase => new Promise((resolve, reject) => {
       let link, finished = false;
       const timer = setTimeout(() => finish(new Error('Production worker checkpoint timed out')), 90_000);

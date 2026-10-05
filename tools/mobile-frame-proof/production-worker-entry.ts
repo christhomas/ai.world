@@ -1,3 +1,3 @@
 export { BrowserVault } from '../../src/net/browservault';
-export { LocalWorldHost } from '../../src/game/local-world-host';
+export { workerLink } from '../../src/net/link';
 export { PROTOCOL_VERSION } from '../../server/protocol';
