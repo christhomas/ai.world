@@ -30,7 +30,7 @@ describe('owned save ordering and durable exit', () => {
   });
 
   it('uses strict writes for acknowledged saves and surfaces quota failure through flush', async () => {
-    const save = vi.fn(async () => {}), saveStrict = vi.fn(async () => { throw new Error('quota'); });
+    const save = vi.fn(async () => {}), saveStrict = vi.fn(async (): Promise<void> => { throw new Error('quota'); });
     const owner = new SaveOwner({ save, saveStrict, load: async () => undefined, remove: async () => {} }, 'slot');
     await expect(owner.write({ day: 2 }, true)).rejects.toThrow('quota');
     await expect(owner.flush()).rejects.toThrow('quota');
