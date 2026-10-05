@@ -6,6 +6,7 @@ import {
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import { WorldRecordConflict } from './worldrecords';
 import type { Vault } from './vault';
+import { systemClock, type HostClock } from './host-clock';
 import { CLOCK_INTERVAL, DAY_LENGTH, type SharedWorld } from './world';
 import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
@@ -57,6 +58,8 @@ import { authoredMountain, authoredTerrain, authoredSkyEyrie } from '../src/worl
  * the same code as somebody on a shared world. `docs/server-authority.md` is where that is going.
  */
 export interface SimOptions {
+  /** Time and cancellable tasks owned by this simulation's host. */
+  clock?: HostClock;
   /** Where worlds are kept. Left out, they are kept in memory and last as long as the process. */
   vault?: Vault;
   /** What worlds are filed under, when the vault has somewhere to put them. */
@@ -282,21 +285,25 @@ export class Simulation {
    * together, so a floor nobody is standing in costs nothing either way.
    */
   private readonly floors = new Map<string, { world: DungeonWorld; seed: number }>();
-  private lastTick = Date.now();
+  private readonly hostClock: HostClock;
+  private lastTick: number;
   /** Milliseconds since the creatures last went out, which is rarer than presence. */
   private sinceCreatures = 0;
-  private ticker: ReturnType<typeof setInterval> | null = null;
-  private clockTicker: ReturnType<typeof setInterval> | null = null;
+  private ticker: (() => void) | null = null;
+  private clockTicker: (() => void) | null = null;
+  private run = 0;
 
   constructor(options: SimOptions = {}) {
+    this.hostClock = options.clock ?? systemClock;
+    this.lastTick = this.hostClock.now();
     this.localAuthoring = options.localAuthoring ?? false;
     this.minds = options.minds ?? null;
     this.chronicleDb = options.chronicles ?? null;
-    this.rooms = new Rooms(options.dataDir ?? '', options.vault);
+    this.rooms = new Rooms(options.dataDir ?? '', options.vault, this.hostClock);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
     this.prepare = options.prepare;
-    this.preparations = new Preparations(options.prepareTimeout);
+    this.preparations = new Preparations(options.prepareTimeout, this.hostClock);
     this.reach = options.reach ?? REACH;
   }
 
@@ -595,22 +602,25 @@ export class Simulation {
   /** Start the clocks. Separate from the constructor so a test can step time itself. */
   start(): void {
     if (this.ticker) return;
-    this.lastTick = Date.now();
-    this.ticker = setInterval(() => this.tick(), TICK);
+    this.lastTick = this.hostClock.now();
+    const run = ++this.run;
+    this.ticker = this.hostClock.every(() => { if (this.run === run) this.tick(); }, TICK);
     // the clock goes out rarely: clients run their own between messages and simply agree with it
-    this.clockTicker = setInterval(() => {
+    this.clockTicker = this.hostClock.every(() => {
+      if (this.run !== run) return;
       for (const [seed, room] of this.rooms.entries()) {
         this.rooms.broadcast(seed, { type: 'clock', clock: room.world.clock });
       }
     }, CLOCK_INTERVAL);
   }
 
-  stop(): void {
-    if (this.ticker) clearInterval(this.ticker);
-    if (this.clockTicker) clearInterval(this.clockTicker);
+  stop(strict = false): void {
+    this.run++;
+    this.ticker?.();
+    this.clockTicker?.();
     this.ticker = null;
     this.clockTicker = null;
-    this.rooms.saveAll();
+    this.rooms.saveAll(strict);
     this.keepTheMinds();
   }
 
@@ -707,7 +717,7 @@ export class Simulation {
    * A step of the world: drop the silent, close the empty, move the clock, tell everybody where
    * everybody is.
    */
-  tick(now = Date.now()): void {
+  tick(now = this.hostClock.now()): void {
     const seconds = (now - this.lastTick) / 1000;
     // The world clock accounts for elapsed wall time below, but bodies can only take one ordinary
     // simulation step when the event loop wakes up. Passing a long stall through to EntityManager
@@ -1213,7 +1223,7 @@ export class Simulation {
     let done = 0;
     const progress = () => this.rooms.send(client, { type: 'country-progress', done, total });
     progress();
-    const heartbeat = setInterval(progress, 3000);
+    const heartbeat = this.hostClock.every(progress, 3000);
     try {
       let road: RoadParts | undefined;
       if (growsRoad && this.prepare) {
@@ -1223,7 +1233,7 @@ export class Simulation {
         done++;
         progress();
         // The rebuild and the people are the next long piece; let this progress go out first.
-        await new Promise<void>((resume) => setTimeout(resume, 0));
+        await this.hostClock.yield();
       }
       if (patches.length && this.prepare) {
         const layers = this.layersOf(seed), terrain = this.terrainOf(seed);
@@ -1244,13 +1254,13 @@ export class Simulation {
           done++;
           if (done % 8 === 0) progress();
           // One chunk is short work; hand the loop back to other players between groups.
-          if (done % 8 === 0) await new Promise<void>((resume) => setTimeout(resume, 0));
+          if (done % 8 === 0) await this.hostClock.yield();
         }
       }
       progress();
       this.rooms.send(client, { type: 'country', stamp: ground ? this.countryStamps.get(seed) ?? '' : '', kind });
     } finally {
-      clearInterval(heartbeat);
+      heartbeat();
     }
   }
 

@@ -1,4 +1,5 @@
 import { Forgetful, type Vault } from './vault';
+import { systemClock, type HostClock } from './host-clock';
 import {
   DAY_LENGTH, MAIL_LIMIT, STALL_DAYS, STALL_LOTS, deltaAt, deltaKey,
   type Clock, type Letter, type Stall, type StallItem, type WorldDelta,
@@ -135,7 +136,8 @@ export class SharedWorld {
   private letters: Letter[] = [];
   /** Every name this world has seen, so a parcel can be addressed to somebody who is away. */
   private readonly seen = new Set<string>();
-  private saveTimer: NodeJS.Timeout | null = null;
+  private saveTimer: (() => void) | null = null;
+  private saveGeneration = 0;
   private dirty = false;
   /**
    * What was written down about this world's country, which the ground is grown from.
@@ -213,6 +215,7 @@ export class SharedWorld {
      * compaction happen can pass one in.
      */
     private register: { compact(day: number): void; holdingsBook?: HoldingBook } | null = null,
+    private readonly hostClock: HostClock = systemClock,
   ) {
     const loaded = this.load();
     this.manifest = new Manifest(seed, loaded?.manifest);
@@ -564,10 +567,19 @@ export class SharedWorld {
   private scheduleSave(): void {
     this.dirty = true;
     if (this.saveTimer) return;
-    this.saveTimer = setTimeout(() => { this.saveTimer = null; this.save(); }, SAVE_DEBOUNCE);
+    const generation = ++this.saveGeneration;
+    this.saveTimer = this.hostClock.after(() => {
+      if (generation !== this.saveGeneration) return;
+      this.saveTimer = null;
+      this.save();
+    }, SAVE_DEBOUNCE);
   }
 
   save(strict = false): void {
+    // An explicit flush owns the pending write too: an old world must not write after reopening.
+    this.saveGeneration++;
+    this.saveTimer?.();
+    this.saveTimer = null;
     for (const [id, province] of this.provinces) this.writeProvince(id, province, false, strict);
     if (!this.dirty) return;
     this.dirty = false;

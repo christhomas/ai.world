@@ -9,17 +9,31 @@ const FORBIDDEN = new Set(['window', 'document', 'localStorage', 'indexedDB', 'r
 type Node = { type?: string; [key: string]: unknown };
 
 /** Inspect runtime edges, including transitive ones; type-only browser declarations are erased. */
-function inspect(entry: string): string[] {
+function inspect(entry: string, sources = new Map<string, string>()): string[] {
   const seen = new Set<string>();
   const visit = (file: string): void => {
     if (seen.has(file)) return;
     seen.add(file);
     if (file.endsWith('.json')) return;
-    const ast = parse(readFileSync(file, 'utf8'), { sourceType: 'module', plugins: ['typescript'] });
-    const walk = (value: unknown, parent?: Node, key?: string): void => {
-      if (Array.isArray(value)) { for (const child of value) walk(child, parent, key); return; }
+    const ast = parse(sources.get(file) ?? readFileSync(file, 'utf8'), { sourceType: 'module', plugins: ['typescript'] });
+    const parameters = (pattern: Node, names: Set<string>): void => {
+      if (pattern.type === 'Identifier') names.add(pattern.name as string);
+      else if (pattern.type === 'AssignmentPattern') parameters(pattern.left as Node, names);
+      else if (pattern.type === 'RestElement') parameters(pattern.argument as Node, names);
+      else if (pattern.type === 'ArrayPattern') {
+        for (const item of pattern.elements as Array<Node | null>) if (item) parameters(item, names);
+      } else if (pattern.type === 'ObjectPattern') {
+        for (const item of pattern.properties as Node[]) parameters((item.value ?? item.argument) as Node, names);
+      }
+    };
+    const walk = (value: unknown, parent?: Node, key?: string, bound = new Set<string>()): void => {
+      if (Array.isArray(value)) { for (const child of value) walk(child, parent, key, bound); return; }
       if (!value || typeof value !== 'object') return;
       const node = value as Node;
+      if (['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression', 'ObjectMethod', 'ClassMethod', 'ClassPrivateMethod'].includes(node.type ?? '')) {
+        bound = new Set(bound);
+        for (const parameter of node.params as Node[]) parameters(parameter, bound);
+      }
       if (node.type?.startsWith('TS') && node.type !== 'TSAsExpression' && node.type !== 'TSNonNullExpression') return;
       if (node.type === 'ImportDeclaration' || node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') {
         const source = node.source as { value?: string } | undefined;
@@ -41,15 +55,16 @@ function inspect(entry: string): string[] {
       if (node.type === 'ImportExpression' || (node.type === 'CallExpression' && (node.callee as Node)?.type === 'Import')) {
         throw new Error(`Dynamic import requires an explicit host port: ${file}`);
       }
-      if (node.type === 'Identifier' && FORBIDDEN.has(node.name as string)) {
-        const property = key === 'property' && parent?.computed !== true && parent?.type?.includes('MemberExpression');
+      if (node.type === 'Identifier' && FORBIDDEN.has(node.name as string) && !bound.has(node.name as string)) {
+        const property = key === 'property' && parent?.computed !== true && parent?.type?.includes('MemberExpression')
+          && (parent.object as Node)?.name !== 'globalThis';
         const declarationKey = key === 'key' && parent?.computed !== true;
         if (!property && !declarationKey) throw new Error(`Host global ${node.name} in ${file}`);
       }
       for (const [childKey, child] of Object.entries(node)) {
         if (['loc', 'start', 'end', 'comments', 'leadingComments', 'trailingComments', 'innerComments', 'typeAnnotation',
           'returnType', 'typeParameters', 'typeArguments'].includes(childKey)) continue;
-        walk(child, node, childKey);
+        walk(child, node, childKey, bound);
       }
     };
     walk(ast);
@@ -59,6 +74,23 @@ function inspect(entry: string): string[] {
 }
 
 describe('portable frame runtime boundary', () => {
+  it('distinguishes local parameters from host globals without leaking bindings into siblings', () => {
+    const entry = resolve('src/game/.portable-boundary-regression.ts');
+    const source = (text: string) => new Map([[entry, text]]);
+    expect(() => inspect(entry, source('class Scatter { sitesIn(window: { x0: number }) { return window.x0; } }'))).not.toThrow();
+    expect(() => inspect(entry, source('function local(window: number) { return window; } function browser() { return window.innerWidth; }'))).toThrow('Host global window');
+    expect(() => inspect(entry, source('function browser() { return globalThis.window.innerWidth; }'))).toThrow('Host global window');
+    expect(() => inspect(entry, source('function node() { return process.env; }'))).toThrow('Host global process');
+  });
+  it('keeps the shared offline authority free of browser and Node runtime imports', () => {
+    const files = inspect('src/game/portable-world.ts');
+    expect(files).toContain('server/sim.ts');
+    expect(files).toContain('server/world.ts');
+    expect(files).toContain('src/workers/simdoor.ts');
+    expect(files).toContain('src/workers/local-world-host.ts');
+    expect(files).not.toContain('src/net/link.ts');
+    expect(files).not.toContain('src/net/browservault.ts');
+  });
   it('keeps browser, Node, workers, networking and GPU adapters out of runtime imports', () => {
     const files = inspect('src/game/portable-frame.ts');
     expect(files).toContain('src/game/frame.ts');

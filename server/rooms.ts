@@ -10,6 +10,7 @@ import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldDelta, Worl
 import { worldKey } from './protocol';
 import { Forgetful, type Vault } from './vault';
 import { SharedWorld, manifestIn, worldPath } from './world';
+import { systemClock, type HostClock } from './host-clock';
 import { WorldRecordConflict, WorldRecords } from './worldrecords';
 import type { PlacePin } from '../src/world/editimpacts';
 import { provincePath, provincesNear } from '../src/world/provinces';
@@ -216,7 +217,7 @@ export class Rooms {
   private readonly records: WorldRecords;
   private readonly vault: Vault;
 
-  constructor(private readonly dataDir: string, vault?: Vault) {
+  constructor(private readonly dataDir: string, vault?: Vault, private readonly hostClock: HostClock = systemClock) {
     this.vault = vault ?? new Forgetful();
     this.records = new WorldRecords(dataDir, this.vault);
   }
@@ -359,7 +360,7 @@ export class Rooms {
     let room = this.rooms.get(key);
     if (room && room.kind !== kind) throw new WorldRecordConflict('That seed is already open as a different kind of world.');
     if (!room) {
-      const world = new SharedWorld(root, worldPath(this.dataDir, root), { ...start }, this.dataDir, this.vault);
+      const world = new SharedWorld(root, worldPath(this.dataDir, root), { ...start }, this.dataDir, this.vault, null, this.hostClock);
       room = { clients: new Set(), name: named?.name, kind, world };
       this.rooms.set(key, room);
       this.bySeed.set(root, key);
@@ -553,7 +554,7 @@ export class Rooms {
     this.bySeed.delete(root);
   }
 
-  saveAll(): void {
-    for (const room of this.rooms.values()) room.world.save();
+  saveAll(strict = false): void {
+    for (const room of this.rooms.values()) room.world.save(strict);
   }
 }

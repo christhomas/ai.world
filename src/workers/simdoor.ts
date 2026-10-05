@@ -1,4 +1,4 @@
-import { WORLD_PAUSE, WORLD_RESUME } from '../net/link';
+import { WORLD_PAUSE, WORLD_RESUME } from '../net/link-contract';
 
 /** The part of the simulation the page's words reach. */
 export interface Steerable {

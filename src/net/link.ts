@@ -19,7 +19,8 @@
  * arrays it already is. A websocket carries either natively and a worker port carries either by
  * transfer, so this is a widening rather than a second channel.
  */
-export type Parcel = string | ArrayBuffer;
+import type { Parcel, Link, LinkEvents } from './link-contract';
+export { WORLD_PAUSE, WORLD_RESUME, type Parcel, type Link, type LinkEvents } from './link-contract';
 
 /**
  * The two words the page says to the worker *itself* rather than to the world inside it.
@@ -35,23 +36,6 @@ export type Parcel = string | ArrayBuffer;
  * real server — which never hears them, because only the tab's own world is ever paused — would
  * ignore them if it did.
  */
-export const WORLD_PAUSE = 'pause';
-export const WORLD_RESUME = 'resume';
-
-export interface Link {
-  send(parcel: Parcel): void;
-  close(): void;
-  /** Ready to carry a message. Both kinds start false and say so when they are up. */
-  readonly ready: boolean;
-}
-
-export interface LinkEvents {
-  onOpen: () => void;
-  onMessage: (parcel: Parcel) => void;
-  /** The other end has gone, or was never there. `why` is for the player, not for a log. */
-  onClose: (why: string) => void;
-}
-
 /** A world across a network. */
 export function socketLink(url: string, events: LinkEvents): Link | null {
   let socket: WebSocket;
