@@ -17,5 +17,5 @@ if (candidate.nativeCycles) {
     }
   }
 }
-for (const report of reports) for (const field of ['contractVersion', 'stepsPerCycle', 'cycles', 'stateHash', 'geometryHash', 'worldHash', 'sceneHash', 'movedSteps', 'blockedSteps', 'meshBytes', 'microtasks', 'utf8', 'goldenHex', 'invalidBufferRejected']) assert.equal(report.workload[field], reference[field], field);
+for (const report of reports) for (const field of ['contractVersion', 'stepsPerCycle', 'cycles', 'stateHash', 'geometryHash', 'worldHash', 'sceneHash', 'chunkHash', 'movedSteps', 'blockedSteps', 'meshBytes', 'microtasks', 'utf8', 'goldenHex', 'invalidBufferRejected']) assert.equal(report.workload[field], reference[field], field);
 console.log('Same bundle state, terrain and rig hashes match');
