@@ -7,6 +7,34 @@ import simd
 
 class RunnerTests: XCTestCase {
 
+  func testStateEngineContextsIsolateGlobalsAndRecoverAfterAnException() throws {
+    let source = """
+    var AiWorldStateEngine = { create: function(session) {
+      var count = 0;
+      return { request: function(text) {
+        if (text === 'throw') throw new Error('Ólafur 雪 🐺');
+        return JSON.stringify({session: session, count: ++count, uuid: crypto.randomUUID()});
+      }};
+    }};
+    """
+    let first = try StateEngineVM(source: source, session: "first")
+    let second = try StateEngineVM(source: source, session: "second")
+    func count(_ engine: StateEngineVM) throws -> Int {
+      let data = try XCTUnwrap(try engine.request("next").data(using: .utf8))
+      let value = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+      XCTAssertNotNil(UUID(uuidString: try XCTUnwrap(value["uuid"] as? String)))
+      return try XCTUnwrap(value["count"] as? Int)
+    }
+    XCTAssertEqual(try count(first), 1)
+    XCTAssertEqual(try count(first), 2)
+    XCTAssertEqual(try count(second), 1)
+    XCTAssertThrowsError(try first.request("throw")) { error in
+      XCTAssertTrue(String(describing: error).contains("Ólafur 雪 🐺"))
+    }
+    XCTAssertEqual(try count(first), 3)
+    XCTAssertThrowsError(try StateEngineVM(source: "throw new Error('bad bundle')", session: "broken"))
+  }
+
   private func depth(_ projection: simd_float4x4, at z: Float) -> Float {
     let clip = projection * SIMD4<Float>(0, 0, z, 1)
     return clip.z / clip.w
