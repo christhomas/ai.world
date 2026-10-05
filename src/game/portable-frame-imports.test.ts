@@ -74,6 +74,16 @@ function inspect(entry: string, sources = new Map<string, string>()): string[] {
 }
 
 describe('portable frame runtime boundary', () => {
+  it('produces real creature and health-bar scene buffers without browser rig construction', () => {
+    const files = inspect('src/game/portable-entities.ts');
+    expect(files).toContain('src/render/entities.ts');
+    expect(files).toContain('src/render/healthbars.ts');
+    expect(files).toContain('src/entities/motion.ts');
+    expect(files).not.toContain('src/render/scene.ts');
+    expect(files).not.toContain('src/render/scenegraph.ts');
+    expect(files).not.toContain('src/render/entities-mount.ts');
+    expect(files).not.toContain('src/main.ts');
+  });
   it('keeps scene defaults and daylight free of browser and GPU adapter runtime imports', () => {
     const files = inspect('src/game/portable-scene.ts');
     expect(files).toContain('src/render/scene-state.ts');
