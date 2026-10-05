@@ -44,6 +44,8 @@ void main() {
     expect(_sizes(calls, 'create'), hasLength(1));
     expect(_sizes(calls, 'resize'), [[300, 160]]);
     expect(notifications, 1);
+    // Channel completion schedules setState; draw that frame before lookup.
+    await tester.pump();
     expect(tester.widget<Texture>(find.byType(Texture)).textureId, 7);
     await _remove(tester);
     expect(_disposed(calls), [7]);
