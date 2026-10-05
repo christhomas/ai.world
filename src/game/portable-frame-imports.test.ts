@@ -92,6 +92,15 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/render/scene.ts');
     expect(files).not.toContain('src/world/countryworker.ts');
   });
+  it('opens and owns production saves without browser storage or presentation imports', () => {
+    const files = inspect('src/game/portable-keeping.ts');
+    expect(files).toContain('src/game/keeping.ts');
+    expect(files).toContain('src/game/state.ts');
+    expect(files).toContain('src/save/owner.ts');
+    expect(files).not.toContain('src/save/indexeddb.ts');
+    expect(files).not.toContain('src/main.ts');
+    expect(files).not.toContain('src/platform/browser-lifecycle.ts');
+  });
   it('distinguishes local parameters from host globals without leaking bindings into siblings', () => {
     const entry = resolve('src/game/.portable-boundary-regression.ts');
     const source = (text: string) => new Map([[entry, text]]);
