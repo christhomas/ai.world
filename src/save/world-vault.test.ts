@@ -66,4 +66,26 @@ describe('asynchronous durable world vault', () => {
     await expect(first).rejects.toMatchObject({ errors: [error] });
     await expect(vault.flush()).resolves.toBeUndefined();
   });
+
+  it('explicitly retries failed clean simulation snapshots without another mutation', async () => {
+    let fail = true; const disk = new Map<string, string>(), writes: string[] = [];
+    const vault = await WorldVault.open({ load: async () => [], write: async (name, text) => {
+      writes.push(text); if (fail) throw new Error('quota'); disk.set(name, text);
+    } });
+    vault.write('room', 'latest'); await expect(vault.flush()).rejects.toThrow(AggregateError);
+    await expect(vault.retry()).rejects.toThrow(AggregateError);
+    fail = false; await vault.retry();
+    expect(disk.get('room')).toBe('latest'); expect(writes).toEqual(['latest', 'latest', 'latest']);
+    await vault.retry(); expect(writes).toHaveLength(3);
+  });
+
+  it('does not overwrite a newer accepted write while an explicit retry awaits an older failure', async () => {
+    const first = deferred<void>(), writes: string[] = [];
+    const vault = await WorldVault.open({ load: async () => [], write: async (_name, text) => {
+      writes.push(text); if (text === 'old') await first.promise;
+    } });
+    vault.write('room', 'old'); const retry = vault.retry();
+    vault.write('room', 'new'); first.reject(new Error('old failed')); await retry;
+    expect(writes).toEqual(['old', 'new']); expect(vault.read('room')).toBe('new');
+  });
 });

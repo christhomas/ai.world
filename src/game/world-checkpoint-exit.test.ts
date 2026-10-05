@@ -51,7 +51,7 @@ describe('session exit with a real durable authority', () => {
     } });
     const host = new LocalWorldHost({ vault,
       clock: { now: () => 0, yield: () => Promise.resolve(), after: () => () => {}, every: () => () => {} },
-      post() {}, closed() {}, flush: () => vault.flush(),
+      post() {}, closed() {}, flush: () => vault.retry(),
     }, { ground: false }, true);
     host.receive(JSON.stringify({ type: 'join', seed: 3, version: PROTOCOL_VERSION, name: 'Rowan', day: 2, time: 0.4 }));
     const leave = savedExit({ park() {}, resume: () => { resumed++; }, save: () => host.persist(),

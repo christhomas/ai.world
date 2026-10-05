@@ -87,6 +87,10 @@ export function workerLink(events: LinkEvents): Link {
   });
   worker.onmessage = (e: MessageEvent<Parcel>) => {
     if (retired || checkpoint.receive(e.data)) return;
+    if (e.data === 'world-storage-warning') {
+      events.onStorageFailure?.('Could not keep the world on this device. Your world remains open; retry saving when storage is available.');
+      return;
+    }
     if (e.data === 'world-storage-failed') {
       close();
       events.onClose('Could not keep the world on this device. Check available storage.');

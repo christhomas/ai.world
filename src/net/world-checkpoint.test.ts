@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkpointId, WorldCheckpoint, WORLD_FLUSH, WORLD_FLUSHED } from './world-checkpoint';
+import { checkpointId, WorldCheckpoint, WORLD_FLUSH, WORLD_FLUSHED, WORLD_FLUSH_FAILED } from './world-checkpoint';
 
 function harness() {
   const sent: string[] = [], timers: Array<{ call(): void; cancelled: boolean }> = [];
@@ -57,5 +57,14 @@ describe('durable world acknowledgement ownership', () => {
     }
     expect(checkpointId(WORLD_FLUSH + '17', WORLD_FLUSH)).toBe(17);
     expect(checkpointId(new ArrayBuffer(4), WORLD_FLUSH)).toBeNull();
+  });
+
+  it('reports a matched storage failure without retiring the connection or accepting stale failures', async () => {
+    const { owner, sent } = harness();
+    const first = owner.flush(), failed = expect(first).rejects.toThrow('World storage');
+    owner.receive(WORLD_FLUSH_FAILED + '1'); await failed;
+    const retry = owner.flush(); owner.receive(WORLD_FLUSH_FAILED + '1');
+    expect(sent).toEqual([WORLD_FLUSH + '1', WORLD_FLUSH + '2']);
+    owner.receive(WORLD_FLUSHED + '2'); await retry; owner.close();
   });
 });

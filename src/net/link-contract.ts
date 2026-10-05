@@ -15,4 +15,5 @@ export interface LinkEvents {
   onOpen: () => void;
   onMessage: (parcel: Parcel) => void;
   onClose: (why: string) => void;
+  onStorageFailure?: (why: string) => void;
 }

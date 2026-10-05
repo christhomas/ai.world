@@ -41,4 +41,16 @@ export class WorldVault implements Vault {
     const errors = results.flatMap(result => result.ok ? [] : [result.error]);
     if (errors.length) throw new AggregateError(errors, 'World storage did not keep every accepted write');
   }
+
+  /** Explicit save retry: the simulation may already have marked its memory snapshot clean. */
+  async retry(): Promise<void> {
+    const accepted = [...this.latest.entries()];
+    const results = await Promise.all(accepted.map(([, written]) => written));
+    for (let i = 0; i < accepted.length; i++) {
+      const [name, written] = accepted[i];
+      // A newer accepted write owns this key now; never replay an older failed operation over it.
+      if (!results[i].ok && this.latest.get(name) === written) this.write(name, this.kept.get(name)!);
+    }
+    await this.flush();
+  }
 }

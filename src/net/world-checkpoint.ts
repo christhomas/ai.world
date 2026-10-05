@@ -1,5 +1,6 @@
 export const WORLD_FLUSH = 'world-flush:';
 export const WORLD_FLUSHED = 'world-flushed:';
+export const WORLD_FLUSH_FAILED = 'world-flush-failed:';
 
 export function checkpointId(parcel: unknown, prefix: string): number | null {
   if (typeof parcel !== 'string' || !parcel.startsWith(prefix)) return null;
@@ -42,10 +43,14 @@ export class WorldCheckpoint {
   }
 
   receive(parcel: unknown): boolean {
-    if (typeof parcel !== 'string' || !parcel.startsWith(WORLD_FLUSHED)) return false;
-    const id = checkpointId(parcel, WORLD_FLUSHED), pending = this.pending;
+    if (typeof parcel !== 'string') return false;
+    const failed = parcel.startsWith(WORLD_FLUSH_FAILED);
+    if (!failed && !parcel.startsWith(WORLD_FLUSHED)) return false;
+    const id = checkpointId(parcel, failed ? WORLD_FLUSH_FAILED : WORLD_FLUSHED), pending = this.pending;
     if (pending && id === pending.id) {
-      this.pending = null; pending.cancel(); pending.resolve();
+      this.pending = null; pending.cancel();
+      if (failed) pending.reject(new Error('World storage did not keep the checkpoint'));
+      else pending.resolve();
     }
     return true;
   }

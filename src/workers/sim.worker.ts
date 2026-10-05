@@ -3,7 +3,7 @@ import { LocalWorldHost } from './local-world-host';
 import { BrowserVault } from '../net/browservault';
 import { Forgetful } from '../../server/vault';
 import { bootWorld } from './world-boot';
-import { checkpointId, WORLD_FLUSH, WORLD_FLUSHED } from '../net/world-checkpoint';
+import { checkpointId, WORLD_FLUSH, WORLD_FLUSHED, WORLD_FLUSH_FAILED } from '../net/world-checkpoint';
 
 /**
  * The world server, running in a thread beside the game.
@@ -31,9 +31,16 @@ import { checkpointId, WORLD_FLUSH, WORLD_FLUSHED } from '../net/world-checkpoin
 const boot = bootWorld(async () => {
   const capturing = self.name === 'shots-capture';
   const vault = capturing ? new Forgetful() : await BrowserVault.open();
+  let warned = false;
+  const warnStorage = (error: unknown) => {
+    if (warned) return;
+    warned = true;
+    console.warn('Could not keep the local world; retaining it for retry', error);
+    self.postMessage('world-storage-warning');
+  };
   const host = new LocalWorldHost({
     vault, clock: systemClock,
-    flush: async () => { if (!(vault instanceof Forgetful)) await vault.flush(); },
+    flush: async () => { if (!(vault instanceof Forgetful)) await vault.retry(); },
     // bytes are handed over rather than copied, which is what makes passing a chunk of country
     // between the world and the page next door cost nothing
     post: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
@@ -47,13 +54,15 @@ const boot = bootWorld(async () => {
     receive(parcel: unknown) {
       const checkpoint = checkpointId(parcel, WORLD_FLUSH);
       if (checkpoint !== null) {
-        void host.persist().then(() => self.postMessage(WORLD_FLUSHED + checkpoint), failStorage);
+        void host.persist().then(() => { warned = false; self.postMessage(WORLD_FLUSHED + checkpoint); }, error => {
+          warnStorage(error); self.postMessage(WORLD_FLUSH_FAILED + checkpoint);
+        });
         return;
       }
       host.receive(parcel);
       // Every simulation write already enters the ordered durable queue. A message boundary
       // observes failures, including the strict save done when the page parks the authority.
-      if (!(vault instanceof Forgetful)) void vault.flush().catch(failStorage);
+      if (!(vault instanceof Forgetful)) void vault.flush().then(() => { warned = false; }, warnStorage);
     },
     dispose: () => host.dispose(),
   };

@@ -15,6 +15,9 @@ The production `sim.worker` handles the request after queued startup messages, c
 `LocalWorldHost.persist()` to strictly stop/save the actual simulation, and awaits `WorldVault`'s
 ordered IndexedDB writes before replying. A memory update alone cannot acknowledge persistence.
 The portable host accepts an explicit asynchronous storage port; the browser supplies IndexedDB.
+Explicit retry resubmits failed latest snapshots, including room files the simulation has already
+marked clean in memory. Recoverable write failures keep the live authority owned and send a matched
+failure reply; they do not terminate it and discard unsaved state. Initial load failures remain fatal.
 
 GitHub runs the original world-vault proof and an additional proof through the actual `workerLink`
 and compiled `sim.worker`: join, change a world delta, await acknowledgement, terminate the worker,

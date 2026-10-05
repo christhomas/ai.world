@@ -12,7 +12,7 @@ class HostWorker {
 
 function open() {
   vi.stubGlobal('Worker', HostWorker); vi.stubGlobal('window', {});
-  const events = { onOpen: vi.fn(), onClose: vi.fn(), onMessage: vi.fn() };
+  const events = { onOpen: vi.fn(), onClose: vi.fn(), onMessage: vi.fn(), onStorageFailure: vi.fn() };
   const link = workerLink(events);
   return { link, events, worker: HostWorker.last };
 }
@@ -44,5 +44,16 @@ describe('browser world checkpoint delivery', () => {
       worker.onmessage?.({ data: 'world-flushed:1' }); expect(events.onMessage).not.toHaveBeenCalled();
       link.close();
     }
+  });
+
+  it('keeps the authority owned after a recoverable storage warning and checkpoint failure', async () => {
+    const { link, events, worker } = open(); await Promise.resolve();
+    const waiting = link.flush!(), failed = expect(waiting).rejects.toThrow('World storage');
+    worker.onmessage?.({ data: 'world-storage-warning' });
+    worker.onmessage?.({ data: 'world-flush-failed:1' }); await failed;
+    expect(link.ready).toBe(true); expect(worker.terminate).not.toHaveBeenCalled();
+    expect(events.onClose).not.toHaveBeenCalled(); expect(events.onStorageFailure).toHaveBeenCalledTimes(1);
+    expect(events.onMessage).not.toHaveBeenCalled();
+    const retry = link.flush!(); worker.onmessage?.({ data: 'world-flushed:2' }); await retry; link.close();
   });
 });

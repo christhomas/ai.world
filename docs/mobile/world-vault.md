@@ -12,7 +12,8 @@ WorldVault preserves the simulation's synchronous read/write contract through a 
 Its host storage port supplies asynchronous load/write operations, suitable for browser or native
 adapters. Durable writes run in acceptance order. Flush acknowledges only accepted operations and
 retains a failed key until a later write to that key succeeds. Load/schema failures refuse to open
-a new empty authority. Observed browser write failures close the local link with a storage message.
+a new empty authority. Observed browser write failures warn while keeping the live authority for
+explicit retry. A failed initial load closes the link because no valid authority can be opened.
 
 GitHub regressions cover preload, ordered delayed writes, failure/retry and flush boundaries,
 bounded startup queues and retired authorities. A hosted Chromium proof opens the actual simulation
