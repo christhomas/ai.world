@@ -11,10 +11,11 @@ const bare = {};
 runInNewContext(await readFile('mobile-frame-proof-out/keeping.js', 'utf8'), bare, { timeout: 15000 });
 const transcript = await runInNewContext('PortableKeeping.keepingWorkload()', bare, { timeout: 15000 });
 const result = JSON.parse(transcript);
-assert.equal(result.saved.player.x, 18); assert.equal(result.saved.state.savedAt, 2000);
+assert.equal(result.saved.player.x, 18); assert.equal(result.saved.player.z, -8);
+assert.equal(result.saved.state.savedAt, 2000);
 assert.equal(result.continued.savedAt, 2000 + 3 * 86400000);
 assert.equal(result.continued.playerId, result.saved.state.playerId);
 await writeFile('mobile-frame-proof-out/keeping-proof.json', JSON.stringify({
   sourceSha: process.env.KEEPING_SOURCE_SHA, current: result,
 }, null, 2) + '\n');
-console.log('Actual production save assembly continued inventory, identity, position and time in a bare host.');
+console.log('Actual production save assembly saved coordinates and continued inventory, identity and time in a bare host.');

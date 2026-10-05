@@ -20,8 +20,9 @@ of the session.
 
 GitHub regressions cover immutable snapshots, slow ordering, rejection/retry, strict quota errors,
 retired writes and delayed exit. A bare-host proof and JSC/QuickJS workloads pack and continue the
-real production inventory, equipment, identity, position and clock. This memory-store workload does
-not prove physical disk durability or a full game. Existing Flutter checkpoint tests exercise its
+real production inventory, equipment, identity and clock. They separately verify that player
+coordinates are saved; they do not exercise position restoration before `Player` construction.
+This memory-store workload does not prove physical disk durability or a full game. Existing Flutter checkpoint tests exercise its
 separate file adapter.
 
 World-authority persistence, native adapter composition, interruption handling and full installed
