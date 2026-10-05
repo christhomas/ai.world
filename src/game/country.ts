@@ -1,25 +1,16 @@
-import { WORLD } from '../core/config';
 import { DayCycle } from '../render/daycycle';
 import { MountainMaterial } from '../render/mountains';
 import { countryRenderers } from '../render/country-mount';
 import type { PropLibrary } from '../render/props';
 import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
-import { aroundOf, aroundPatches } from '../world/around';
-import { Manifest } from '../world/manifest';
-import { rangesAsMassifs } from '../world/ranges';
-import { viewOf } from '../world/patchview';
-import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import type { GrownPatch } from '../world/endless';
-import { PatchCountry } from '../world/patchcountry';
-import { RoadCountry, type Country, type WorldKind } from '../world/countries';
-import { elevationFor, growWorld, islandsFor, stampFor, terrainFor } from '../world/growworld';
+import type { WorldKind } from '../world/countries';
 import { growerFor } from '../world/countryworker';
-import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
 import { HighCountry } from './highcountry';
 import { Skyline } from '../render/skyline';
-import { anchoredHighlands } from '../world/anchoredhighlands';
+import { growCountryState } from './country-state';
 
 /**
  * The ground this game is played on, and everything standing on it that was settled before
@@ -79,98 +70,12 @@ export type { GrownPatch };
 export function growCountry(ctx: Growing) {
   const { seed, world, savedManifest, home, rig, props, seasonTintMaterials } = ctx;
 
-  // chosen when the world was made and written into its save, so it never changes underneath one
-  const manifest = new Manifest(seed, savedManifest);
-  /*
-   * The islands this world has, which is the one thing about a country the seed does not settle.
-   *
-   * The manifest has the last word, and that is the reason they are worked out here and handed in:
-   * a world saved before the islands were planned from the seed may have them somewhere else, and
-   * moving them would move the ground out from under a house that was built on one. They go up the
-   * wire with the join for the same reason — see `growPatch`.
-   */
-  /*
-   * A country with no edge, when that is the kind of world this is.
-   *
-   * It is grown round the origin because that is where a fresh hero stands; when a save says
-   * otherwise the first `moveTo` of the frame puts it where he actually is, which costs one patch
-   * grown and thrown away and is not worth a special case to avoid.
-   */
-  /*
-   * What this world was authored with, before a square of it is grown.
-   *
-   * Read from the manifest for the reason the islands are: it is a thing about this world that the
-   * seed does not settle, it is written down once, and moving it afterwards would move the ground
-   * out from under everything standing on it. Empty for every world saved to this day, which is
-   * exactly the answer those worlds want — see `elevationFor`, and #322 for what fills it.
-   */
-  const layers = elevationFor(manifest);
-  const terrain = terrainFor(manifest);
-  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0, undefined, layers, home, terrain) : null;
-  /*
-   * And somebody else to grow the rest of it.
-   *
-   * A patch is five seconds on this thread and a tenth of a second to put back together from its
-   * parts, so the worker grows and the page rebuilds. It is an optimisation and never a guarantee:
-   * the square the hero is standing in has to exist now, and if the worker has not got to it he
-   * gets the five seconds rather than a hole in the world. Everything about the arrangement is
-   * aimed at making that rare — ask for the neighbours while there is still ground underfoot.
-   */
+  // Shared production boot: the manifest, terrain and live patch view have no browser mounts.
+  const state = growCountryState({ seed, world, savedManifest, home });
+  const { manifest, country, endless, view, around } = state;
+  const sampler = state.sampler;
+  // The browser owns background growth; an installed host supplies its own scheduling separately.
   const grower = endless ? growerFor(seed, endless) : null;
-  /*
-   * And the country itself, through the one call there is. Not "the same call the world makes" —
-   * literally the one call, which is the difference between two halves that agree and two halves
-   * that cannot disagree. `src/world/growworld.ts` says why that distinction cost this project two
-   * unplayable worlds.
-   */
-  /*
-   * A view rather than a reading, so that walking into the next patch does not leave anybody
-   * holding the last one. `sampler`, `graph`, `structures` and `highPlaces` below are this view's
-   * properties and are answered fresh every time they are asked — see `patchview.ts` for why that
-   * is a smaller thing to get right than a list of consumers to refresh on a crossing.
-   *
-   * `sampler` is still read once here for the things that are handed a sampler at boot and told
-   * about a crossing separately: the mountains, the chunk painter, the skyline and the high
-   * country all have a `standOn`/`show` of their own that `frame.ts` calls.
-   */
-  /*
-   * The country, whichever kind of country it is. `countries.ts` is the door: both kinds answer
-   * the same four questions, and everything below this line asks them rather than asking which
-   * kind it got.
-   */
-  const country: Country = endless ?? new RoadCountry(
-    seed, new TerrainSampler(growWorld(seed, islandsFor(manifest, seed))),
-  );
-  const view = viewOf(country);
-  const sampler = country.sampler;
-  const graph = sampler.graph;
-  /**
-   * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the
-   * polygon world's ranges described in the same terms. Everything that stands something on a
-   * mountain — the eagles, the villages in the clouds, the goats — reads this rather than either.
-   */
-  const highPlaces = [
-    ...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs),
-    ...anchoredHighlands(manifest, sampler.within),
-  ];
-  const structures = sampler.structures;
-  /*
-   * What is near wherever anybody is standing, which is what the game has always meant by asking
-   * for "the structures".
-   *
-   * This is the one place in the game the two kinds of country part company on that question, and
-   * it is the right place: the fork between bounded and endless already lives on this page. A
-   * bounded world holds every village it will ever have in one list, so the answer is a filter. An
-   * endless one has villages in whichever squares somebody has walked into, so the answer is to ask
-   * those squares — and never to grow one, because a question about your surroundings that cost a
-   * second of country would stutter the frame it was asked in.
-   *
-   * Everything above this line goes on holding `structures` as well, and should: a signpost naming
-   * the towns of the patch it stands in is a different question from what is near the hero, and so
-   * is a console that lists every village in the world on purpose. `world/around.ts` is only for the
-   * ones that meant "near me" all along.
-   */
-  const around = country.store ? aroundPatches(country.store) : aroundOf(sampler.structures);
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
   const visuals = countryRenderers(rig, props, daycycle);
@@ -229,7 +134,7 @@ export function growCountry(ctx: Growing) {
      * handed a patch's graph it would compare the square the hero is standing in against the
      * square the server grew first and report a disagreement that is not one.
      */
-    stamp: stampFor(world, seed, graph, layers, terrain),
+    stamp: state.stamp,
     /*
      * Live, not read once. Anything that keeps one of these past the frame it asked in keeps it
      * across a patch crossing too, which is the fault `patchview.ts` exists to have ended.

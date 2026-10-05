@@ -83,6 +83,15 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/render/daycycle.ts');
     expect(files).not.toContain('src/render/water.ts');
   });
+  it('boots production country state without browser mounts, worker constructors or storage', () => {
+    const files = inspect('src/game/portable-country.ts');
+    expect(files).toContain('src/game/country-state.ts');
+    expect(files).toContain('src/world/patchcountry.ts');
+    expect(files).toContain('src/world/growworld.ts');
+    expect(files).not.toContain('src/game/country.ts');
+    expect(files).not.toContain('src/render/scene.ts');
+    expect(files).not.toContain('src/world/countryworker.ts');
+  });
   it('distinguishes local parameters from host globals without leaking bindings into siblings', () => {
     const entry = resolve('src/game/.portable-boundary-regression.ts');
     const source = (text: string) => new Map([[entry, text]]);
