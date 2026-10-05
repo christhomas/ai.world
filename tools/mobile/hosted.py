@@ -45,6 +45,7 @@ def validate_android_ui(xml):
 
 
 def prepare(platform):
+    command(['node', 'tools/mobile/build-engine.mjs'])
     fixture = APP / 'test/fixtures/interior_frame.json'
     save(platform=platform, source_sha=output(['git', 'rev-parse', 'HEAD']),
          status='provisioning', gameplay='pending', seed=3,
@@ -52,6 +53,7 @@ def prepare(platform):
          requested_render_time_ms=1000,
          scenarios=['recorded-interior-native-renderer'],
          configuration={'flutter': '3.47.1', 'android_api': 35, 'ios': '18.5',
+                        'state_engine': 'QuickJS 2026-06-04' if platform == 'android' else 'JavaScriptCore',
                         'xcode': '16.4', 'backend': 'GLES3 / SwiftShader' if platform == 'android' else 'Metal simulator'},
          assertions=[], retries=0)
     # Generate only inside the disposable hosted checkout; no bundled fixture or app edits land.
@@ -129,6 +131,11 @@ def capture(platform):
             if 'HOSTED_NATIVE_FAILED' in text:
                 raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
             if 'HOSTED_NATIVE_READY' in text:
+                if f'HOSTED_STATE_ENGINE_READY platform={platform}' not in text:
+                    raise RuntimeError('Installed state engine proof did not complete on ' + platform)
+                state = json.loads(STATE.read_text())
+                save(assertions=state['assertions'] + [{'name': f'installed-{platform}-hero-state-vm',
+                     'passed': True, 'cycles': 3, 'scope': 'hero-state-only'}])
                 break
             time.sleep(1)
         else:
