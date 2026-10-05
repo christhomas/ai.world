@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const directory = mkdtempSync(join(tmpdir(), 'spike-comparison-'));
-const reference = { sourceHash: 'abcdef00', contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: '123', geometryHash: '456', worldHash: '789', sceneHash: 'scene', chunkHash: 'terrain', peerHash: 'abc', playerHash: 'player', movedSteps: 1, blockedSteps: 1999, meshBytes: 1024, microtasks: 1, utf8: 'Ólafur 雪 🐺', goldenHex: 'golden', invalidBufferRejected: true };
+const reference = { sourceHash: 'abcdef00', contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: '123', geometryHash: '456', worldHash: '789', sceneHash: 'scene', chunkHash: 'terrain', peerHash: 'abc', playerHash: 'player', keepingHash: 'keeping', movedSteps: 1, blockedSteps: 1999, meshBytes: 1024, microtasks: 1, utf8: 'Ólafur 雪 🐺', goldenHex: 'golden', invalidBufferRejected: true };
 const a = join(directory, 'reference.json'), b = join(directory, 'candidate.json');
 writeFileSync(a, JSON.stringify(reference));
 function compare(candidate) { writeFileSync(b, JSON.stringify(candidate)); return spawnSync(process.execPath, ['tools/mobile-runtime-spike/compare.mjs', a, b]); }

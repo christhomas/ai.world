@@ -81,7 +81,7 @@ import { familyOfDoor } from './world/homes';
 import { growCountry, type GrownPatch } from './game/country';
 import { whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
-import { openTheSave } from './game/keeping';
+import { openTheSave, savedExit } from './game/keeping';
 import { GameState } from './game/state';
 import { Manifest } from './world/manifest';
 import { answerDueHighlands, prayersAnsweredHere } from './game/prayers';
@@ -232,7 +232,7 @@ export function startGame(
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist, persistStrict,
+    plots, houses, sailing, mount, persist, persistStrict, saves,
   } = openTheSave({
     store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
@@ -412,12 +412,16 @@ export function startGame(
     release: () => shutDownGame({
       stop: () => loop.stop(), controls: [input, touch],
       disconnect: () => online.disconnect(), clear: () => others.clear(),
-      resources: [sound, places, ...(grower ? [grower] : []), chunks, entityRenderer, heroGear, beam, weather, watch,
+      resources: [saves, sound, places, ...(grower ? [grower] : []), chunks, entityRenderer, heroGear, beam, weather, watch,
         skyRenderer, packField, cropField, buildingSite, props, daycycle, rig],
     }),
   });
 
-  const toTitle = () => returnToTitle(persist, () => session.dispose());
+  const leaveToTitle = savedExit({ park: () => session.setActive(false),
+    resume: () => session.setActive(!document.hidden), save: persistStrict,
+    release: () => session.dispose(), depart: () => returnToTitle(() => {}, () => {}) });
+  const toTitle = () => { void leaveToTitle().catch(() => hud.flash(session.isDisposed
+    ? 'Your game was saved, but cleanup failed.' : 'Could not save. Your game remains open; retry when storage is available.')); };
 
   // the panels, and the noises they make
   hud.setVolume(sound.volume);
