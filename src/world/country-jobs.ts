@@ -22,12 +22,17 @@ export function createCountryGrower(seed: number, patches: Patchwork, job: Count
   };
   const grower = new Grower(seed, patches, (request) => {
     try { job.send(request); }
-    catch { grower.dispose(); } // Growth is optional; Patchwork still grows the square underfoot.
+    catch { retireBackground(); } // Growth is optional; Patchwork still grows the square underfoot.
   }, undefined, release);
+  const reportCleanup = (cleanup: () => void) => {
+    try { cleanup(); }
+    catch (error) { console.warn('Could not release failed background country growth', error); }
+  };
+  const retireBackground = () => reportCleanup(() => grower.dispose());
   try {
-    const unlisten = job.listen((message) => grower.took(message), () => grower.dispose());
+    const unlisten = job.listen((message) => grower.took(message), retireBackground);
     // A host may report its failure synchronously while installing the listener.
-    if (released) unlisten();
+    if (released) reportCleanup(unlisten);
     else detach = unlisten;
   } catch (error) {
     try { grower.dispose(); }

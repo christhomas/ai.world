@@ -10,6 +10,8 @@ the job; duplicate or out-of-order replies cannot advance its single active requ
 A failed transport retires background growth. Patchwork retains its existing synchronous fallback
 for the square underfoot, so a failed optimization does not remove ground. Cleanup attempts both
 listener removal and job termination even when either throws.
+Optional-background failure callbacks report cleanup errors without throwing into the frame's
+underfoot fallback. Explicit session disposal still reports aggregate cleanup failures.
 
 GitHub exercises real generated patch parts, ownership failure paths, and a bundled bare-host
 rebuild. These checks prove the shared job boundary and browser cleanup. They do not prove an

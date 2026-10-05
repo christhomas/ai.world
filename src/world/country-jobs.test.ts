@@ -79,6 +79,47 @@ describe('owned country growth jobs', () => {
     expect(() => h.grower.dispose()).not.toThrow();
   });
 
+  it('contains background cleanup failures so actual underfoot country can still grow', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const failure of ['send', 'listener']) {
+        const patches = new Patchwork(11);
+        let failed = () => {};
+        const detach = vi.fn(() => { throw new Error('Detach failed'); });
+        const stop = vi.fn(() => { throw new Error('Stop failed'); });
+        const grower = createCountryGrower(11, patches, {
+          send: () => { if (failure === 'send') throw new Error('Send failed'); },
+          listen: (_reply, callback) => { failed = callback; return detach; }, stop,
+        });
+        expect(() => grower.want('0,0')).not.toThrow();
+        if (failure === 'listener') expect(() => failed()).not.toThrow();
+        expect(grower.waiting).toEqual([]);
+        const country = patches.patch('0,0'), sample = country.newSample();
+        expect(() => country.sampleTile(0, 0, sample)).not.toThrow();
+        expect(Number.isFinite(sample.height)).toBe(true);
+        expect(detach).toHaveBeenCalledTimes(1); expect(stop).toHaveBeenCalledTimes(1);
+        expect(() => grower.dispose()).not.toThrow();
+      }
+      expect(warning).toHaveBeenCalledTimes(2);
+      expect(warning.mock.calls[0][1]).toBeInstanceOf(AggregateError);
+    } finally { warning.mockRestore(); }
+  }, 30000);
+
+  it('contains cleanup failures reported synchronously during listener installation', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const detach = vi.fn(() => { throw new Error('Detach failed'); });
+      const stop = vi.fn(() => { throw new Error('Stop failed'); });
+      const grower = createCountryGrower(11, new Patchwork(11), {
+        send() {}, listen: (_reply, failed) => { failed(); return detach; }, stop,
+      });
+      expect(() => grower.want('0,0')).not.toThrow(); expect(grower.waiting).toEqual([]);
+      expect(detach).toHaveBeenCalledTimes(1); expect(stop).toHaveBeenCalledTimes(1);
+      expect(warning).toHaveBeenCalledTimes(2);
+      expect(() => grower.dispose()).not.toThrow();
+    } finally { warning.mockRestore(); }
+  });
+
   it('handles failure reported synchronously while subscribing', () => {
     const stop = vi.fn(), detach = vi.fn();
     const grower = createCountryGrower(11, new Patchwork(11), {
