@@ -102,7 +102,7 @@ export class Player {
    */
   static readonly PROGRESS = 0.05;
 
-  constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
+  constructor(private world: TileWorld, renderer: Pick<EntityRenderer, 'add'>, x: number, z: number) {
     this.entity = newHero(x, z);
     renderer.add(this.entity);
   }

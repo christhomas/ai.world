@@ -48,10 +48,9 @@ import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
 import { EntityManager } from './entities/manager';
-import { Player } from './entities/player';
+import { openPlayer } from './game/player-opening';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
-import { whereAWorldOpens } from './world/opening';
 import { walksIn } from './game/arriving';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
@@ -284,21 +283,14 @@ export function startGame(
 
   // where the hero stands when the world opens: where he was left, where a link says, or — in a
   // world nobody has ever stood in — the village `world/opening.ts` picks out of it. #394
-  const opening = saved?.player ? null : whereAWorldOpens(structures.villages);
-  let startX = opening?.x ?? 0, startZ = opening?.z ?? 0;
-  if (saved) {
-    iso.rotation = saved.cam.rot;
-    iso.restoreZoom(saved.cam.zoom);
-    if (saved.player) { startX = saved.player.x; startZ = saved.player.z; }
-  }
   const px = url.searchParams.get('x'), pz = url.searchParams.get('z');
-  if (px !== null && pz !== null) { startX = Number(px) || 0; startZ = Number(pz) || 0; }
-  const player = new Player(chunks, entityRenderer, startX, startZ);
+  const player = openPlayer({ world: chunks, renderer: entityRenderer, camera: iso,
+    villages: structures.villages, saved,
+    at: px !== null && pz !== null ? { x: Number(px) || 0, z: Number(pz) || 0 } : undefined,
+    freeCamera: url.searchParams.get('cam') === 'free' });
   // whoever else is standing about, so the hero cannot walk through a cow or a shopkeeper. Set
   // after the fact because the crowd and the hero each need the other to exist first.
   player.crowd = entities;
-  iso.target.set(startX, 0, startZ);
-  if (url.searchParams.get('cam') === 'free') player.mode = 'free';
   const places = new Places({
     seed, manifest, state, props, rig, iso, player,
     overworld: chunks, overworldRenderer: entityRenderer, heroGear,

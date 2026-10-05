@@ -100,6 +100,15 @@ describe('portable frame runtime boundary', () => {
     expect(() => inspect(entry, source('function browser() { return globalThis.window.innerWidth; }'))).toThrow('Host global window');
     expect(() => inspect(entry, source('function node() { return process.env; }'))).toThrow('Host global process');
   });
+  it('constructs the production Player without browser renderer or URL imports', () => {
+    const files = inspect('src/game/portable-player.ts');
+    expect(files).toContain('src/entities/player.ts');
+    expect(files).toContain('src/game/player-opening.ts');
+    expect(files).toContain('src/world/opening.ts');
+    expect(files).not.toContain('src/render/entities.ts');
+    expect(files).not.toContain('src/render/scene.ts');
+    expect(files).not.toContain('src/main.ts');
+  });
   it('keeps the shared offline authority free of browser and Node runtime imports', () => {
     const files = inspect('src/game/portable-world.ts');
     expect(files).toContain('server/sim.ts');
