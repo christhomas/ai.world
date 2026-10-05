@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.11 — 2026-10-05
+
+Portable countries, scenes, terrain jobs, world transports, Player opening and native viewport lifetime
+
 ## v0.103.10 — 2026-10-04
 
 Portable game session ownership and host-driven gameplay

@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.11 — 2026-10-05
+
+Portable countries, scenes, terrain jobs, world transports, Player opening and native viewport lifetime
+
 ### v0.103.10 — 2026-10-04
 
 Portable game session ownership and host-driven gameplay
@@ -626,10 +630,6 @@ holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle
 ### v0.103.2 — 2026-09-30
 
 world creation never freezes the server, the season reaches the Dart renderer, and the tools cookie is Secure
-
-### v0.103.1 — 2026-09-29
-
-autumn light, wild-camp tents and amber night windows are back, and the game can be played with nothing drawn
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
