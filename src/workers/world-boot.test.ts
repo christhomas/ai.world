@@ -9,8 +9,8 @@ function deferred<T>() {
 
 describe('world startup ownership', () => {
   it('delivers join, pause and later messages in order only after storage opens', async () => {
-    const opening = deferred<{ receive: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }>();
     const host = { receive: vi.fn(), dispose: vi.fn() }, failed = vi.fn();
+    const opening = deferred<typeof host>();
     const boot = bootWorld(() => opening.promise, failed);
     boot.receive('join'); boot.receive('pause'); expect(host.receive).not.toHaveBeenCalled();
     opening.resolve(host); await boot.ready; boot.receive('resume');
