@@ -11,6 +11,7 @@ import { RequestGate } from '../../shared/mobile/host-contract';
 import { encodeScalars, decodeScalars } from '../../shared/mobile/binary';
 import { worldWorkload } from './world-workload';
 import { sceneWorkload } from './scene-workload';
+import { chunkWorkload } from './chunk-workload';
 
 declare const host: { now(): number; uuid(): string; echo(bytes: ArrayBuffer): ArrayBuffer; report(text: string): void };
 const root = globalThis as typeof globalThis & { crypto: { randomUUID(): `${string}-${string}-${string}-${string}-${string}` } };
@@ -30,6 +31,7 @@ function chunk(): ChunkData {
 }
 export async function run(): Promise<Record<string, unknown>> {
   const started = host.now();
+  const chunkHash = chunkWorkload(chunk(), hash);
   insist(typeof window === 'undefined' && typeof document === 'undefined', 'browser globals forbidden');
   const bridge = encodeScalars([1 / 3, Number.MAX_SAFE_INTEGER, 1e-200]);
   const bridgeStart = host.now(); const echoed = host.echo(bridge);
@@ -86,5 +88,5 @@ export async function run(): Promise<Record<string, unknown>> {
   stepTimes.sort((a, b) => a - b);
   const worldHash = hash(worldWorkload());
   const sceneHash = sceneWorkload(hash);
-  return { contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: cycleHashes[0], geometryHash, worldHash, sceneHash, movedSteps, blockedSteps, meshBytes, microtasks, utf8: 'Ólafur 雪 🐺', goldenHex, invalidBufferRejected, bridgeMs, stepP95Ms: stepTimes[Math.floor(stepTimes.length * 0.95)], totalMs: host.now() - started };
+  return { contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: cycleHashes[0], geometryHash, worldHash, sceneHash, chunkHash, movedSteps, blockedSteps, meshBytes, microtasks, utf8: 'Ólafur 雪 🐺', goldenHex, invalidBufferRejected, bridgeMs, stepP95Ms: stepTimes[Math.floor(stepTimes.length * 0.95)], totalMs: host.now() - started };
 }

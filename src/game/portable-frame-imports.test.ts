@@ -100,6 +100,14 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/net/link.ts');
     expect(files).not.toContain('src/net/browservault.ts');
   });
+  it('keeps production terrain jobs free of host runtime globals', () => {
+    const files = inspect('src/game/portable-chunks.ts');
+    expect(files).toContain('src/workers/chunkmesher.ts');
+    expect(files).toContain('src/world/mesher.ts');
+    expect(files).toContain('src/world/endless.ts');
+    expect(files).not.toContain('src/workers/chunkgen.worker.ts');
+    expect(files).not.toContain('src/render/chunkworkers.ts');
+  });
   it('keeps browser, Node, workers, networking and GPU adapters out of runtime imports', () => {
     const files = inspect('src/game/portable-frame.ts');
     expect(files).toContain('src/game/frame.ts');
