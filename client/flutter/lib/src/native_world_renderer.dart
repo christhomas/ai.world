@@ -165,18 +165,24 @@ final class NativeWorldView extends StatefulWidget {
 
 final class _NativeWorldViewState extends State<NativeWorldView> {
   NativeWorldRenderer? _renderer;
-  Size _logicalSize = Size.zero;
+  int? _targetWidth, _targetHeight;
   int? _width, _height;
+  bool _sizing = false;
+  bool _retired = false;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final size = constraints.biggest;
-      if (size.isFinite && size != _logicalSize) {
-        _logicalSize = size;
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _sizeRenderer(context),
-        );
+      final ratio = MediaQuery.devicePixelRatioOf(context);
+      if (size.isFinite && !size.isEmpty) {
+        final width = (size.width * ratio).round().clamp(1, 4096);
+        final height = (size.height * ratio).round().clamp(1, 4096);
+        if (width != _targetWidth || height != _targetHeight) {
+          _targetWidth = width;
+          _targetHeight = height;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _sizeRenderer());
+        }
       }
       final renderer = _renderer;
       return renderer == null
@@ -188,34 +194,60 @@ final class _NativeWorldViewState extends State<NativeWorldView> {
     },
   );
 
-  Future<void> _sizeRenderer(BuildContext context) async {
-    if (!mounted || _logicalSize.isEmpty) return;
-    final ratio = MediaQuery.devicePixelRatioOf(context);
-    final width = (_logicalSize.width * ratio).round().clamp(1, 4096);
-    final height = (_logicalSize.height * ratio).round().clamp(1, 4096);
-    if (width == _width && height == _height) return;
-    _width = width;
-    _height = height;
-    if (_renderer == null) {
-      final renderer = await NativeWorldRenderer.create(
-        width: width,
-        height: height,
-      );
-      if (!mounted) {
-        await renderer.dispose();
-        return;
+  Future<void> _sizeRenderer() async {
+    if (!mounted || _retired || _sizing) return;
+    _sizing = true;
+    try {
+      while (mounted && !_retired) {
+        final width = _targetWidth;
+        final height = _targetHeight;
+        if (width == null || height == null ||
+            (width == _width && height == _height)) {
+          return;
+        }
+        final current = _renderer;
+        if (current == null) {
+          final renderer = await NativeWorldRenderer.create(
+            width: width,
+            height: height,
+          );
+          if (!mounted || _retired) {
+            await renderer.dispose();
+            return;
+          }
+          _renderer = renderer;
+          _width = width;
+          _height = height;
+          setState(() {});
+          await widget.onCreated(renderer);
+        } else {
+          await current.resize(width, height);
+          _width = width;
+          _height = height;
+        }
+        // Layout changes during either await update the target. Only this owner
+        // creates/resizes, and it applies the latest target on its next turn.
       }
-      _renderer = renderer;
-      setState(() {});
-      await widget.onCreated(renderer);
-    } else {
-      await _renderer!.resize(width, height);
+    } catch (error, stack) {
+      if (mounted && !_retired) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'native world renderer',
+          context: ErrorDescription('while sizing the native world texture'),
+        ));
+      }
+    } finally {
+      _sizing = false;
     }
   }
 
   @override
   void dispose() {
-    _renderer?.dispose();
+    _retired = true;
+    final renderer = _renderer;
+    _renderer = null;
+    if (renderer != null) unawaited(renderer.dispose());
     super.dispose();
   }
 }
