@@ -6,7 +6,7 @@ export function playerOpeningWorkload(): string {
   const saved = { cam: { x: 200, z: 300, rot: 0.4, zoom: 20 }, player: { x: 18, z: -8 } };
   const camera = new IsoCamera(() => ({ width: 1600, height: 900 }));
   let mounted = 0;
-  const player = openPlayer({ world: ground, renderer: { add: () => { mounted++; } },
+  const player = openPlayer({ world: ground, renderer: { add: () => { mounted++; return true; } },
     camera, villages: [], saved: JSON.parse(JSON.stringify(saved)) });
   if (Number(mounted) !== 1 || player.x !== 18 || player.z !== -8 || camera.target.x !== 18 ||
       camera.target.z !== -8 || camera.rotation !== 0.4 || camera.zoom !== 20) throw new Error('Saved player opening diverged');
@@ -15,7 +15,7 @@ export function playerOpeningWorkload(): string {
   if (Math.hypot(player.x - 18, player.z + 8) < 1) throw new Error('Restored production Player did not walk');
   const position = { x: player.x, z: player.z };
   const restoredCamera = new IsoCamera(() => ({ width: 1600, height: 900 }));
-  const restored = openPlayer({ world: ground, renderer: { add: () => { mounted++; } }, camera: restoredCamera,
+  const restored = openPlayer({ world: ground, renderer: { add: () => { mounted++; return true; } }, camera: restoredCamera,
     villages: [], saved: JSON.parse(JSON.stringify({ cam: saved.cam, player: position })) });
   if (restored.x !== position.x || restored.z !== position.z || restoredCamera.target.x !== position.x ||
       restoredCamera.target.z !== position.z || Number(mounted) !== 2) throw new Error('Reopened Player lost walked coordinates');

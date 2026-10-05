@@ -15,7 +15,7 @@ function open(villages: readonly Village[], extra: Partial<PlayerOpening> = {}) 
   camera.target.set(400, 10, 500);
   const added: Entity[] = [];
   const world = { heightAt: () => 0.5, waterAt: () => null, blocked: () => false, isRoad: () => true };
-  const player = openPlayer({ world, renderer: { add: entity => { added.push(entity); } }, camera, villages, ...extra });
+  const player = openPlayer({ world, renderer: { add: entity => { added.push(entity); return true; } }, camera, villages, ...extra });
   return { player, camera, added };
 }
 
