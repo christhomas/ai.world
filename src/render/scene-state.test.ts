@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { SceneState } from './scene-state';
 import { Daylight } from './daylight';
 import { DayCycle } from './daycycle';
-import type { SceneRig } from './scene';
 import { ThreeGraphBridge } from './scenegraph';
 import { IsoCamera } from './camera';
 import { Season, seasonTint } from '../game/seasons';
@@ -62,7 +61,7 @@ describe('production scene state without a browser or GPU', () => {
   it('uses host time for shadow refresh and retains unclamped autumn light', () => {
     const test = lit();
     expect(test.daylight.apply(test.input)).toBe(0);
-    expect((test.state.lighting.sun.colour as number[])[0]).toBeGreaterThan(1);
+    expect((test.state.lighting.sun.colour as readonly number[])[0]).toBeGreaterThan(1);
     expect(test.shadow).toHaveBeenCalledTimes(1);
     test.time(99); test.daylight.apply(test.input);
     expect(test.shadow).toHaveBeenCalledTimes(1);
@@ -74,7 +73,7 @@ describe('production scene state without a browser or GPU', () => {
 
   it('shares exact linear window color with the browser material adapter across seasons and weather', () => {
     const pure = lit(), browser = lit();
-    const cycle = new DayCycle(browser.rig as SceneRig, () => 0);
+    const cycle = new DayCycle(browser.rig, () => 0);
     for (const season of [Season.Spring, Season.Summer, Season.Autumn, Season.Winter]) {
       for (const time of [0, 0.25, 0.4, 0.5, 0.73, 0.95]) for (const wet of [0, 1]) {
         const input = { ...pure.input, season: seasonTint(season), time, wet, flame: { x: 2, y: 3, z: 4 } };
@@ -88,7 +87,7 @@ describe('production scene state without a browser or GPU', () => {
   });
 
   it('releases the browser glow material once and fences its retired callbacks', () => {
-    const test = lit(), cycle = new DayCycle(test.rig as SceneRig, () => 0);
+    const test = lit(), cycle = new DayCycle(test.rig, () => 0);
     const release = vi.fn(); cycle.glowMaterial.addEventListener('dispose', release);
     cycle.apply(test.input);
     const before = cycle.glowMaterial.color.toArray();

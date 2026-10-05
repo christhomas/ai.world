@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import type { SceneRig } from './scene';
-import { Daylight, type DayCycleInput } from './daylight';
+import { Daylight, type DayCycleInput, type DaylightRig } from './daylight';
 
 export { SHADOW, shadowsWorthDrawing } from './daylight';
 export type { DayCycleInput } from './daylight';
@@ -9,7 +8,7 @@ export type { DayCycleInput } from './daylight';
 export class DayCycle extends Daylight {
   readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0x9fd4ef });
   private released = false;
-  constructor(rig: SceneRig, now: () => number = () => performance.now()) { super(rig, now); }
+  constructor(rig: DaylightRig, now: () => number = () => performance.now()) { super(rig, now); }
   override apply(input: DayCycleInput): number {
     const night = super.apply(input);
     if (!this.released) this.glowMaterial.color.setRGB(...this.glowLinear);
