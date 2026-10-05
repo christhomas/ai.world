@@ -10,6 +10,7 @@ import { mulberry32 } from '../../src/core/rng';
 import { RequestGate } from '../../shared/mobile/host-contract';
 import { encodeScalars, decodeScalars } from '../../shared/mobile/binary';
 import { worldWorkload } from './world-workload';
+import { sceneWorkload } from './scene-workload';
 
 declare const host: { now(): number; uuid(): string; echo(bytes: ArrayBuffer): ArrayBuffer; report(text: string): void };
 const root = globalThis as typeof globalThis & { crypto: { randomUUID(): `${string}-${string}-${string}-${string}-${string}` } };
@@ -84,5 +85,6 @@ export async function run(): Promise<Record<string, unknown>> {
   insist(movedSteps > 0 && blockedSteps > 0, 'collision fixture must exercise both outcomes');
   stepTimes.sort((a, b) => a - b);
   const worldHash = hash(worldWorkload());
-  return { contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: cycleHashes[0], geometryHash, worldHash, movedSteps, blockedSteps, meshBytes, microtasks, utf8: 'Ólafur 雪 🐺', goldenHex, invalidBufferRejected, bridgeMs, stepP95Ms: stepTimes[Math.floor(stepTimes.length * 0.95)], totalMs: host.now() - started };
+  const sceneHash = sceneWorkload(hash);
+  return { contractVersion: 1, stepsPerCycle: 2000, cycles: 10, stateHash: cycleHashes[0], geometryHash, worldHash, sceneHash, movedSteps, blockedSteps, meshBytes, microtasks, utf8: 'Ólafur 雪 🐺', goldenHex, invalidBufferRejected, bridgeMs, stepP95Ms: stepTimes[Math.floor(stepTimes.length * 0.95)], totalMs: host.now() - started };
 }

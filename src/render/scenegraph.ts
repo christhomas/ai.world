@@ -30,8 +30,9 @@ export class ThreeGraphBridge {
     private readonly solidMaterial?: THREE.Material,
   ) {}
 
-  add(node: Extract<SceneNode, { kind: 'mesh' }>): THREE.Mesh {
+  add(node: Extract<SceneNode, { kind: 'mesh' }>, retained = false): THREE.Mesh {
     if (this.meshes.has(node)) throw new Error('scene node is already mounted');
+    if (retained && !this.graph.nodes.includes(node)) throw new Error('retained scene node is not owned by the graph');
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(node.geometry.positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(node.geometry.normals, 3));
@@ -52,7 +53,7 @@ export class ThreeGraphBridge {
     if (node.world) mesh.matrix.fromArray(node.world);
     mesh.updateMatrixWorld(true);
     mesh.matrixWorldAutoUpdate = Boolean(node.world);
-    this.graph.add(node);
+    if (!retained) this.graph.add(node);
     this.meshes.set(node, mesh);
     this.unmounts.set(node, bindGraphMount(this.graph, node, (frame) => applyMeshFrame(mesh, frame)));
     this.scene.add(mesh);
