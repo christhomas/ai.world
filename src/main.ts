@@ -419,7 +419,7 @@ export function startGame(
       stop: () => loop.stop(), controls: [input, touch],
       disconnect: () => online.disconnect(), clear: () => others.clear(),
       resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
-        skyRenderer, packField, cropField, buildingSite, props, rig],
+        skyRenderer, packField, cropField, buildingSite, props, daycycle, rig],
     }),
   });
 

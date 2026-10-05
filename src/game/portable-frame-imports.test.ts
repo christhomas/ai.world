@@ -74,6 +74,15 @@ function inspect(entry: string, sources = new Map<string, string>()): string[] {
 }
 
 describe('portable frame runtime boundary', () => {
+  it('keeps scene defaults and daylight free of browser and GPU adapter runtime imports', () => {
+    const files = inspect('src/game/portable-scene.ts');
+    expect(files).toContain('src/render/scene-state.ts');
+    expect(files).toContain('src/render/daylight.ts');
+    expect(files).toContain('src/render/scene-math.ts');
+    expect(files).not.toContain('src/render/scene.ts');
+    expect(files).not.toContain('src/render/daycycle.ts');
+    expect(files).not.toContain('src/render/water.ts');
+  });
   it('distinguishes local parameters from host globals without leaking bindings into siblings', () => {
     const entry = resolve('src/game/.portable-boundary-regression.ts');
     const source = (text: string) => new Map([[entry, text]]);

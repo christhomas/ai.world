@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { presenterFor } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
-import { SceneGraph, type SceneGeometry, type SceneNode } from '../core/scenegraph';
+import type { SceneGraph } from '../core/scenegraph';
+import { SceneState, type SceneLighting } from './scene-state';
+import { fogReach } from './scene-math';
+export { fogReach } from './scene-math';
 import { CoastField, COAST } from './coastfield';
 import { WaterMaterial } from './water';
 import type { RecordingPipeline } from './recording';
@@ -11,22 +14,6 @@ import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph'
 import { MountedThreePipeline, submitGraphFrame, type FrameMount, type FramePipeline } from './pipeline';
 import { bindLightMount } from './graphmount';
 
-const SKY = 0x8fc1e6;
-
-const translated = (x: number, y: number, z: number): number[] =>
-  [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
-
-/** Extract a surface once; its typed arrays belong to the graph from then on. */
-function surfaceGeometry(geometry: THREE.BufferGeometry): SceneGeometry {
-  return {
-    positions: geometry.getAttribute('position').array as Float32Array,
-    normals: geometry.getAttribute('normal').array as Float32Array,
-    colors: geometry.getAttribute('color')?.array as Float32Array | undefined,
-    flow: geometry.getAttribute('flow')?.array as Float32Array | undefined,
-    sea: geometry.getAttribute('sea')?.array as Float32Array | undefined,
-    indices: geometry.index?.array as Uint16Array | Uint32Array | undefined,
-  };
-}
 
 /**
  * Half the depth of ground the camera covers, as a fraction of the zoom. The frustum is `zoom`
@@ -186,47 +173,10 @@ function chipName(raw: string): string {
   return chip.replace(/\s*\([^()]*\)\s*$/, '').trim() || raw;
 }
 
-/**
- * Where the fog begins, as a share of the ground that is kept loaded.
- *
- * A third, so the country immediately around the hero is at full contrast and a terrace stack only
- * starts receding once there is enough of it to read as depth. Lower and the hero stands in a haze;
- * higher and the fog has no room to do anything before the ground stops.
- */
-const FOG_BEGINS = 0.34;
-
-/**
- * How far the fog reaches, measured from the camera rather than from what it is looking at.
- *
- * Two facts decide this and neither is a taste. The camera is orthographic and stands off its
- * target by `CAMERA.HEIGHT` up and `CAMERA.DIST` along, and three.js measures fog from the camera —
- * so a fog that wants to begin forty tiles past the hero begins at forty tiles *plus that standoff*
- * and a hand-tuned pair of constants would be wrong the first time either moved.
- *
- * And the ground is only there out to `WORLD.VIEW_RADIUS` chunks. Fog that ended past the loaded
- * edge would leave the edge on screen, which is the single most useful thing it hides: at full
- * thickness the last chunk is the sky's own colour, so a chunk arriving or leaving is a change to
- * something nobody can see.
- *
- * The camera looks *down* at the ground, so a tile travelled along the ground is worth less than a
- * tile of depth away from the camera — `CAMERA.DIST / standoff` is how much less, and leaving it
- * out would put the far plane of the fog well short of the edge it is meant to cover.
- */
-export function fogReach(chunks: number = WORLD.VIEW_RADIUS): { near: number; far: number } {
-  const standoff = Math.hypot(CAMERA.HEIGHT, CAMERA.DIST);
-  const alongView = CAMERA.DIST / standoff;
-  const loaded = chunks * WORLD.CHUNK_SIZE * alongView;
-  return { near: standoff + loaded * FOG_BEGINS, far: standoff + loaded };
-}
 
 export interface SceneRig {
   graph: SceneGraph;
-  lighting: {
-    sun: Extract<SceneNode, { kind: 'directional' }>;
-    hemi: Extract<SceneNode, { kind: 'hemisphere' }>;
-    ambient: Extract<SceneNode, { kind: 'ambient' }>;
-    lantern: Extract<SceneNode, { kind: 'point' }>;
-  };
+  lighting: SceneLighting;
   /** Set true once a DayCycle positions the sun, so follow() stops overriding it. */
   sunDriven: boolean;
   /** Call every frame with the camera target so light, shadows and water travel with the view. */
@@ -368,15 +318,15 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   }
   container.appendChild(canvas);
 
+  const sceneState = new SceneState();
+  const { graph, lighting, waterNode, deepNode } = sceneState;
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(SKY);
-  const graph = new SceneGraph(SKY);
+  scene.background = new THREE.Color(graph.background);
   const detachGraph = attachSceneGraph(graph, scene);
   // and the same colour again as fog, so far country recedes towards the sky instead of standing at
   // the contrast of the ground underfoot. A `DayCycle` re-tints both together every frame; a rig
   // with no day cycle keeps this pair, which is the sky it was already drawing
-  scene.fog = new THREE.Fog(SKY, fogReach().near, fogReach().far);
-  graph.fog = { colour: SKY, ...fogReach() };
+  scene.fog = new THREE.Fog(graph.background, fogReach().near, fogReach().far);
 
   const ambient = new THREE.AmbientLight(0xc9dcff, 0.45);
   scene.add(ambient);
@@ -394,14 +344,6 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   sun.shadow.normalBias = 0.03;
   scene.add(sun);
   scene.add(sun.target);
-  const lighting: SceneRig['lighting'] = {
-    ambient: graph.add({ kind: 'ambient', colour: 0xc9dcff, intensity: 0.45 }) as SceneRig['lighting']['ambient'],
-    hemi: graph.add({ kind: 'hemisphere', sky: 0xcfe6ff, ground: 0x6f8f4f, intensity: 1 }) as SceneRig['lighting']['hemi'],
-    sun: graph.add({ kind: 'directional', colour: 0xfff3dc, intensity: 2.6,
-      position: [38, 72, 22], target: [0, 0, 0], castShadow: true }) as SceneRig['lighting']['sun'],
-    lantern: graph.add({ kind: 'point', colour: 0xffb060, intensity: 0, distance: 9, decay: 1.6,
-      position: [0, 0, 0] }) as SceneRig['lighting']['lantern'],
-  };
   const lantern = new THREE.PointLight(0xffb060, 0, 9, 1.6);
   scene.add(lantern);
   const unmountLights = [
@@ -418,33 +360,10 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   graph.coast = { x0: coast.x0, z0: coast.z0, span: coast.span, size: COAST.SIZE, range: COAST.RANGE, values: coast.samples };
   const coastArea = new THREE.Vector4();
   waterMat.setCoast(coast.texture, coast.area(coastArea));
-  const seaGeo = new THREE.PlaneGeometry(900, 900, 1, 1).rotateX(-Math.PI / 2);
-  {
-    const c = new THREE.Color(0x2f86bf);
-    const n = seaGeo.attributes.position.count;
-    const colors = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b; }
-    seaGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    seaGeo.setAttribute('flow', new THREE.BufferAttribute(new Float32Array(n), 1));
-    // this one plane is the sea; every other surface the water material draws is a river, a lake or
-    // a fall, and none of those has a coastline to bend a swell round
-    seaGeo.setAttribute('sea', new THREE.BufferAttribute(new Float32Array(n).fill(1), 1));
-  }
   const deepMaterial = new THREE.MeshLambertMaterial({ color: 0x1d4f78 });
   const surfaceBridge = new ThreeGraphBridge(graph, scene, deepMaterial, waterMat.material, deepMaterial);
-  const waterNode: Extract<SceneNode, { kind: 'mesh' }> = {
-    kind: 'mesh', geometry: surfaceGeometry(seaGeo), material: 'water',
-    receiveShadow: false, renderOrder: 1, world: translated(0, WORLD.WATER_Y, 0),
-  };
-  surfaceBridge.add(waterNode);
-  seaGeo.dispose();
-  const deepGeo = new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2);
-  const deepNode: Extract<SceneNode, { kind: 'mesh' }> = {
-    kind: 'mesh', geometry: surfaceGeometry(deepGeo), material: 'lit-solid', colour: 0x1d4f78,
-    receiveShadow: true, world: translated(0, -0.03, 0),
-  };
-  surfaceBridge.add(deepNode);
-  deepGeo.dispose();
+  surfaceBridge.add(waterNode, true);
+  surfaceBridge.add(deepNode, true);
 
   const SUN_OFFSET = new THREE.Vector3(38, 72, 22);
 
@@ -505,8 +424,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
         cam.updateProjectionMatrix();
       }
       shadowHalf = half;
-      waterNode.world = translated(x, WORLD.WATER_Y, z);
-      deepNode.world = translated(x, -0.03, z);
+      sceneState.followWater(x, z);
       surfaceBridge.sync(waterNode);
       surfaceBridge.sync(deepNode);
       // the ground in shot is a rectangle zoom*aspect across by zoom*GROUND_DEPTH*2 deep, centred
@@ -524,7 +442,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       }
     },
     updateWater(time) {
-      graph.renderTimeMs = time * 1000;
+      sceneState.updateWater(time);
       waterMat.update(time);
     },
     fitShadow() {
@@ -577,6 +495,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       for (const unmount of unmountLights) unmount();
       detachGraph();
       surfaceBridge.dispose();
+      sceneState.dispose();
       deepMaterial.dispose();
       waterMat.dispose();
       coast.dispose();
