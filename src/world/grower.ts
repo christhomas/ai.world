@@ -35,7 +35,8 @@ import type { TerrainSampler } from './terrain';
 export class Grower {
   /** Squares asked for and not yet arrived, in the order they were asked. */
   private readonly asked: string[] = [];
-  private busy = false;
+  private active: string | null = null;
+  private retired = false;
   /** How many squares this session has grown elsewhere, and how long the last one took. */
   grown = 0;
   lastTook = 0;
@@ -47,6 +48,8 @@ export class Grower {
     private readonly send: (msg: CountryRequest) => void,
     /** And how to put one back together here, which is the cheap half. */
     private readonly rebuild: typeof rebuildPatch = rebuildPatch,
+    /** Release the host job after fencing every callback and request. */
+    private readonly release: () => void = () => {},
   ) {}
 
   /**
@@ -61,7 +64,7 @@ export class Grower {
    * happened to paint a chunk on it lately. See `Patchwork.wanted`.
    */
   want(patch: string): void {
-    if (this.patches.wanted(patch) || this.asked.includes(patch)) return;
+    if (this.retired || this.patches.wanted(patch) || this.asked.includes(patch)) return;
     this.asked.push(patch);
     this.pump();
   }
@@ -70,8 +73,8 @@ export class Grower {
   took(reply: CountryReply): void {
     // the worker answers two questions and the grower asked only one of them: a measurement is the
     // title screen's, and arrives on the same port because it is the same work. See #358.
-    if (reply.type !== 'grown') return;
-    this.busy = false;
+    if (this.retired || reply.type !== 'grown' || reply.patch !== this.active) return;
+    this.active = null;
     this.grown++;
     this.lastTook = reply.took;
     const at = this.asked.indexOf(reply.patch);
@@ -85,6 +88,15 @@ export class Grower {
     return [...this.asked];
   }
 
+  /** Country growth belongs to one session, including requests already in flight. */
+  dispose(): void {
+    if (this.retired) return;
+    this.retired = true;
+    this.active = null;
+    this.asked.length = 0;
+    this.release();
+  }
+
   /**
    * Send the next one, if nothing is already out.
    *
@@ -93,10 +105,10 @@ export class Grower {
    * a use of every square it skips past as well as of the one it settles on.
    */
   private pump(): void {
-    if (this.busy) return;
+    if (this.retired || this.active !== null) return;
     const next = this.asked.find((patch) => !this.patches.wanted(patch));
     if (!next) return;
-    this.busy = true;
+    this.active = next;
     // the layers come off the patchwork rather than from anything this was told: one list per
     // country, held where the country is, so a worker cannot be sent a different one
     this.send({ type: 'grow', seed: this.seed, patch: next, layers: this.patches.layers, terrain: this.patches.terrain });

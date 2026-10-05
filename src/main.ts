@@ -412,7 +412,7 @@ export function startGame(
     release: () => shutDownGame({
       stop: () => loop.stop(), controls: [input, touch],
       disconnect: () => online.disconnect(), clear: () => others.clear(),
-      resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
+      resources: [sound, places, ...(grower ? [grower] : []), chunks, entityRenderer, heroGear, beam, weather, watch,
         skyRenderer, packField, cropField, buildingSite, props, daycycle, rig],
     }),
   });
