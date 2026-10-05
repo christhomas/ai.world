@@ -84,7 +84,7 @@ class InstalledHeroSession {
     return _serial(_checkpoint);
   }
 
-  /// Park, acknowledge the file checkpoint, then release the native owner. Failure permits retry.
+  /// Storage failure permits retry. A retired engine releases its slot for prior-file recovery.
   Future<void> close() {
     if (_closing != null) return _closing!;
     if (_closed) return Future<void>.value();
@@ -96,9 +96,16 @@ class InstalledHeroSession {
         await engine.dispose();
         _owned.remove(store.directory.path);
       } catch (error, stack) {
-        if (!_closed) {
+        if (!_closed && !engine.isRetired) {
           try { await engine.request('lifecycle', {'state': _lifecycle, 'renderTimeMs': _renderTime}); }
           catch (_) { /* The engine fences an uncertain transport failure itself. */ }
+        }
+        if (engine.isRetired) {
+          _closed = true;
+          try { await engine.dispose(); }
+          catch (_) { /* Report the original failure; the host also releases owners on detach. */ }
+          _owned.remove(store.directory.path);
+        } else if (!_closed) {
           _closing = null;
         }
         Error.throwWithStackTrace(error, stack);

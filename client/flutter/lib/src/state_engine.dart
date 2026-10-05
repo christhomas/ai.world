@@ -14,6 +14,7 @@ class StateEngine {
   bool _retired = false;
   Future<void>? _disposal;
   Future<void> _tail = Future<void>.value();
+  bool get isRetired => _retired;
 
   static Future<StateEngine> open(String session, {Object? savedHero, AssetBundle? assets, MethodChannel? channel}) async {
     HostRequestGate(session);

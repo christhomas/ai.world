@@ -126,7 +126,21 @@ Future<void> proveInstalledHeroCheckpoint() async {
   }
   await second.request('action', {'action': 'equip', 'target': 'stick', 'args': null});
   await second.close();
-  debugPrint('HOSTED_HERO_CHECKPOINT_READY platform=${Platform.operatingSystem} identity=true equipment=true failedCloseKeptLive=true previousSlot=true retry=true root=app-private');
+  final failed = await InstalledHeroSession.open('hero-save:transport-failure', scope);
+  var transportRejected = false;
+  try { await failed.request('action', {'action': 'equip', 'target': 'stick', 'args': 'x' * (1024 * 1024)}); }
+  on PlatformException { transportRejected = true; }
+  if (!transportRejected || !failed.engine.isRetired) throw StateError('Native request limit did not retire the uncertain owner');
+  var closeRejected = false;
+  try { await failed.close(); } on StateError { closeRejected = true; }
+  if (!closeRejected) throw StateError('Retired owner claimed a successful save');
+  final recovered = await InstalledHeroSession.open('hero-save:recovered', scope);
+  final prior = await recovered.request('resync', {'reason': 'previous-file'});
+  if (prior['playerId'] != original['playerId'] || prior['inventory']['equipped']['hand'] != 'stick') {
+    throw StateError('Retired owner did not release the slot or preserve its checkpoint');
+  }
+  await recovered.close();
+  debugPrint('HOSTED_HERO_CHECKPOINT_READY platform=${Platform.operatingSystem} identity=true equipment=true failedCloseKeptLive=true previousSlot=true retry=true retiredRecovery=true root=app-private');
 }
 
 Future<void> proveNativeOwnerBoundary() async {

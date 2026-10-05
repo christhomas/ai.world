@@ -10,11 +10,16 @@ Starting kit is only applied when the slot is empty.
 
 The owner serializes actions and detached snapshots. Close fences new requests, parks the hero,
 awaits the strict file commit and flush, then releases the native VM. A failed commit preserves the
-prior checkpoint and resumes the live hero for an explicit retry. Closing twice shares one operation.
+prior checkpoint and restores the app's prior lifecycle state for an explicit retry. Closing twice
+shares one operation. A transport or invalid-reply failure retires the engine, so close instead
+disposes that owner, releases the slot and rethrows the failure. Reopening restores the last
+acknowledged file; an uncertain VM request is never replayed or reported as saved.
 
 Hosted installed Android and iOS proofs exercise the actual packaged VM and app-private file adapter:
 unequip, save, mutate, interrupt a later commit, verify the live state and previous slot survive,
-retry, release the VM, open a new VM and restore identity and changed equipment. Existing renderer
+retry, release the VM, open a new VM and restore identity and changed equipment. They also exceed
+the native request limit, verify retirement and failing close, and reopen the same slot from its
+prior file. Existing renderer
 and VM-isolation assertions remain required. TypeScript regressions exercise the production reader
 with changed health, inventory, day and time, and reject malformed initial snapshots.
 

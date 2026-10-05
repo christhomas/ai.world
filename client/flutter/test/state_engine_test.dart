@@ -56,6 +56,7 @@ void main() {
     });
     final engine = await StateEngine.open('owned', assets: EngineAssets(), channel: channel);
     await expectLater(engine.request('start', {'mode': 'local', 'world': 'local'}), throwsFormatException);
+    expect(engine.isRetired, isTrue);
     await expectLater(engine.request('resync', {'reason': 'retry'}), throwsStateError);
     await engine.dispose();
     expect(requests, 1);
