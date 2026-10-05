@@ -15,7 +15,7 @@ class StateEngine {
   Future<void>? _disposal;
   Future<void> _tail = Future<void>.value();
 
-  static Future<StateEngine> open(String session, {AssetBundle? assets, MethodChannel? channel}) async {
+  static Future<StateEngine> open(String session, {Object? savedHero, AssetBundle? assets, MethodChannel? channel}) async {
     HostRequestGate(session);
     final bundle = assets ?? rootBundle;
     final manifest = jsonDecode(await bundle.loadString('assets/engine/manifest.json')) as Map<String, dynamic>;
@@ -29,9 +29,17 @@ class StateEngine {
     final token = await native.invokeMethod<String>('create', {
       'session': session, 'source': source.buffer.asUint8List(source.offsetInBytes, source.lengthInBytes),
       'bundleSha256': manifest['bundleSha256'],
+      'savedHero': savedHero == null ? null : jsonEncode(savedHero),
     });
     if (token == null || token.isEmpty) throw StateError('Native engine did not return an owner');
     return StateEngine._(session, manifest['sourceSha'] as String, token, native);
+  }
+
+  /// Native application-support/files directory, outside temporary and shared storage.
+  static Future<String> storageRoot() async {
+    final path = await _native.invokeMethod<String>('storageRoot');
+    if (path == null || path.isEmpty) throw StateError('Native storage root unavailable');
+    return path;
   }
 
   Future<Map<String, dynamic>> request(String type, Map<String, dynamic> payload) {

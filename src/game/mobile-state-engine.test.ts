@@ -47,4 +47,25 @@ describe('installed hero state engine', () => {
     engine.request(JSON.stringify({ ...start, sequence: 1, id: 'dispose', type: 'dispose', payload: {} }));
     expect(() => engine.request(JSON.stringify({ ...start, sequence: 2, id: 'late' }))).toThrow('disposed');
   });
+  it('restores a changed hero through the production reader instead of reapplying the starting kit', () => {
+    const first = client();
+    const initial = hero(first('start', { mode: 'local', world: 'local' }));
+    const saved = hero(first('action', { action: 'unequip', target: 'hand', args: null }));
+    saved.hp = 73; saved.day = 8; saved.time = 0.7;
+    saved.inventory.gold = 17;
+    const reopened = create('continued', JSON.stringify(saved));
+    const result = JSON.parse(reopened.request(JSON.stringify({ version: 1, session: 'continued',
+      sequence: 0, id: 'start', type: 'start', payload: { mode: 'local', world: 'local' } })));
+    const restored = hero(result);
+    expect(restored.playerId).toBe(initial.playerId);
+    expect(restored.inventory.equipped.hand).toBeUndefined();
+    expect(restored.inventory.gold).toBe(17);
+    expect([restored.hp, restored.day, restored.time]).toEqual([73, 8, 0.7]);
+    expect(initial.inventory.equipped.hand).toBe('stick');
+  });
+  it('rejects malformed saved heroes before exposing a VM owner', () => {
+    for (const value of ['null', '[]', '{}', '{', JSON.stringify({ hp: 1, inventory: {} })]) {
+      expect(() => create('corrupt', value)).toThrow();
+    }
+  });
 });

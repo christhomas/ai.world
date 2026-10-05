@@ -1,4 +1,5 @@
 import CryptoKit
+import Foundation
 import Flutter
 import JavaScriptCore
 
@@ -19,6 +20,11 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
       do {
         let response: Any?
         switch call.method {
+        case "storageRoot":
+          let root = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: true).appendingPathComponent("ai-world", isDirectory: true)
+          try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+          response = root.path
         case "create":
           guard self.engines.count < 4,
                 let session = arguments["session"] as? String, !session.isEmpty, session.count <= 256,
@@ -29,7 +35,11 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
                 let source = String(data: bytes.data, encoding: .utf8) else {
             throw StateEngineFailure("Invalid or corrupted bundled engine")
           }
-          let engine = try StateEngineVM(source: source, session: session)
+          let savedHero = arguments["savedHero"] as? String
+          guard savedHero == nil || savedHero!.utf8.count <= 1024 * 1024 else {
+            throw StateEngineFailure("Saved hero too large")
+          }
+          let engine = try StateEngineVM(source: source, session: session, savedHero: savedHero)
           let token = UUID().uuidString
           self.engines[token] = engine
           response = token
@@ -70,7 +80,7 @@ final class StateEngineVM {
   private let context: JSContext
   private let engine: JSValue
 
-  init(source: String, session: String) throws {
+  init(source: String, session: String, savedHero: String? = nil) throws {
     guard let context = JSContext(virtualMachine: JSVirtualMachine()) else { throw StateEngineFailure("Cannot create VM") }
     self.context = context
     // Separate VMs provide separate globals; a retired session cannot mutate its successor.
@@ -80,7 +90,7 @@ final class StateEngineVM {
     context.evaluateScript(source, withSourceURL: URL(string: "ai-world-bundle://engine.js"))
     if let error = context.exception { throw StateEngineFailure(error.toString() ?? "Bundle exception") }
     guard let module = context.objectForKeyedSubscript("AiWorldStateEngine"),
-          let engine = module.invokeMethod("create", withArguments: [session]), !engine.isUndefined else {
+          let engine = module.invokeMethod("create", withArguments: [session, savedHero as Any? ?? NSNull()]), !engine.isUndefined else {
       throw StateEngineFailure(context.exception?.toString() ?? "Missing bundled engine entry")
     }
     if let error = context.exception { throw StateEngineFailure(error.toString() ?? "Engine initialization exception") }

@@ -133,9 +133,13 @@ def capture(platform):
             if 'HOSTED_NATIVE_READY' in text:
                 if f'HOSTED_STATE_ENGINE_READY platform={platform}' not in text:
                     raise RuntimeError('Installed state engine proof did not complete on ' + platform)
+                if f'HOSTED_HERO_CHECKPOINT_READY platform={platform}' not in text:
+                    raise RuntimeError('Installed file-backed hero continuation did not complete on ' + platform)
                 state = json.loads(STATE.read_text())
                 save(assertions=state['assertions'] + [{'name': f'installed-{platform}-hero-state-vm',
-                     'passed': True, 'cycles': 3, 'scope': 'hero-state-only'}])
+                     'passed': True, 'cycles': 3, 'scope': 'hero-state-only'},
+                     {'name': f'installed-{platform}-hero-file-checkpoint', 'passed': True,
+                      'scope': 'hero-state-only', 'app_process_restart': False}])
                 break
             time.sleep(1)
         else:

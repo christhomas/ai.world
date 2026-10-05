@@ -10,7 +10,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         rendererBridge = WorldRendererBridge(flutterEngine.renderer, flutterEngine.dartExecutor.binaryMessenger)
-        stateEngineBridge = StateEngineBridge(flutterEngine.dartExecutor.binaryMessenger)
+        stateEngineBridge = StateEngineBridge(flutterEngine.dartExecutor.binaryMessenger, applicationContext)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {

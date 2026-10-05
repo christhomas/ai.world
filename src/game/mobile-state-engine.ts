@@ -1,10 +1,24 @@
-import { GameState } from './state';
+import { GameState, type GameStateJson } from './state';
 import { SLOTS, type EquipSlot } from './items';
 import { RequestGate, HOST_CONTRACT_VERSION, type HostResult, type Json } from '../../shared/mobile/host-contract';
 
-/** Installed state engine only. World, movement, scenes and durable load still need host ports. */
-export function create(session: string): { request(text: string): string } {
+/** Installed hero engine only; the full world/movement/scene session remains separate. */
+export function create(session: string, savedHero: string | null = null): { request(text: string): string } {
   const gate = new RequestGate(session);
+  let opening: GameState | null = null;
+  if (savedHero !== null) {
+    const saved = JSON.parse(savedHero) as GameStateJson;
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved) ||
+      ![saved.hp, saved.maxHp, saved.time, saved.day, saved.savedAt].every(n => typeof n === 'number' && Number.isFinite(n)) ||
+      typeof saved.playerId !== 'string' || !/^[0-9a-f-]{36}$/i.test(saved.playerId) ||
+      !saved.inventory || typeof saved.inventory !== 'object' ||
+      ![saved.explored, saved.discovered, saved.opened, saved.keys].every(a => Array.isArray(a) && a.every(v => typeof v === 'string')) ||
+      !saved.quests || typeof saved.quests !== 'object' || Array.isArray(saved.quests)) {
+      throw new Error('Invalid saved hero');
+    }
+    // The existing production reader owns inventory, identity, clock and offline-day semantics.
+    opening = GameState.from(saved);
+  }
   let game: GameState | null = null;
   let active = true;
   let tick = -1;
@@ -15,7 +29,8 @@ export function create(session: string): { request(text: string): string } {
     try {
       if (request.type === 'start') {
         if (game || request.payload.mode !== 'local') throw new Error('State engine supports one local start');
-        game = GameState.fresh();
+        game = opening ?? GameState.fresh();
+        opening = null;
       } else if (request.type === 'dispose') {
         game = null;
         return JSON.stringify({ ...base, type: 'result', payload: {} } satisfies HostResult);

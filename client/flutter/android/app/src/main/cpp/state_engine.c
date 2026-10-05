@@ -67,13 +67,14 @@ static jbyteArray exception_reply(JNIEnv *env, Engine *engine) {
 }
 
 JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_create(
-  JNIEnv *env, jobject self, jbyteArray source, jbyteArray session) {
+  JNIEnv *env, jobject self, jbyteArray source, jbyteArray session, jbyteArray saved_hero) {
   (void)self;
-  size_t source_length = 0, session_length = 0;
+  size_t source_length = 0, session_length = 0, saved_length = 0;
   char *code = copy_bytes(env, source, 8 * 1024 * 1024, &source_length);
   char *identity = copy_bytes(env, session, 1024, &session_length);
+  char *saved = saved_hero ? copy_bytes(env, saved_hero, 1024 * 1024, &saved_length) : NULL;
   Engine *engine = calloc(1, sizeof *engine);
-  if (!code || !identity || !engine) goto failed;
+  if (!code || !identity || !engine || (saved_hero && !saved)) goto failed;
   engine->engine = JS_UNDEFINED;
   engine->runtime = JS_NewRuntime(); if (!engine->runtime) goto failed;
   JS_SetMemoryLimit(engine->runtime, 64 * 1024 * 1024);
@@ -89,21 +90,23 @@ JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_creat
   if (!bad) {
     JSValue module = JS_GetPropertyStr(engine->context, global, "AiWorldStateEngine");
     JSValue factory = JS_GetPropertyStr(engine->context, module, "create");
-    JSValue argument = JS_NewStringLen(engine->context, identity, session_length);
-    engine->engine = JS_Call(engine->context, factory, module, 1, &argument);
-    JS_FreeValue(engine->context, argument); JS_FreeValue(engine->context, factory); JS_FreeValue(engine->context, module);
+    JSValue arguments[2] = { JS_NewStringLen(engine->context, identity, session_length),
+      saved ? JS_NewStringLen(engine->context, saved, saved_length) : JS_NULL };
+    engine->engine = JS_Call(engine->context, factory, module, 2, arguments);
+    JS_FreeValue(engine->context, arguments[0]); JS_FreeValue(engine->context, arguments[1]);
+    JS_FreeValue(engine->context, factory); JS_FreeValue(engine->context, module);
     bad = JS_IsException(engine->engine) || !JS_IsObject(engine->engine);
   }
   JS_FreeValue(engine->context, global);
   if (bad) goto failed;
-  free(code); free(identity); return (jlong)(intptr_t)engine;
+  free(code); free(identity); free(saved); return (jlong)(intptr_t)engine;
 failed:
   if (engine && engine->context) {
     JSValue error = JS_GetException(engine->context); const char *message = JS_ToCString(engine->context, error);
     __android_log_print(ANDROID_LOG_ERROR, "AiWorldStateEngine", "%s", message ? message : "Engine initialization failed");
     JS_FreeCString(engine->context, message); JS_FreeValue(engine->context, error);
   }
-  free(code); free(identity); release(engine); return 0;
+  free(code); free(identity); free(saved); release(engine); return 0;
 }
 JNIEXPORT jbyteArray JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_request(
   JNIEnv *env, jobject self, jlong handle, jbyteArray input) {

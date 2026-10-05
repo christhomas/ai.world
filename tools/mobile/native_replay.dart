@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:ai_world_flutter/ai_world_flutter.dart';
+import 'package:ai_world_flutter/src/storage/checkpoint_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'hosted_fixture.dart';
@@ -81,7 +82,45 @@ Future<void> proveInstalledStateEngine() async {
     if (!rejected) throw StateError('Retired engine accepted a request');
   }
   await proveNativeOwnerBoundary();
+  await proveInstalledHeroCheckpoint();
   debugPrint('HOSTED_STATE_ENGINE_READY platform=${Platform.operatingSystem} cycles=3 actions=unequip,equip parked=true isolated=true utf8=true nativeRetirement=true');
+}
+
+Future<void> proveInstalledHeroCheckpoint() async {
+  final scope = StorageScope(domain: 'player', world: 'proof-${DateTime.now().microsecondsSinceEpoch}',
+    seed: 3, player: 'local-hero');
+  var fail = false;
+  final first = await InstalledHeroSession.open('hero-save:first', scope, writeFailure: (stage) {
+    if (fail && stage == WriteStage.beforeCommit) throw const FileSystemException('Hosted checkpoint interruption');
+  });
+  final original = await first.request('resync', {'reason': 'identity'});
+  var duplicateRejected = false;
+  try { await InstalledHeroSession.open('hero-save:duplicate', scope); }
+  on StorageFailure catch (error) { duplicateRejected = error.code == StorageError.conflict; }
+  if (!duplicateRejected) throw StateError('Concurrent hero slot owner accepted');
+  final off = await first.request('action', {'action': 'unequip', 'target': 'hand', 'args': null});
+  if (off['inventory']['equipped']['hand'] != null) throw StateError('Save precondition missing');
+  await first.save();
+  await first.request('action', {'action': 'equip', 'target': 'stick', 'args': null});
+  fail = true;
+  var rejected = false;
+  try { await first.close(); } on StorageFailure { rejected = true; }
+  if (!rejected) throw StateError('Failed file checkpoint released the VM');
+  final live = await first.request('resync', {'reason': 'failed-save-kept-live'});
+  if (live['inventory']['equipped']['hand'] != 'stick') throw StateError('Failed close discarded live state');
+  final committed = (await first.store.load('hero')) as Map;
+  if (committed['hero']['inventory']['equipped']['hand'] != null) throw StateError('Failed commit replaced valid slot');
+  fail = false;
+  await first.request('action', {'action': 'unequip', 'target': 'hand', 'args': null});
+  await first.close();
+  final second = await InstalledHeroSession.open('hero-save:continued', scope);
+  final restored = await second.request('resync', {'reason': 'continued'});
+  if (restored['playerId'] != original['playerId'] || restored['inventory']['equipped']['hand'] != null) {
+    throw StateError('Fresh native VM did not restore committed hero');
+  }
+  await second.request('action', {'action': 'equip', 'target': 'stick', 'args': null});
+  await second.close();
+  debugPrint('HOSTED_HERO_CHECKPOINT_READY platform=${Platform.operatingSystem} identity=true equipment=true failedCloseKeptLive=true previousSlot=true retry=true root=app-private');
 }
 
 Future<void> proveNativeOwnerBoundary() async {
