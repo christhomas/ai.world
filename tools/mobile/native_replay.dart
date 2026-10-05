@@ -102,15 +102,21 @@ Future<void> proveInstalledHeroCheckpoint() async {
   if (off['inventory']['equipped']['hand'] != null) throw StateError('Save precondition missing');
   await first.save();
   await first.request('action', {'action': 'equip', 'target': 'stick', 'args': null});
+  await first.request('lifecycle', {'state': 'background', 'renderTimeMs': 0});
   fail = true;
   var rejected = false;
   try { await first.close(); } on StorageFailure { rejected = true; }
   if (!rejected) throw StateError('Failed file checkpoint released the VM');
   final live = await first.request('resync', {'reason': 'failed-save-kept-live'});
   if (live['inventory']['equipped']['hand'] != 'stick') throw StateError('Failed close discarded live state');
+  var parked = false;
+  try { await first.request('action', {'action': 'unequip', 'target': 'hand', 'args': null}); }
+  on StateError { parked = true; }
+  if (!parked) throw StateError('Failed close reactivated a backgrounded hero');
   final committed = (await first.store.load('hero')) as Map;
   if (committed['hero']['inventory']['equipped']['hand'] != null) throw StateError('Failed commit replaced valid slot');
   fail = false;
+  await first.request('lifecycle', {'state': 'active', 'renderTimeMs': 0});
   await first.request('action', {'action': 'unequip', 'target': 'hand', 'args': null});
   await first.close();
   final second = await InstalledHeroSession.open('hero-save:continued', scope);

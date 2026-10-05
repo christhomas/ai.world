@@ -13,6 +13,7 @@ class InstalledHeroSession {
   Future<void>? _closing;
   bool _closed = false;
   num _renderTime = 0;
+  String _lifecycle = 'active';
 
   static Future<InstalledHeroSession> open(String session, StorageScope scope, {Directory? root,
     WriteFailure? writeFailure}) async {
@@ -64,7 +65,11 @@ class InstalledHeroSession {
       return Future.error(ArgumentError('Session owns start and disposal'));
     }
     final snapshot = jsonDecode(jsonEncode(payload)) as Map<String, dynamic>;
-    return _serial(() async => _presentation(await engine.request(type, snapshot)));
+    return _serial(() async {
+      final hero = _presentation(await engine.request(type, snapshot));
+      if (type == 'lifecycle') _lifecycle = snapshot['state'] as String;
+      return hero;
+    });
   }
 
   Future<void> _checkpoint() async {
@@ -92,7 +97,7 @@ class InstalledHeroSession {
         _owned.remove(store.directory.path);
       } catch (error, stack) {
         if (!_closed) {
-          try { await engine.request('lifecycle', {'state': 'active', 'renderTimeMs': _renderTime}); }
+          try { await engine.request('lifecycle', {'state': _lifecycle, 'renderTimeMs': _renderTime}); }
           catch (_) { /* The engine fences an uncertain transport failure itself. */ }
           _closing = null;
         }
