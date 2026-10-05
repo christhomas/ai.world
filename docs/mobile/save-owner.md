@@ -13,10 +13,11 @@ writes; a swallowed adapter failure cannot establish durability. `flush` drains 
 reports the last request's failure. Disposal fences new writes without canceling already accepted
 disk operations; installed hosts await `close` before reopening that slot.
 
-The browser's return-to-title flow now parks the owned session, waits for the strict save and queued
-writes, releases it and then navigates. A failed save resumes the game and reports storage failure.
-Duplicate exit gestures share one operation. Successful exit disposes the save owner with the rest
-of the session.
+The browser's return-to-title flow parks the owned session, waits for the strict player save and
+queued writes, then awaits a durable checkpoint acknowledgement from its local world worker before
+releasing resources and navigating. A failed player save or world checkpoint resumes the game and
+reports storage failure so the player can explicitly retry. Duplicate exit gestures share one
+operation. Successful exit disposes the save owner with the rest of the session.
 
 GitHub regressions cover immutable snapshots, slow ordering, rejection/retry, strict quota errors,
 retired writes and delayed exit. A bare-host proof and JSC/QuickJS workloads pack and continue the
@@ -25,6 +26,9 @@ coordinates are saved; they do not exercise position restoration before `Player`
 This memory-store workload does not prove physical disk durability or a full game. Existing Flutter checkpoint tests exercise its
 separate file adapter.
 
-World-authority persistence, native adapter composition, interruption handling and full installed
-offline save/terminate/continue acceptance on both OSes remain open. The browser exit does not yet
-await a durable acknowledgement from its world worker.
+The browser's local authority now persists through ordered IndexedDB writes and acknowledges its
+checkpoint before normal exit. See [the world vault](world-vault.md) and
+[session checkpoint proof](session-world-checkpoint.md) for the actual worker terminate/continue
+evidence. Player and authority saves remain separate transactions; abrupt termination before the
+acknowledgement is outside this guarantee. Native adapter composition, interruption recovery and
+full installed offline save/terminate/continue acceptance on both OSes remain open.
