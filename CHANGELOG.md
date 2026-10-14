@@ -16,7 +16,7 @@ built is a cluster that cannot start.
 
 ## v0.103.12 — 2026-10-14
 
-Keep server worlds and tools in one durable database
+Keep server worlds in SQLite and join through the public origin
 
 ## v0.103.11 — 2026-10-05
 
