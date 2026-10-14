@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.103.13 — 2026-10-14
+
+Shared tools shell and database-backed world discovery
+
 ## v0.103.12 — 2026-10-14
 
 Keep server worlds in SQLite and join through the public origin

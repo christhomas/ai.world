@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.13 — 2026-10-14
+
+Shared tools shell and database-backed world discovery
+
 ### v0.103.12 — 2026-10-14
 
 Keep server worlds in SQLite and join through the public origin
@@ -626,10 +630,6 @@ An idle scene costs next to nothing to describe each frame, and boats on the Flu
 ### v0.103.4 — 2026-09-30
 
 endless worlds grow shrines so the prayer can be said, an editor's sky eyrie offers the flight up, and the native renderers take colour the way the web does
-
-### v0.103.3 — 2026-09-30
-
-holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle pools stop uploading, and the editor drops a refusal that could never fire
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
