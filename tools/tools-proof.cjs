@@ -91,6 +91,15 @@ let browser;
       assert.equal(await page.locator('.tools-topbar').count(), 1);
       assert.equal(await page.locator('.tools-nav').count(), 1);
       assert.equal(await page.locator('h1:visible').count(), 1, `${name} has one shared heading`);
+      if (name === 'world-editor') assert.equal(await page.locator('#world').isVisible(), false, 'the shared selector replaces the legacy selector');
+      if (name === 'builder-offline') {
+        const stacked = await page.evaluate(() => {
+          const message = document.querySelector('.tools-workspace p:last-of-type').getBoundingClientRect();
+          const connect = document.querySelector('.tools-workspace a.card').getBoundingClientRect();
+          return connect.top >= message.bottom && connect.height < 100;
+        });
+        assert.equal(stacked, true, 'offline builder notice uses a normal stacked layout');
+      }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${name} fits ${width}px`);
       await page.screenshot({ path: `${out}/${name}-${width}.png`, fullPage: true });
     }

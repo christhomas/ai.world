@@ -5,7 +5,7 @@ const escape = (value: string): string => value.replace(/[&<>"']/g, c =>
 
 const style = `
 :root{color-scheme:dark;--ink:#e7ecf5;--dim:#96a3b9;--line:#2a3446;--edge:#2a3446;--bg:#111722;--deep:#111722;--panel:#182130;--lit:#8ed6b0;--tools-accent:#8ed6b0}
-*{box-sizing:border-box}body.tools-app{margin:0;max-width:none;padding:0;display:block;height:auto;min-height:100dvh;overflow:auto;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,sans-serif}
+*{box-sizing:border-box}.tools-app [hidden]{display:none!important}body.tools-app{margin:0;max-width:none;padding:0;display:block;height:auto;min-height:100dvh;overflow:auto;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,sans-serif}
 .tools-app a{color:inherit}.tools-app input,.tools-app select,.tools-app textarea,.tools-app button{font:inherit;color:var(--ink);background:#111a27;border:1px solid var(--line);border-radius:7px;padding:8px 10px;max-width:100%}
 .tools-app button{cursor:pointer}.tools-app button:hover,.tools-app a:hover{border-color:var(--tools-accent)}.tools-app :focus-visible{outline:2px solid var(--tools-accent);outline-offset:3px}
 .tools-app button:disabled{opacity:.5;cursor:not-allowed}.tools-skip{position:absolute;left:16px;top:-80px;z-index:20}.tools-skip:focus{top:12px;background:var(--panel);padding:8px}
@@ -27,13 +27,13 @@ const style = `
 /** The same surrounding application for every authenticated tool and its error/connection pages. */
 export function toolsShell(options: {
   title: string; body: string; navigation: readonly ToolNavigation[];
-  active?: string; signedIn?: boolean; head?: string; description?: string;
+  active?: string; signedIn?: boolean; head?: string; description?: string; builderWorkspace?: boolean;
 }): string {
   const { title, body, navigation, active = '', signedIn = true, head = '', description = '' } = options;
   const nav = [{ id: '', name: 'Overview' }, ...navigation, { id: 'build/pair', name: 'Connect builder' }];
   const links = nav.map(tool => `<a href="/tools/${tool.id}"${tool.id === active ? ' aria-current="page"' : ''}`
     + `${tool.id === 'build/pair' ? ' class="tools-pair"' : ''}>${escape(tool.name)}</a>`).join('');
-  const workspace = active === 'character-builder' ? 'character-builder' : active === 'registry' ? 'registry'
+  const workspace = options.builderWorkspace ? 'character-builder' : active === 'registry' ? 'registry'
     : active === 'world-editor' ? 'world-editor' : 'page';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escape(title)} — ai.world tools</title>${head}<style data-tools-shell>${style}</style>`
@@ -57,5 +57,5 @@ export function toolDocument(document: string, title: string, active: string, na
   let body = document.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1]
     ?? document.replace(/<!doctype[^>]*>|<\/?html[^>]*>|<head[^>]*>[\s\S]*?<\/head>/gi, '');
   if (active === 'registry') body = body.replace(/<main>/, '<div class="tools-registry-results">').replace(/<\/main>/, '</div>');
-  return toolsShell({ title, active, body, head, navigation });
+  return toolsShell({ title, active, body, head, navigation, builderWorkspace: active === 'character-builder' });
 }
