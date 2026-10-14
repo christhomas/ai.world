@@ -82,7 +82,9 @@ describe('SQLite owns server world documents', () => {
     // The fixture repairs only its own broken link; no migration deletes or changes original files.
     rmSync(blocked);
     writeFileSync(blocked, '{"seed":77,"clock":{"day":4,"time":0.2},"deltas":[]}');
-    expect(new Rooms(dir, new SqliteVault(db, dir)).knownWorlds()).toEqual([{ name: 'Old Vale', seed: 77, kind: 'endless' }]);
+    expect(new Rooms(dir, new SqliteVault(db, dir)).knownWorlds()).toEqual([
+      { name: 'Old Vale', seed: 77, kind: 'endless' }, { seed: 1 },
+    ]);
   });
 
   it('retains a damaged registry and refuses to claim over it', () => {
