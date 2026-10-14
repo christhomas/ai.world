@@ -76,7 +76,8 @@ export class SqliteVault implements Vault {
       }
       this.db.exec('COMMIT');
     } catch (error) {
-      this.db.exec('ROLLBACK');
+      try { this.db.exec('ROLLBACK'); }
+      catch (rollbackError) { console.error('Could not roll back legacy world import:', rollbackError); }
       throw error;
     }
   }

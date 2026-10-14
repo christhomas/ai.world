@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -95,6 +95,24 @@ describe('SQLite owns server world documents', () => {
     expect(() => rooms.claimWorld('New Vale', 7)).toThrow('registry on this server could not be read');
     expect(vault.read(join(dir, 'world-records.json'))).toBe('{truncated');
     expect(readFileSync(join(dir, 'world-records.json'), 'utf8')).toBe('{truncated');
+  });
+
+  it('reports the original import error when SQLite has already rolled back the transaction', () => {
+    const dir = scratch();
+    const db = open(join(dir, 'ai-world.sqlite'));
+    new SqliteVault(db, dir);
+    db.exec('DELETE FROM world_import');
+    writeFileSync(worldPath(dir, 77), 'legacy snapshot');
+    db.exec("CREATE TRIGGER reject_legacy BEFORE INSERT ON world_document BEGIN SELECT RAISE(ROLLBACK, 'original import failure'); END");
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(() => new SqliteVault(db, dir)).toThrow('original import failure');
+      expect(logged).toHaveBeenCalledWith('Could not roll back legacy world import:', expect.any(Error));
+      expect(db.prepare('SELECT count(*) AS n FROM world_document').get()).toEqual({ n: 0 });
+      expect(db.prepare('SELECT count(*) AS n FROM world_import').get()).toEqual({ n: 0 });
+    } finally { logged.mockRestore(); }
+    db.exec('DROP TRIGGER reject_legacy');
+    expect(new SqliteVault(db, dir).read(worldPath(dir, 77))).toBe('legacy snapshot');
   });
 
   it('seeds missing keys once without overwriting an existing database snapshot', () => {
