@@ -8,9 +8,10 @@ export class WorldRecordConflict extends Error {}
 /**
  * Durable names for generated countries.
  *
- * World state remains in the old seed-numbered files. The registry is deliberately separate: old
- * servers can still read those files, and naming an existing seed adopts its state rather than
- * replacing it. A seed may have one name, so an old seed room and its newly named room cannot split.
+ * The registry and seed snapshots retain their JSON encoding behind a host-owned vault. On the
+ * server that vault stores them in SQLite; browser worlds own their local storage. Naming an
+ * existing seed adopts its state rather than replacing it. A seed may have one name, so an old
+ * seed room and its newly named room cannot split.
  */
 export class WorldRecords {
   private readonly records = new Map<string, WorldRecord>();
