@@ -35,8 +35,8 @@ export class LatestWorldReader {
       catch (error) { return Promise.reject(error); }
       const active = this.worker;
       active.onmessage = event => {
-        if (this.worker !== active || this.pending?.id !== event.data.id) return;
         const pending = this.pending;
+        if (this.worker !== active || !pending || pending.id !== event.data.id) return;
         this.pending = null;
         clearTimeout(pending.timer);
         if (event.data.error) pending.reject(new Error(event.data.error)); else pending.resolve(event.data.value);

@@ -31,6 +31,7 @@ describe('latest browser world read', () => {
     expect(workers[1].terminated).toBe(false);
     workers[1].answer({ seed: 7 });
     await expect(newest).resolves.toEqual({ seed: 7 });
+    expect(() => workers[1].answer({ seed: 7 })).not.toThrow();
     await rejected;
     reader.close();
   });
