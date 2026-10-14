@@ -53,7 +53,7 @@ let browser;
     });
     await write('ai-world-authority', 'files', [
       ['worlds/world-records.json', JSON.stringify([{ seed: 3, name: 'chris', kind: 'road' }])],
-      ['worlds/3.json', JSON.stringify({ seed: 3, clock: { day: 2, time: 0.5 }, deltas: [],
+      ['worlds/3.json', JSON.stringify({ seed: 3, clock: { day: 2, time: 0.5 }, deltas: [], holdingVillages: ['Crossroads Town'],
         manifest: { rootSeed: 3, anchors: [], terrain: [] } })],
     ]);
     await write('keyval-store', 'keyval', [['ai.world/slot/1', {
@@ -66,6 +66,7 @@ let browser;
   assert.match(await page.locator('#tools-world option:checked').textContent(), /chris/);
   assert.match(await page.locator('#note').textContent(), /saved snapshot/);
   assert.ok(await page.locator('.parish').count(), 'real road population was surveyed');
+  assert.match(await page.locator('.parish h2').first().textContent(), /Crossroads Town/);
   await page.screenshot({ path: `${out}/domesday-desktop.png`, fullPage: true });
   await page.locator('.tools-nav a[href*="/tools/world-editor"]').click();
   await page.waitForFunction(() => document.querySelector('#message')?.textContent.includes('road world'));

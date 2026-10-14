@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { browserWorlds, type BrowserWorldSnapshot } from './worlds';
-import { browserWorldView } from './world-view';
+import { browserWorldSurvey, browserWorldView } from './world-view';
 
 describe('tools reading the game database', () => {
   const saved: BrowserWorldSnapshot = { files: [
@@ -34,6 +34,22 @@ describe('tools reading the game database', () => {
   it('discovers old unnamed slot worlds without pretending they have an authority checkpoint', () => {
     const rows = browserWorlds({ files: [], slots: [undefined, { seed: 42, world: 'road' }, { seed: 42, world: 'road' }, { seed: -1 }] });
     expect(rows).toEqual([{ seed: 42, name: undefined, kind: 'road', source: 'browser', key: 'browser:42', checkpoint: false }]);
+  });
+
+  it('restores recorded village populations without founding unvisited places or changing storage', () => {
+    const kept: BrowserWorldSnapshot = { files: [
+      ['worlds/world-records.json', JSON.stringify([{ seed: 3, name: 'chris', kind: 'road' }])],
+      ['worlds/3.json', JSON.stringify({ seed: 3, clock: { day: 2, time: 0.5 }, deltas: [], holdingVillages: ['Crossroads Town'] })],
+    ], slots: [] };
+    const before = JSON.stringify(kept);
+    const book = browserWorldSurvey(browserWorldView(kept, 'browser:3'));
+    expect(book && book !== 'preparing' ? book.parishes.map(parish => parish.name) : []).toEqual(['Crossroads Town']);
+    expect(book && book !== 'preparing' ? book.souls : 0).toBeGreaterThan(0);
+    expect(JSON.stringify(kept)).toBe(before);
+    const empty = { ...kept, files: kept.files.map(([name, text]): [string, string] => [name,
+      name === 'worlds/3.json' ? JSON.stringify({ seed: 3, clock: { day: 2, time: 0.5 }, deltas: [] }) : text]) };
+    const unvisited = browserWorldSurvey(browserWorldView(empty, 'browser:3'));
+    expect(unvisited && unvisited !== 'preparing' ? unvisited.parishes : null).toEqual([]);
   });
 
   it('reports damaged data and absent worlds instead of generating a replacement', () => {

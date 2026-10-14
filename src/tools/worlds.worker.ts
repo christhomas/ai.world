@@ -1,6 +1,6 @@
 import { createStore, entries, get } from 'idb-keyval';
 import { browserWorlds, type BrowserWorldSnapshot } from './worlds';
-import { browserWorldView } from './world-view';
+import { browserWorldSurvey, browserWorldView } from './world-view';
 import { terrainPreview } from '../ui/terrainpreview';
 import { elevationFor } from '../world/growworld';
 
@@ -18,9 +18,10 @@ self.onmessage = async (event: MessageEvent<{ id: number; action: string; key?: 
     const kept = await snapshot();
     const worlds = browserWorlds(kept);
     if (action === 'list') { self.postMessage({ id, value: worlds }); return; }
-    const { world, sim } = browserWorldView(kept, key ?? '');
+    const view = browserWorldView(kept, key ?? '');
+    const { world, sim } = view;
     if (action === 'survey') {
-      const book = sim.surveyOf(world.seed);
+      const book = browserWorldSurvey(view);
       if (!book || book === 'preparing') throw new Error('The saved world could not be surveyed.');
       self.postMessage({ id, value: { ...book, happened: [], latest: 0, checkpoint: world.checkpoint } });
       return;

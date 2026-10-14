@@ -12,7 +12,9 @@ Tools do not upload local worlds, claim server names, or change saved progress w
 Database failures are shown beside the selector rather than described as an empty catalogue.
 
 The local Domesday Book runs the actual simulation in a worker against a detached saved snapshot,
-including the authority's clock, manifest and province records. It does not advance the live game.
+including the authority's clock, manifest and province records. Recorded visited villages on the
+loaded terrain are restored using the game's founding rules and saved facts; unvisited places are
+not founded just to populate a survey. It does not advance the live game.
 Its history stream is unavailable because local worlds do not keep the server's durable chronicle.
 Old hero slots without an authority checkpoint are identified explicitly; their survey uses the
 saved seed and manifest rather than claiming to have a complete world checkpoint.
