@@ -17,6 +17,7 @@ import { lastRuns, migrateBook, writeDown } from './builder/book';
 import type { BuilderAt } from './builder/proxy';
 import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 import { worldEditor } from './tools/worldeditor';
@@ -117,9 +118,19 @@ function wireFor(socket: WebSocket): Wire {
  * an async function and a route that returns a promise to a caller checking it for `true` is a
  * route that never fires. The handler owns the response from the moment it says yes.
  */
+function toolsRuntimeAsset(staticDir?: string): string | undefined {
+  if (!staticDir) return undefined;
+  try {
+    const html = readFileSync(`${staticDir}/tools/tools-app.html`, 'utf8');
+    const asset = html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/i)?.[1];
+    return asset && /^\/assets\/[a-zA-Z0-9_.-]+\.js$/.test(asset) ? asset : undefined;
+  } catch { return undefined; }
+}
+
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
   sim: Simulation, channel: BuilderChannel, groundWorker: GroundWorker | null,
+  staticDir?: string,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
@@ -130,6 +141,7 @@ function openTools(
   sweepSessions(db);
   const portal = portalFor({
     db, secret, trustProxy, channel,
+    runtimeAsset: toolsRuntimeAsset(staticDir),
     // The portal has already proved the session before calling this. No operator token is made,
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
@@ -207,7 +219,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, builderChannel, groundWorker)
+      sim, builderChannel, groundWorker, options.staticDir)
     : null;
   const http = createServer((req, res) => {
     if (options.captureClock && req.url?.startsWith('/__shots/step?')) {
