@@ -1,4 +1,5 @@
 import type { ToolWorld } from './worlds';
+import { LatestWorldReader } from './latest-reader';
 
 interface ToolWorldAccess {
   worlds: ToolWorld[];
@@ -17,35 +18,9 @@ declare global {
 
 const picker = document.getElementById('tools-world') as HTMLSelectElement;
 const status = document.getElementById('tools-world-status')!;
-let worker: Worker | null = null;
-let sequence = 0;
-const waiting = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: number }>();
-function stop(error: Error): void {
-  worker?.terminate(); worker = null;
-  for (const pending of waiting.values()) { clearTimeout(pending.timer); pending.reject(error); }
-  waiting.clear();
-}
-function local(action: string, fields: Record<string, unknown> = {}): Promise<unknown> {
-  if (!worker) {
-    worker = new Worker(new URL('./worlds.worker.ts', import.meta.url), { type: 'module' });
-    worker.onmessage = event => {
-      const pending = waiting.get(event.data.id);
-      if (!pending) return;
-      clearTimeout(pending.timer); waiting.delete(event.data.id);
-      if (event.data.error) pending.reject(new Error(event.data.error)); else pending.resolve(event.data.value);
-    };
-    worker.onerror = () => stop(new Error('The browser world reader failed. Reload to retry.'));
-  }
-  // The reader grows real terrain. Keep repeated live requests from queuing unbounded work.
-  if (waiting.size) return Promise.reject(new Error('The previous browser survey is still running.'));
-  const id = ++sequence;
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => stop(new Error('Reading the browser world timed out. Retry to open it again.')), 60_000);
-    waiting.set(id, { resolve, reject, timer });
-    worker!.postMessage({ id, action, ...fields });
-  });
-}
-window.addEventListener('pagehide', () => stop(new Error('Tools page closed.')));
+const reader = new LatestWorldReader(() => new Worker(new URL('./worlds.worker.ts', import.meta.url), { type: 'module' }));
+const local = (action: string, fields: Record<string, unknown> = {}) => reader.request(action, fields);
+window.addEventListener('pagehide', () => reader.close());
 async function json(url: string): Promise<any> {
   const response = await fetch(url, { credentials: 'same-origin' });
   if (!response.ok) throw new Error(`Tools data could not be read (${response.status}). Sign in again if your session expired.`);

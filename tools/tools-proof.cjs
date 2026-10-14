@@ -67,6 +67,16 @@ let browser;
   assert.match(await page.locator('#note').textContent(), /saved snapshot/);
   assert.ok(await page.locator('.parish').count(), 'real road population was surveyed');
   assert.match(await page.locator('.parish h2').first().textContent(), /Crossroads Town/);
+  await page.evaluate(async () => {
+    const access = await window.toolsWorldsReady;
+    const stale = access.survey('browser:3', 0).catch(error => error.message);
+    const latest = access.preview('browser:3', new URLSearchParams({ x: '10', z: '20' }))
+      .catch(error => error.message);
+    const cancelled = await stale;
+    if (!cancelled.includes('superseded')) throw new Error(`Old survey was not cancelled: ${cancelled}`);
+    const result = await latest;
+    if (!result.includes('road world')) throw new Error(`Latest request did not finish: ${result}`);
+  });
   await page.screenshot({ path: `${out}/domesday-desktop.png`, fullPage: true });
   await page.locator('.tools-nav a[href*="/tools/world-editor"]').click();
   await page.waitForFunction(() => document.querySelector('#message')?.textContent.includes('road world'));
