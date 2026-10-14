@@ -63,6 +63,27 @@ describe('the tools portal, served', () => {
     expect(said).toContain('/tools/login');
   });
 
+  it('keeps navigation, world context and the login guard consistent across tools', async () => {
+    const cookie = cookieOut(await signIn('chris', 'a long enough password'));
+    for (const path of ['/tools/', '/tools/registry', '/tools/world-editor', '/tools/character-builder', '/tools/build/pair']) {
+      const res = await get(path, cookie);
+      expect(res.status).toBe(path.endsWith('character-builder') ? 503 : 200);
+      const html = await res.text();
+      expect(html).toContain('class="tools-topbar"');
+      expect(html).toContain('aria-label="Tools"');
+      expect(html).toContain('id="tools-world"');
+      expect(html).toContain('href="/tools/registry"');
+      expect(html).toContain('href="/tools/world-editor"');
+      expect(html).toContain('action="/tools/logout"');
+    }
+    const anonymous = await get('/tools/runtime.js');
+    expect(anonymous.status).toBe(303);
+    expect(anonymous.headers.get('location')).toBe('/tools/login');
+    const withoutBuild = await get('/tools/runtime.js', cookie);
+    expect(withoutBuild.status).toBe(503);
+    expect(await withoutBuild.text()).toContain('not available in this build');
+  });
+
   it('refuses a wrong password and says nothing about which half was wrong', async () => {
     const bad = await signIn('chris', 'not the password');
     expect(bad.status).toBe(401);

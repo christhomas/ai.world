@@ -1,0 +1,35 @@
+name: Tools database and shell proof
+on:
+  pull_request:
+    paths: ['server/**', 'src/**', 'models/**', 'behaviours/**', 'properties/**', 'tools/registry.html', 'tools/world-editor.html', 'tools/tools-app.html', 'tools/tools-proof.cjs', 'vite.config.ts', 'package.json', 'pnpm-lock.yaml', '.github/workflows/tools-proof.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tools-proof-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  tools-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run build
+        env:
+          BASE: /
+      - run: pnpm exec vite build --config server/build.config.ts
+      - run: node tools/tools-proof.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tools-proof
+          path: docs/reports/tools-proof/
