@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.12 — 2026-10-14
+
+Keep server worlds in SQLite and join through the public origin
+
 ### v0.103.11 — 2026-10-05
 
 Portable countries, scenes, terrain jobs, world transports, Player opening and native viewport lifetime
@@ -626,10 +630,6 @@ endless worlds grow shrines so the prayer can be said, an editor's sky eyrie off
 ### v0.103.3 — 2026-09-30
 
 holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle pools stop uploading, and the editor drops a refusal that could never fire
-
-### v0.103.2 — 2026-09-30
-
-world creation never freezes the server, the season reaches the Dart renderer, and the tools cookie is Secure
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
