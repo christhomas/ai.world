@@ -7,6 +7,7 @@ import android.opengl.GLES30
 import android.opengl.Matrix
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.view.Surface
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -16,6 +17,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.IntBuffer
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -29,6 +31,7 @@ class WorldRendererBridge(
 ) : MethodChannel.MethodCallHandler {
     private val channel = MethodChannel(messenger, "world.ai/renderer")
     private val renderers = mutableMapOf<Long, GLWorldRenderer>()
+    private val main = Handler(Looper.getMainLooper())
 
     init { channel.setMethodCallHandler(this) }
 
@@ -79,6 +82,12 @@ class WorldRendererBridge(
                         lights, call.argument<Map<String, Any>>("coast"), call.argument<Map<String, Any>>("fog"),
                         call.argument<Number>("renderTimeMs")?.toDouble())
                     result.success(null)
+                }
+                "snapshot" -> renderer(call).snapshot { shot ->
+                    // a channel reply belongs to the platform thread, and the pixels were read on the GL one
+                    main.post {
+                        shot.fold({ result.success(it) }, { result.error("renderer", it.message, null) })
+                    }
                 }
                 "cutaway" -> renderer(call).cutaway(
                     call.argument<Boolean>("enabled") == true,
@@ -172,6 +181,8 @@ private class GLWorldRenderer(
     private var context = EGL14.EGL_NO_CONTEXT
     private var eglSurface = EGL14.EGL_NO_SURFACE
     private val glReleased = AtomicBoolean(false)
+    /** Who is waiting for the next frame drawn to be read back. Added from the platform thread. */
+    private val snapshots = ConcurrentLinkedQueue<(Result<Map<String, Any>>) -> Unit>()
     private val disposed = AtomicBoolean(false)
     @Volatile private var running = true
 
@@ -315,6 +326,11 @@ private class GLWorldRenderer(
         } else coastArea = floatArrayOf(0f, 0f, 0f, 64f)
     }
     fun cutaway(on: Boolean, x: Float, y: Float, z: Float) = post { cutOn = if (on) 1f else 0f; hero = floatArrayOf(x, y, z) }
+    /** The next frame drawn after everything already sent, read back before it is swapped away. */
+    fun snapshot(reply: (Result<Map<String, Any>>) -> Unit) {
+        if (!running) { reply(Result.failure(IllegalStateException("renderer is not alive"))); return }
+        snapshots.add(reply)
+    }
 
     private fun post(block: () -> Unit) { if (running) handler.post(block) }
 
@@ -416,8 +432,34 @@ private class GLWorldRenderer(
         GLES30.glUniform1i(GLES30.glGetUniformLocation(program, "uCoast"), 1)
         GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uCoastArea"), 1, coastArea, 0)
         drawMeshes(program, false)
+        if (snapshots.isNotEmpty()) {
+            val shot = runCatching { readBack() }
+            while (true) (snapshots.poll() ?: break)(shot)
+        }
         EGL14.eglSwapBuffers(display, eglSurface)
         handler.postDelayed(::drawLoop, 16)
+    }
+
+    /** The colour buffer just drawn: opaque RGBA8 with the top row first, which is how Dart reads it. */
+    private fun readBack(): Map<String, Any> {
+        val width = viewportWidth
+        val height = viewportHeight
+        val row = width * 4
+        val pixels = ByteBuffer.allocateDirect(row * height).order(ByteOrder.nativeOrder())
+        // whatever an earlier call left behind is not this read's failure
+        for (stale in 0 until 16) if (GLES30.glGetError() == GLES30.GL_NO_ERROR) break
+        GLES30.glPixelStorei(GLES30.GL_PACK_ALIGNMENT, 1)
+        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, pixels)
+        val error = GLES30.glGetError()
+        check(error == GLES30.GL_NO_ERROR) { "glReadPixels failed with $error" }
+        // GL counts rows from the bottom
+        val rgba = ByteArray(row * height)
+        for (y in 0 until height) {
+            pixels.position((height - 1 - y) * row)
+            pixels.get(rgba, y * row, row)
+        }
+        for (at in 3 until rgba.size step 4) rgba[at] = -1
+        return mapOf("width" to width, "height" to height, "rgba" to rgba)
     }
 
     private fun drawShadow(lightMvp: FloatArray, time: Float) {
@@ -518,6 +560,8 @@ private class GLWorldRenderer(
         if (!disposed.compareAndSet(false, true)) return
         running = false
         handler.removeCallbacksAndMessages(null)
+        val gone = Result.failure<Map<String, Any>>(IllegalStateException("renderer disposed before the frame was drawn"))
+        while (true) (snapshots.poll() ?: break)(gone)
         val done = CountDownLatch(1)
         val cleanupPosted = thread.isAlive && handler.post {
             try { releaseGl() } finally { done.countDown() }

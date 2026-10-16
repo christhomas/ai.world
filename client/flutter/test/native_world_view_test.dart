@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:ai_world_flutter/ai_world_flutter.dart';
 import 'package:flutter/services.dart';
@@ -175,6 +176,24 @@ void main() {
     expect(_sizes(calls, 'resize'), [[200, 80], [200, 80]]);
     expect(tester.takeException(), isNull);
     await _remove(tester);
+  });
+
+  test('a snapshot is the renderer target read back whole, or refused', () async {
+    final renderer = await NativeWorldRenderer.create(width: 3, height: 2);
+    final pixels = Uint8List.fromList(List<int>.generate(3 * 2 * 4, (i) => i));
+    handle = (call) async => call.method == 'snapshot'
+        ? <String, Object>{'width': 3, 'height': 2, 'rgba': pixels} : 7;
+    final shot = await renderer.snapshot();
+    expect((shot.width, shot.height), (3, 2));
+    expect(shot.rgba, pixels);
+    expect((calls.last.arguments as Map)['textureId'], 7);
+    // a reply that does not hold the size it claims is not a picture of anything
+    handle = (call) async => <String, Object>{'width': 4, 'height': 2, 'rgba': pixels};
+    await expectLater(renderer.snapshot(), throwsFormatException);
+    handle = (call) async => null;
+    await expectLater(renderer.snapshot(), throwsFormatException);
+    await renderer.dispose();
+    await expectLater(renderer.snapshot(), throwsStateError);
   });
 }
 

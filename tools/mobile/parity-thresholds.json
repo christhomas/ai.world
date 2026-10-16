@@ -1,0 +1,14 @@
+{
+  "note": [
+    "What a native frame may differ from the web picture of the same frame and still pass (#569). Channel units, 0..255.",
+    "grid: the picture is judged in columns x rows regions; a region's delta is the largest difference between the two pictures' mean channel values there.",
+    "blank: a native frame with less spread or fewer colours than this, or more of it the clear colour, drew nothing.",
+    "noise: two read-backs of one frame on one device. A renderer replaying a frozen frame should draw it identically.",
+    "web: the native frame resampled to the web canvas. Provisional until a measured run sets them: see docs/mobile-hosted-verification.md."
+  ],
+  "grid": [8, 4],
+  "blank": { "stddev": 8, "colours": 32, "background": 0.97 },
+  "noise": { "mae": 1.0, "region": 1.0 },
+  "web": { "mae": 40, "region": 60, "shift": 12 },
+  "scenes": {}
+}

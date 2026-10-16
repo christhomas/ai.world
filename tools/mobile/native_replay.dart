@@ -28,13 +28,26 @@ Future<void> main() async {
           final text = name == 'interior-fixture'
               ? hostedFixture : await rootBundle.loadString('assets/hosted/$name.json');
           final packet = jsonDecode(text) as Map<String, dynamic>;
-          // Consumers implementing the captured clock use this exact epoch on both passes.
-          (packet['frame'] as Map)['renderTimeMs'] = 1000.0;
+          // The render time the web drew this frame at, so water and anything else that moves stands
+          // where it stood in the web picture; the checked-in fixture predates the field.
+          (packet['frame'] as Map)['renderTimeMs'] ??= 1000.0;
           final frame = SceneFrame.fromJson(packet, geometryCache: SceneGeometryCache());
           checkScene(name, frame, Map<String, dynamic>.from(scene['kinds'] as Map));
           await pipeline.draw(frame);
           final lights = frame.nodes.where((node) => const ['ambient', 'hemisphere', 'directional', 'point'].contains(node['kind'])).length;
-          debugPrint('HOSTED_SCENE_READY index=$index name=$name nodes=${frame.nodes.length} lights=$lights');
+          // The target itself, twice, for the comparison with the web picture and the repeat noise
+          // floor: a screenshot is the device's frame, rotated and composited, and not what was drawn.
+          await Future<void>.delayed(const Duration(milliseconds: 1500));
+          final drawn = <String>[];
+          for (final pass in const ['first', 'repeat']) {
+            final shot = await renderer.snapshot();
+            await File('${advance.path}/parity-$index-$pass.rgba').writeAsBytes(shot.rgba, flush: true);
+            drawn.add('${shot.width}x${shot.height}');
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+          }
+          if (drawn.toSet().length != 1) throw StateError('$name was read back at two sizes: $drawn');
+          debugPrint('HOSTED_SCENE_READY index=$index name=$name nodes=${frame.nodes.length} lights=$lights '
+              'framebuffer=${drawn.first} renderTimeMs=${(packet['frame'] as Map)['renderTimeMs']}');
           // Held until the host has photographed it twice, however long a loaded emulator takes.
           final cue = File('${advance.path}/parity-advance-$index');
           final deadline = DateTime.now().add(const Duration(minutes: 4));
