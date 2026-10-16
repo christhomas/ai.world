@@ -13,7 +13,8 @@ import { generateInterior, interiorSeed, interiorTitle, type InteriorKind } from
 import { InteriorScene } from '../render/interior';
 import { InteriorWorld } from '../interior/world';
 import { EntityManager } from '../entities/manager';
-import { entityRendererFor, type EntityRenderer } from '../render/entities';
+import type { EntityRenderer } from '../render/entities';
+import { entityRendererFor } from '../render/entities-mount';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { bodyForTrade } from '../entities/trades';
