@@ -419,6 +419,7 @@ export function composeGame(start: GameStart, platform: GamePlatform): GameHandl
     saidOfMine, landWood: houses.yard.brought.bind(houses.yard),
     indoors: () => places.indoors?.door ?? null,
     flash: (message) => hud.flash(message),
+    heroName: () => platform.settings.getItem('ai.world/name') ?? 'Traveller',
   });
   heroFace();                                 // the face on the right of every conversation
 

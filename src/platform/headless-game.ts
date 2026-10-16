@@ -201,7 +201,8 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let visible = true;
   const watching = new Set<(active: boolean) => void>();
   let handles: Parameters<typeof installProbes>[0] | null = null;
-  const remembered = new Map<string, string>();
+  // the name the hero goes by is a remembered setting on the page, so it is one here too
+  const remembered = new Map<string, string>(options.name ? [['ai.world/name', options.name]] : []);
 
   const rigHost: RigHost = {
     container: null,

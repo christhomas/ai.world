@@ -88,6 +88,8 @@ export interface Meeting {
    */
   indoors: () => Doorway | null;
   flash: (message: string) => void;
+  /** The name the hero gave themselves, which their face is seeded by. */
+  heroName: () => string;
   /** What each village's smith has made, on a shelf that can run out. See `forge.ts`. */
   forge: Forge;
   persist: () => void;
@@ -113,7 +115,7 @@ export function createMeeting(ctx: Meeting) {
    * themselves, so it is theirs and stays theirs, and their helmet decides what is on its head.
    */
   const heroFace = (): void => dialogue.setHero({
-    id: `hero:${localStorage.getItem('ai.world/name') ?? 'Traveller'}`,
+    id: `hero:${ctx.heroName()}`,
     trade: state.equipped.head ? 'soldier' : '',
     stage: 'adult',
   });
