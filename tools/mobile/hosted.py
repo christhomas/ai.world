@@ -35,8 +35,8 @@ def command(args, timeout=600, cwd=ROOT, check=True):
     return result.returncode
 
 
-def output(args):
-    return subprocess.check_output(args, text=True, timeout=30).strip()
+def output(args, timeout=30):
+    return subprocess.check_output(args, text=True, timeout=timeout).strip()
 
 
 def validate_android_ui(xml):
@@ -212,14 +212,23 @@ def capture(platform):
              {'name': f'installed-{platform}-hero-file-checkpoint', 'passed': True,
               'scope': 'hero-state-only', 'app_process_restart': False}])
 
+        container = []
+
+        def app_files():
+            # The simulator's container for the app does not move while it runs, so it is asked for
+            # once. Asking takes seconds on a busy runner and has run past half a minute.
+            if not container:
+                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data'], timeout=180))
+                container.append(data / 'Library/Application Support/ai-world')
+            return container[0]
+
         def advance(index):
             # The app waits on this file before drawing the next scene, so each is photographed whole.
             name = f'parity-advance-{index}'
             if platform == 'android':
                 command([*adb, 'shell', f"run-as world.ai.ai_world_flutter sh -c 'mkdir -p files/ai-world && touch files/ai-world/{name}'"])
             else:
-                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data']))
-                root = data / 'Library/Application Support/ai-world'
+                root = app_files()
                 root.mkdir(parents=True, exist_ok=True)
                 (root / name).touch()
 
@@ -228,8 +237,7 @@ def capture(platform):
             if platform == 'android':
                 return subprocess.run([*adb, 'exec-out', 'run-as', 'world.ai.ai_world_flutter', 'cat', f'files/ai-world/{file}'],
                                       stdout=subprocess.PIPE, check=True, timeout=180).stdout
-            data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data']))
-            return (data / 'Library/Application Support/ai-world' / file).read_bytes()
+            return (app_files() / file).read_bytes()
 
         for index, scene in enumerate(json.loads(STATE.read_text())['scenes']):
             name = scene['name']
