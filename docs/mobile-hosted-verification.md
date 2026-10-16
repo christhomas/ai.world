@@ -23,15 +23,29 @@ Android refuses an ambiguous device list; the emulator action owns teardown. iOS
 deletes only its newly created simulator, including after failures.
 
 `tools/mobile/native_replay.dart` uses the production `NativeWorldView`, default native method
-channel and `FlutterFramePipeline`. It replays the existing `interior_frame.json` recorded from
-the actual game in hosted Checks run 36657253479, seed 3. The hosted runner generates temporary
-Dart fixture/entrypoint files in the disposable checkout and builds that replay target. It does
-not replace the production entrypoint in source control or substitute a mock renderer. Flutter
-tests run in full; the iOS capture additionally runs `RunnerTests` against its dedicated simulator.
+channel and `FlutterFramePipeline`.
 
-The runner waits at most 90 seconds for explicit native creation and frame submission, captures
-twice using `adb screencap` or `simctl io screenshot`, decodes both PNGs, and checks the central
-scene's colour variety and deviation. A flat/blank texture cannot pass this smoke heuristic.
+**What it replays.** First comes the checked-in `interior_frame.json`, recorded from the actual game
+in hosted Checks run 36657253479 (seed 3). Then come the scenes the `frames` job records on the same
+commit with `tools/playtest-record.ts`: the village square, a shop, a dungeon floor and the sea. Each
+is the exact packet the Flutter feed sends, and `SHA256SUMS` sits beside them.
+
+**Preparing the build.** `hosted.py prepare` verifies every recorded packet against its checksum and
+writes `assets/hosted/scenes.json` with each scene's node count per kind. It ships the packets as
+assets of the disposable hosted build. Nothing in source control changes; it does not replace the
+production entrypoint or substitute a mock renderer.
+
+**Replaying.** One pipeline draws the scenes in order at a frozen render time of 1000 ms. Each must
+decode to exactly its recorded counts, with real geometry and at least one light, before it is
+drawn; the checked-in interior keeps its exact mesh and instance counts. The app then logs
+`HOSTED_SCENE_READY` and holds the scene until the host writes `parity-advance-<n>` into its
+app-private storage. Android writes it through `run-as`, iOS into the simulator's data container.
+So every scene is photographed whole, however slow the emulator is. Flutter tests run in full; the
+iOS capture also runs `RunnerTests` against its dedicated simulator.
+
+The runner waits at most 90 seconds for the installed-engine proofs, then up to four minutes for
+each scene. It captures each scene twice using `adb screencap` or `simctl io screenshot`, decodes
+both PNGs, and checks the central scene's colour variety and deviation. A flat/blank texture cannot pass this smoke heuristic.
 Thresholds (standard deviation 8, at least 32 colours in a 128-pixel sample) only reject flat
 output; they do not claim a calibrated lighting tolerance or established repeatability noise floor.
 The native log retains GLES/Metal initialization diagnostics and frame readiness. Method-channel
@@ -59,6 +73,9 @@ regressions, production artifact checksum, zero-scenario rejection and required 
 gate integration remain acceptance work. Do not change this pending gate to success until those
 scenarios actually execute on both platforms.
 
-#569 also remains open: interior-only smoke is not multi-scene web/GLES/Metal parity. Frozen
-animation/water clocks, autumn/coast/dungeon/multi-light fixtures, numerical repeat noise,
-regional diff thresholds and failing light/foam regressions still need implementation.
+#569 remains open. Replaying several recorded scenes natively is not yet web/GLES/Metal parity.
+Still to implement:
+- web reference captures of the same scenes at the same frozen clock;
+- autumn, night-coast and multi-light/shadow fixtures;
+- a numerical repeat-noise floor and regional diff thresholds;
+- light, foam and depth regressions that the comparison must catch.

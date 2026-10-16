@@ -44,14 +44,59 @@ def validate_android_ui(xml):
     return sorted(packages)
 
 
+LIGHTS = {'ambient', 'hemisphere', 'directional', 'point'}
+
+
+def scene_manifest(fixture, frames=None):
+    """What each replayed scene must decode to: the checked-in interior, then every recorded packet.
+
+    Recorded packets come from tools/playtest-record.ts in this same run and are checked against the
+    SHA256SUMS written beside them, so a truncated or substituted download is refused rather than
+    drawn. Each entry carries the node count per kind the native side must decode exactly.
+    """
+    def entry(name, path):
+        data = path.read_bytes()
+        packet = json.loads(data)
+        kinds = {}
+        for node in packet['frame']['nodes']:
+            kinds[node['kind']] = kinds.get(node['kind'], 0) + 1
+        lights = sum(n for kind, n in kinds.items() if kind in LIGHTS)
+        if not lights or not (kinds.get('mesh', 0) + kinds.get('instances', 0)):
+            raise RuntimeError(f'{name}: recorded scene has no lights or nothing to draw: {kinds}')
+        return {'name': name, 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
+                'kinds': dict(sorted(kinds.items())), 'lights': lights}
+    scenes = [entry('interior-fixture', fixture)]
+    if frames is None:
+        return scenes
+    sums_file = frames / 'SHA256SUMS'
+    if not sums_file.exists():
+        raise RuntimeError(f'No SHA256SUMS beside the recorded scenes in {frames}')
+    sums = {}
+    for line in sums_file.read_text().splitlines():
+        digest, name = line.split(maxsplit=1)
+        sums[name.lstrip('*')] = digest
+    recorded = sorted(frames.glob('*.json'))
+    if not recorded:
+        raise RuntimeError(f'No recorded scenes in {frames}')
+    for path in recorded:
+        scene = entry(path.stem, path)
+        if sums.get(path.name) != scene['sha256']:
+            raise RuntimeError(f'{path.name}: checksum does not match SHA256SUMS')
+        scenes.append(scene)
+    return scenes
+
+
 def prepare(platform):
     command(['node', 'tools/mobile/build-engine.mjs'])
     fixture = APP / 'test/fixtures/interior_frame.json'
+    frames = Path(os.environ['PARITY_FRAMES']) if os.environ.get('PARITY_FRAMES') else None
+    scenes = scene_manifest(fixture, frames)
     save(platform=platform, source_sha=output(['git', 'rev-parse', 'HEAD']),
          status='provisioning', gameplay='pending', seed=3,
          fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
          requested_render_time_ms=1000,
-         scenarios=['recorded-interior-native-renderer'],
+         scenarios=[f'recorded-{scene["name"]}-native-renderer' for scene in scenes],
+         scenes=scenes,
          configuration={'flutter': '3.47.1', 'android_api': 35, 'ios': '18.5',
                         'state_engine': 'QuickJS 2026-06-04' if platform == 'android' else 'JavaScriptCore',
                         'xcode': '16.4', 'backend': 'GLES3 / SwiftShader' if platform == 'android' else 'Metal simulator'},
@@ -59,6 +104,16 @@ def prepare(platform):
     # Generate only inside the disposable hosted checkout; no bundled fixture or app edits land.
     (APP / 'lib/hosted_fixture.dart').write_text('const hostedFixture = ' + json.dumps(fixture.read_text()).replace('$', '\\$') + ';\n')
     (APP / 'lib/hosted_replay.dart').write_text((ROOT / 'tools/mobile/native_replay.dart').read_text())
+    # The recorded scenes travel as assets of this disposable build, never of the app in source control.
+    hosted = APP / 'assets/hosted'
+    hosted.mkdir(parents=True, exist_ok=True)
+    for scene in scenes[1:]:
+        (hosted / f'{scene["name"]}.json').write_bytes((frames / f'{scene["name"]}.json').read_bytes())
+    (hosted / 'scenes.json').write_text(json.dumps(scenes))
+    pubspec = APP / 'pubspec.yaml'
+    pubspec.write_text(pubspec.read_text().replace('    - assets/engine/\n', '    - assets/engine/\n    - assets/hosted/\n', 1))
+    if '- assets/hosted/' not in pubspec.read_text():
+        raise RuntimeError('Could not list the hosted scenes as assets of the disposable build')
     command([sys.executable, '-m', 'unittest', 'discover', '-s', 'tools/mobile', '-p', 'test_*.py'])
     command(['flutter', '--version'])
     command(['flutter', 'pub', 'get'], cwd=APP)
@@ -134,55 +189,74 @@ def capture(platform):
             command([*sim, 'launch', '--stdout=' + str(OUT / 'app.log'), '--stderr=' + str(OUT / 'app-error.log'),
                      device, 'world.ai.aiWorldFlutter'])
         save(status='waiting-native-ready', device=device)
-        deadline = time.monotonic() + 90
-        while time.monotonic() < deadline:
-            text = '\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))
-            if 'HOSTED_NATIVE_FAILED' in text:
-                raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
-            if 'HOSTED_NATIVE_READY' in text:
-                if f'HOSTED_STATE_ENGINE_READY platform={platform}' not in text:
-                    raise RuntimeError('Installed state engine proof did not complete on ' + platform)
-                if f'HOSTED_HERO_CHECKPOINT_READY platform={platform}' not in text:
-                    raise RuntimeError('Installed file-backed hero continuation did not complete on ' + platform)
-                state = json.loads(STATE.read_text())
-                save(assertions=state['assertions'] + [{'name': f'installed-{platform}-hero-state-vm',
-                     'passed': True, 'cycles': 3, 'scope': 'hero-state-only'},
-                     {'name': f'installed-{platform}-hero-file-checkpoint', 'passed': True,
-                      'scope': 'hero-state-only', 'app_process_restart': False}])
-                break
-            time.sleep(1)
-        else:
-            raise TimeoutError('No native readiness after 90 seconds; crash or blank initialization')
-        save(status='capturing')
-        for pass_name in ['first', 'repeat']:
-            time.sleep(2)
-            png = OUT / f'{pass_name}.png'
+
+        def wait_for(marker, seconds, what):
+            deadline = time.monotonic() + seconds
+            while time.monotonic() < deadline:
+                text = '\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))
+                if 'HOSTED_NATIVE_FAILED' in text:
+                    raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
+                if marker in text:
+                    return text
+                time.sleep(1)
+            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization')
+
+        text = wait_for(f'HOSTED_STATE_ENGINE_READY platform={platform}', 90, 'installed state engine proof')
+        if f'HOSTED_HERO_CHECKPOINT_READY platform={platform}' not in text:
+            raise RuntimeError('Installed file-backed hero continuation did not complete on ' + platform)
+        state = json.loads(STATE.read_text())
+        save(assertions=state['assertions'] + [{'name': f'installed-{platform}-hero-state-vm',
+             'passed': True, 'cycles': 3, 'scope': 'hero-state-only'},
+             {'name': f'installed-{platform}-hero-file-checkpoint', 'passed': True,
+              'scope': 'hero-state-only', 'app_process_restart': False}])
+
+        def advance(index):
+            # The app waits on this file before drawing the next scene, so each is photographed whole.
+            name = f'parity-advance-{index}'
             if platform == 'android':
-                with png.open('wb') as file:
-                    subprocess.run([*adb, 'exec-out', 'screencap', '-p'], stdout=file, check=True, timeout=30)
-                remote_ui = f'/sdcard/mobile-{pass_name}-ui.xml'
-                command([*adb, 'shell', 'uiautomator', 'dump', '--compressed', remote_ui], timeout=60)
-                xml = output([*adb, 'exec-out', 'cat', remote_ui])
-                (OUT / f'{pass_name}-ui.xml').write_text(xml)
-                packages = validate_android_ui(xml)
-                state = json.loads(STATE.read_text())
-                save(assertions=state['assertions'] + [{'name': pass_name + '-unobscured-app',
-                     'passed': True, 'ui_packages': packages}])
+                command([*adb, 'shell', f"run-as world.ai.ai_world_flutter sh -c 'mkdir -p files/ai-world && touch files/ai-world/{name}'"])
             else:
-                command([*sim, 'io', device, 'screenshot', str(png)])
-            # OS capture includes native Texture. No label/HUD exists in this replay target.
-            with Image.open(png) as image:
-                image.load()
-                w, h = image.size
-                crop = image.convert('RGB').crop((w//5, h//5, w*4//5, h*4//5))
-                spread = max(ImageStat.Stat(crop).stddev)
-                colours = len(crop.resize((128, 128)).getcolors(16384) or [])
-                if spread < 8 or colours < 32:
-                    raise RuntimeError(f'{pass_name}: blank/flat native scene (stddev={spread}, colours={colours})')
-                state = json.loads(STATE.read_text())
-                assertions = state['assertions'] + [{'name': pass_name + '-visible-native-geometry',
-                    'passed': True, 'stddev': spread, 'colours': colours, 'width': w, 'height': h}]
-                save(assertions=assertions)
+                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data']))
+                root = data / 'Library/Application Support/ai-world'
+                root.mkdir(parents=True, exist_ok=True)
+                (root / name).touch()
+
+        for index, scene in enumerate(json.loads(STATE.read_text())['scenes']):
+            name = scene['name']
+            save(status=f'waiting-scene-{name}')
+            wait_for(f'HOSTED_SCENE_READY index={index} ', 240, f'{name} scene')
+            save(status=f'capturing-{name}')
+            for pass_name in ['first', 'repeat']:
+                time.sleep(2)
+                shot = f'{name}-{pass_name}'
+                png = OUT / f'{shot}.png'
+                if platform == 'android':
+                    with png.open('wb') as file:
+                        subprocess.run([*adb, 'exec-out', 'screencap', '-p'], stdout=file, check=True, timeout=30)
+                    remote_ui = f'/sdcard/mobile-{shot}-ui.xml'
+                    command([*adb, 'shell', 'uiautomator', 'dump', '--compressed', remote_ui], timeout=60)
+                    xml = output([*adb, 'exec-out', 'cat', remote_ui])
+                    (OUT / f'{shot}-ui.xml').write_text(xml)
+                    packages = validate_android_ui(xml)
+                    state = json.loads(STATE.read_text())
+                    save(assertions=state['assertions'] + [{'name': shot + '-unobscured-app',
+                         'passed': True, 'ui_packages': packages}])
+                else:
+                    command([*sim, 'io', device, 'screenshot', str(png)])
+                # OS capture includes native Texture. No label/HUD exists in this replay target.
+                with Image.open(png) as image:
+                    image.load()
+                    w, h = image.size
+                    crop = image.convert('RGB').crop((w//5, h//5, w*4//5, h*4//5))
+                    spread = max(ImageStat.Stat(crop).stddev)
+                    colours = len(crop.resize((128, 128)).getcolors(16384) or [])
+                    if spread < 8 or colours < 32:
+                        raise RuntimeError(f'{shot}: blank/flat native scene (stddev={spread}, colours={colours})')
+                    state = json.loads(STATE.read_text())
+                    save(assertions=state['assertions'] + [{'name': shot + '-visible-native-geometry',
+                        'passed': True, 'stddev': spread, 'colours': colours, 'width': w, 'height': h}])
+            advance(index)
+        wait_for('HOSTED_NATIVE_READY', 120, 'end of the replayed scenes')
         save(status='renderer-smoke-passed')
     finally:
         for process in processes:

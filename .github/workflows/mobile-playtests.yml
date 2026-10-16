@@ -12,6 +12,8 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/mobile-playtests.yml'
       - 'docs/mobile-hosted-verification.md'
+      - 'tools/playtest-record.ts'
+      - 'server/flutter-packet.ts'
   workflow_dispatch:
     inputs:
       gate:
@@ -28,9 +30,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  android-native:
+  # The scenes both phones replay, recorded from the real game on this commit (#569): a village
+  # square, a shop, a dungeon floor and the sea, each as the exact packet the Flutter feed sends,
+  # with a checksum file the native jobs verify before drawing anything.
+  frames:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Record the parity scenes from the real game
+        run: pnpm exec tsx tools/playtest-record.ts
+        env:
+          FRAMES: ${{ runner.temp }}/parity-frames
+          OUT: ${{ runner.temp }}/parity-frames/record-only-report.txt
+      - name: Checksum what the phones will draw
+        run: cd "$RUNNER_TEMP/parity-frames" && sha256sum *.json > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parity-frames
+          path: ${{ runner.temp }}/parity-frames
+          if-no-files-found: error
+          retention-days: 30
+
+  android-native:
+    needs: frames
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -50,8 +84,14 @@ jobs:
           flutter-version: 3.47.1
           channel: stable
       - run: python3 -m pip install Pillow==11.3.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: parity-frames
+          path: ${{ runner.temp }}/parity-frames
       - name: Build production native replay on hosted runner
         run: python3 tools/mobile/hosted.py prepare android
+        env:
+          PARITY_FRAMES: ${{ runner.temp }}/parity-frames
       - name: Enable and require hosted KVM acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -90,8 +130,9 @@ jobs:
           retention-days: 30
 
   ios-native:
+    needs: frames
     runs-on: macos-15
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
@@ -111,8 +152,14 @@ jobs:
       - run: python3 -m venv "$RUNNER_TEMP/mobile-python"
       - run: |
           "$RUNNER_TEMP/mobile-python/bin/pip" install Pillow==11.3.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: parity-frames
+          path: ${{ runner.temp }}/parity-frames
       - name: Build production native replay on hosted runner
         run: python3 tools/mobile/hosted.py prepare ios
+        env:
+          PARITY_FRAMES: ${{ runner.temp }}/parity-frames
       - name: Run dedicated Metal simulator
         run: |
           "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/hosted.py capture ios

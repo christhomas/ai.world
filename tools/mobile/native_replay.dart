@@ -17,36 +17,73 @@ Future<void> main() async {
       try {
         debugPrint('HOSTED_NATIVE_CREATED texture=${renderer.textureId}');
         if (Platform.isIOS || Platform.isAndroid) await proveInstalledStateEngine();
-        final packet = jsonDecode(hostedFixture) as Map<String, dynamic>;
-        // Consumers implementing the captured clock use this exact epoch on both passes.
-        (packet['frame'] as Map)['renderTimeMs'] = 1000.0;
-        final frame = SceneFrame.fromJson(packet, geometryCache: SceneGeometryCache());
-        final meshes = frame.nodes.where((node) => node['kind'] == 'mesh').toList();
-        final instanceGroups = frame.nodes.where((node) => node['kind'] == 'instances').toList();
-        final instances = instanceGroups.where((node) => (node['instanceMatrices'] as List).isNotEmpty).toList();
-        final lights = frame.nodes.where((node) => const ['ambient', 'hemisphere', 'directional', 'point'].contains(node['kind'])).length;
-        // Three shell meshes and 23 populated furniture groups; two empty HUD groups are dormant.
-        // Validate real geometry and transforms before allowing any image assertion.
-        final drawable = [...meshes, ...instances];
-        final populated = drawable.every((node) {
-          final positions = ((node['attributes'] as Map?)?['position'] as Map?)?['values'] as List?;
-          final indices = node['indices'] as List?;
-          final matrices = node['instanceMatrices'] as List?;
-          return node['visible'] == true && positions != null && positions.length >= 9 &&
-              (indices == null ? positions.length % 9 == 0 : indices.length >= 3 && indices.length % 3 == 0) &&
-              (node['kind'] != 'instances' || (matrices != null && matrices.length >= 16 && matrices.length % 16 == 0));
-        });
-        if (meshes.length != 3 || instanceGroups.length != 25 || instances.length != 23 || lights == 0 || !populated) {
-          throw StateError('Recorded interior preconditions missing: meshes=${meshes.length} instances=${instances.length} lights=$lights populated=$populated');
+        final scenes = (jsonDecode(await rootBundle.loadString('assets/hosted/scenes.json')) as List)
+            .map((scene) => Map<String, dynamic>.from(scene as Map)).toList();
+        final advance = Directory(await StateEngine.storageRoot());
+        // One pipeline for every scene, so each draw replaces the last rather than piling on it.
+        final pipeline = FlutterFramePipeline(renderer);
+        for (var index = 0; index < scenes.length; index++) {
+          final scene = scenes[index];
+          final name = scene['name'] as String;
+          final text = name == 'interior-fixture'
+              ? hostedFixture : await rootBundle.loadString('assets/hosted/$name.json');
+          final packet = jsonDecode(text) as Map<String, dynamic>;
+          // Consumers implementing the captured clock use this exact epoch on both passes.
+          (packet['frame'] as Map)['renderTimeMs'] = 1000.0;
+          final frame = SceneFrame.fromJson(packet, geometryCache: SceneGeometryCache());
+          checkScene(name, frame, Map<String, dynamic>.from(scene['kinds'] as Map));
+          await pipeline.draw(frame);
+          final lights = frame.nodes.where((node) => const ['ambient', 'hemisphere', 'directional', 'point'].contains(node['kind'])).length;
+          debugPrint('HOSTED_SCENE_READY index=$index name=$name nodes=${frame.nodes.length} lights=$lights');
+          // Held until the host has photographed it twice, however long a loaded emulator takes.
+          final cue = File('${advance.path}/parity-advance-$index');
+          final deadline = DateTime.now().add(const Duration(minutes: 4));
+          while (!await cue.exists()) {
+            if (DateTime.now().isAfter(deadline)) throw StateError('The host never photographed $name');
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+          }
         }
-        await FlutterFramePipeline(renderer).draw(frame);
-        debugPrint('HOSTED_NATIVE_READY meshes=${meshes.length} instances=${instances.length} lights=$lights');
+        debugPrint('HOSTED_NATIVE_READY scenes=${scenes.length}');
       } catch (error, stack) {
         debugPrint('HOSTED_NATIVE_FAILED $error\n$stack');
         rethrow;
       }
     })),
   ));
+}
+
+/// A scene decoded to exactly what was recorded, with real geometry, before any picture of it counts.
+/// The checked-in interior keeps the precise shape it has always been held to.
+void checkScene(String name, SceneFrame frame, Map<String, dynamic> recorded) {
+  final decoded = <String, int>{};
+  for (final node in frame.nodes) {
+    final kind = node['kind'] as String;
+    decoded[kind] = (decoded[kind] ?? 0) + 1;
+  }
+  final expected = recorded.map((kind, n) => MapEntry(kind, (n as num).toInt()));
+  if (decoded.length != expected.length || expected.entries.any((entry) => decoded[entry.key] != entry.value)) {
+    throw StateError('$name decoded to $decoded, recorded as $expected');
+  }
+  final meshes = frame.nodes.where((node) => node['kind'] == 'mesh').toList();
+  final instanceGroups = frame.nodes.where((node) => node['kind'] == 'instances').toList();
+  final instances = instanceGroups.where((node) => (node['instanceMatrices'] as List).isNotEmpty).toList();
+  final lights = frame.nodes.where((node) => const ['ambient', 'hemisphere', 'directional', 'point'].contains(node['kind'])).length;
+  final drawable = [...meshes, ...instances].where((node) => node['visible'] != false).toList();
+  final populated = drawable.isNotEmpty && drawable.every((node) {
+    final positions = ((node['attributes'] as Map?)?['position'] as Map?)?['values'] as List?;
+    final indices = node['indices'] as List?;
+    final matrices = node['instanceMatrices'] as List?;
+    return positions != null && positions.length >= 9 &&
+        (indices == null ? positions.length % 9 == 0 : indices.length >= 3 && indices.length % 3 == 0) &&
+        (node['kind'] != 'instances' || (matrices != null && matrices.length >= 16 && matrices.length % 16 == 0));
+  });
+  if (lights == 0 || !populated) {
+    throw StateError('$name preconditions missing: meshes=${meshes.length} instances=${instances.length} lights=$lights populated=$populated');
+  }
+  // Three shell meshes and 23 populated furniture groups; two empty HUD groups are dormant.
+  if (name == 'interior-fixture' && (meshes.length != 3 || instanceGroups.length != 25 || instances.length != 23)) {
+    throw StateError('Recorded interior preconditions missing: meshes=${meshes.length} instances=${instances.length} lights=$lights');
+  }
 }
 
 Future<void> proveInstalledStateEngine() async {
