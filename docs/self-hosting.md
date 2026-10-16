@@ -51,7 +51,8 @@ and set `image: ai-world:local` in `compose.yaml` before starting Compose.
 ## Data, backups and restore
 
 The `ai-world-data` volume mounted at `/data` holds `ai-world.sqlite`: named-world records, world and
-province state, tools accounts, sessions, villager memories and chronicles share this database.
+province state, tools accounts, sessions, villager memories, chronicles and the gameplay content
+catalogue ([content-catalogue](content-catalogue.md)) share this database.
 Compose leaves this volume in place when a container is recreated or when you run `docker compose down`. Do not use
 `docker compose down --volumes` unless you intend to delete it.
 

@@ -21,6 +21,9 @@ import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 import { worldEditor } from './tools/worldeditor';
+import { ContentCatalogue } from './content';
+import { inventory } from '../src/core/content';
+import { DEFAULT_CONTENT } from '../src/core/contentDefaults';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -195,8 +198,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
   let vault: Vault;
-  try { vault = durable ? new SqliteVault(durable, dataDir) : new FileVault(); }
-  catch (error) { durable?.close(); throw error; }
+  try {
+    vault = durable ? new SqliteVault(durable, dataDir) : new FileVault();
+    /*
+     * Gameplay content is seeded into the same database the first time it is opened, and only
+     * then (#624). Nothing in the simulation reads it yet: the game still runs on the bundled
+     * JSON, and the catalogue's job for now is to have its first revision before anything does.
+     */
+    const content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT)) : null;
+    if (content && !options.quiet) console.log(`gameplay content catalogue at revision ${content.head()}`);
+  } catch (error) { durable?.close(); throw error; }
   const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;
   const sim = new Simulation({
     dataDir, vault, ground: true,
