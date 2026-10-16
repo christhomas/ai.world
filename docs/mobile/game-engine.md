@@ -31,6 +31,8 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - the conversation (speaker, words shown, choices, the lit row, an expiring menu's count, and the
   keys of the speaker's and the hero's faces);
 - any faces the app has not been sent (`portraits`), each once;
+- the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries),
+  only when it has changed since the last reply;
 - where the hero is;
 - the owner (WORLD or BOOK) and busy mode;
 - any save written since the last reply, for the app to keep. Every reply can carry one, so an app

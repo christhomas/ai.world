@@ -17,9 +17,10 @@ import type { WorldLinkFactory } from '../game/online';
 import { Conversation } from '../ui/conversation';
 import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
+import { journalView, type JournalView } from '../game/journal-view';
 import type { installProbes } from '../game/probes';
 import type {
-  ChatSurface, CompanySurfaces, DialogueSurface, GameAsks, GamePlatform, HudSurface, SoundSurface,
+  ChatSurface, CompanySurfaces, DialogueSurface, GameAsks, GamePlatform, HudSurface, ScreenParts, SoundSurface,
 } from './game-platform';
 
 /**
@@ -91,6 +92,8 @@ export interface HeadlessGame {
   setVisible(visible: boolean): void;
   /** The pack, as a tap on a row of it answers: the same rules and the same word afterwards as the page's. */
   pack(): { take(id: string): void; stow(slot: string): void };
+  /** The journal as the page's journal shows it: what is owed, found and sailing, and nothing undiscovered. */
+  journal(): JournalView;
   /** Everything the game was assembled from, once it has been: what a test or an inspector reads. */
   handles(): Parameters<typeof installProbes>[0];
 }
@@ -295,6 +298,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
 
   const toggle = (panel: string) => { shown.panel = shown.panel === panel ? null : panel; };
   let pack: ReturnType<HeadlessGame['pack']> | null = null;
+  let reading: ScreenParts['journalInput'] | null = null;
 
   const company: CompanySurfaces = {
     // a shared world's other players arrive with its socket (#565); a private world has none
@@ -340,31 +344,35 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       pack = surface;
       return surface;
     },
-    screen: (parts) => ({
-      busy: () => (talk.isOpen ? 'talking' : shown.panel ? 'reading' : null),
-      say,
-      toggleJournal: () => toggle('journal'),
-      toggleRucksack: () => toggle('rucksack'),
-      toggleRoster: () => toggle('roster'),
-      toggleOptions: () => toggle('options'),
-      toggleMap: () => toggle('map'),
-      toggleCompany: () => toggle('company'),
-      togglePhoto: () => false,
-      toggleSeeThrough: () => {
-        const on = !parts.cutaway.on;
-        parts.cutaway.show(on);
-        return on;
-      },
-      toggleConsole: () => toggle('console'),
-      openChat: () => {},
-      closeEverything: () => { talk.close(); shown.panel = null; },
-      advanceTalk: () => talk.advance(),
-      moveTalk: (by) => talk.move(by),
-      nudgeTalk: (by) => talk.nudge(by),
-      centreMap: () => {},
-      zoomMap: () => {},
-      takePhoto: () => '',
-    }),
+    screen: (parts) => {
+      // what the journal is drawn from, which the engine reads when the app's journal page asks
+      reading = parts.journalInput;
+      return {
+        busy: () => (talk.isOpen ? 'talking' : shown.panel ? 'reading' : null),
+        say,
+        toggleJournal: () => toggle('journal'),
+        toggleRucksack: () => toggle('rucksack'),
+        toggleRoster: () => toggle('roster'),
+        toggleOptions: () => toggle('options'),
+        toggleMap: () => toggle('map'),
+        toggleCompany: () => toggle('company'),
+        togglePhoto: () => false,
+        toggleSeeThrough: () => {
+          const on = !parts.cutaway.on;
+          parts.cutaway.show(on);
+          return on;
+        },
+        toggleConsole: () => toggle('console'),
+        openChat: () => {},
+        closeEverything: () => { talk.close(); shown.panel = null; },
+        advanceTalk: () => talk.advance(),
+        moveTalk: (by) => talk.move(by),
+        nudgeTalk: (by) => talk.nudge(by),
+        centreMap: () => {},
+        zoomMap: () => {},
+        takePhoto: () => '',
+      };
+    },
     autoQuality: { saw: () => null },
     frameHost: () => ({
       viewport: () => viewport,
@@ -419,6 +427,10 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     pack() {
       if (!pack) throw new Error('the game has not been assembled on this host yet');
       return pack;
+    },
+    journal() {
+      if (!reading) throw new Error('the game has not been assembled on this host yet');
+      return journalView(reading());
     },
     setVisible(next) {
       if (next === visible) return;

@@ -124,6 +124,7 @@ export function create(session: string, optionsText: string): { request(text: st
   let renderTimeMs = 0;
   let wantScene = false;
   let lastSave = '';
+  let lastJournal = '';
 
   const presentation = (scene: Json | null) => {
     const shown = host!.presentation;
@@ -146,6 +147,9 @@ export function create(session: string, optionsText: string): { request(text: st
     if (scene) models.scene = scene;
     const faces = portraits.take();
     if (faces) models.portraits = json(faces);
+    // the journal changes when an errand, a find or a tile walked does, and is sent only then
+    const journal = JSON.stringify(host!.journal());
+    if (journal !== lastJournal) { lastJournal = journal; models.journal = JSON.parse(journal) as Json; }
     // a save the game has written since the last reply, for the app to keep where it keeps things
     const saved = store.read(options.slot);
     if (saved !== undefined && saved !== lastSave) { lastSave = saved; models.save = JSON.parse(saved) as Json; }
