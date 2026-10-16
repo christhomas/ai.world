@@ -16,8 +16,11 @@ class GameAssets extends CachingAssetBundle {
 }
 
 /// An engine that answers as `src/mobile/game-engine.ts` does: a save after `resync save`, and the
-/// world's records whenever it has written some.
+/// world's records whenever it has written some. The game's store writes at once, so the save comes
+/// back with the `resync` reply itself; a slower store hands it over with the next step.
 class StandInEngine {
+  StandInEngine({this.saveAtOnce = true});
+  final bool saveAtOnce;
   final opened = <Map<String, dynamic>>[];
   final requests = <String>[];
   var saveAsked = false;
@@ -39,7 +42,10 @@ class StandInEngine {
     if (request['type'] == 'step') {
       if (((payload['input'] as Map)['move'] as List)[1] == 1) x += 1;
       models['world'] = {'world:clock': 'day ${request['sequence']}'};
-      if (saveAsked) { saveAsked = false; models['save'] = {'state': {'playerId': 'hero-1'}, 'at': x}; }
+    }
+    if (saveAsked && (saveAtOnce || request['type'] == 'step')) {
+      saveAsked = false;
+      models['save'] = {'state': {'playerId': 'hero-1'}, 'at': x};
     }
     return jsonEncode({'version': 1, 'session': request['session'], 'sequence': request['sequence'],
       'requestId': request['id'], 'type': 'result',
@@ -84,6 +90,20 @@ void main() {
     expect(engine.opened.last['world'], isEmpty);
     await other.close();
   });
+
+  for (final atOnce in [true, false]) {
+    test('a save is kept whichever reply carries it (${atOnce ? 'the resync' : 'the next step'})', () async {
+      final root = await Directory.systemTemp.createTemp('game-session');
+      addTearDown(() => root.delete(recursive: true));
+      final engine = StandInEngine(saveAtOnce: atOnce);
+      messenger.setMockMethodCallHandler(channel, engine.answer);
+      const slot = GameSlot(slot: 'either', seed: 5);
+      final session = await GameSession.open(slot, root: root, viewport: const Size(844, 390), channel: channel, assets: GameAssets());
+      await session.save();
+      expect(await GameSession.kept(slot, root: root), isTrue);
+      await session.close();
+    });
+  }
 
   test('a one-shot action is sent once, however long the finger stays down', () async {
     final root = await Directory.systemTemp.createTemp('game-session');
