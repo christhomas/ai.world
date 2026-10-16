@@ -109,8 +109,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  * - `start` opens the game the options named, against the world in this engine;
  * - `step` moves time on by `dtSeconds`, with the stick, the held buttons and any one-shot actions;
  * - `action` is a player action by name (`interact`, `attack`, `inventory`…), `choose` a row of the
- *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `take` a carried thing out
- *   of the pack by id or `stow` what a slot wears;
+ *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `say` a line typed into the
+ *   console (`args.text`), `take` a carried thing out of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
  * - `parcel` is what the app's socket to a shared world did: opened, a message, or closed (#565);
  * - `resync` `scene` asks for the next frame, and `renderer` says the app's renderer has forgotten
@@ -271,6 +271,11 @@ export function create(session: string, optionsText: string): { request(text: st
                 throw new Error('Nothing to change');
               }
               host.conversation.nudgeAt(row, dir);
+            } else if (action === 'say') {
+              // a line typed into the console: the text is the action's argument
+              const text = (request.payload.args as { text?: unknown } | null)?.text;
+              if (typeof text !== 'string' || text.length > 500) throw new Error('say needs a line of at most 500 characters');
+              host.say(text);
             } else if (action === 'take' || action === 'stow') {
               if (typeof target !== 'string') throw new Error(`${action} needs a thing to ${action}`);
               host.pack()[action](target);

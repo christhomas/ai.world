@@ -58,6 +58,12 @@ describe('the game on a host with no page', () => {
       const walked = Math.hypot(player.x - from.x, player.z - from.z);
       expect(walked, `from ${JSON.stringify(from)} to ${player.x},${player.z}`).toBeGreaterThan(1);
 
+      // a line typed into the console is the page's console's: a question mark asks the game
+      const before = game.presentation.chat.at(-1);
+      game.say('?');
+      expect(game.presentation.chat.at(-1), 'the game answered in the console').not.toBe(before);
+      expect(game.presentation.chat.at(-1)?.kind).toBe('sys');
+
       // the game kept its word about where it is: a save holds the hero, and it is not in a page
       await opened.save();
       expect(store.keys).toContain('headless');

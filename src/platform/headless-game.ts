@@ -103,6 +103,11 @@ export interface HeadlessGame {
   pack(): { take(id: string): void; stow(slot: string): void };
   /** The journal as the page's journal shows it: what is owed, found and sailing, and nothing undiscovered. */
   journal(): JournalView;
+  /**
+   * A line typed into the console, as the page's console takes it (#576): `?` asks the game, `/` is
+   * a gesture or a command, and anything else is said out loud to whoever is in the world.
+   */
+  say(text: string): void;
   /** The map's ground and roads, built once from the terrain the page's map is drawn from. */
   mapPicture(): MapPicture;
   /** What the map shows over its picture: the markers, the title, and whether it is fogged at all. */
@@ -453,6 +458,10 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     pack() {
       if (!pack) throw new Error('the game has not been assembled on this host yet');
       return pack;
+    },
+    say(text) {
+      const said = text.trim();
+      if (said) chat.onSend?.(said);
     },
     journal() {
       if (!reading) throw new Error('the game has not been assembled on this host yet');

@@ -18,7 +18,7 @@ The app then sends:
 | `start` `remote` | opens it against the shared world the `server` option names (#565) |
 | `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `nudge` a row's number (`row:1`, `row:-1`), `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `nudge` a row's number (`row:1`, `row:-1`), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'game_session.dart';
 import 'invite.dart';
+import 'screens/console_page.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
 import 'screens/map_page.dart';
@@ -185,8 +186,15 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         world: Stack(fit: StackFit.expand, children: [
           _world!,
           LedgerStick(input: _input, health: hp / maxHp, breath: wind),
+          // the console, under the clock: typing parks the world, as it does on the page
+          Positioned(top: 40, right: 8, child: Semantics(button: true, label: 'Console', excludeSemantics: true,
+            onTap: _ledger.typing, child: SizedBox(width: 44, height: 44, child: Material(color: t.surface,
+              child: InkWell(key: const ValueKey('console'), onTap: _ledger.typing,
+                child: Center(child: Text('›_', style: t.numbers(13, t.ink, spacing: 0)))))))),
         ]),
         controller: _ledger,
+        typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
+          say: (text) => unawaited(session.act('say', args: {'text': text})), done: _ledger.finishTyping),
         // the four tabs, in the design's order; a screen registers its page here (#573–#575)
         pages: {
           'pack': (context, tokens) => PackPage(pack: Map<String, dynamic>.from(models['pack'] as Map? ?? const {}), tokens: tokens,

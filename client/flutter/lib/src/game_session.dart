@@ -133,9 +133,9 @@ class GameSession {
   void hold(Map<String, Object?> input) { _input = Map<String, Object?>.of(input); }
 
   /// A one-shot player action by name, or `choose` a row of the conversation.
-  Future<void> act(String action, {String? target}) async {
+  Future<void> act(String action, {String? target, Object? args}) async {
     if (_closed) return;
-    _take(await engine.request('action', {'action': action, 'target': target, 'args': null}));
+    _take(await engine.request('action', {'action': action, 'target': target, 'args': args}));
   }
 
   /// The app has gone to the background, or come back.
