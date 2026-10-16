@@ -66,6 +66,12 @@ describe('the content catalogue through the tools portal', () => {
     expect(first).toBeLessThan(heard.findIndex((m) => m.type === 'welcome'));
     expect(heard[first]).toEqual({ type: 'content', revision: 1, bundle: bundledContent(), changed: [], deleted: [] });
 
+    const editor = await get('/tools/content-editor');
+    expect(editor.status).toBe(200);
+    const editorPage = await editor.text();
+    expect(editorPage).toContain('Content Catalogue');
+    expect(editorPage).toContain('/tools/content/data');
+
     const listing = await (await get('/tools/content/data')).json() as { head: number; records: { id: string }[] };
     expect(listing.head).toBe(1);
     expect(listing.records.map((record) => record.id)).toContain('creature:wolf');

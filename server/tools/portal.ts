@@ -7,6 +7,7 @@ import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 import registryPage from '../../tools/registry.html?raw';
 import worldEditorPage from '../../tools/world-editor.html?raw';
+import contentEditorPage from '../../tools/content-editor.html?raw';
 import { CATALOGUE } from './catalogue';
 import { toolDocument, toolsShell } from './shell';
 export { CATALOGUE } from './catalogue';
@@ -456,6 +457,9 @@ export function portalFor(options: PortalOptions) {
     }
     if (tool.id === 'world-editor' && options.worldEditor) {
       html(res, 200, toolDocument(worldEditorPage, tool.name, tool.id, CATALOGUE)); return true;
+    }
+    if (tool.id === 'content-editor' && options.content) {
+      html(res, 200, toolDocument(contentEditorPage, tool.name, tool.id, CATALOGUE)); return true;
     }
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
       + `<a class="card" href="/tools/">Back</a>`));

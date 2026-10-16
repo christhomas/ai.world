@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Content Catalogue</title>
+<style>
+  .content-editor { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .content-editor ol { list-style: none; margin: 0; padding: 0; }
+  .content-records { max-height: 70vh; overflow: auto; border: 1px solid var(--line, #2a3446); border-radius: 8px; padding: 6px; }
+  .content-records h3 { margin: 10px 6px 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim, #96a3b9); }
+  .content-records button { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 4px 8px; border-color: transparent; }
+  .content-records button[aria-current=true] { border-color: var(--tools-accent, #8ed6b0); }
+  #body { width: 100%; min-height: 46vh; font: 13px/1.45 ui-monospace, monospace; }
+  .content-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+  .content-actions input { flex: 1 1 240px; }
+  #status { min-height: 1.5em; } #status.bad { color: #ffb4a2; } #status.good { color: #b9f0d1; }
+  .content-history li, .content-revisions li { padding: 4px 0; border-bottom: 1px solid var(--line, #2a3446); }
+  .content-history small, .content-revisions small { color: var(--dim, #96a3b9); }
+  @media (max-width: 760px) { .content-editor { grid-template-columns: 1fr; } }
+</style>
+</head><body>
+<div class="tool-header"><a href="/tools/">Tools</a><h1>Content Catalogue</h1></div>
+<p>The creatures, models, behaviour trees, spawn tables and motion the running game uses. A record published here is checked by the game's own readers, installed into the server's simulation, and sent to every player in every world. Every change is a revision that can be rolled back.</p>
+<p><strong id="running">Loading the catalogue…</strong></p>
+<div class="content-editor">
+  <div>
+    <label for="filter">Find</label> <input id="filter" placeholder="wolf, spawning, grazer…" autocomplete="off">
+    <div class="content-records" id="records" aria-label="Records"></div>
+  </div>
+  <div>
+    <h2 id="title">Choose a record</h2>
+    <p id="where"></p>
+    <label for="body">Body (JSON)</label>
+    <textarea id="body" spellcheck="false" disabled></textarea>
+    <div class="content-actions">
+      <input id="note" maxlength="500" placeholder="What this change is for (kept with the revision)">
+      <button id="publish" disabled>Publish</button>
+      <button id="delete" disabled>Delete record</button>
+    </div>
+    <p id="status" role="status"></p>
+    <h2>This record's history</h2>
+    <ol class="content-history" id="history"></ol>
+    <h2>Recent revisions</h2>
+    <ol class="content-revisions" id="revisions"></ol>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+let head = null;
+let chosen = null;
+let records = [];
+
+function say(text, tone) {
+  $('status').textContent = text;
+  $('status').className = tone || '';
+}
+
+async function ask(url, options) {
+  const response = await fetch(url, { credentials: 'same-origin', ...options });
+  const text = await response.text();
+  let value = null;
+  try { value = JSON.parse(text); } catch { value = { error: text || response.statusText }; }
+  return { status: response.status, value };
+}
+
+function line(list, text, small) {
+  const item = document.createElement('li');
+  item.append(document.createTextNode(text));
+  if (small) { item.append(' '); const note = document.createElement('small'); note.textContent = small; item.append(note); }
+  list.append(item);
+  return item;
+}
+
+function drawRecords() {
+  const wanted = $('filter').value.trim().toLowerCase();
+  const holder = $('records');
+  holder.replaceChildren();
+  const byKind = new Map();
+  for (const record of records) {
+    if (wanted && !record.id.toLowerCase().includes(wanted) && !record.source.toLowerCase().includes(wanted)) continue;
+    if (!byKind.has(record.kind)) byKind.set(record.kind, []);
+    byKind.get(record.kind).push(record);
+  }
+  for (const [kind, list] of [...byKind].sort(([a], [b]) => a.localeCompare(b))) {
+    const heading = document.createElement('h3');
+    heading.textContent = kind;
+    holder.append(heading);
+    for (const record of list) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = record.id.slice(kind.length + 1);
+      button.title = record.id;
+      button.setAttribute('aria-current', String(record.id === chosen));
+      button.addEventListener('click', () => open(record.id));
+      holder.append(button);
+    }
+  }
+}
+
+function drawRevisions(revisions) {
+  const list = $('revisions');
+  list.replaceChildren();
+  for (const revision of [...revisions].reverse()) {
+    const item = line(list, `#${revision.id} ${revision.reason} by ${revision.author}`,
+      `${revision.createdAt}${revision.note ? ` — ${revision.note}` : ''}`);
+    if (revision.id !== head) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.textContent = 'Roll back to this';
+      back.addEventListener('click', () => rollback(revision.id));
+      item.append(' ', back);
+    }
+  }
+}
+
+async function load() {
+  const { status, value } = await ask('/tools/content/data');
+  if (status !== 200) { $('running').textContent = value.error || 'The catalogue is not available.'; return; }
+  head = value.head;
+  records = value.records;
+  $('running').textContent = `The game is running revision ${head}.`;
+  drawRecords();
+  drawRevisions(value.revisions);
+  if (chosen && records.some((record) => record.id === chosen)) await open(chosen, true);
+  else if (chosen) { chosen = null; $('title').textContent = 'Choose a record'; $('body').value = ''; $('body').disabled = true; }
+}
+
+async function open(id, keepStatus) {
+  const { status, value } = await ask(`/tools/content/data?id=${encodeURIComponent(id)}`);
+  if (status !== 200) { say(value.error || `Could not open ${id}.`, 'bad'); return; }
+  chosen = id;
+  head = value.head;
+  $('title').textContent = id;
+  $('where').textContent = `From ${value.record.source}${value.record.field === null ? '' : `, key "${value.record.field}"`}.`;
+  $('body').value = JSON.stringify(value.record.body, null, 2);
+  for (const control of ['body', 'publish', 'delete']) $(control).disabled = false;
+  const history = $('history');
+  history.replaceChildren();
+  for (const entry of value.history) {
+    line(history, `#${entry.revision.id} ${entry.deleted ? 'deleted' : entry.revision.reason} by ${entry.revision.author}`,
+      `${entry.revision.createdAt}${entry.revision.note ? ` — ${entry.revision.note}` : ''}`);
+  }
+  drawRecords();
+  if (!keepStatus) say('');
+}
+
+async function publish(body) {
+  const { status, value } = await ask('/tools/content/data', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ base: head, note: $('note').value, changes: [{ id: chosen, body }] }),
+  });
+  if (status === 200) {
+    say(`Published revision ${value.head}. The server is running it, and every player has been sent it.`, 'good');
+    $('note').value = '';
+  } else if (status === 409) {
+    say(`${value.error} Somebody published first: it has been reloaded, so check it before trying again.`, 'bad');
+  } else {
+    say(value.error || 'The edit was refused.', 'bad');
+  }
+  await load();
+}
+
+async function rollback(to) {
+  if (!confirm(`Publish revision ${to} again, as a new revision on top of ${head}?`)) return;
+  const { status, value } = await ask('/tools/content/data', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ base: head, rollback: to, note: $('note').value }),
+  });
+  say(status === 200 ? `Rolled back: revision ${value.head} is revision ${to} again.` : (value.error || 'The rollback was refused.'),
+    status === 200 ? 'good' : 'bad');
+  await load();
+}
+
+$('publish').addEventListener('click', () => {
+  let body;
+  try { body = JSON.parse($('body').value); } catch (why) { say(`That is not JSON: ${why.message}`, 'bad'); return; }
+  publish(body);
+});
+$('delete').addEventListener('click', () => {
+  if (confirm(`Delete ${chosen}? It can be brought back by rolling back.`)) publish(null);
+});
+$('filter').addEventListener('input', drawRecords);
+load();
+</script>
+</body></html>
