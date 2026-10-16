@@ -19,14 +19,15 @@ export function defaultServer(url: URL): string {
   const remembered = localStorage.getItem('ai.world/server');
   if (remembered) return remembered;
 
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = window.location.hostname || 'localhost';
-  const servedPort = window.location.port;
+  const scheme = url.protocol === 'https:' ? 'wss' : 'ws';
+  const host = url.hostname || 'localhost';
   // A world server can hand out the game itself, and when it does, it is on the port the page
   // came from — the whole point of running one box at home. In development the page comes from
   // vite on another port, and the server is wherever it always is.
-  const sameOrigin = !import.meta.env.DEV && servedPort !== '';
-  return sameOrigin ? `${scheme}://${host}:${servedPort}` : `${scheme}://${host}:${WORLD_PORT}`;
+  // Default HTTPS/HTTP ports are represented by an empty URL.port. They still name this origin;
+  // substituting 8787 bypasses the public reverse proxy and prevents the world from being joined.
+  const sameOrigin = !import.meta.env.DEV && (url.protocol === 'https:' || url.protocol === 'http:');
+  return sameOrigin ? `${scheme}://${url.host}` : `${scheme}://${host}:${WORLD_PORT}`;
 }
 
 /**

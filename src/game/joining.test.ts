@@ -1,5 +1,39 @@
-import { describe, expect, it } from 'vitest';
-import { inviteTo } from './joining';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defaultServer, inviteTo } from './joining';
+
+describe('joining the server that serves the deployed game', () => {
+  beforeEach(() => {
+    vi.stubEnv('DEV', false);
+    vi.stubGlobal('localStorage', { getItem: vi.fn(() => null) });
+    vi.stubGlobal('window', { location: new URL('https://aiworld.antimatter-studios.com/') });
+  });
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
+  it('uses the public HTTPS endpoint rather than an unreachable internal port', () => {
+    expect(defaultServer(new URL('https://aiworld.antimatter-studios.com/')))
+      .toBe('wss://aiworld.antimatter-studios.com');
+  });
+
+  it('uses default HTTP and explicitly served ports on the same origin', () => {
+    expect(defaultServer(new URL('http://aiworld.homelab.local/'))).toBe('ws://aiworld.homelab.local');
+    expect(defaultServer(new URL('https://world.example:9443/'))).toBe('wss://world.example:9443');
+    expect(defaultServer(new URL('http://[::1]:8787/'))).toBe('ws://[::1]:8787');
+  });
+
+  it('keeps development and file-hosted games pointed at the world server port', () => {
+    vi.stubEnv('DEV', true);
+    expect(defaultServer(new URL('http://localhost:5174/'))).toBe('ws://localhost:8787');
+    vi.stubEnv('DEV', false);
+    expect(defaultServer(new URL('file:///game/index.html'))).toBe('ws://localhost:8787');
+  });
+
+  it('preserves a remembered server and gives an explicit invite address precedence', () => {
+    vi.mocked(localStorage.getItem).mockReturnValue('wss://other.example:10081');
+    expect(defaultServer(new URL('https://aiworld.antimatter-studios.com/'))).toBe('wss://other.example:10081');
+    expect(defaultServer(new URL('https://aiworld.antimatter-studios.com/?server=wss%3A%2F%2Finvited.example')))
+      .toBe('wss://invited.example');
+  });
+});
 
 /**
  * "Come and play in mine", as a link.

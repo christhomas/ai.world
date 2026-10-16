@@ -7,6 +7,9 @@ import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 import registryPage from '../../tools/registry.html?raw';
 import worldEditorPage from '../../tools/world-editor.html?raw';
+import { CATALOGUE } from './catalogue';
+import { toolDocument, toolsShell } from './shell';
+export { CATALOGUE } from './catalogue';
 
 /**
  * A door in front of the tools, so nobody has to paste an operator token into a page again.
@@ -33,6 +36,7 @@ export type Asked =
   | { want: 'login' }
   | { want: 'logout' }
   | { want: 'catalogue' }
+  | { want: 'runtime' }
   | { want: 'registry-data' }
   | { want: 'world-editor-data' }
   | { want: 'tool'; id: string }
@@ -46,13 +50,6 @@ export type Asked =
   | { want: 'pair' }
   | { want: 'unpair' }
   | { want: 'nothing' };
-
-/** The tools a signed-in person may open. Named here so the catalogue and the guard cannot differ. */
-export const CATALOGUE: readonly { id: string; name: string; blurb: string }[] = [
-  { id: 'character-builder', name: 'Character Builder', blurb: 'Every creature and prop, and a prompt that changes one.' },
-  { id: 'registry', name: 'Domesday Book', blurb: 'A survey of a world: who lives where, and what they hold.' },
-  { id: 'world-editor', name: 'World Editor', blurb: 'Preview and pin mountain layers in a named world.' },
-];
 
 /**
  * What this request is asking the portal for.
@@ -68,6 +65,7 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
   if (asked !== '/tools' && !asked.startsWith('/tools/')) return { want: 'nothing' };
   const path = asked.replace(/\/+$/, '') || '/tools';
   if (path === '/tools') return { want: 'catalogue' };
+  if (path === '/tools/runtime.js') return method === 'GET' ? { want: 'runtime' } : { want: 'nothing' };
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
   if (path === '/tools/registry/data') return { want: 'registry-data' };
@@ -204,6 +202,8 @@ export interface PortalOptions {
   survey?: (req: IncomingMessage, res: ServerResponse) => void;
   /** Authenticated named-world editor; the server owns validation and publication. */
   worldEditor?: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+  /** Built browser tools entry; resolved from the deployed client build, never source files. */
+  runtimeAsset?: string;
   /** Account-scoped connections from builders on their owners' machines. */
   channel: BuilderChannel;
   /** Where a finished run is written down. See `builder/book.ts`. */
@@ -230,32 +230,23 @@ const html = (res: ServerResponse, code: number, body: string, headers: Record<s
   res.end(body);
 };
 
-const page = (title: string, body: string): string =>
-  `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-  + `<title>${title}</title><style>`
-  + `body{font:16px/1.5 system-ui,sans-serif;margin:0;background:#14161c;color:#e7e9f0;display:flex;min-height:100vh;align-items:center;justify-content:center}`
-  + `main{width:min(34rem,92vw);padding:2rem}h1{font-size:1.4rem;letter-spacing:.02em}`
-  + `a{color:inherit;text-decoration:none}label{display:block;margin:.8rem 0 .2rem;font-size:.85rem;opacity:.7}`
-  + `input{width:100%;padding:.6rem .7rem;border-radius:.4rem;border:1px solid #39405a;background:#1b1e27;color:inherit;font:inherit}`
-  + `button{margin-top:1rem;padding:.6rem 1rem;border-radius:.4rem;border:0;background:#5b76ff;color:#fff;font:inherit;cursor:pointer}`
-  + `.card{display:block;padding:1rem;margin:.6rem 0;border:1px solid #39405a;border-radius:.5rem}`
-  + `.card:hover{border-color:#5b76ff}.blurb{opacity:.65;font-size:.9rem}.why{color:#ffb4a2;font-size:.9rem;margin-top:.8rem}`
-  + `</style><main>${body}</main>`;
+const page = (title: string, body: string, active = '', signedIn = true): string => toolsShell({
+  title, body: body.replace(/^\s*<h1>[\s\S]*?<\/h1>\s*/, ''), active, signedIn, navigation: CATALOGUE,
+});
 
-const loginPage = (why?: string): string => page('Sign in — ai.world tools', `
+const loginPage = (why?: string): string => page('Sign in', `
   <h1>ai.world tools</h1>
-  <form method="post" action="/tools/login">
+  <form class="tools-form" method="post" action="/tools/login">
     <label for="u">Name</label><input id="u" name="name" autocomplete="username" autofocus>
     <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password">
     <button type="submit">Sign in</button>
-  </form>${why ? `<p class="why">${why}</p>` : ''}`);
+  </form>${why ? `<p class="why">${why}</p>` : ''}`, '', false);
 
-const cataloguePage = (): string => page('ai.world tools', `
-  <h1>ai.world tools</h1>
+const cataloguePage = (): string => page('Tools overview', `
+  <div class="tools-cards">
   ${CATALOGUE.map((tool) => `<a class="card" href="/tools/${tool.id}"><strong>${tool.name}</strong>`
     + `<div class="blurb">${tool.blurb}</div></a>`).join('')}
-  <a class="card" href="/tools/build/pair"><strong>Connect your builder</strong><div class="blurb">Pair the GPT-6 Sol worker on your own machine.</div></a>
-  <form method="post" action="/tools/logout"><button type="submit">Sign out</button></form>`);
+  </div>`);
 
 /** Read a form body, with a ceiling on it: a login form is small and a megabyte of it is an attack. */
 async function formBody(req: IncomingMessage, most = 4096): Promise<URLSearchParams | null> {
@@ -352,6 +343,15 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
+    if (asked.want === 'runtime') {
+      if (options.runtimeAsset) res.writeHead(307, { location: options.runtimeAsset, 'cache-control': 'no-store' }).end();
+      else {
+        res.writeHead(503, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
+        res.end('window.__toolsWorldsReject?.(new Error("The tools browser runtime is not available in this build."));');
+      }
+      return true;
+    }
+
     if (asked.want === 'pair-form' || asked.want === 'pair' || asked.want === 'unpair') {
       if (asked.want === 'unpair') {
         unpairWorker(db, who);
@@ -368,7 +368,7 @@ export function portalFor(options: PortalOptions) {
         + `<p>${hasWorkerPair(db, who) ? 'A pairing token has been issued.' : 'No worker is paired yet.'}</p>`
         + '<form method="post" action="/tools/build/pair"><button type="submit">Issue a new token</button></form>'
         + '<form method="post" action="/tools/build/unpair"><button type="submit">Revoke pairing</button></form>'
-        + '<a href="/tools/">Back to tools</a>'));
+        + '<a href="/tools/">Back to tools</a>', 'build/pair'));
       return true;
     }
 
@@ -382,7 +382,11 @@ export function portalFor(options: PortalOptions) {
         res.end(JSON.stringify(options.recorded?.(who) ?? []));
         return true;
       }
-      options.channel.route(who, `/page/${asked.path.split('/').map(encodeURIComponent).join('/')}`, null, res, 'GET');
+      if (asked.path === 'tools/character-builder.html' && !options.channel.connected(who)) {
+        html(res, 503, page('Character Builder', '<p>your machine is not connected</p>'
+          + '<p>Connect your builder to open its current models and editing workspace.</p>'
+          + '<a class="card" href="/tools/build/pair">Connect builder</a>', 'character-builder'));
+      } else options.channel.route(who, `/page/${asked.path.split('/').map(encodeURIComponent).join('/')}`, null, res, 'GET');
       return true;
     }
 
@@ -436,8 +440,12 @@ export function portalFor(options: PortalOptions) {
 
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
-    if (tool.id === 'registry' && options.survey) { html(res, 200, registryThroughPortal); return true; }
-    if (tool.id === 'world-editor' && options.worldEditor) { html(res, 200, worldEditorPage); return true; }
+    if (tool.id === 'registry' && options.survey) {
+      html(res, 200, toolDocument(registryThroughPortal, tool.name, tool.id, CATALOGUE)); return true;
+    }
+    if (tool.id === 'world-editor' && options.worldEditor) {
+      html(res, 200, toolDocument(worldEditorPage, tool.name, tool.id, CATALOGUE)); return true;
+    }
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
       + `<a class="card" href="/tools/">Back</a>`));
     return true;

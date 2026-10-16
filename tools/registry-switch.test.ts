@@ -20,10 +20,15 @@ function openPage(
   const listeners = new Map<string, () => Promise<void>>();
   const elements = new Map(['where', 'token', 'world', 'ask', 'live', 'note', 'happened', 'out'].map((id) => [id, {
     value: '', innerHTML: '', textContent: '', hidden: false, checked: false,
+    replaceChildren: (...options: Array<{ textContent: string }>) => {
+      elements.get(id)!.innerHTML = options.map(option => option.textContent).join('');
+    },
     addEventListener: (event: string, callback: () => Promise<void>) => listeners.set(`${id}:${event}`, callback),
   }]));
   const urls: string[] = [];
   let address = '';
+  let selected = '';
+  const portal = (options.pathname ?? '/tools/registry') === '/tools/registry';
   const fetch = vi.fn(async (url: string) => {
     urls.push(url);
     const params = new URL(url, 'http://portal.test').searchParams;
@@ -34,16 +39,28 @@ function openPage(
       new URL(url, 'http://portal.test').origin);
     return { ok: true, json: async () => structuredClone(answer) };
   });
+  const access = {
+    worlds: [{ seed: 1, name: 'Ashford', key: 'server:1' }, { seed: 2, name: 'Briar', key: 'server:2' },
+      { seed: 1, name: 'Local Ashford', key: 'browser:1' }],
+    selected: () => selected,
+    select: (key: string) => { selected = key; address = `?${new URLSearchParams({ 'selected-world': key })}`; },
+    survey: async (key: string, since: number) => key.startsWith('browser:')
+      ? reply(Number(key.split(':')[1]), since, 'browser')
+      : (await fetch(`/tools/registry/data?seed=${key.split(':')[1]}&since=${since}`)).json(),
+  };
   runInNewContext(script, {
     document: { getElementById: (id: string) => elements.get(id) ?? null },
     location: { pathname: options.pathname ?? '/tools/registry', search: options.search ?? '',
       origin: options.origin ?? 'http://portal.test' },
     history: { replaceState: (_state: unknown, _title: string, url: string) => { address = url; } },
+    window: { toolsWorldsReady: Promise.resolve(access),
+      addEventListener: (event: string, callback: () => Promise<void>) => listeners.set(`window:${event}`, callback) },
+    Option: class { constructor(public textContent: string, public value: string) {} },
     URLSearchParams, fetch, setInterval, clearInterval,
   });
   const element = (id: string) => elements.get(id)!;
-  const choose = async (seed: number) => {
-    element('world').value = String(seed);
+  const choose = async (seed: number, source = 'server') => {
+    element('world').value = portal ? `${source}:${seed}` : String(seed);
     await listeners.get('world:change')!();
   };
   const open = async () => { await listeners.get('ask:click')!(); };
@@ -62,7 +79,7 @@ describe('Domesday world selection', () => {
     await page.choose(2);
     expect(page.element('happened').innerHTML).toContain('Bea');
     expect(page.element('happened').innerHTML).not.toContain('Ari');
-    expect(page.address).toContain('world=2');
+    expect(page.address).toContain('selected-world=server%3A2');
   });
 
   it('does not let a late answer for the old world replace the selected survey', async () => {
@@ -111,5 +128,19 @@ describe('Domesday world selection', () => {
     expect(page.urls).toContain('http://second.test/registry?seed=1&since=0');
     expect(page.element('happened').innerHTML).toContain('Bea');
     expect(page.element('happened').innerHTML).not.toContain('Ari');
+  });
+
+  it('keeps browser and server histories separate even when their seeds match', async () => {
+    const page = openPage(async (seed, since, source) => {
+      if (source === 'browser') expect(since, 'local history must not inherit the server cursor').toBe(0);
+      return book(seed, source === 'browser' ? 'Local Bea' : 'Server Ari', source === 'browser' ? 4 : 90);
+    });
+    await vi.waitFor(() => expect(page.element('world').innerHTML).toContain('Local Ashford'));
+    await page.choose(1);
+    expect(page.element('happened').innerHTML).toContain('Server Ari');
+    await page.choose(1, 'browser');
+    expect(page.element('happened').innerHTML).toContain('Local Bea');
+    expect(page.element('happened').innerHTML).not.toContain('Server Ari');
+    expect(page.address).toContain('selected-world=browser%3A1');
   });
 });
