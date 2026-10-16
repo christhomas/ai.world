@@ -27,14 +27,35 @@ world space after route or viewport changes so the host can compose its camera w
 reconstructing the renderer. Book colour transitions respect reduced-motion settings.
 Loading/reconnect/error status overlays park inputs; recovery callbacks are supplied by the host.
 
-Four theme token sets share every layout constant. Small text surfaces are opaque for measurable
-contrast against sunlit worlds; dim Steel/Stone ink and Steel accent are brighter than the HTML
-reference where its alpha/background combinations cannot guarantee 4.5:1. All live ink pairs
-have numerical contrast tests. No reference fonts or font licence files are checked into this
-repository: the HTML loads them remotely. This PR uses platform fallback fonts and textual tab
-labels, with no runtime network font loading or extra dependency. Licensed offline font assets,
-verbatim glyph packaging, faithful thumb-ring widget, slide motion and screenshot goldens remain
-fidelity work; the reference's font metrics are not claimed as reproduced.
+Four theme token sets share every layout constant. A theme changes its five colours and its face,
+and nothing else. Small text surfaces are opaque for measurable contrast against sunlit worlds. Dim
+Steel/Stone ink and Steel accent are brighter than the HTML reference, where its alpha and
+background combinations cannot guarantee 4.5:1. Every live ink pair has a numerical contrast test.
+
+**Faces, offline.** Space Grotesk (Stone), EB Garamond (Vellum), Barlow Condensed (Steel) and IBM
+Plex Mono (Hairline, and every number in every theme) are bundled in `assets/fonts/` from the
+google/fonts repository, under the SIL Open Font License 1.1. Their licences are in
+`assets/licences/`, registered at start-up for the licence page. Nothing is fetched at run time.
+`LedgerTokens.face` and `.numbers` give text at the design's sizes; numbers use tabular figures.
+
+**Glyphs.** `ledger_glyphs.dart` copies `src/ui/glyphs.ts` mark for mark: map, pack, book, sliders,
+the camera turns, more, close, sword, shield and bow. They are drawn by a small SVG path reader
+(moves, lines, runs, cubic curves and arcs, absolute and relative) on the same 24-unit grid with a
+2px round stroke. A test reads `glyphs.ts` and holds every mark to it. The book tabs are the pack,
+book, map and sliders glyphs; the spine closes with a gold ✕ above a 1px rule and goes back with
+the turn glyph. Every one keeps a semantic label.
+
+**Motion.** The book slides in from the left over 150ms, easing out, and arrives at once when the
+platform asks for reduced motion.
+
+**Theme picker (13a).** One 64px row per theme, with its 84×40 swatch drawn in that theme: its
+surface, 1px rule, 4px accent bar, `AaBb 72` in its own face and ink, and a 26px action block. Then
+its name in EB Garamond, the design's own two-line note, and `ON ✓` or `USE IT`. The list is the
+preview, and a tap applies the theme at once.
+
+**Thumb ring.** `LedgerThumbRing` draws the design's 104px ring: health as the outer arc and breath
+as the inner one, both from twelve o'clock, around a nub that moves with the thumb. The stick it
+belongs to is #571's.
 
 Widget tests measure 844x390 and 667x320/notched geometry, stable world State identity across
 themes/routes, target heights, pointer guard cancellation, text/book transitions, lifecycle

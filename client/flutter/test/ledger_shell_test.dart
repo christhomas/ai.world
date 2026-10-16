@@ -79,7 +79,7 @@ void main() {
       controller.open('options'); await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
       expect(controller.route, 'pack');
-      await tester.tap(find.text('Close')); await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('ledger-Close'))); await tester.pumpAndSettle();
       expect(controller.input.owner, InputOwner.world);
       expect(worldKey.currentState, same(state));
       expect(tester.takeException(), null);
