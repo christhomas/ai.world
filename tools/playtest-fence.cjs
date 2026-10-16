@@ -40,6 +40,9 @@ function chooseFenceApproach(
 /** Exercise the thin obstacle in the rendered game, and return the loan even if a driver fails. */
 async function playFence(page, say, go, face, observedWalk) {
   const original = await page.evaluate(() => window.__mount().saved);
+  // The nearest usable rail can be villages away. Whatever comes after this trial expects the hero
+  // where it left him, so he is put back there: the hunt chooses its crag by distance from him.
+  const home = await page.evaluate(() => ({ x: window.__player.x, z: window.__player.z }));
   try {
     const yards = await page.evaluate(() => {
       const p = window.__player;
@@ -119,6 +122,9 @@ async function playFence(page, say, go, face, observedWalk) {
     const restored = await page.evaluate(() => window.__mount().saved);
     say('the fence trial returns the original horse and cargo', JSON.stringify(restored) === JSON.stringify(original),
       JSON.stringify(restored));
+    await go(home.x, home.z, 0);
+    await page.waitForFunction(({ x, z }) => window.__player.placed &&
+      Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 10000, polling: 100 });
   }
 }
 

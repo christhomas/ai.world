@@ -586,9 +586,13 @@ const SHOTS = [
        * taken with it: the horse is worth showing at a gait, and a hero set down by a teleport is a
        * hero standing still in a market square with a horse somewhere under him.
        */
+      const from = await ask(() => ({ x: window.__player.x, z: window.__player.z }));
       await ask(([x, z]) => window.__walkTo(x, z), [v.x + 26, v.z + 4]);
       await wait(2600);
-      return on.breed;
+      // Said beside the shot so a moved reference can be judged by how far the rider actually went.
+      const to = await ask(() => ({ x: window.__player.x, z: window.__player.z, riding: window.__mount().riding }));
+      return `${on.breed}; from ${from.x.toFixed(2)},${from.z.toFixed(2)} to ${to.x.toFixed(2)},${to.z.toFixed(2)}`
+        + ` (${Math.hypot(to.x - from.x, to.z - from.z).toFixed(2)} tiles), riding ${to.riding}`;
     },
   },
   {

@@ -73,5 +73,7 @@ describe('a mounted approach to a thin paddock rail', () => {
     expect(borrowed).toBe(false);
     expect(window.__mount().saved).toEqual(original);
     expect(window).not.toHaveProperty('__fenceTrace');
+    // The trial went to the paddock and put the hero back where it found him.
+    expect({ x: player.x, z: player.z }).toEqual({ x: 0.5, z: 0.5 });
   });
 });
