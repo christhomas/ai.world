@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { streamTheCountry } from './streaming';
+import { keptInMemory } from '../world/chunkstore';
 import { packChunk, type Parcel } from '../world/chunkparcel';
 import type { ChunkManager } from '../render/chunkManager';
 import type { TerrainSampler } from '../world/terrain';
@@ -53,7 +54,8 @@ function page() {
   // the stamp of what this page kept is hashed off one chunk; nothing here reads the ground itself
   const sampler = { generateChunk: () => parcel(0, 0) } as unknown as TerrainSampler;
   const streaming = streamTheCountry({
-    chunks, sampler, seed: 3, want: (want) => { for (const [cx, cz] of want) asked.push(`${cx},${cz}`); return true; },
+    chunks, sampler, seed: 3, keep: keptInMemory(),
+    want: (want) => { for (const [cx, cz] of want) asked.push(`${cx},${cz}`); return true; },
   });
   return { streaming, drawn, asked };
 }

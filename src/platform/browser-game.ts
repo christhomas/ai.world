@@ -1,6 +1,6 @@
 import { Input } from '../core/input';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from '../render/autoquality';
-import { QUALITY, createSceneRig, pageRigHost } from '../render/scene';
+import { QUALITY, createSceneRig } from '../render/scene';
 import { RecordingPipeline } from '../render/recording';
 import { mountainAt } from '../world/ranges';
 import { Sound } from '../game/audio';
@@ -31,6 +31,11 @@ import { browserWorldLink } from './browser-world-link';
 import { createPrayerHost, observeVisibility, returnToTitle } from './browser-lifecycle';
 import { createBrowserFrameHost } from './browser-frame';
 import { createBrowserGameEvents } from './browser-game-events';
+import { browserClock } from './browser-clock';
+import { browserKeep } from './browser-chunk-keep';
+import { pageRigHost } from './browser-rig';
+import { browserChunkJobs } from '../render/chunkworkers';
+import { growerFor } from '../world/countryworker';
 import type { GameAsks, GamePlatform } from './game-platform';
 
 /** What the address asks of the game: whose server, where to stand, what time it is, which camera. */
@@ -59,6 +64,9 @@ export function browserPlatform(url: URL): GamePlatform {
     asks: asksOf(url),
     autoQuality,
     worldLink: browserWorldLink,
+    frameClock: browserClock,
+    jobs: { chunks: browserChunkJobs, grower: growerFor },
+    chunkKeep: browserKeep,
     rig() {
       const flags = new URLSearchParams(location.search);
       const recording = flags.has('record-scene') || flags.has('record-only') ? new RecordingPipeline() : undefined;

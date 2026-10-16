@@ -58,13 +58,14 @@ const ALLOWED: Record<string, number> = {
   // out of it whole. Two files draw the same dialogue panel where one did. A number that only
   // counts imports cannot tell a split from a reach, so the note has to.
   //
-  // Then it came down to thirteen (#560). `main.ts`'s assembly moved into the game as `compose.ts`
+  // Then it came down to twelve (#560). `main.ts`'s assembly moved into the game as `compose.ts`
   // so that a phone can run it, and it reaches `ui/` only for `createReadouts`, which works out what
   // the HUD reads and draws nothing. Every panel the game calls is now named by what it is asked
   // (`platform/game-platform.ts`) rather than by the page's widget, and the multiplayer half asks
-  // its host for the player list and the lines that say who is here instead of building them: the
-  // nine imports of a HUD's, a chat's, a dialogue box's or a player list's class are gone.
-  'game->ui': 13,
+  // its host for the player list and the lines that say who is here instead of building them, and
+  // a dungeon floor's map is whatever its host draws one with: the ten imports of a HUD's, a chat's,
+  // a dialogue box's, a player list's or a floor map's class are gone.
+  'game->ui': 12,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,

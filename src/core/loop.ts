@@ -18,13 +18,6 @@ export interface FrameClock {
   cancel(handle: number): void;
 }
 
-// Lazy calls keep construction and a supplied native clock independent of browser globals.
-const browserClock: FrameClock = {
-  now: () => performance.now(),
-  request: (frame) => requestAnimationFrame(frame),
-  cancel: (handle) => cancelAnimationFrame(handle),
-};
-
 export class GameLoop {
   private last = 0;
   private running = false;
@@ -35,7 +28,7 @@ export class GameLoop {
 
   constructor(
     private readonly tick: (dt: number, time: number) => void,
-    private readonly clock: FrameClock = browserClock,
+    private readonly clock: FrameClock,
   ) {}
 
   start(): void {

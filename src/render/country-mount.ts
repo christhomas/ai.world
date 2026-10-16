@@ -7,7 +7,7 @@ import { SkyIslands } from './skyisland';
 import type { ChunkJobHost } from '../world/chunkjobs';
 
 /** The country passes neutral world data; WebGL scene and materials stay in the render layer. */
-export function countryRenderers(rig: SceneRig, props: PropLibrary, daycycle: DayCycle, jobs?: ChunkJobHost) {
+export function countryRenderers(rig: SceneRig, props: PropLibrary, daycycle: DayCycle, jobs: ChunkJobHost) {
   const { scene, water } = nativeRig(rig);
   return {
     chunks: (

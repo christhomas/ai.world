@@ -105,25 +105,13 @@ export class ChunkStore {
   }
 }
 
-/**
- * The store a browser actually has, when it has one.
- *
- * `idb-keyval` in a database of its own, so that a country full of chunks cannot crowd out the
- * saves — they are the thing a player would miss. Everything here is allowed to fail: a private
- * window, a full disk, a browser told to keep nothing. Failing means the world sends the ground
- * again, which is slower and nothing worse, so none of it is reported to anybody.
- */
-export function browserKeep(): Keep {
-  // imported here rather than at the top so that anything using this file outside a browser — a
-  // test, the server, a tool — never reaches for a database that is not there
-  const opened = import('idb-keyval').then(({ createStore, get, set, del, keys }) => {
-    const store = createStore('ai.world.country', 'chunks');
-    return { get, set, del, keys, store };
-  });
+/** Kept for as long as the game is open, and no longer: a host with no store of its own, or a test. */
+export function keptInMemory(): Keep {
+  const kept = new Map<string, ArrayBuffer>();
   return {
-    async get(key) { const idb = await opened; return idb.get<ArrayBuffer>(key, idb.store); },
-    async set(key, value) { const idb = await opened; await idb.set(key, value, idb.store); },
-    async delete(key) { const idb = await opened; await idb.del(key, idb.store); },
-    async keys() { const idb = await opened; return (await idb.keys(idb.store)) as string[]; },
+    get: async (key) => kept.get(key),
+    set: async (key, value) => { kept.set(key, value); },
+    delete: async (key) => { kept.delete(key); },
+    keys: async () => [...kept.keys()],
   };
 }

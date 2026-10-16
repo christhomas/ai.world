@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { presenterFor } from './secondrig';
+import type { Presenter } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
 import type { SceneGraph } from '../core/scenegraph';
@@ -255,8 +255,13 @@ export function nativeRig(rig: SceneRig): { scene: THREE.Scene; water: WaterMate
  * has no canvas and no WebGL at all, and records each frame instead (#529, #560).
  */
 export interface RigHost {
-  /** Where the canvas goes; null for a host with no page to put one on, and so no canvas. */
+  /** Where the canvas goes; null for a host with no page to put one on. */
   container: HTMLElement | null;
+  /**
+   * A canvas for the page to lay out and bind input to when nothing draws on it but the recorder,
+   * or null for a host with no page. When WebGL draws, its own canvas is the one.
+   */
+  canvas(): HTMLCanvasElement | null;
   /** Ask for no WebGL context: the recorder is the only thing the frames go to (#529). */
   recordOnly: boolean;
   /** The picture's size, in CSS pixels. */
@@ -265,27 +270,8 @@ export interface RigHost {
   /** The level chosen last time, if one ever was. */
   remembered(): Quality | null;
   remember(level: Quality): void;
-}
-
-/** The page: the game container, the window, and the quality kept in local storage. */
-export function pageRigHost(container: HTMLElement): RigHost {
-  return {
-    container,
-    // the page's address does not change under a running game, so it is read once and not per draw
-    recordOnly: new URLSearchParams(location.search).has('record-only'),
-    size: () => ({ width: window.innerWidth, height: window.innerHeight }),
-    pixelRatio: () => window.devicePixelRatio,
-    remembered() {
-      try {
-        const saved = localStorage.getItem('ai.world/quality');
-        if (saved === 'low' || saved === 'medium' || saved === 'high') return saved;
-      } catch { /* private browsing: the default will do */ }
-      return null;
-    },
-    remember(level) {
-      try { localStorage.setItem('ai.world/quality', level); } catch { /* nothing to do */ }
-    },
-  };
+  /** What puts a drawn frame on the canvas: straight there, or through a composer (`secondrig.ts`). */
+  presenter(renderer: THREE.WebGLRenderer, asked: boolean, quality: Quality): Presenter;
 }
 
 /**
@@ -315,7 +301,7 @@ export function createSceneRig(host: RigHost, asked = false, recording?: Recordi
     powerPreference: 'high-performance',
   });
   // the surface input binds to and the page lays out, whichever is drawing; none off the page
-  const canvas = renderer?.domElement ?? (host.container ? document.createElement('canvas') : null);
+  const canvas = renderer?.domElement ?? host.canvas();
   const sizeCanvas = () => {
     const { width, height } = host.size();
     if (renderer) { renderer.setSize(width, height); return; }
@@ -392,7 +378,7 @@ export function createSceneRig(host: RigHost, asked = false, recording?: Recordi
 
   // straight at the canvas or through a composer, chosen once for the rig's life. Built after the
   // quality is known, because `low` refuses the composer
-  const presenter = renderer ? presenterFor(renderer, asked, remembered) : null;
+  const presenter = renderer ? host.presenter(renderer, asked, remembered) : null;
   const mountedPipelines = new WeakMap<SceneGraph, MountedThreePipeline>();
   const frameMounts: FrameMount[] = [];
 

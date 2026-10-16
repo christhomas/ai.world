@@ -1,4 +1,4 @@
-import { Countdown } from './countdown';
+import { Conversation } from './conversation';
 import { FACE, drawFace, faceOf, type Face, type Stage } from './portrait';
 
 /**
@@ -94,9 +94,9 @@ export interface DialogueNode {
   };
 }
 
-const CPS = 55;              // characters per second
 const MOUTH = 0.12;          // seconds a mouth shape holds while somebody is talking
 
+/** The conversation on the page: `Conversation` is where it has got to, and this draws it. */
 export class DialogueBox {
   private readonly el: HTMLDivElement;
   private readonly theirFace: HTMLCanvasElement;
@@ -106,18 +106,7 @@ export class DialogueBox {
   private readonly textEl: HTMLDivElement;
   private readonly choicesEl: HTMLDivElement;
   private readonly hintEl: HTMLDivElement;
-  private node: DialogueNode | null = null;
-  /** What a node that expires has left, or nothing counting at all. See `countdown.ts`. */
-  private readonly clock = new Countdown();
-  private page = 0;
-  private typed = 0;
-  private acc = 0;
-  private choice = 0;
-  private onClose: (() => void) | null = null;
-  /** Fires as characters appear (for a typewriter blip) and when a choice moves. */
-  onType: (() => void) | null = null;
-  onMove: (() => void) | null = null;
-  private typedSinceBlip = 0;
+  private readonly talk = new Conversation();
   /** The hero's own face, set once and drawn on the right of every conversation. */
   private hero: Face | null = null;
   private mouthAcc = 0;
@@ -151,15 +140,28 @@ export class DialogueBox {
     this.textEl = this.el.querySelector('.dlg-text')!;
     this.choicesEl = this.el.querySelector('.dlg-choices')!;
     this.hintEl = this.el.querySelector('.dlg-hint')!;
+    this.talk.onStart = (node) => {
+      this.showFace(node);
+      this.choicesEl.innerHTML = '';
+      this.el.classList.add('show');
+    };
+    this.talk.onEnd = () => this.el.classList.remove('show');
+    this.talk.onChange = () => this.render();
     this.el.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const idx = target.dataset.choice;
-      if (idx !== undefined) { this.choice = Number(idx); this.select(); return; }
+      if (idx !== undefined) { this.talk.choose(Number(idx)); return; }
       this.advance();
     });
   }
 
-  get isOpen(): boolean { return this.node !== null; }
+  get isOpen(): boolean { return this.talk.isOpen; }
+
+  /** Fires as characters appear (for a typewriter blip) and when a choice moves. */
+  get onType(): (() => void) | null { return this.talk.onType; }
+  set onType(blip: (() => void) | null) { this.talk.onType = blip; }
+  get onMove(): (() => void) | null { return this.talk.onMove; }
+  set onMove(moved: (() => void) | null) { this.talk.onMove = moved; }
 
   /** The hero's own face. Set it once at the start and whenever their gear changes. */
   setHero(who: Speaker): void {
@@ -167,55 +169,10 @@ export class DialogueBox {
     drawFace(this.myFace, this.hero);
   }
 
-  start(node: DialogueNode, onClose?: () => void): void {
-    if (onClose) this.onClose = onClose;
-    this.node = node;
-    this.clock.begin(node.expires?.after);
-    this.page = 0;
-    this.typed = 0;
-    this.acc = 0;
-    this.choice = 0;
-    this.showFace(node);
-    this.nameEl.textContent = node.speaker;
-    this.choicesEl.innerHTML = '';
-    this.el.classList.add('show');
-    this.render();
-  }
+  start(node: DialogueNode, onClose?: () => void): void { this.talk.start(node, onClose); }
 
-  /**
-   * Left or right on the highlighted row, for a choice that carries a number.
-   *
-   * Redraws in place: the same page, already typed out, with the cursor still on the row you were
-   * on. Anything else and running a quantity up from one to twenty would replay the shopkeeper's
-   * patter twenty times and drop you back at the top of the list on every press.
-   */
-  nudge(dir: number): void {
-    this.answered();
-    if (!this.node?.choices || !this.atChoices()) return;
-    const here = this.choice;
-    const changed = this.node.choices[here]?.adjust?.(dir);
-    if (!changed) return;
-    this.node = changed;
-    // stay on the same row unless the menu came back shorter than it was
-    this.choice = Math.min(here, (changed.choices?.length ?? 1) - 1);
-    this.page = changed.pages.length - 1;
-    this.typed = changed.pages[this.page].length;
-    this.nameEl.textContent = changed.speaker;
-    this.render();
-  }
-
-  /**
-   * Somebody is here, so nothing expires any more.
-   *
-   * Once rather than each time: a count that could restart would be a menu that still closes under
-   * a reader, only later. The panel is redrawn because the row that was counting has words in it
-   * that are no longer true.
-   */
-  private answered(): void {
-    if (!this.clock.counting) return;
-    this.clock.answered();
-    this.render();
-  }
+  /** Left or right on the highlighted row, for a choice that carries a number. See `Conversation`. */
+  nudge(dir: number): void { this.talk.nudge(dir); }
 
   /** A drawn face where there is one, and the emoji the game has always used where there is not. */
   private showFace(node: DialogueNode): void {
@@ -229,44 +186,15 @@ export class DialogueBox {
     this.myFace.style.display = this.hero ? '' : 'none';
   }
 
-  close(): void {
-    if (!this.node) return;
-    this.node = null;
-    this.clock.answered();
-    this.el.classList.remove('show');
-    const cb = this.onClose;
-    this.onClose = null;
-    cb?.();
-  }
+  close(): void { this.talk.close(); }
 
   update(dt: number): void {
-    if (!this.node) return;
-    if (this.node.expires) {
-      const { state, changed } = this.clock.tick(dt);
-      if (state === 'expired') {
-        const next = this.node.expires.next();
-        if (next) this.start(next); else this.close();
-        return;
-      }
-      if (changed) this.render();
-    }
-    const full = this.node.pages[this.page].length;
-    if (this.typed >= full) { this.stopTalking(); return; }
-
-    this.talk(dt);
-    this.acc += dt * CPS;
-    const n = Math.floor(this.acc);
-    if (n > 0) {
-      this.acc -= n;
-      this.typed = Math.min(full, this.typed + n);
-      this.typedSinceBlip += n;
-      if (this.typedSinceBlip >= 3) { this.typedSinceBlip = 0; this.onType?.(); }
-      this.render();
-    }
+    if (this.talk.update(dt)) this.talkFor(dt);
+    else this.stopTalking();
   }
 
   /** The mouth moves while the words are still arriving, and shuts when they stop. */
-  private talk(dt: number): void {
+  private talkFor(dt: number): void {
     if (!this.speaking) return;
     this.mouthAcc += dt;
     if (this.mouthAcc < MOUTH) return;
@@ -282,68 +210,39 @@ export class DialogueBox {
   }
 
   advance(): void {
-    if (!this.node) return;
-    this.answered();
-    const full = this.node.pages[this.page].length;
-    if (this.typed < full) { this.typed = full; this.stopTalking(); this.render(); return; }
-    if (this.page < this.node.pages.length - 1) {
-      this.page++; this.typed = 0; this.acc = 0;
-      this.render();
-      return;
-    }
-    if (this.node.choices && this.node.choices.length > 0) { this.select(); return; }
-    this.close();
+    this.talk.advance();
+    // a page hurried to its end stops the mouth at once rather than on the next frame
+    if (this.talk.done) this.stopTalking();
   }
 
-  move(dir: number): void {
-    this.answered();
-    if (!this.node?.choices || !this.atChoices()) return;
-    const n = this.node.choices.length;
-    this.choice = (this.choice + dir + n) % n;
-    this.onMove?.();
-    this.render();
-  }
-
-  private atChoices(): boolean {
-    if (!this.node) return false;
-    return this.page === this.node.pages.length - 1 && this.typed >= this.node.pages[this.page].length && !!this.node.choices?.length;
-  }
-
-  private select(): void {
-    if (!this.node?.choices) return;
-    const c = this.node.choices[this.choice];
-    const next = c.next();
-    if (next) this.start(next);
-    else this.close();
-  }
+  move(dir: number): void { this.talk.move(dir); }
 
   private render(): void {
-    if (!this.node) return;
-    const text = this.node.pages[this.page];
-    this.textEl.textContent = text.slice(0, this.typed);
-    const done = this.typed >= text.length;
-    const showChoices = this.atChoices();
+    const node = this.talk.node;
+    if (!node) return;
+    this.nameEl.textContent = node.speaker;
+    this.textEl.textContent = this.talk.shown;
+    const done = this.talk.done;
+    const showChoices = this.talk.atChoices;
     this.hintEl.style.visibility = done && !showChoices ? 'visible' : 'hidden';
     // whoever is not talking steps back, which is what makes the two sides read as a conversation
     this.el.classList.toggle('choosing', showChoices);
     if (showChoices) {
-      const items = this.node.choices!.map((c, i) => {
+      const lit = this.talk.choice;
+      const items = node.choices!.map((c, i) => {
         const note = c.note ? `<span class="dlg-note">${c.note}</span>` : '';
-        return `<div class="dlg-choice list-row${i === this.choice ? ' sel' : ''}" data-choice="${i}">${i === this.choice ? '▶ ' : '  '}${c.label}${note}</div>`;
+        return `<div class="dlg-choice list-row${i === lit ? ' sel' : ''}" data-choice="${i}">${i === lit ? '▶ ' : '  '}${c.label}${note}</div>`;
       });
       // what happens if nobody answers, said out loud while it is still going to happen. A menu
       // that closes on its own without having said it was going to is a menu that closed on you.
-      if (this.clock.counting && this.node.expires) {
-        const said = this.node.expires.label.replace('%s', String(this.clock.seconds));
-        items.push(`<div class="dlg-choice dlg-waiting">${said}</div>`);
-      }
+      const waiting = this.talk.waiting;
+      if (waiting !== null) items.push(`<div class="dlg-choice dlg-waiting">${waiting}</div>`);
       this.choicesEl.innerHTML = items.join('');
       // and keep the highlighted row on screen: the shelf scrolls now, so moving down a long list
       // has to bring the list with it or the selection walks off the bottom and is lost
-      this.choicesEl.children[this.choice]?.scrollIntoView({ block: 'nearest' });
+      this.choicesEl.children[lit]?.scrollIntoView({ block: 'nearest' });
     } else if (this.choicesEl.innerHTML !== '') {
       this.choicesEl.innerHTML = '';
     }
   }
 }
-

@@ -30,6 +30,7 @@ import type { DungeonMinimap } from '../ui/dungeonmap';
 import type { Panels } from '../ui/panels';
 import type { installProbes } from '../game/probes';
 import type { CountryJobs } from '../game/country';
+import type { Keep } from '../world/chunkstore';
 import type { OtherPlayers } from '../render/others';
 import type { EntityRenderer } from '../render/entities';
 import type { PlayerList } from '../ui/players';
@@ -52,6 +53,8 @@ export type SoundSurface = Pick<Sound, 'volume' | 'setVolume' | 'quiet' | 'dispo
 export type RucksackSurface = Pick<Rucksack, 'onChange' | 'refresh' | 'toggle'>;
 export type ClockSurface = Pick<Clock, 'update' | 'setWeather'>;
 export type CompassSurface = Pick<Compass, 'update'>;
+/** A dungeon floor's map, filled in as the hero walks it. */
+export type FloorMap = Pick<DungeonMinimap, 'reveal' | 'draw'>;
 export interface MapSurfaces {
   fog: Pick<Fog, 'reveal'>;
   minimap: Pick<Minimap, 'draw'>;
@@ -130,7 +133,7 @@ export interface GamePlatform {
   /** The corner map, the full map and the fog the hero has lifted off both. */
   maps(graph: RoadGraph, sampler: TerrainSampler): MapSurfaces;
   /** The map of a dungeon floor while the hero is on one. */
-  floorMap(map: DungeonMap): DungeonMinimap;
+  floorMap(map: DungeonMap): FloorMap;
   kin(): ScreenParts['kinPanel'];
   roster(): ScreenParts['roster'];
   dialogue(): DialogueSurface;
@@ -144,13 +147,15 @@ export interface GamePlatform {
   /** Which panel has the keys, given the panels this host built; see `ui/panels.ts`. */
   screen(panels: ScreenParts): Screen;
   /** Measures frames and turns the picture down when they are slow, unless the player chose. */
-  readonly autoQuality: AutoQuality;
+  readonly autoQuality: Pick<AutoQuality, 'saw'>;
   frameHost(flash: (message: string) => void): FrameHost;
   gameEvents(events: { isLive(): boolean; resize(): void; persist(): void; say(message: string): void }):
     { isLive(): boolean; afterPhotoSaved(name: string): void; dispose(): void };
   prayerHost(isLive: () => boolean): PrayerHost;
-  /** Who meshes chunks and grows country in the background; the page's workers when left out. */
-  readonly jobs?: CountryJobs;
+  /** Who meshes chunks and grows country in the background: the page's workers, or a host's own. */
+  readonly jobs: CountryJobs;
+  /** Where ground a world sent is kept between visits. */
+  chunkKeep(): Keep;
   /** Other players, and the lines that say who is here. */
   company(): CompanySurfaces;
   /** How a shared world is reached, and the private one beside it. */
@@ -162,8 +167,8 @@ export interface GamePlatform {
   visibility(activity: (active: boolean) => void): () => void;
   /** Leave for the title, once the world is saved and released. */
   toTitle(): void;
-  /** What calls each frame; the page's animation frames when none is given. */
-  readonly frameClock?: FrameClock;
+  /** What calls each frame: the page's animation frames, or a host's own display clock. */
+  readonly frameClock: FrameClock;
   /**
    * Handles a test harness drives the game by, for hosts that have one. The page installs them in
    * development builds only.

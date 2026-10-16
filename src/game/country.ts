@@ -6,7 +6,6 @@ import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import type { GrownPatch } from '../world/endless';
 import type { WorldKind } from '../world/countries';
-import { growerFor } from '../world/countryworker';
 import type { ChunkJobHost } from '../world/chunkjobs';
 import type { Grower } from '../world/grower';
 import type { PatchCountry } from '../world/patchcountry';
@@ -52,8 +51,8 @@ export interface Growing {
   rig: SceneRig;
   props: PropLibrary;
   seasonTintMaterials: SeasonTintMaterials;
-  /** Who meshes chunks and grows the country in the background; the page's workers when left out. */
-  jobs?: CountryJobs;
+  /** Who meshes chunks and grows the country in the background: the page's workers, or a host's. */
+  jobs: CountryJobs;
 }
 
 /** The background work a country needs, for a host that schedules it itself rather than in workers. */
@@ -86,10 +85,10 @@ export function growCountry(ctx: Growing) {
   const { manifest, country, endless, view, around } = state;
   const sampler = state.sampler;
   // The browser owns background growth; an installed host supplies its own scheduling separately.
-  const grower = endless ? (jobs?.grower ?? growerFor)(seed, endless) : null;
+  const grower = endless ? jobs.grower(seed, endless) : null;
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
-  const visuals = countryRenderers(rig, props, daycycle, jobs?.chunks);
+  const visuals = countryRenderers(rig, props, daycycle, jobs.chunks);
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
   const chunks = visuals.chunks(
     sampler, country.store ?? undefined,

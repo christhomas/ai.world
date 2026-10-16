@@ -1,5 +1,5 @@
 import type { ChunkManager } from '../render/chunkManager';
-import { ChunkStore, browserKeep } from '../world/chunkstore';
+import { ChunkStore, type Keep } from '../world/chunkstore';
 import { packChunk, unpackChunk, worldStamp } from '../world/chunkparcel';
 import type { TerrainSampler } from '../world/terrain';
 import { GAME } from '../core/version';
@@ -50,6 +50,8 @@ export interface StreamingCtx {
    * chunk nobody heard about is a chunk this page will draw for itself and never put right.
    */
   want: (chunks: Array<[number, number]>) => boolean;
+  /** Where ground the world sent is kept between visits: the host's store. */
+  keep: Keep;
 }
 
 export function streamTheCountry(ctx: StreamingCtx): Streaming {
@@ -74,7 +76,7 @@ export function streamTheCountry(ctx: StreamingCtx): Streaming {
    * few hundred kilobytes against never being able to fix the shape of anything small.
    */
   const kept = new ChunkStore(
-    browserKeep(), ctx.seed, 'endless',
+    ctx.keep, ctx.seed, 'endless',
     `${GAME.version}:${worldStamp(ctx.sampler.generateChunk(0, 0))}`,
   );
   void kept.sweep();

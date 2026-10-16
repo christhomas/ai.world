@@ -19,7 +19,7 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { bodyForTrade } from '../entities/trades';
 import type { Player } from '../entities/player';
-import type { DungeonMinimap } from '../ui/dungeonmap';
+import type { FloorMap } from '../platform/game-platform';
 import { FACEWORK, putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../world/chests';
@@ -79,7 +79,7 @@ export interface PlaceContext {
   overworldRenderer: EntityRenderer;
   /** Follows the hero between scenes so worn gear is drawn wherever they are. */
   heroGear: HeroGear;
-  floorMap: (map: DungeonMap) => DungeonMinimap;   // a floor's map, wherever the host draws one
+  floorMap: (map: DungeonMap) => FloorMap;   // a floor's map, wherever the host draws one
   rng: Rng;
   flash: (message: string) => void;
   chime: () => void;
@@ -169,7 +169,7 @@ export interface DungeonVisit {
   scene: DungeonScene;
   renderer: EntityRenderer;
   monsters: EntityManager;
-  map: DungeonMinimap;
+  map: FloorMap;
   poi: Underground;
 }
 

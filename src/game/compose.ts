@@ -80,11 +80,17 @@ export interface GameStart {
   home?: GrownPatch;
 }
 
+/** What a host keeps of a game it opened: a way to save it now, and a way to put it away. */
+export interface GameHandle {
+  save(): Promise<void>;
+  dispose(): void;
+}
+
 /**
  * The whole game, assembled: the world, the hero, the rules and the save, on the surfaces a host
  * supplies. The page's `startGame` is a host; so is an installed app. See `platform/game-platform.ts`.
  */
-export function composeGame(start: GameStart, platform: GamePlatform): void {
+export function composeGame(start: GameStart, platform: GamePlatform): GameHandle {
   const { store, slotKey, seed, worldName, world, home } = start;
   let { saved } = start;
   const { asks } = platform;
@@ -122,7 +128,7 @@ export function composeGame(start: GameStart, platform: GamePlatform): void {
   const prayedHighlands = manifest.layers().filter((a) => a.id.startsWith('highland:prayer:'));
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
-    chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
+    chunks, sampler, seed, keep: platform.chunkKeep(), want: (wanted) => online.wantChunks(wanted),
   });
   // Attach cutaway before shader compilation; its uniform toggles without recompiling materials.
   const cutaway = new Cutaway();
@@ -628,4 +634,5 @@ export function composeGame(start: GameStart, platform: GamePlatform): void {
   // Every callback target now exists. A hidden page must not start ticking, and a disposed
   // world's visibility listener must never restart its workers, audio or frame loop.
   session.own(platform.visibility((active) => session.setActive(active)));
+  return { save: () => persistStrict(), dispose: () => session.dispose() };
 }
