@@ -167,9 +167,11 @@ describe('portable frame runtime boundary', () => {
     expect(files).not.toContain('src/platform/browser-world-link.ts');
   });
   it('assembles the whole game on a host with no page, workers, storage or GPU adapters', () => {
-    const files = [...new Set([...inspect('src/game/compose.ts'), ...inspect('src/platform/headless-game.ts')])];
+    const files = [...new Set([...inspect('src/game/compose.ts'), ...inspect('src/platform/headless-game.ts'),
+      ...inspect('src/mobile/game-engine.ts')])];
     for (const part of ['src/game/frame.ts', 'src/game/multiplayer.ts', 'src/game/places.ts', 'src/render/scene.ts',
-      'src/render/chunkManager.ts', 'src/workers/chunkmesher.ts', 'src/workers/local-world-host.ts', 'src/ui/conversation.ts']) {
+      'src/render/chunkManager.ts', 'src/workers/chunkmesher.ts', 'src/workers/local-world-host.ts', 'src/ui/conversation.ts',
+      'src/mobile/host-globals.ts', 'src/mobile/scene-packet.ts']) {
       expect(files).toContain(part);
     }
     for (const page of ['src/main.ts', 'src/platform/browser-game.ts', 'src/platform/browser-rig.ts',

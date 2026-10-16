@@ -65,6 +65,7 @@ import { GameState } from './state';
 import { Manifest } from '../world/manifest';
 import { answerDueHighlands, prayersAnsweredHere } from './prayers';
 import { bindKeys } from './keys';
+import type { PlayerAction } from './player-actions';
 import { createAuthority } from './authority';
 import { SessionLifetime, shutDownGame } from './lifecycle';
 import type { GamePlatform } from '../platform/game-platform';
@@ -80,9 +81,11 @@ export interface GameStart {
   home?: GrownPatch;
 }
 
-/** What a host keeps of a game it opened: a way to save it now, and a way to put it away. */
+/** What a host keeps of a game it opened: a way to save it now, to act in it, and to put it away. */
 export interface GameHandle {
   save(): Promise<void>;
+  /** A one-shot player action, through the same binding and guards its key has. */
+  act(action: PlayerAction): boolean;
   dispose(): void;
 }
 
@@ -634,5 +637,5 @@ export function composeGame(start: GameStart, platform: GamePlatform): GameHandl
   // Every callback target now exists. A hidden page must not start ticking, and a disposed
   // world's visibility listener must never restart its workers, audio or frame loop.
   session.own(platform.visibility((active) => session.setActive(active)));
-  return { save: () => persistStrict(), dispose: () => session.dispose() };
+  return { save: () => persistStrict(), act: (action) => actions.dispatch(action), dispose: () => session.dispose() };
 }

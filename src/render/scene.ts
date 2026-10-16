@@ -10,7 +10,6 @@ import { setWorldView } from './scene-view';
 export { worldView, setWorldView, type WorldView } from './scene-view';
 import { CoastField, COAST } from './coastfield';
 import { WaterMaterial } from './water';
-import type { RecordingPipeline } from './recording';
 import type { IsoCamera } from './camera';
 import { attachSceneGraph, sceneForGraph, ThreeGraphBridge } from './scenegraph';
 import { MountedThreePipeline, submitGraphFrame, type FrameMount, type FramePipeline } from './pipeline';
@@ -282,7 +281,7 @@ export interface RigHost {
  * pass however the preference reads. See `secondrig.ts` for why this is the only thing that
  * differs between the two paths.
  */
-export function createSceneRig(host: RigHost, asked = false, recording?: RecordingPipeline): SceneRig {
+export function createSceneRig(host: RigHost, asked = false, recording?: FramePipeline): SceneRig {
   const { recordOnly } = host;
   /*
    * No WebGL at all when only the recorder is drawing (#529).

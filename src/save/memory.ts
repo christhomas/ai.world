@@ -5,10 +5,12 @@ import type { SaveStore } from './store';
  * yet, and for tests. Values are copied in and out, as a real store's would be, so a save cannot be
  * changed by whoever handed it over.
  */
-export function savedInMemory(): SaveStore & { readonly keys: string[] } {
+export function savedInMemory(): SaveStore & { readonly keys: string[]; read(key: string): string | undefined } {
   const kept = new Map<string, string>();
   return {
     get keys() { return [...kept.keys()]; },
+    /** A slot as it was last written, for a host that keeps it somewhere durable of its own. */
+    read: (key: string) => kept.get(key),
     load: async <T>(key: string) => {
       const text = kept.get(key);
       return text === undefined ? undefined : JSON.parse(text) as T;

@@ -4,7 +4,8 @@ import type { Viewport } from '../core/viewport';
 import type { HostClock } from '../../server/host-clock';
 import { Forgetful, type Vault } from '../../server/vault';
 import { createSceneRig, type RigHost } from '../render/scene';
-import { RecordingPipeline } from '../render/recording';
+import type { FramePipeline, FrameSource } from '../render/pipeline';
+import type { FrameDescription } from '../core/scene';
 import { ChunkMesher } from '../workers/chunkmesher';
 import { LocalWorldHost } from '../workers/local-world-host';
 import type { ChunkJobHost } from '../world/chunkjobs';
@@ -80,7 +81,7 @@ export interface HeadlessGame {
   /** Where the conversation is, for a host to show and answer. */
   conversation: Conversation;
   /** The frames the rig drew, for the host's own renderer. */
-  recording: RecordingPipeline;
+  recording: FrameCatch;
   /** The controls, which the host feeds from touches or messages. */
   input: GameInput;
   /** Time passing on the display: whatever frame is due is run. */
@@ -89,6 +90,26 @@ export interface HeadlessGame {
   setVisible(visible: boolean): void;
   /** Everything the game was assembled from, once it has been: what a test or an inspector reads. */
   handles(): Parameters<typeof installProbes>[0];
+}
+
+/**
+ * The frame the rig draws next, kept as it was handed over.
+ *
+ * The page's recorder copies what it keeps, because the graph's buffers move on with the next
+ * frame. A host that reads the frame before any other is drawn has no need of a copy, and copying a
+ * whole frame every step is time an embedded engine does not have.
+ */
+export class FrameCatch implements FramePipeline {
+  frames = 0;
+  last: FrameDescription | null = null;
+  private armed = false;
+  captureNext(): void { this.armed = true; this.last = null; }
+  draw(frame: FrameSource): void {
+    this.frames++;
+    if (!this.armed) return;
+    this.last = typeof frame === 'function' ? frame() : frame;
+    this.armed = false;
+  }
 }
 
 const KEPT = 40;
@@ -184,7 +205,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   };
   const say = (line: string) => keep(shown.toasts, line);
   const cue = (name: string) => keep(shown.sounds, name);
-  const recording = new RecordingPipeline();
+  const recording = new FrameCatch();
   const input = new GameInput();
   const talk = new Conversation();
 
