@@ -105,7 +105,7 @@ class GameSession {
     final engine = await StateEngine.openGame('game:${slot.slot}', {
       'seed': slot.seed, 'kind': slot.kind, 'slot': slot.slot, 'name': slot.name,
       'viewport': {'width': viewport.width, 'height': viewport.height},
-      if (saved != null) 'saved': saved,
+      'saved': ?saved,
       'world': records,
       if (slot.server != null) 'server': slot.server,
     }, channel: channel, assets: assets);
