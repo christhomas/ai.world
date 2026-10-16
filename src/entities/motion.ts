@@ -130,14 +130,6 @@ function fault(where: string, why: string): never {
   throw new Error(`animations/motion.json: ${where} ${why}`);
 }
 
-const file = motion as unknown as MotionFile;
-
-// a section somebody has deleted should say so, rather than failing later as an unreadable
-// property of undefined with no hint of which file it came from
-for (const name of ['walking', 'swimming', 'idling', 'body', 'running', 'flinch', 'dying', 'blows'] as const) {
-  if (!file[name] || typeof file[name] !== 'object') fault(name, 'is missing from the file');
-}
-
 /** Read a section, dropping the `note` that documents it for whoever opens the file. */
 function sectionOf<T>(part: Record<string, T | string>, where: string): Record<string, T> {
   const out: Record<string, T> = {};
@@ -163,22 +155,6 @@ function role(where: string, name: string): AnimRole {
   return name as AnimRole;
 }
 
-const CYCLES: Record<string, Cycle> = sectionOf<Cycle>(file.walking, 'walking');
-/** The same vocabulary, for a body out of its depth. See `animations/motion.json`. */
-const STROKES: Record<string, Cycle> = sectionOf<Cycle>(file.swimming, 'swimming');
-const AFLOAT = file.floating;
-const IDLES: Record<string, Cycle> = sectionOf<Cycle>(file.idling, 'idling');
-const BLOWS: Record<string, Strike> = sectionOf<Strike>(file.blows, 'blows');
-const BODY = file.body;
-const RUN = file.running;
-const FLINCH = file.flinch;
-const DYING = file.dying;
-
-/** Which way a part turns, taken from its walk and shared by everything else that moves it. */
-function axisOf(name: string): 'x' | 'y' | 'z' {
-  return CYCLES[name]?.axis ?? IDLES[name]?.axis ?? 'z';
-}
-
 /** One entry of a walk or an idle, checked field by field so the fault names the one at fault. */
 function checkCycle(where: string, cycle: Cycle, idle: boolean): void {
   if (idle) {
@@ -197,66 +173,113 @@ function checkCycle(where: string, cycle: Cycle, idle: boolean): void {
   }
 }
 
-// everything below runs once, at load, because an animation that silently falls back to nothing
-// is a bug nobody finds for a week, and the game is more use refusing to start than looking wrong
-for (const [name, cycle] of Object.entries(CYCLES)) {
-  role('walking', name);
-  checkCycle(`walking.${name}`, cycle, false);
+/** Everything `animations/motion.json` says, read and checked. */
+interface Motion {
+  CYCLES: Record<string, Cycle>;
+  /** The same vocabulary, for a body out of its depth. See `animations/motion.json`. */
+  STROKES: Record<string, Cycle>;
+  AFLOAT: MotionFile['floating'];
+  IDLES: Record<string, Cycle>;
+  BLOWS: Record<string, Strike>;
+  BODY: MotionFile['body'];
+  RUN: MotionFile['running'];
+  FLINCH: MotionFile['flinch'];
+  DYING: MotionFile['dying'];
 }
-for (const [name, cycle] of Object.entries(STROKES)) {
-  role('swimming', name);
-  checkCycle(`swimming.${name}`, cycle, false);
-}
-for (const field of ['lean', 'bounce', 'sway'] as const) figure(`floating.${field}`, AFLOAT[field], SANE_TURN);
 
-for (const [name, cycle] of Object.entries(IDLES)) {
-  role('idling', name);
-  checkCycle(`idling.${name}`, cycle, true);
-  // one part turns one way whoever is asking, or a creature would unbend itself as it stopped
-  if (cycle.axis !== undefined && CYCLES[name]?.axis !== undefined && cycle.axis !== CYCLES[name].axis) {
-    fault(`idling.${name}.axis`, `turns on ${cycle.axis} where walking.${name} turns on ${CYCLES[name].axis}`);
+/**
+ * Read a motion file and check every number in it.
+ *
+ * The game does this once, at load, to its own file, because an animation that silently falls back
+ * to nothing is a bug nobody finds for a week, and the game is more use refusing to start than
+ * looking wrong. The content catalogue (#624) does it to a proposed file before publishing one.
+ */
+export function readMotion(json: unknown): Motion {
+  if (!json || typeof json !== 'object' || Array.isArray(json)) fault('the file', 'must hold an object');
+  const file = json as MotionFile;
+  // a section somebody has deleted should say so, rather than failing later as an unreadable
+  // property of undefined with no hint of which file it came from
+  for (const name of ['walking', 'swimming', 'idling', 'body', 'running', 'flinch', 'dying', 'blows'] as const) {
+    if (!file[name] || typeof file[name] !== 'object') fault(name, 'is missing from the file');
   }
-}
+  const CYCLES = sectionOf<Cycle>(file.walking, 'walking');
+  const STROKES = sectionOf<Cycle>(file.swimming, 'swimming');
+  const AFLOAT = file.floating;
+  const IDLES = sectionOf<Cycle>(file.idling, 'idling');
+  const BLOWS = sectionOf<Strike>(file.blows, 'blows');
+  const BODY = file.body;
+  const RUN = file.running;
+  const FLINCH = file.flinch;
+  const DYING = file.dying;
 
-for (const field of ['bounce', 'sway', 'breath', 'settle'] as const) figure(`body.${field}`, BODY[field], SANE_LIFT);
-figure('body.lean', BODY.lean, SANE_TURN);
-for (const field of ['breathRate', 'settleRate'] as const) figure(`body.${field}`, BODY[field], SANE_RATE);
-
-if (!(RUN.from >= 0) || RUN.from >= 1) fault('running.from', 'must be a pace from 0 up to but not including 1');
-if (!(RUN.stride > 0) || RUN.stride > SANE_STRIDE) fault('running.stride', `must be between 0 and ${SANE_STRIDE} times the walk's`);
-if (!(RUN.bounce >= 0) || RUN.bounce > SANE_STRIDE) fault('running.bounce', `must be between 0 and ${SANE_STRIDE} times the walk's`);
-figure('running.lean', RUN.lean, SANE_TURN);
-
-if (!(FLINCH.lasts > 0) || FLINCH.lasts > SANE_LASTS) fault('flinch.lasts', `must be between 0 and ${SANE_LASTS} seconds`);
-if (!(FLINCH.snap > 0) || FLINCH.snap >= 1) fault('flinch.snap', 'must be a share of the flinch, above 0 and below 1');
-figure('flinch.lean', FLINCH.lean, SANE_TURN);
-figure('flinch.drop', FLINCH.drop, SANE_LIFT);
-for (const [name, turn] of Object.entries(FLINCH.turn ?? {})) {
-  role('flinch.turn', name);
-  figure(`flinch.turn.${name}`, turn, SANE_TURN);
-}
-
-if (!(DYING.lasts > 0) || DYING.lasts > SANE_LASTS) fault('dying.lasts', `must be between 0 and ${SANE_LASTS} seconds`);
-figure('dying.fall', DYING.fall, SANE_TURN);
-figure('dying.sink', DYING.sink, SANE_LIFT);
-for (const [name, turn] of Object.entries(DYING.turn ?? {})) {
-  role('dying.turn', name);
-  figure(`dying.turn.${name}`, turn, SANE_TURN);
-}
-
-for (const [name, blow] of Object.entries(BLOWS)) {
-  if (!(blow.lasts > 0) || blow.lasts > SANE_LASTS) fault(`blows.${name}.lasts`, `must be between 0 and ${SANE_LASTS} seconds`);
-  if (!(blow.wind >= 0) || blow.wind >= 1) fault(`blows.${name}.wind`, 'must be a share of the blow, from 0 up to but not including 1');
-  // a tell of nought would land the blow in the same instant it was thrown, which is the exact bug
-  // the wind-up exists to fix; one of a whole would land it after the animation had finished
-  if (blow.tell !== undefined && (!(blow.tell > 0) || blow.tell >= 1)) {
-    fault(`blows.${name}.tell`, 'must be a share of the blow, above 0 and below 1');
+  for (const [name, cycle] of Object.entries(CYCLES)) {
+    role('walking', name);
+    checkCycle(`walking.${name}`, cycle, false);
   }
-  if (blow.lean !== undefined) figure(`blows.${name}.lean`, blow.lean, SANE_TURN);
-  for (const [part, turn] of Object.entries(blow.turn ?? {})) {
-    role(`blows.${name}.turn`, part);
-    figure(`blows.${name}.turn.${part}`, turn, SANE_TURN);
+  for (const [name, cycle] of Object.entries(STROKES)) {
+    role('swimming', name);
+    checkCycle(`swimming.${name}`, cycle, false);
   }
+  for (const field of ['lean', 'bounce', 'sway'] as const) figure(`floating.${field}`, AFLOAT[field], SANE_TURN);
+
+  for (const [name, cycle] of Object.entries(IDLES)) {
+    role('idling', name);
+    checkCycle(`idling.${name}`, cycle, true);
+    // one part turns one way whoever is asking, or a creature would unbend itself as it stopped
+    if (cycle.axis !== undefined && CYCLES[name]?.axis !== undefined && cycle.axis !== CYCLES[name].axis) {
+      fault(`idling.${name}.axis`, `turns on ${cycle.axis} where walking.${name} turns on ${CYCLES[name].axis}`);
+    }
+  }
+
+  for (const field of ['bounce', 'sway', 'breath', 'settle'] as const) figure(`body.${field}`, BODY[field], SANE_LIFT);
+  figure('body.lean', BODY.lean, SANE_TURN);
+  for (const field of ['breathRate', 'settleRate'] as const) figure(`body.${field}`, BODY[field], SANE_RATE);
+
+  if (!(RUN.from >= 0) || RUN.from >= 1) fault('running.from', 'must be a pace from 0 up to but not including 1');
+  if (!(RUN.stride > 0) || RUN.stride > SANE_STRIDE) fault('running.stride', `must be between 0 and ${SANE_STRIDE} times the walk's`);
+  if (!(RUN.bounce >= 0) || RUN.bounce > SANE_STRIDE) fault('running.bounce', `must be between 0 and ${SANE_STRIDE} times the walk's`);
+  figure('running.lean', RUN.lean, SANE_TURN);
+
+  if (!(FLINCH.lasts > 0) || FLINCH.lasts > SANE_LASTS) fault('flinch.lasts', `must be between 0 and ${SANE_LASTS} seconds`);
+  if (!(FLINCH.snap > 0) || FLINCH.snap >= 1) fault('flinch.snap', 'must be a share of the flinch, above 0 and below 1');
+  figure('flinch.lean', FLINCH.lean, SANE_TURN);
+  figure('flinch.drop', FLINCH.drop, SANE_LIFT);
+  for (const [name, turn] of Object.entries(FLINCH.turn ?? {})) {
+    role('flinch.turn', name);
+    figure(`flinch.turn.${name}`, turn, SANE_TURN);
+  }
+
+  if (!(DYING.lasts > 0) || DYING.lasts > SANE_LASTS) fault('dying.lasts', `must be between 0 and ${SANE_LASTS} seconds`);
+  figure('dying.fall', DYING.fall, SANE_TURN);
+  figure('dying.sink', DYING.sink, SANE_LIFT);
+  for (const [name, turn] of Object.entries(DYING.turn ?? {})) {
+    role('dying.turn', name);
+    figure(`dying.turn.${name}`, turn, SANE_TURN);
+  }
+
+  for (const [name, blow] of Object.entries(BLOWS)) {
+    if (!(blow.lasts > 0) || blow.lasts > SANE_LASTS) fault(`blows.${name}.lasts`, `must be between 0 and ${SANE_LASTS} seconds`);
+    if (!(blow.wind >= 0) || blow.wind >= 1) fault(`blows.${name}.wind`, 'must be a share of the blow, from 0 up to but not including 1');
+    // a tell of nought would land the blow in the same instant it was thrown, which is the exact bug
+    // the wind-up exists to fix; one of a whole would land it after the animation had finished
+    if (blow.tell !== undefined && (!(blow.tell > 0) || blow.tell >= 1)) {
+      fault(`blows.${name}.tell`, 'must be a share of the blow, above 0 and below 1');
+    }
+    if (blow.lean !== undefined) figure(`blows.${name}.lean`, blow.lean, SANE_TURN);
+    for (const [part, turn] of Object.entries(blow.turn ?? {})) {
+      role(`blows.${name}.turn`, part);
+      figure(`blows.${name}.turn.${part}`, turn, SANE_TURN);
+    }
+  }
+
+  return { CYCLES, STROKES, AFLOAT, IDLES, BLOWS, BODY, RUN, FLINCH, DYING };
+}
+
+const { CYCLES, STROKES, AFLOAT, IDLES, BLOWS, BODY, RUN, FLINCH, DYING } = readMotion(motion);
+
+/** Which way a part turns, taken from its walk and shared by everything else that moves it. */
+function axisOf(name: string): 'x' | 'y' | 'z' {
+  return CYCLES[name]?.axis ?? IDLES[name]?.axis ?? 'z';
 }
 
 /** Every blow the file describes, which is what a creature is allowed to throw. */
@@ -291,9 +314,9 @@ export function dyingAt(dying: number): number {
   return at * at;
 }
 
-/** Is this a blow the file knows about? */
-export function isBlow(name: string): name is Blow {
-  return name in BLOWS;
+/** Is this a blow the file knows about? A proposed file's own blows can be asked about instead. */
+export function isBlow(name: string, blows: readonly string[] = BLOW_NAMES): name is Blow {
+  return blows.includes(name);
 }
 
 /**

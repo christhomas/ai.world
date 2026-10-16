@@ -283,6 +283,9 @@ const FILES: Record<string, unknown> = {
 };
 
 /** Every body in the game, by the name the rest of it knows the creature under. */
-export const MODELS: Record<string, PartDef[]> = Object.fromEntries(
-  Object.entries(FILES).map(([id, contents]) => [id, readModel(modelFile(id), contents)]),
-);
+export const MODELS: Record<string, PartDef[]> = readModels(FILES);
+
+/** Model files keyed by creature, read and checked as the game reads its own (#624). */
+export function readModels(files: Readonly<Record<string, unknown>>): Record<string, PartDef[]> {
+  return Object.fromEntries(Object.entries(files).map(([id, contents]) => [id, readModel(modelFile(id), contents)]));
+}

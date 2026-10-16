@@ -24,6 +24,7 @@ import { worldEditor } from './tools/worldeditor';
 import { ContentCatalogue } from './content';
 import { inventory } from '../src/core/content';
 import { DEFAULT_CONTENT } from '../src/core/contentDefaults';
+import { checkContent } from '../src/entities/contentCheck';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -205,7 +206,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
      * then (#624). Nothing in the simulation reads it yet: the game still runs on the bundled
      * JSON, and the catalogue's job for now is to have its first revision before anything does.
      */
-    const content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT)) : null;
+    const content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT), { check: checkContent }) : null;
     if (content && !options.quiet) console.log(`gameplay content catalogue at revision ${content.head()}`);
   } catch (error) { durable?.close(); throw error; }
   const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;

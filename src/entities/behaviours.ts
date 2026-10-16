@@ -16,12 +16,22 @@ import type { Behaviour } from './animals';
  * Every kind of creature is driven from the file now. What is left in entity.ts is movement,
  * animation and the consequences of being hit: mechanism, not decisions.
  */
-const TREES: Record<string, Node<Mind>> = {
-  ...compileAll(creatures as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
-  ...compileAll(villagers as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
-  ...compileAll(monsters as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
-  ...compileAll(villain as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
-};
+const TREES: Record<string, Node<Mind>> = compileBehaviours({
+  'behaviours/creatures.json': creatures,
+  'behaviours/villagers.json': villagers,
+  'behaviours/monsters.json': monsters,
+  'behaviours/villain.json': villain,
+});
+
+/**
+ * Every tree in a set of behaviour files, compiled against the verbs the game declares. A later file
+ * wins a name an earlier one also uses. The content catalogue (#624) compiles a proposed set with
+ * this before publishing it, so a misspelt verb is refused rather than shipped.
+ */
+export function compileBehaviours(files: Readonly<Record<string, unknown>>): Record<string, Node<Mind>> {
+  return Object.assign({}, ...Object.values(files).map((file) =>
+    compileAll(file as BehaviourFile, CREATURE_VERBS, rollSeconds)));
+}
 
 /**
  * The same trees before they were compiled, under the same names.
@@ -73,14 +83,19 @@ export type Decider = { trade?: string; kind: { id?: string; behaviour: Behaviou
  * does, most of all — needs the name, since a compiled tree cannot be asked what it is.
  */
 export function treeNameFor(e: Decider): string | null {
+  return treeNameIn(TREES, e);
+}
+
+/** The same question asked of a set of trees that is not the game's own, such as a proposed one. */
+export function treeNameIn(trees: Readonly<Record<string, unknown>>, e: Decider): string | null {
   // a villager with a trade follows their trade's day: a hunter is a hunter before they are a
   // villager
-  if (e.trade && TREES[e.trade]) return e.trade;
+  if (e.trade && trees[e.trade]) return e.trade;
   // a creature with a tree under its own name is driven by that: the trade rule, one step down.
   // It is how an ogre stops being a generic prowler without a new kind of lookup.
-  if (e.kind.id && TREES[e.kind.id]) return e.kind.id;
+  if (e.kind.id && trees[e.kind.id]) return e.kind.id;
   const byKind = DRIVEN_BY[e.kind.behaviour];
-  return byKind && TREES[byKind] ? byKind : null;
+  return byKind && trees[byKind] ? byKind : null;
 }
 
 /** What decides for this creature, compiled and ready to tick. */
