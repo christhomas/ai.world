@@ -106,6 +106,28 @@ regressions, production artifact checksum, zero-scenario rejection and required 
 gate integration remain acceptance work. Do not change this pending gate to success until those
 scenarios actually execute on both platforms.
 
-#569: the thresholds in `parity-thresholds.json` are provisional until a measured run sets them, and
-the regressions they must catch (no Metal depth conversion: blank; a native light or foam change: a
-failing region) are to be demonstrated by runs with those changes reverted.
+**Thresholds** (`tools/mobile/parity-thresholds.json`) are set from hosted run 38972400131, which
+measured every scene on both backends against the web picture of the same frame:
+
+| scene | mean, Android / iOS | worst region, Android / iOS |
+|---|---|---|
+| town | 1.55 / 1.65 | 4.3 / 4.2 |
+| night | 0.89 / 0.92 | 2.8 / 2.8 |
+| autumn | 1.52 / 1.60 | 6.0 / 5.9 |
+| interior | 0.05 / 0.08 | 0.1 / 0.1 |
+| dungeon | 0.06 / 0.08 | 0.2 / 0.2 |
+| sea | 0.15 / 0.16 | 0.2 / 0.2 |
+| night-sea | 0.09 / 0.10 | 0.8 / 0.8 |
+
+Two reads of one frame differed by nothing on either backend, so the noise floor is a hair (0.5
+mean, 1 in a region). No scene was found to be shifted. Each scene allows about two and a half
+times the worst of the two backends, and at least 0.5 mean and 1.5 in a region.
+
+**Lights.** The game lights a scene with one ambient light, one hemisphere and, out of doors, one
+sun, plus point lights. The dungeon floor carries eleven point lights with their decay. Each bridge
+sums every light of a kind up to its caps: 16 point lights and 4 directional lights. Ambient and
+hemisphere light are summed without a cap. One shadow map is cast, by the first directional light
+that casts shadows; three.js casts one per light, and the game only ever has one sun.
+`scene_frame_test.dart` pins that every light in a frame reaches the bridges. On Android,
+`tools/mobile/glsl.py` puts the GLSL through `glslangValidator`; Metal's shaders are compiled for
+real by `RunnerTests` on the simulator.
