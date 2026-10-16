@@ -35,7 +35,7 @@ const SCHEMA = [
   `CREATE TABLE content_revision (
      id INTEGER PRIMARY KEY,
      parent INTEGER REFERENCES content_revision(id),
-     reason TEXT NOT NULL CHECK (reason IN ('seed', 'upgrade', 'edit')),
+     reason TEXT NOT NULL CHECK (reason IN ('seed', 'upgrade', 'edit', 'rollback')),
      author TEXT NOT NULL,
      note TEXT NOT NULL,
      defaults INTEGER NOT NULL,
@@ -71,7 +71,8 @@ const SCHEMA = [
 export interface ContentRevision {
   id: number;
   parent: number | null;
-  reason: 'seed' | 'upgrade' | 'edit';
+  /** `rollback` is written by the tools API (#624 slice 3), which restores an earlier revision as a new one. */
+  reason: 'seed' | 'upgrade' | 'edit' | 'rollback';
   /** `bundled defaults` for a seed or upgrade; otherwise whoever made the edit. */
   author: string;
   note: string;
@@ -217,7 +218,7 @@ export class ContentCatalogue {
         'INSERT INTO content_revision (parent, reason, author, note, defaults, defaults_hash, created_at) '
         + 'VALUES (?, ?, ?, ?, ?, ?, ?)',
       ).run(head, next.reason, next.author, next.note,
-        next.reason === 'edit' ? this.revisionAt(head!).defaults : this.defaultsVersion,
+        next.reason === 'seed' || next.reason === 'upgrade' ? this.defaultsVersion : this.revisionAt(head!).defaults,
         this.defaultsHash, this.now()).lastInsertRowid);
       const insert = this.db.prepare('INSERT INTO content_record '
         + '(revision, id, source, field, ordinal, schema, body, hash, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
