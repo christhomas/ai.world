@@ -108,9 +108,11 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  * not been sent.
  *
  * - `start` opens the game the options named, against the world in this engine;
- * - `step` moves time on by `dtSeconds`, with the stick, the held buttons and any one-shot actions;
+ * - `step` moves time on by `dtSeconds`, with the stick, the camera turning (`look[0]`), the held
+ *   buttons and any one-shot actions;
  * - `action` is a player action by name (`interact`, `attack`, `inventory`…), `choose` a row of the
- *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `read` the roster while a
+ *   conversation by index, `zoom` the camera by a pinch's wheel distance (`args.by`), `nudge` a row's
+ *   number (`row:1` or `row:-1`), `read` the roster while a
  *   page shows it (`roster:<order>`, or nothing to stop), `say` a line typed into the
  *   console (`args.text`), `take` a carried thing out of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
@@ -221,6 +223,11 @@ export function create(session: string, optionsText: string): { request(text: st
     }
     if (parked.held.guard) host!.input.hold('c'); else host!.input.release('c');
     if (parked.held.run) host!.input.hold('shift'); else host!.input.release('shift');
+    // two fingers twisting on the world turn the camera, as the page's twist does: by holding the
+    // keys a keyboard turns it with, for as long as the hand keeps turning (`ui/twist.ts`)
+    const turn = parked.look[0];
+    if (turn <= -0.5) host!.input.hold('q'); else host!.input.release('q');
+    if (turn >= 0.5) host!.input.hold('e'); else host!.input.release('e');
     for (const action of parked.actions) act(action);
   };
 
@@ -288,6 +295,11 @@ export function create(session: string, optionsText: string): { request(text: st
                 throw new Error('Nothing to change');
               }
               host.conversation.nudgeAt(row, dir);
+            } else if (action === 'zoom') {
+              // a pinch, as the wheel a page's pinch turns into: positive is out, as a wheel scrolled down
+              const by = (request.payload.args as { by?: unknown } | null)?.by;
+              if (typeof by !== 'number' || !Number.isFinite(by) || Math.abs(by) > 5000) throw new Error('zoom needs a wheel distance');
+              host.input.wheelDelta += by;
             } else if (action === 'read') {
               // `roster:<order>` while the app's roster page is open; nothing when it closes
               const asked = target === null ? null : target.replace(/^roster:/, '');

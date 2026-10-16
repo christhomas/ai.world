@@ -187,7 +187,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       return LedgerShell(
         world: Stack(fit: StackFit.expand, children: [
           _world!,
-          LedgerStick(input: _input, health: hp / maxHp, breath: wind),
+          LedgerStick(input: _input, health: hp / maxHp, breath: wind,
+            onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
           // the console, under the clock: typing parks the world, as it does on the page
           Positioned(top: 40, right: 8, child: Semantics(button: true, label: 'Console', excludeSemantics: true,
             onTap: _ledger.typing, child: SizedBox(width: 44, height: 44, child: Material(color: t.surface,
