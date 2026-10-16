@@ -181,8 +181,13 @@ private class GLWorldRenderer(
     private var context = EGL14.EGL_NO_CONTEXT
     private var eglSurface = EGL14.EGL_NO_SURFACE
     private val glReleased = AtomicBoolean(false)
-    /** Who is waiting for the next frame drawn to be read back. Added from the platform thread. */
+    /** Everybody still owed a read-back, so disposal can answer whoever the GL thread did not. */
     private val snapshots = ConcurrentLinkedQueue<(Result<Map<String, Any>>) -> Unit>()
+    /**
+     * Read-backs whose scene is all in: queued on the GL thread behind every change sent before
+     * them, so the frame that answers is drawn after those changes and never before (GL thread only).
+     */
+    private val armed = mutableListOf<(Result<Map<String, Any>>) -> Unit>()
     private val disposed = AtomicBoolean(false)
     @Volatile private var running = true
 
@@ -330,6 +335,10 @@ private class GLWorldRenderer(
     fun snapshot(reply: (Result<Map<String, Any>>) -> Unit) {
         if (!running) { reply(Result.failure(IllegalStateException("renderer is not alive"))); return }
         snapshots.add(reply)
+        // a frame already being drawn when this arrived may be of the scene before it
+        if (!handler.post { armed.add(reply) } && snapshots.remove(reply)) {
+            reply(Result.failure(IllegalStateException("renderer is not alive")))
+        }
     }
 
     private fun post(block: () -> Unit) { if (running) handler.post(block) }
@@ -432,15 +441,21 @@ private class GLWorldRenderer(
         GLES30.glUniform1i(GLES30.glGetUniformLocation(program, "uCoast"), 1)
         GLES30.glUniform4fv(GLES30.glGetUniformLocation(program, "uCoastArea"), 1, coastArea, 0)
         drawMeshes(program, false)
-        if (snapshots.isNotEmpty()) {
+        if (armed.isNotEmpty()) {
             val shot = runCatching { readBack() }
-            while (true) (snapshots.poll() ?: break)(shot)
+            // whichever of this thread and disposal takes a reply off the list is the one that answers it
+            for (reply in armed) if (snapshots.remove(reply)) reply(shot)
+            armed.clear()
         }
         EGL14.eglSwapBuffers(display, eglSurface)
         handler.postDelayed(::drawLoop, 16)
     }
 
-    /** The colour buffer just drawn: opaque RGBA8 with the top row first, which is how Dart reads it. */
+    /**
+     * The colour buffer just drawn, RGBA8 with the top row first, which is how Dart reads it. Alpha
+     * is kept as drawn: Flutter composites this texture over the app, so a pixel that is not opaque
+     * is the app showing through the world, and the comparison has to be able to see that.
+     */
     private fun readBack(): Map<String, Any> {
         val width = viewportWidth
         val height = viewportHeight
@@ -458,7 +473,6 @@ private class GLWorldRenderer(
             pixels.position((height - 1 - y) * row)
             pixels.get(rgba, y * row, row)
         }
-        for (at in 3 until rgba.size step 4) rgba[at] = -1
         return mapOf("width" to width, "height" to height, "rgba" to rgba)
     }
 
@@ -498,8 +512,11 @@ private class GLWorldRenderer(
                 }
                 if (mesh.blend == "opaque") GLES30.glDisable(GLES30.GL_BLEND) else {
                     GLES30.glEnable(GLES30.GL_BLEND)
-                    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA,
-                        if (mesh.blend == "additive") GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA)
+                    // colour as three.js blends it; alpha as Metal does, so the world stays opaque
+                    // where water and glass are drawn and Flutter does not show the app through them
+                    GLES30.glBlendFuncSeparate(GLES30.GL_SRC_ALPHA,
+                        if (mesh.blend == "additive") GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA,
+                        GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA)
                 }
                 GLES30.glUniform1f(GLES30.glGetUniformLocation(activeProgram, "uOpacity"), mesh.opacity)
                 GLES30.glUniform3fv(GLES30.glGetUniformLocation(activeProgram, "uEmissive"), 1, mesh.emissive, 0)

@@ -3,12 +3,70 @@
     "What a native frame may differ from the web picture of the same frame and still pass (#569). Channel units, 0..255.",
     "grid: the picture is judged in columns x rows regions; a region's delta is the largest difference between the two pictures' mean channel values there.",
     "blank: a native frame with less spread or fewer colours than this, or more of it the clear colour, drew nothing.",
-    "noise: two read-backs of one frame on one device. A renderer replaying a frozen frame should draw it identically.",
-    "web: the native frame resampled to the web canvas. Provisional until a measured run sets them: see docs/mobile-hosted-verification.md."
+    "noise: two read-backs of one frame on one device. Measured 0 on both backends: a frozen frame draws identically, so anything above a hair is not noise.",
+    "web: measured in hosted run 38972400131 (Android API 35 GLES on SwiftShader, iPhone 16 / iOS 18.5 Metal simulator). Each scene allows about two and a half times the worst of the two backends, and at least 0.5 mean and 1.5 in a region; a scene with no entry of its own gets the default.",
+    "shift: the alignment found was 0 pixels on every scene on both backends."
   ],
-  "grid": [8, 4],
-  "blank": { "stddev": 8, "colours": 32, "background": 0.97 },
-  "noise": { "mae": 1.0, "region": 1.0 },
-  "web": { "mae": 40, "region": 60, "shift": 12 },
-  "scenes": {}
+  "grid": [
+    8,
+    4
+  ],
+  "blank": {
+    "stddev": 8,
+    "colours": 32,
+    "background": 0.97
+  },
+  "noise": {
+    "mae": 0.5,
+    "region": 1.0
+  },
+  "web": {
+    "mae": 4,
+    "region": 15,
+    "shift": 4
+  },
+  "scenes": {
+    "autumn": {
+      "web": {
+        "mae": 4.01,
+        "region": 14.88
+      }
+    },
+    "town": {
+      "web": {
+        "mae": 4.11,
+        "region": 10.77
+      }
+    },
+    "night": {
+      "web": {
+        "mae": 2.31,
+        "region": 7.03
+      }
+    },
+    "sea": {
+      "web": {
+        "mae": 0.5,
+        "region": 1.5
+      }
+    },
+    "night-sea": {
+      "web": {
+        "mae": 0.5,
+        "region": 1.93
+      }
+    },
+    "interior": {
+      "web": {
+        "mae": 0.5,
+        "region": 1.5
+      }
+    },
+    "dungeon": {
+      "web": {
+        "mae": 0.5,
+        "region": 1.5
+      }
+    }
+  }
 }

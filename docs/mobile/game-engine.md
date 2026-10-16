@@ -62,17 +62,24 @@ The native hosts give the whole game more than the hero:
 | | hero | game |
 |---|---|---|
 | memory (QuickJS) | 64 MB | 768 MB |
-| a request may take | 5 s | 60 s; opening, four times that |
+| a request may take (Android) | 5 s | 300 s; creating, four times that |
 | a reply may be | 1 MB | 32 MB |
 | a bundle may be | 32 MB | 32 MB |
 
 QuickJS runs every pending promise job after each call, because nothing else will. JavaScriptCore
 drains its own when a call returns.
 
+The game's time limit is a guard against a runaway request, not a target. QuickJS interprets the
+whole game with no JIT; on the hosted emulator, opening a world took longer than the first limit of
+60 s. The limit was raised so the proof reports how long things take rather than an interrupt (#559).
+
 **Hosted proof.** After the renderer scenes, the hosted replay (`tools/mobile/native_replay.dart`)
 opens the game from the bundled engine on both phones. It streams the ground into the same native
 renderer, a packet at a time, until 40 meshes have arrived. It walks the hero with the stick, reads
 the drawn frame back, and checks the save the game hands back is the hero's. It logs
-`HOSTED_GAME_READY` with the opening time, step median and p95, meshes, packets and distance walked.
+`HOSTED_GAME_PROGRESS` after every round of ground, then `HOSTED_GAME_READY` with the opening time,
+step median, p95 and slowest step, meshes, packets and distance walked. A game whose ground has not
+arrived after ten minutes fails with those measurements, and `hosted.py` keeps the last of them in
+the evidence as `installed_game_progress`.
 `hosted.py` pulls the frame, refuses a blank one, takes the screenshot beside it, and records all
 of it as `installed-<platform>-shared-game-session`.
