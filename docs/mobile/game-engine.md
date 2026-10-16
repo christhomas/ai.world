@@ -20,7 +20,7 @@ The app then sends:
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
-| `resync` `save` | the game saves |
+| `resync` `save` | the game saves; the save comes back with this reply, or with a later one if the write finishes after it |
 | `dispose` | lets everything go |
 
 The stick becomes the walking keys in the page stick's eight sectors, with its dead zone. Actions
@@ -31,7 +31,8 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - the conversation (speaker, words shown, choices, the lit row, an expiring menu's count);
 - where the hero is;
 - the owner (WORLD or BOOK) and busy mode;
-- any save written since the last reply, for the app to keep.
+- any save written since the last reply, for the app to keep. Every reply can carry one, so an app
+  reads it from all of them, `resync` and `action` replies included.
 
 **Time.** An embedded engine has no event loop, so time moves only when a step says so:
 `StepClock` runs the world's ticks, the jobs' replies and any page-shaped timers as the step passes
