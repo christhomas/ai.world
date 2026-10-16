@@ -1,7 +1,9 @@
-import { Simulation } from '../../server/sim';
-import type { Wire } from '../../server/rooms';
+import { systemClock } from '../../server/host-clock';
+import { LocalWorldHost } from './local-world-host';
 import { BrowserVault } from '../net/browservault';
-import { worldDoor } from './simdoor';
+import { Forgetful } from '../../server/vault';
+import { bootWorld } from './world-boot';
+import { checkpointId, WORLD_FLUSH, WORLD_FLUSHED, WORLD_FLUSH_FAILED } from '../net/world-checkpoint';
 
 /**
  * The world server, running in a thread beside the game.
@@ -26,23 +28,51 @@ import { worldDoor } from './simdoor';
  * grows the same terrain the page is drawing, spawns the herds on it, steps them, and tells the
  * page what is near. The page stops inventing its own the moment it is told anything.
  */
-const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault(), ground: true, localAuthoring: true });
+const boot = bootWorld(async () => {
+  const capturing = self.name === 'shots-capture';
+  const vault = capturing ? new Forgetful() : await BrowserVault.open();
+  let warned = false;
+  const warnStorage = (error: unknown) => {
+    if (warned) return;
+    warned = true;
+    console.warn('Could not keep the local world; retaining it for retry', error);
+    self.postMessage('world-storage-warning');
+  };
+  const host = new LocalWorldHost({
+    vault, clock: systemClock,
+    flush: async () => { if (!(vault instanceof Forgetful)) await vault.retry(); },
+    // bytes are handed over rather than copied, which is what makes passing a chunk of country
+    // between the world and the page next door cost nothing
+    post: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
+    // Explicit exit waits for persist()'s acknowledgement before Link.close terminates us.
+    closed: () => {
+      if (vault instanceof Forgetful) { self.close(); return; }
+      void vault.flush().then(() => self.close(), failStorage);
+    },
+  }, {}, capturing);
+  return {
+    receive(parcel: unknown) {
+      const checkpoint = checkpointId(parcel, WORLD_FLUSH);
+      if (checkpoint !== null) {
+        void host.persist().then(() => { warned = false; self.postMessage(WORLD_FLUSHED + checkpoint); }, error => {
+          warnStorage(error); self.postMessage(WORLD_FLUSH_FAILED + checkpoint);
+        });
+        return;
+      }
+      host.receive(parcel);
+      // Every simulation write already enters the ordered durable queue. A message boundary
+      // observes failures, including the strict save done when the page parks the authority.
+      if (!(vault instanceof Forgetful)) void vault.flush().then(() => { warned = false; }, warnStorage);
+    },
+    dispose: () => host.dispose(),
+  };
+}, failStorage);
 
-/** The page, as the roster sees it: exactly what a websocket looks like from the same angle. */
-const wire: Wire = {
-  // bytes are handed over rather than copied, which is what makes passing a chunk of country
-  // between the world and the page next door cost nothing
-  send: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
-  // a worker's port is open for as long as the worker is, and the page ends it by terminating us
-  open: true,
-  close: () => {},
-};
-
-const player = sim.attach(wire);
-const capturing = self.name === 'shots-capture';
-// the harness's clock starts at nought, and `worldDoor` counts on from there
-if (capturing) sim.captureAt(0);
-else sim.start();
+function failStorage(error: unknown): void {
+  console.error('Could not keep the local world', error);
+  self.postMessage('world-storage-failed');
+  self.close();
+}
 
 /**
  * Everything the page says, and the two things it says to this thread rather than through it.
@@ -60,5 +90,4 @@ else sim.start();
  *
  * Except in a capture, whose clock is the harness's: see `worldDoor`.
  */
-const door = worldDoor(sim, (text) => player.receive(text), capturing, (message) => self.postMessage(message));
-self.onmessage = (e: MessageEvent<unknown>) => door(e.data);
+self.onmessage = (e: MessageEvent<unknown>) => boot.receive(e.data);

@@ -5,7 +5,9 @@ import type { PropLibrary } from './props';
 import { Solids, boxesFrom, type Body } from '../world/solids';
 import { blocking, type Footprints } from '../world/footprints';
 import { BLOCKS_WALKING } from '../world/biomes';
-import type { PropKind } from '../world/biomes';
+import type { ChunkJob, ChunkJobHost } from '../world/chunkjobs';
+import { browserChunkJobs } from './chunkworkers';
+import { readPropStream } from './chunkprops';
 import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from '../world/messages';
 import { partsOf } from '../world/endless';
 import { Tellings, boundsOf, patchOfChunk, type Patchwork } from '../world/patchwork';
@@ -119,8 +121,9 @@ export class ChunkManager implements TileWorld, ChunkSource {
   /** What stops a walker out of doors: the measured props, less everything you walk through. */
   private readonly stops: Footprints;
   private readonly pending = new Map<string, number>();  // key → job id
-  private readonly workers: Worker[] = [];
-  private readonly idle: Worker[] = [];
+  private readonly workers: ChunkJob[] = [];
+  private readonly idle: ChunkJob[] = [];
+  private disposed = false;
   private readonly queue: Array<{ cx: number; cz: number; since: number }> = [];
   private nextId = 1;
   private focusCx = Number.NaN;
@@ -199,7 +202,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * is exactly what the worker does with them: two ends of one rule, and if they disagree a worker
    * is asked to paint from a patch it has quietly dropped.
    */
-  private readonly told = new Tellings<Worker>(PATCHES_PER_WORKER);
+  private readonly told = new Tellings<ChunkJob>(PATCHES_PER_WORKER);
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -224,6 +227,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
      * this one says "somebody else please", and the chunk that wanted it waits its turn.
      */
     private readonly wantPatch?: (patch: string) => void,
+    private readonly jobs: ChunkJobHost = browserChunkJobs,
   ) {
     this.terrainBridge = new ThreeGraphBridge(graph, scene, this.terrainMaterial, waterMaterial);
     this.propBatch = new PropBatch(scene, props, glowMaterial, graph);
@@ -233,14 +237,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
     this.offsets.sort((a, b) => a.dx * a.dx + a.dz * a.dz - (b.dx * b.dx + b.dz * b.dz));
 
-    const n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+    const n = Math.max(1, Math.min(4, Math.floor(jobs.concurrency) || 1));
     for (let i = 0; i < n; i++) {
-      const w = new Worker(new URL('../workers/chunkgen.worker.ts', import.meta.url), { type: 'module' });
-      w.onmessage = (e: MessageEvent<WorkerResponse>) => this.onMessage(w, e.data);
+      const w = jobs.create((reply) => this.onMessage(w, reply));
+      this.workers.push(w);
       w.postMessage({
         type: 'init', seed: sampler.seed, graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
       } satisfies WorkerRequest);
-      this.workers.push(w);
     }
   }
 
@@ -263,6 +266,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 
   update(x: number, z: number): void {
+    if (this.disposed) return;
     const cx = Math.floor(x / WORLD.CHUNK_SIZE);
     const cz = Math.floor(z / WORLD.CHUNK_SIZE);
     if (cx !== this.focusCx || cz !== this.focusCz) {
@@ -281,7 +285,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     for (const { dx, dz } of this.offsets) {
       const k = chunkKey(cx + dx, cz + dz);
       if (!this.loaded.has(k) && !this.pending.has(k)) {
-        this.queue.push({ cx: cx + dx, cz: cz + dz, since: performance.now() });
+        this.queue.push({ cx: cx + dx, cz: cz + dz, since: this.jobs.now() });
       }
     }
     for (const [k, c] of this.loaded) {
@@ -308,8 +312,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 
   private pump(): void {
-    if (this.paused) return;
-    const now = performance.now();
+    if (this.disposed || this.paused) return;
+    const now = this.jobs.now();
     for (let at = 0; at < this.queue.length && this.idle.length > 0;) {
       const job = this.queue[at];
       const key = chunkKey(job.cx, job.cz);
@@ -385,6 +389,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * ground nobody needs. It is dropped on the same rule as everything else here.
    */
   deliver(cx: number, cz: number, bytes: ArrayBuffer): void {
+    if (this.disposed) return;
     const far = Math.max(Math.abs(cx - this.focusCx), Math.abs(cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) return;
     const key = chunkKey(cx, cz);
@@ -414,7 +419,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * somebody else's business. All it does with the news is stop guessing for a while.
    */
   aWorldIsGrowingIt(): void {
-    this.countryDue = performance.now() + WAIT_FOR_A_NEW_COUNTRY;
+    this.countryDue = this.jobs.now() + WAIT_FOR_A_NEW_COUNTRY;
   }
 
   /** And the word that the country is grown: the waiting is over, whatever it found. */
@@ -462,7 +467,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * Sent immediately before the chunk request rather than up front: messages arrive in order, so a
    * `patch` followed by a `gen` is a chunk painted by that patch, and nothing has to be waited for.
    */
-  private tell(w: Worker, cx: number, cz: number): string {
+  private tell(w: ChunkJob, cx: number, cz: number): string {
     const patch = patchOfChunk(cx, cz);
     if (!this.told.needs(w, patch)) return patch;
     const sampler = this.patches!.patch(patch);
@@ -472,7 +477,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
     return patch;
   }
 
-  private onMessage(w: Worker, msg: WorkerResponse): void {
+  private onMessage(w: ChunkJob, msg: WorkerResponse): void {
+    if (this.disposed) return;
     if (msg.type === 'ready') {
       this.ready++;
       this.idle.push(w);
@@ -667,27 +673,16 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 
   dispose(): void {
-    for (const [k, c] of this.loaded) this.unload(k, c);
-    this.propBatch.dispose();
-    for (const w of this.workers) w.terminate();
-    this.terrainMaterial.dispose();
-  }
-}
-
-/**
- * The worker sends props as a flat stream of nine numbers each: what it is, where it stands, which
- * way it faces, how big, how tall for its width, how far off upright, and how light or dark.
- * Walk it as instances.
- */
-const PROP_STRIDE = 9;
-
-function* readPropStream(data: Float32Array): Generator<PropInstance> {
-  for (let i = 0; i < data.length; i += PROP_STRIDE) {
-    yield {
-      kind: data[i] as PropKind,
-      x: data[i + 1], y: data[i + 2], z: data[i + 3],
-      rot: data[i + 4], scale: data[i + 5],
-      stretch: data[i + 6], lean: data[i + 7], tint: data[i + 8],
-    };
+    if (this.disposed) return;
+    this.disposed = true;
+    const errors: unknown[] = [];
+    const release = (action: () => void) => { try { action(); } catch (error) { errors.push(error); } };
+    for (const [k, c] of this.loaded) release(() => this.unload(k, c));
+    release(() => this.propBatch.dispose());
+    for (const w of this.workers) release(() => w.terminate());
+    this.workers.length = 0; this.idle.length = 0;
+    this.queue.length = 0; this.pending.clear(); this.sent.clear();
+    release(() => this.terrainMaterial.dispose());
+    if (errors.length) throw new AggregateError(errors, 'Failed to release terrain jobs');
   }
 }

@@ -76,7 +76,9 @@ export default defineConfig(({ command }) => ({
     allowedHosts: (process.env.ALLOWED_HOSTS ?? '').split(',').map((one) => one.trim()).filter(Boolean),
   },
   worker: { format: 'es' },
-  build: { target: 'es2022', sourcemap: true },
+  build: { target: 'es2022', sourcemap: true,
+    rollupOptions: { input: { game: 'index.html', tools: 'tools/tools-app.html' } },
+  },
   /**
    * Sixty seconds a test, not vitest's five.
    *

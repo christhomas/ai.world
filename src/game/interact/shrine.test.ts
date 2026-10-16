@@ -39,6 +39,7 @@ describe('a shrine in a world of your own', () => {
       dialogue: { start: (node: DialogueNode) => { dialogue = node; } },
       hud: { flash: vi.fn() }, sound: { chime: vi.fn() },
       persist: vi.fn(), persistStrict: vi.fn(async () => {}),
+      prayerHost: { randomSeed: () => 123, restart: vi.fn(), isLive: () => true },
     } as unknown as Surroundings;
     const wild = wildInteractions(ctx);
 

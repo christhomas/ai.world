@@ -12,7 +12,7 @@ import { IsoCamera } from './camera';
 /** A camera rig as the game holds one, built against a desktop-sized window. */
 function lookingOn(): IsoCamera {
   vi.stubGlobal('window', { innerWidth: 1600, innerHeight: 900 });
-  try { return new IsoCamera(); } finally { vi.unstubAllGlobals(); }
+  try { return new IsoCamera(() => ({ width: 1600, height: 900 })); } finally { vi.unstubAllGlobals(); }
 }
 
 /**

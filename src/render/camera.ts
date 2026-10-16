@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAMERA } from '../core/config';
-import type { Input } from '../core/input';
+import type { GameInput } from '../core/game-input';
+import { hasArea, type Viewport } from '../core/viewport';
 import { orthographicFrame } from '../core/camera-frame';
 import type { FrameDescription } from '../core/scene';
 
@@ -100,7 +101,7 @@ export class IsoCamera {
    * from.
    */
   lift = 0;
-  zoom: number = zoomBand(window.innerHeight).start;
+  zoom: number;
   /** Where the rig last stood and looked, which is what a frame shows. */
   private readonly pose = { x: 0, y: 0, z: 0, targetX: 0, targetY: 0, targetZ: 0 };
   /** How far back this place lets you stand: less sky indoors and underground than in a field. */
@@ -115,7 +116,8 @@ export class IsoCamera {
    * the zoom that suited the portrait screen they were told not to play on. The moment anyone does
    * have an opinion the two part company and the number is theirs to keep.
    */
-  private ownZoom: number = this.zoom;
+  private ownZoom: number;
+  private size: Viewport = { width: 1600, height: 900 };
 
   /**
    * The band for the window as it is now, read fresh rather than kept.
@@ -126,11 +128,13 @@ export class IsoCamera {
    * browser chrome comes and goes cannot ratchet a player's own zoom down with it.
    */
   private get band(): { start: number; min: number; max: number } {
-    return zoomBand(window.innerHeight);
+    return zoomBand(this.readViewport().height);
   }
 
-  constructor() {
-    const aspect = window.innerWidth / window.innerHeight;
+  constructor(private readonly viewport: () => Viewport) {
+    const size = this.readViewport();
+    this.zoom = this.ownZoom = zoomBand(size.height).start;
+    const aspect = size.width / size.height;
     lenses.set(this, new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000));
     this.applyFrustum(aspect);
     this.applyPosition();
@@ -147,7 +151,8 @@ export class IsoCamera {
    * whenever the camera was still easing up a mountain.
    */
   frameCamera(): FrameDescription['camera'] {
-    const aspect = window.innerWidth / window.innerHeight;
+    const size = this.readViewport();
+    const aspect = size.width / size.height;
     return orthographicFrame({
       ...this.pose,
       width: this.zoom * aspect, height: this.zoom,
@@ -177,7 +182,7 @@ export class IsoCamera {
   }
 
   /** `pan` false = keys and drag do not move the target (something else, e.g. the player, owns it). */
-  update(input: Input, dt: number, pan = true): void {
+  update(input: Pick<GameInput, 'isDown' | 'dragDX' | 'dragDY' | 'wheelDelta'>, dt: number, pan = true): void {
     const { fx, fz, rx, rz } = this.basis();
     const step = CAMERA.SPEED * dt * (this.zoom / CAMERA.START_ZOOM);
     if (pan) {
@@ -201,7 +206,8 @@ export class IsoCamera {
       const band = this.band;
       const wanted = this.zoom + input.wheelDelta * WHEEL_SHARE * band.start;
       this.zoom = Math.max(band.min, Math.min(Math.min(this.ceiling, band.max), wanted));
-      this.applyFrustum(window.innerWidth / window.innerHeight);
+      const size = this.readViewport();
+      this.applyFrustum(size.width / size.height);
     }
     this.applyPosition();
   }
@@ -211,7 +217,15 @@ export class IsoCamera {
     if (this.zoom === this.ownZoom && band.start !== this.ownZoom) {
       this.zoom = this.ownZoom = Math.min(this.ceiling, band.start);
     }
-    this.applyFrustum(window.innerWidth / window.innerHeight);
+    const size = this.readViewport();
+    this.applyFrustum(size.width / size.height);
+  }
+
+  /** A parked or not-yet-laid-out host keeps the last usable projection. */
+  private readViewport(): Viewport {
+    const size = this.viewport();
+    if (hasArea(size)) this.size = { width: size.width, height: size.height };
+    return this.size;
   }
 
   /**

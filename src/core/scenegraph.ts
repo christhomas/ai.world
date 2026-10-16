@@ -176,6 +176,7 @@ export class SceneGraph {
   /** The season's tint on whatever lists the `'season'` effect; see `FrameDescription.season`. */
   season: FrameDescription['season'] = null;
   coast: FrameDescription['coast'] = null;
+  renderTimeMs: FrameDescription['renderTimeMs'] = null;
 
   constructor(public background: number) {}
 
@@ -218,6 +219,7 @@ export class SceneGraph {
     }
     this.order.length = this.nodes.length;
     return {
+      renderTimeMs: this.renderTimeMs,
       camera: this.camera,
       background: this.background,
       fog: this.fog,

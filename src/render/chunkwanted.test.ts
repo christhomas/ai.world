@@ -27,6 +27,7 @@ describe('ground the page grew before the world answered', () => {
 
   it('keeps an authoritative replacement queued when the player changes chunks', () => {
     const chunks = Object.assign(Object.create(ChunkManager.prototype), {
+      jobs: { now: () => 0 },
       focusCx: 2, focusCz: 3,
       offsets: [{ dx: 0, dz: 0 }],
       queue: [{ cx: 2, cz: 3, since: 0 }],

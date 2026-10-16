@@ -16,6 +16,10 @@ final class SceneFrame {
     final packet = json['frame'] is Map
         ? Map<String, dynamic>.from(json['frame'] as Map)
         : json;
+    final time = packet['renderTimeMs'];
+    if (time != null && (time is! num || !time.isFinite || time < 0)) {
+      throw const FormatException('Scene animation time must be finite nonnegative milliseconds');
+    }
     geometryCache?.accept(json['geometries']);
     final nodes = (packet['nodes'] as List).map((raw) {
       final node = Map<String, dynamic>.from(raw as Map);
@@ -28,6 +32,7 @@ final class SceneFrame {
       return <String, dynamic>{...node, ...geometry};
     }).toList();
     return SceneFrame._(
+      renderTimeMs: (time as num?)?.toDouble(),
       camera: Map<String, dynamic>.from(packet['camera'] as Map),
       background: packet['background'] as int?,
       coast: packet['coast'] == null
@@ -49,6 +54,7 @@ final class SceneFrame {
   }
 
   const SceneFrame._({
+    required this.renderTimeMs,
     required this.camera,
     required this.background,
     required this.coast,
@@ -59,6 +65,7 @@ final class SceneFrame {
   });
 
   final Map<String, dynamic> camera;
+  final double? renderTimeMs;
   final int? background;
   final Map<String, dynamic>? coast;
   final Map<String, dynamic>? cutaway;
@@ -153,6 +160,7 @@ final class FlutterFramePipeline {
       projection: Float32List.fromList(projection),
       world: Float32List.fromList(world),
       background: frame.background ?? 0x080b18,
+      renderTimeMs: frame.renderTimeMs,
       fog: frame.fog,
       coast: frame.coast,
       nodes: frame.nodes
@@ -355,6 +363,9 @@ final class FlutterFramePipeline {
             )
           : world;
       final normalTransform = _normalMatrix(transform);
+      // Baking a reflection changes triangle winding. Keep the authored front face
+      // alongside its inverse-transformed normal, as WebGL does for mirrored objects.
+      final mirrored = _linearDeterminant(transform) < 0;
       final shade = instanceColours == null
           ? const <double>[1, 1, 1]
           : instanceColours.sublist(instance * 3, instance * 3 + 3);
@@ -416,9 +427,12 @@ final class FlutterFramePipeline {
         vertices[target + 14] = flow?[vertex] ?? 0;
         vertices[target + 15] = sea?[vertex] ?? 0;
       }
-      for (var index = 0; index < rawIndices.length; index++) {
-        indices[instance * rawIndices.length + index] =
-            rawIndices[index] + instance * count;
+      for (var index = 0; index < rawIndices.length; index += 3) {
+        final target = instance * rawIndices.length + index;
+        final base = instance * count;
+        indices[target] = rawIndices[index] + base;
+        indices[target + 1] = rawIndices[index + (mirrored ? 2 : 1)] + base;
+        indices[target + 2] = rawIndices[index + (mirrored ? 1 : 2)] + base;
       }
     }
     return RenderMesh(
@@ -496,6 +510,11 @@ List<double> _multiply(List<double> a, List<double> b) =>
     });
 
 /// Inverse transpose of a column-major affine transform's upper three rows.
+double _linearDeterminant(List<double> m) =>
+    m[0] * (m[5] * m[10] - m[6] * m[9]) +
+    m[1] * (m[6] * m[8] - m[4] * m[10]) +
+    m[2] * (m[4] * m[9] - m[5] * m[8]);
+
 List<double> _normalMatrix(List<double> m) {
   final a0 = m[0], a1 = m[1], a2 = m[2];
   final b0 = m[4], b1 = m[5], b2 = m[6];

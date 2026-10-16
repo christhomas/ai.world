@@ -1,10 +1,12 @@
 import { GAMEPLAY, WORLD } from '../core/config';
-import type { Input } from '../core/input';
+import type { GameInput } from '../core/game-input';
+import { pointerInViewport } from '../core/viewport';
+import type { FrameHost } from './frame-host';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
 import type { EntityRenderer } from '../render/entities';
-import { QUALITY, type SceneRig } from '../render/scene';
-import { rememberAutoChoice, type AutoQuality } from '../render/autoquality';
+import type { SceneRig } from '../render/scene';
+import type { AutoQuality } from '../render/autoquality';
 import type { Beam } from '../render/beam';
 import type { IsoCamera } from '../render/camera';
 import type { BoatVisual } from '../render/boat';
@@ -89,8 +91,8 @@ export interface Framing {
   state: GameState;
   player: Player;
   iso: IsoCamera;
-  rig: SceneRig;
-  input: Input;
+  rig: Pick<SceneRig, 'graph' | 'quality' | 'setQuality' | 'updateWater' | 'draw' | 'lastFrame' | 'follow' | 'seaAround'>;
+  input: GameInput;
   graph: RoadGraph;
   chunks: ChunkManager;
   sampler: TerrainSampler;
@@ -166,16 +168,15 @@ export interface Framing {
   villageRoofs: (day: number) => readonly Raised[];
   /** The hero's own boat, bobbing wherever he moored it. */
   ownBoat: BoatVisual;
-  minimap: Minimap;
-  worldMap: WorldMap;
-  hud: Hud;
-  sound: Sound;
+  minimap: Pick<Minimap, 'draw'>;
+  worldMap: Pick<WorldMap, 'isOpen' | 'pan' | 'draw'>;
+  hud: Pick<Hud, 'flash' | 'setBreath' | 'setLink' | 'setDebug' | 'tick'>;
+  sound: Pick<Sound, 'chime' | 'update' | 'setScene' | 'setWater'>;
   online: Online;
   autoQuality: AutoQuality;
   director: Director;
   walked: Walked;
-  /** The fishing line's own strip of screen, which nothing else writes to. */
-  castbar: HTMLElement;
+  host: FrameHost;
 
   // the pieces of the game this drives, each of which owns its own state
   blows: { cooled: (dt: number) => void };
@@ -219,7 +220,7 @@ export function createFrame(ctx: Framing) {
     skyline, high, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
-    autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
+    autoQuality, director, walked, host, blows, tidings, watch, announceWindUps, onAttack, sync,
     updraughts, swallows, seaEyes, shafts, holes, couldBeAShaft,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
     mapInput, markers, doorsteps, streamCountry, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
@@ -275,8 +276,7 @@ export function createFrame(ctx: Framing) {
     const stepDown = autoQuality.saw(dt * 1000, rig.quality);
     if (stepDown) {
       rig.setQuality(stepDown);
-      rememberAutoChoice();
-      hud.flash(`Graphics turned down to keep up: ${QUALITY[stepDown].label}`);
+      host.qualityReduced(stepDown);
     }
     // the full-screen map pauses the world the way a conversation does
     if (worldMap.isOpen) {
@@ -594,11 +594,8 @@ export function createFrame(ctx: Framing) {
       const ev = fishing.update(dt);
       if (ev === 'bite') sound.chime();
       if (ev === 'missed') hud.flash('It got away.');
-      castbar.className = fishing.phase === 'bite' ? 'show bite' : fishing.phase === 'waiting' ? 'show' : '';
-      castbar.textContent = fishing.phase === 'bite' ? 'A bite! Press Enter!' : raining ? 'Fishing in the rain… they are rising' : 'Fishing… wait for the bite';
-    } else if (castbar.className !== '') {
-      castbar.className = '';
     }
+    host.fishingChanged(fishing.phase, raining);
     refreshJournal();
     hud.tick(dt);
     sound.setScene(here.biome, state.night);
@@ -610,8 +607,8 @@ export function createFrame(ctx: Framing) {
     musterIn -= dt;
     if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
     if (input.clicked && !talking) {
-      const e = entities.pick((input.clickX / window.innerWidth) * 2 - 1,
-        -(input.clickY / window.innerHeight) * 2 + 1, iso);
+      const pointer = pointerInViewport(input.clickX, input.clickY, host.viewport());
+      const e = pointer ? entities.pick(pointer.x, pointer.y, iso) : null;
       if (e) {
         if (Math.hypot(e.x - player.x, e.z - player.z) < GAMEPLAY.CLICK_TALK_RANGE) startTalk(e);
         else hud.flash(`${e.name} the ${e.kind.label} is too far away`);

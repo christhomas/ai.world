@@ -5,24 +5,13 @@
  * hold and press the very keys the game already listens for, so a thumb stick and the W key
  * arrive here as one idea and nothing downstream has to know which one moved the hero.
  */
-export class Input {
-  private readonly keys = new Set<string>();
-  /** Keys a finger is holding down. Kept apart so a lifted finger cannot clear a real key. */
-  private readonly virtualKeys = new Set<string>();
-  private readonly keyHandlers = new Map<string, Array<() => void>>();
+import { GameInput } from './game-input';
 
-  dragging = false;
-  dragMoved = false;
-  dragDX = 0;
-  dragDY = 0;
+export class Input extends GameInput {
   private dragX = 0;
   private dragY = 0;
   private static readonly DRAG_THRESHOLD = 5;
 
-  wheelDelta = 0;
-  clickX = -1;
-  clickY = -1;
-  clicked = false;
   /** Distance between two pinching fingers last frame, in pixels; 0 when nobody is pinching. */
   private pinchGap = 0;
   /** How much wheel a pixel of pinch is worth, chosen so a thumb-span zooms about as far as a flick. */
@@ -32,16 +21,17 @@ export class Input {
   private readonly listening = new AbortController();
 
   constructor(el: HTMLElement) {
+    super();
     const signal = this.listening.signal;
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
       if (!e.repeat) {
-        this.keyHandlers.get(k)?.forEach((h) => h());
+        this.press(k);
       }
       this.keys.add(k);
     }, { signal });
     document.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()), { signal });
-    window.addEventListener('blur', () => { this.keys.clear(); this.virtualKeys.clear(); }, { signal });
+    window.addEventListener('blur', () => this.clearHeld(), { signal });
 
     el.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
@@ -128,40 +118,9 @@ export class Input {
   }
 
   /** Stop listening to anything. The world is being put away. */
-  dispose(): void {
+  override dispose(): void {
     this.listening.abort();
-    this.keys.clear();
-    this.virtualKeys.clear();
-    this.keyHandlers.clear();
-  }
-
-  isDown(...keys: string[]): boolean {
-    for (const k of keys) if (this.keys.has(k) || this.virtualKeys.has(k)) return true;
-    return false;
-  }
-
-  onKey(key: string, handler: () => void): void {
-    const k = key.toLowerCase();
-    if (!this.keyHandlers.has(k)) this.keyHandlers.set(k, []);
-    this.keyHandlers.get(k)!.push(handler);
-  }
-
-  /** An on-screen control being held: reads as the key being held, until `release`. */
-  hold(key: string): void { this.virtualKeys.add(key.toLowerCase()); }
-
-  release(key: string): void { this.virtualKeys.delete(key.toLowerCase()); }
-
-  /** An on-screen control tapped: reads as the key being struck once. */
-  press(key: string): void {
-    this.keyHandlers.get(key.toLowerCase())?.forEach((h) => h());
-  }
-
-  /** Call once per frame after consumers have read the accumulated deltas. */
-  endFrame(): void {
-    this.dragDX = 0;
-    this.dragDY = 0;
-    this.wheelDelta = 0;
-    this.clicked = false;
+    super.dispose();
   }
 }
 

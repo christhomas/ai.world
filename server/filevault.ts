@@ -3,10 +3,10 @@ import { dirname } from 'node:path';
 import type { Vault } from './vault';
 
 /**
- * A vault made of files, which is what a server has and a browser does not.
+ * The legacy file vault, retained for explicit database-free hosts and compatibility tests.
  *
- * This is the only place in the world's own code that knows what a filesystem is. Everything else
- * — the clock, the market, the post shelf, the log of what players changed — hands a string to a
+ * Normal server deployments use SqliteVault and import these files once. The simulation — the
+ * clock, market, post shelf and log of what players changed — hands a string to a
  * vault and asks for one back, which is what lets the same simulation run in a Web Worker beside a
  * game somebody is playing alone. See `docs/server-authority.md`.
  */

@@ -14,7 +14,9 @@ import { Rescues } from './rescue';
 import { Roaming } from './roaming';
 import { Sailing } from './sailing';
 import { Standing } from './standing';
-import { GameState } from './state';
+import { GameState, type StateHost } from './state';
+import { SaveOwner } from '../save/owner';
+export { savedExit } from './saved-exit';
 import { Mount } from './mount';
 import type { Structures } from '../world/structures';
 
@@ -33,6 +35,7 @@ import type { Structures } from '../world/structures';
  */
 export interface Keeping {
   store: SaveStore;
+  host?: StateHost;
   /** Which slot on the title screen this world belongs to. */
   slotKey: string;
   seed: number;
@@ -64,7 +67,8 @@ export interface Keeping {
 export function openTheSave(ctx: Keeping) {
   const { store, slotKey, seed, world, worldName, saved, structures, manifest, rng, cam, at, sky } = ctx;
 
-  const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
+  const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined), ctx.host);
+  const saves = new SaveOwner(store, slotKey);
   /**
    * Where the hero stands between good and evil. The number lives on the save; this reads it,
    * and writes it back whenever a deed moves it, so there is one place that decides what a
@@ -138,18 +142,16 @@ export function openTheSave(ctx: Keeping) {
     sky: sky(),
   });
   /** Best effort: a lost write costs a little progress, and the world is seed-derived anyway. */
-  const persist = (): void => { void store.save<SessionSave>(slotKey, packed()); };
+  const persist = (): void => { void saves.write(packed(), true).catch(() => {}); };
   /**
    * For a caller that promises the player something was kept — a prayer the gods will answer, a
    * reload that applies the answer — and so has to hear about a private window or a full disk
    * rather than confirm a write that never happened.
    */
-  const persistStrict = (): Promise<void> => store.saveStrict
-    ? store.saveStrict<SessionSave>(slotKey, packed())
-    : store.save<SessionSave>(slotKey, packed());
+  const persistStrict = async (): Promise<void> => { await saves.write(packed(), true); await saves.flush(); };
 
   return {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist, persistStrict,
+    plots, houses, sailing, mount, persist, persistStrict, saves,
   };
 }

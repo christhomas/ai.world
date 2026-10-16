@@ -591,6 +591,26 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.103.13 — 2026-10-14
+
+Shared tools shell and database-backed world discovery
+
+### v0.103.12 — 2026-10-14
+
+Keep server worlds in SQLite and join through the public origin
+
+### v0.103.11 — 2026-10-05
+
+Portable countries, scenes, terrain jobs, world transports, Player opening and native viewport lifetime
+
+### v0.103.10 — 2026-10-04
+
+Portable game session ownership and host-driven gameplay
+
+### v0.103.9 — 2026-10-03
+
+Native mobile renderer fixes and portable host foundations
+
 ### v0.103.8 — 2026-10-01
 
 The Domesday shot waits for every toured village to settle
@@ -610,26 +630,6 @@ An idle scene costs next to nothing to describe each frame, and boats on the Flu
 ### v0.103.4 — 2026-09-30
 
 endless worlds grow shrines so the prayer can be said, an editor's sky eyrie offers the flight up, and the native renderers take colour the way the web does
-
-### v0.103.3 — 2026-09-30
-
-holdings keep one daybook, the Flutter renderer re-bakes only what changed, idle pools stop uploading, and the editor drops a refusal that could never fire
-
-### v0.103.2 — 2026-09-30
-
-world creation never freezes the server, the season reaches the Dart renderer, and the tools cookie is Secure
-
-### v0.103.1 — 2026-09-29
-
-autumn light, wild-camp tents and amber night windows are back, and the game can be played with nothing drawn
-
-### v0.103.0 — 2026-09-29
-
-villages catch illness, carts haul carcasses to the crags, holdings report their income, and the country is a stack of layers you can shape
-
-### v0.102.6 — 2026-09-29
-
-Carriers you can rob, shared eagle nests, hall-paid holdings and their daybook, worlds that start without stalling joins, and releases that trust CI
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

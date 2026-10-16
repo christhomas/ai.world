@@ -3,6 +3,8 @@ import { stat } from 'node:fs/promises';
 import type { ServerResponse } from 'node:http';
 import { resolve, sep } from 'node:path';
 import { build } from 'vite';
+import { toolDocument } from '../tools/shell';
+import { CATALOGUE } from '../tools/catalogue';
 
 /** The URL is owned by the portal; the worker secret never crosses into this page. */
 export const BUILDER_PAGE_BASE = '/tools/build/page/';
@@ -80,6 +82,11 @@ export async function serveBuilderPage(
     let info: Stats;
     try { info = await stat(file); } catch { continue; }
     if (!info.isFile()) continue;
+    if (relative === 'tools/character-builder.html') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      res.end(toolDocument(readFileSync(file, 'utf8'), 'Character Builder', 'character-builder', CATALOGUE));
+      return true;
+    }
     res.writeHead(200, {
       'content-type': TYPES[suffixOf(file)] ?? 'application/octet-stream',
       'content-length': info.size,

@@ -24,7 +24,7 @@ function setting(shared = false) {
     sampler: { within: { x0: 0, x1: 512, z0: 0, z1: 512 } },
     online: { connected: true, away: shared },
     hud: { flash: vi.fn() }, sound: { chime: vi.fn() }, persist,
-    persistStrict,
+    persistStrict, prayerHost: { randomSeed: () => 123, restart: vi.fn(), isLive: () => true },
   } as unknown as Surroundings;
   return { ctx, state, persist, persistStrict };
 }
@@ -114,6 +114,7 @@ function onAFullDisk() {
     sampler: { within: { x0: 0, x1: 512, z0: 0, z1: 512 } },
     online: { connected: true, away: false },
     hud, sound, persist: kept.persist, persistStrict: kept.persistStrict,
+    prayerHost: { randomSeed: () => 123, restart: vi.fn(), isLive: () => true },
   } as unknown as Surroundings;
   return { ctx, state: kept.state, hud, sound };
 }
@@ -142,6 +143,7 @@ describe('a prayer on a disk that will not take the save', () => {
     const reload = vi.fn();
     vi.stubGlobal('window', { location: { reload } });
     const { ctx, state, hud } = onAFullDisk();
+    ctx.prayerHost.restart = reload;
     state.prayers.push(askForHighland(shrine, 'east', 0, 1));
     state.day = state.prayers[0].due;
     const prayer = prayerInteractions(ctx);

@@ -1,4 +1,4 @@
-import type { Input } from '../core/input';
+import type { GameInput } from '../core/game-input';
 import type { IsoCamera } from '../render/camera';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
@@ -102,7 +102,7 @@ export class Player {
    */
   static readonly PROGRESS = 0.05;
 
-  constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
+  constructor(private world: TileWorld, renderer: Pick<EntityRenderer, 'add'>, x: number, z: number) {
     this.entity = newHero(x, z);
     renderer.add(this.entity);
   }
@@ -297,7 +297,7 @@ export class Player {
     return true;
   }
 
-  update(input: Input, iso: IsoCamera, dt: number, frozen = false, fixedCamera = false): void {
+  update(input: Pick<GameInput, 'isDown'>, iso: IsoCamera, dt: number, frozen = false, fixedCamera = false): void {
     const e = this.entity;
     // cleared first, because most of the ways out of this method are early returns and a steer left
     // lying about would be sent to the server as a step the hero never took

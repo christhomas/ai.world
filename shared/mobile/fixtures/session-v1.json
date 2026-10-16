@@ -1,0 +1,6 @@
+{
+  "start": {"version":1,"session":"fixture:1","sequence":0,"id":"start:0","type":"start","payload":{"mode":"local","world":"fixture-world"}},
+  "step": {"version":1,"session":"fixture:1","sequence":1,"id":"step:0","type":"step","payload":{"tick":0,"dtSeconds":0.016666666666666666,"renderTimeMs":1234.5,"input":{"move":[1,0],"look":[0,0],"held":{"guard":false,"run":false},"actions":["interact"],"owner":"WORLD","busy":null}}},
+  "scalars": [0,-0.5,0.3333333333333333,9007199254740991,1e-200],
+  "presentation": {"revision":1,"tick":0,"renderTimeMs":1234.5,"owner":"WORLD","busy":null,"models":{"hud":{"health":72,"breath":68},"context":{"id":"npc:elder","label":"Talk","action":"interact"}}}
+}

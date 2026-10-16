@@ -9,6 +9,19 @@ module.exports = async function playCart(page, say, go, face) {
     shoulder: window.__state.shouldering,
     bodies: window.__bodies(),
   }));
+  const waitForWalk = async (destination, label) => {
+    try {
+      await page.waitForFunction(() => !window.__player.steering, null, { timeout: 8000, polling: 100 });
+    } catch (error) {
+      const state = await snapshot();
+      const movement = await page.evaluate(() => ({ mode: window.__player.mode, placed: window.__player.placed,
+        steer: window.__player.steered, dialogue: document.getElementById('dialogue')?.className,
+        visibility: document.visibilityState, world: window.__world,
+        clock: { day: window.__state.day, time: window.__state.time },
+      }));
+      throw new Error(`${label} did not finish within 8 seconds: ${JSON.stringify({ destination, state, movement })}; ${error.message}`);
+    }
+  };
   const choose = async (label) => {
     await page.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('show'), null,
       { timeout: 5000 }).catch(async () => {
@@ -157,7 +170,7 @@ module.exports = async function playCart(page, say, go, face) {
     if (!lane) { attempts.push({ lane: null, at: hauled.hero }); break; }
     tried.add(lane.key);
     const walking = await page.evaluate(([x, z]) => window.__walkTo(x, z), [lane.x, lane.z]);
-    await page.waitForFunction(() => !window.__player.steering, null, { timeout: 8000, polling: 100 });
+    await waitForWalk(lane, 'Mounted haul');
     hauled = await snapshot();
     attempts.push({ lane, walking, at: hauled.hero });
   }
@@ -196,7 +209,7 @@ module.exports = async function playCart(page, say, go, face) {
   const footAttempts = [];
   for (const foot of feet) {
     await page.evaluate(([x, z]) => window.__walkTo(x, z, 0.2), [foot.x, foot.z]);
-    await page.waitForFunction(() => !window.__player.steering, null, { timeout: 8000, polling: 100 });
+    await waitForWalk(foot, 'On-foot crag approach');
     reached = await snapshot();
     gap = Math.hypot(reached.hero.x - foot.x, reached.hero.z - foot.z);
     footAttempts.push({ foot, gap });

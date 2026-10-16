@@ -17,6 +17,7 @@ import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
+import { browserWorldLink } from './platform/browser-world-link';
 import { createReadouts } from './ui/readouts';
 import { Places } from './game/places';
 import { SeasonTintMaterials } from './render/seasontint';
@@ -41,15 +42,15 @@ import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
-import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
+import { IndexedDbStore } from './save/indexeddb';
+import type { SaveStore, SessionSave, WorldKind } from './save/store';
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
 import { EntityManager } from './entities/manager';
-import { Player } from './entities/player';
+import { openPlayer } from './game/player-opening';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
-import { whereAWorldOpens } from './world/opening';
 import { walksIn } from './game/arriving';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
@@ -80,14 +81,17 @@ import { familyOfDoor } from './world/homes';
 import { growCountry, type GrownPatch } from './game/country';
 import { whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
-import { openTheSave } from './game/keeping';
+import { openTheSave, savedExit } from './game/keeping';
 import { GameState } from './game/state';
 import { Manifest } from './world/manifest';
 import { answerDueHighlands, prayersAnsweredHere } from './game/prayers';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
-import { returnToTitle, shutDownGame, suspendWhenHidden } from './game/lifecycle';
+import { SessionLifetime, shutDownGame } from './game/lifecycle';
+import { createPrayerHost, observeVisibility, returnToTitle } from './platform/browser-lifecycle';
+import { createBrowserFrameHost } from './platform/browser-frame';
+import { createBrowserGameEvents } from './platform/browser-game-events';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL, world: WorldKind, home?: GrownPatch,
@@ -113,7 +117,7 @@ export function startGame(
   if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
   const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
   rig.setQuality(rig.quality);
-  const iso = new IsoCamera();
+  const iso = new IsoCamera(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const input = new Input(rig.canvas);
   // the on-screen controls speak to the game only through `input`, so a thumb and a key are the
   // same press by the time anything below reads them
@@ -228,7 +232,7 @@ export function startGame(
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
-    plots, houses, sailing, mount, persist, persistStrict,
+    plots, houses, sailing, mount, persist, persistStrict, saves,
   } = openTheSave({
     store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
@@ -279,21 +283,14 @@ export function startGame(
 
   // where the hero stands when the world opens: where he was left, where a link says, or — in a
   // world nobody has ever stood in — the village `world/opening.ts` picks out of it. #394
-  const opening = saved?.player ? null : whereAWorldOpens(structures.villages);
-  let startX = opening?.x ?? 0, startZ = opening?.z ?? 0;
-  if (saved) {
-    iso.rotation = saved.cam.rot;
-    iso.restoreZoom(saved.cam.zoom);
-    if (saved.player) { startX = saved.player.x; startZ = saved.player.z; }
-  }
   const px = url.searchParams.get('x'), pz = url.searchParams.get('z');
-  if (px !== null && pz !== null) { startX = Number(px) || 0; startZ = Number(pz) || 0; }
-  const player = new Player(chunks, entityRenderer, startX, startZ);
+  const player = openPlayer({ world: chunks, renderer: entityRenderer, camera: iso,
+    villages: structures.villages, saved,
+    at: px !== null && pz !== null ? { x: Number(px) || 0, z: Number(pz) || 0 } : undefined,
+    freeCamera: url.searchParams.get('cam') === 'free' });
   // whoever else is standing about, so the hero cannot walk through a cow or a shopkeeper. Set
   // after the fact because the crowd and the hero each need the other to exist first.
   player.crowd = entities;
-  iso.target.set(startX, 0, startZ);
-  if (url.searchParams.get('cam') === 'free') player.mode = 'free';
   const places = new Places({
     seed, manifest, state, props, rig, iso, player,
     overworld: chunks, overworldRenderer: entityRenderer, heroGear,
@@ -365,6 +362,7 @@ export function startGame(
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
+    worldLink: browserWorldLink,
     register, hires,
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso,
     dialogue, hud, chat, sound, questList, discovered, high, seed,
@@ -407,15 +405,24 @@ export function startGame(
     guiltOf: () => standing.guilt,
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
-  const shutDown = (): void => shutDownGame({
-    stop: () => loop.stop(), controls: [input, touch],
-    disconnect: () => online.disconnect(), clear: () => others.clear(),
-    resources: [sound, places, chunks, entityRenderer, heroGear, beam, weather, watch,
-      skyRenderer, packField, cropField, buildingSite, props, rig],
+  const session = new SessionLifetime({
+    frame: (dt, time) => frames.frame(dt, time),
+    pause: () => { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); },
+    resume: () => { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); },
+    release: () => shutDownGame({
+      stop: () => loop.stop(), controls: [input, touch],
+      disconnect: () => online.disconnect(), clear: () => others.clear(),
+      resources: [saves, sound, places, ...(grower ? [grower] : []), chunks, entityRenderer, heroGear, beam, weather, watch,
+        skyRenderer, packField, cropField, buildingSite, props, daycycle, rig],
+    }),
   });
 
-  const toTitle = () => returnToTitle(persist, shutDown);
-  suspendWhenHidden({ stop: () => loop.stop(), start: () => loop.start() }, chunks, sound, online);
+  const leaveToTitle = savedExit({ park: () => session.setActive(false),
+    resume: () => session.setActive(!document.hidden),
+    save: async () => { await persistStrict(); await online.flushWorld(); },
+    release: () => session.dispose(), depart: () => returnToTitle(() => {}, () => {}) });
+  const toTitle = () => { void leaveToTitle().catch(() => hud.flash(session.isDisposed
+    ? 'Your game was saved, but cleanup failed.' : 'Could not save. Your game remains open; retry when storage is available.')); };
 
   // the panels, and the noises they make
   hud.setVolume(sound.volume);
@@ -479,6 +486,7 @@ export function startGame(
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
     raining: () => frames.raining(), discover, persist, persistStrict, startTalk, questLine,
+    prayerHost: createPrayerHost(() => !session.isDisposed),
     told: (delta) => online.report(delta),
     // built further down this file, and only ever asked for on a key press: see `waysin.ts`
     craft: () => craft,
@@ -580,15 +588,23 @@ export function startGame(
     companyInput: () => multiplayer.playerListInput,
   });
 
-  hud.onMapTap = () => screen.toggleMap();
+  hud.onMapTap = () => actions.dispatch('map');
 
   // the air, the ground and the sea: a wing, a shaft and a whirlpool. See `game/waysin.ts`.
   const { air, craft, shafts, swallows } = createWaysIn({
     seed, state, places, player, sailing, chunks, discover,
     say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
   // and what every key does, in one place
-  bindKeys({
+  const gameEvents = createBrowserGameEvents({
+    isLive: () => !session.isDisposed,
+    resize: () => { rig.resize(); iso.resize(); },
+    persist,
+    say: (message) => screen.say(message),
+  });
+  session.own(() => gameEvents.dispose());
+  const actions = bindKeys({
     seed, input, rig, iso, player, places, online, sound, screen,
+    host: gameEvents,
     attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
     persist, rally, takeToTheAir: () => air.open(),
     partySize: () => party.size,
@@ -626,7 +642,9 @@ export function startGame(
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
-    autoQuality, director, walked, castbar, blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,
+    autoQuality, director, walked,
+    host: createBrowserFrameHost(rig.canvas, castbar, (message) => hud.flash(message)),
+    blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,
     noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,
@@ -640,6 +658,8 @@ export function startGame(
     runClock: (dt) => interactions.runClock(dt),
     carcasses: () => interactions.carcasses(),
   });
-  const loop = new GameLoop((dt, time) => frames.frame(dt, time));
-  loop.start();
+  const loop = new GameLoop((dt, time) => session.frame(dt, time));
+  // Every callback target now exists. A hidden page must not start ticking, and a disposed
+  // world's visibility listener must never restart its workers, audio or frame loop.
+  session.own(observeVisibility((active) => session.setActive(active)));
 }
