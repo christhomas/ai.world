@@ -10,6 +10,7 @@ import type { SessionSave } from '../save/store';
 import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
+import { SEASON_NAMES, seasonOf } from '../game/seasons';
 
 /** What an app asks for when it opens a game: which world, which save, and how big the picture is. */
 export interface EngineOptions {
@@ -132,7 +133,8 @@ export function create(session: string, optionsText: string): { request(text: st
         choices: (talk.node.choices ?? []).map((c) => ({ label: c.label, note: c.note ?? null, adjusts: !!c.adjust })),
         waiting: talk.waiting,
       } : null),
-      hero: json({ x: player.x, z: player.z, hp: state.hp, day: state.day, time: state.time, playerId: state.playerId }),
+      hero: json({ x: player.x, z: player.z, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
+        day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
     };
     if (scene) models.scene = scene;
     // a save the game has written since the last reply, for the app to keep where it keeps things

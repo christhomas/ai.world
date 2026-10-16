@@ -1,0 +1,234 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'game_session.dart';
+import 'native_world_renderer.dart';
+import 'scene_frame.dart';
+import 'shell/input_owner.dart';
+import 'shell/ledger_action_card.dart';
+import 'shell/ledger_shell.dart';
+import 'shell/ledger_stick.dart';
+import 'shell/ledger_tokens.dart';
+import 'state_engine.dart';
+import 'storage/checkpoint_store.dart';
+
+enum _Phase { title, opening, playing }
+
+/// The installed game (#570, #571, #572): a title to start or continue from, then the game itself
+/// behind the Ledger shell. This is the one owner of the world view, the session, the controls and
+/// the routes; screens register pages with it rather than building their own.
+class AppShell extends StatefulWidget {
+  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets});
+  /// App-private storage; the native host's when not given.
+  final Directory? storageRoot;
+  final MethodChannel? engineChannel;
+  final AssetBundle? assets;
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> with TickerProviderStateMixin, WidgetsBindingObserver {
+  _Phase _phase = _Phase.title;
+  Directory? _root;
+  CheckpointStore? _settings;
+  GameSlot? _last;
+  GameSession? _session;
+  String? _trouble;
+  late final InputOwnerController _input = InputOwnerController((value) => _session?.hold(value));
+  late final LedgerController _ledger = LedgerController(_input)..addListener(_keepTheme);
+  Widget? _world;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_openSettings());
+  }
+
+  Future<void> _openSettings() async {
+    try {
+      final root = widget.storageRoot ?? Directory(await StateEngine.storageRoot());
+      final settings = await CheckpointStore.open(root,
+        const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
+      final last = await settings.load('last') as Map?;
+      final theme = await settings.load('theme');
+      GameSlot? slot;
+      if (last != null) {
+        slot = GameSlot(slot: last['slot'] as String, seed: last['seed'] as int, kind: last['kind'] as String,
+          name: last['name'] as String? ?? 'Traveller');
+        if (!await GameSession.kept(slot, root: root)) slot = null;
+      }
+      if (!mounted) return;
+      setState(() {
+        _root = root;
+        _settings = settings;
+        _last = slot;
+        final chosen = LedgerTheme.values.where((t) => t.name == theme).firstOrNull;
+        _keptTheme = chosen ?? _ledger.theme;
+        if (chosen != null) _ledger.selectTheme(chosen);
+      });
+    } catch (error) {
+      if (mounted) setState(() => _trouble = 'Storage is unavailable: $error');
+    }
+  }
+
+  LedgerTheme? _keptTheme;
+  void _keepTheme() {
+    if (_ledger.theme == _keptTheme) return;
+    _keptTheme = _ledger.theme;
+    unawaited(_settings?.commit('theme', _ledger.theme.name).catchError((Object _) {}));
+  }
+
+  /// A new game in a slot of its own, so starting one never overwrites another.
+  void _newGame() {
+    final seed = math.Random().nextInt(0x7fffffff);
+    _open(GameSlot(slot: 'local-${DateTime.now().millisecondsSinceEpoch}', seed: seed, name: 'Traveller'));
+  }
+
+  void _open(GameSlot slot) {
+    setState(() {
+      _phase = _Phase.opening;
+      _trouble = null;
+      _last = slot;
+      // one world view for the whole game, kept across every route and theme
+      _world = NativeWorldView(key: const ValueKey('world'), onCreated: (renderer) => _start(slot, renderer));
+    });
+    unawaited(_settings?.commit('last', {'slot': slot.slot, 'seed': slot.seed, 'kind': slot.kind, 'name': slot.name})
+      .catchError((Object _) {}));
+  }
+
+  Future<void> _start(GameSlot slot, NativeWorldRenderer renderer) async {
+    try {
+      final size = MediaQuery.sizeOf(context);
+      final session = await GameSession.open(slot, root: _root!, viewport: size,
+        pipeline: FlutterFramePipeline(renderer), channel: widget.engineChannel, assets: widget.assets);
+      if (!mounted) { await session.close(); return; }
+      session.trouble.addListener(() => setState(() => _trouble = session.trouble.value));
+      session.run(this);
+      setState(() { _session = session; _phase = _Phase.playing; });
+    } catch (error) {
+      if (mounted) setState(() { _phase = _Phase.title; _world = null; _trouble = 'Could not open the game: $error'; });
+    }
+  }
+
+  Future<void> _leave() async {
+    final session = _session;
+    _ledger.close();
+    setState(() { _session = null; _phase = _Phase.title; _world = null; });
+    try {
+      await session?.close();
+    } catch (error) {
+      if (mounted) setState(() => _trouble = 'Your game could not be saved: $error');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final session = _session;
+    if (session == null) return;
+    final active = state == AppLifecycleState.resumed;
+    unawaited(session.lifecycle(active).catchError((Object _) {}));
+    // going away is when a phone may stop the app without asking, so the game is kept as it goes
+    if (state == AppLifecycleState.paused) unawaited(session.save().catchError((Object _) {}));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_session?.close());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LedgerTokens.all[_ledger.theme]!;
+    if (_phase == _Phase.title) return _title(t);
+    final session = _session;
+    if (session == null) {
+      return Stack(fit: StackFit.expand, children: [
+        _world ?? const SizedBox.shrink(),
+        ColoredBox(color: t.surface, child: Center(child: Text('Opening the world…', style: t.face(17, t.ink)))),
+      ]);
+    }
+    return ValueListenableBuilder<Map<String, dynamic>>(valueListenable: session.presentation, builder: (context, state, _) {
+      final models = Map<String, dynamic>.from(state['models'] as Map? ?? const {});
+      final hud = Map<String, dynamic>.from(models['hud'] as Map? ?? const {});
+      final hero = Map<String, dynamic>.from(models['hero'] as Map? ?? const {});
+      final breath = Map<String, dynamic>.from(hud['breath'] as Map? ?? const {});
+      final talk = models['conversation'] as Map?;
+      final hp = (hero['hp'] as num?) ?? 0, maxHp = math.max(1, (hero['maxHp'] as num?) ?? 1);
+      final wind = ((breath['wind'] as num?) ?? 1).toDouble();
+      final action = hud['action'] as String?;
+      return LedgerShell(
+        world: Stack(fit: StackFit.expand, children: [
+          _world!,
+          LedgerStick(input: _input, health: hp / maxHp, breath: wind),
+        ]),
+        controller: _ledger,
+        pages: {'options': (context, tokens) => _options(tokens)},
+        place: '${hud['area'] ?? ''}',
+        readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',
+        clock: _clock(hero),
+        bearings: _trouble ?? '${hero['gold'] ?? 0} GOLD',
+        message: _trouble ?? '',
+        conversation: talk == null ? null : _conversation(Map<String, dynamic>.from(talk), t),
+        actionCard: LedgerActionCard(input: _input, tokens: t,
+          subject: action == null ? 'NOTHING IN REACH' : action.toUpperCase(),
+          verbs: action == null ? const {} : {'TALK · USE': () => unawaited(session.act('interact'))},
+          onPrimaryPress: () => unawaited(session.act('attack'))),
+      );
+    });
+  }
+
+  String _clock(Map<String, dynamic> hero) {
+    final minutes = ((((hero['time'] as num?) ?? 0) * 24 * 60).floor()) % (24 * 60);
+    final hh = '${minutes ~/ 60}'.padLeft(2, '0'), mm = '${minutes % 60}'.padLeft(2, '0');
+    return '$hh:$mm · DAY ${hero['day'] ?? 1} · ${'${hero['season'] ?? ''}'.toUpperCase()}';
+  }
+
+  /// What is being said, and the answers to it: the words stay on the glass over the world.
+  Widget _conversation(Map<String, dynamic> talk, LedgerTokens t) {
+    final choices = (talk['choices'] as List? ?? const []).cast<Map>();
+    return ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: ColoredBox(color: t.surface, child: Padding(padding: const EdgeInsets.all(10),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${talk['emoji'] ?? ''} ${talk['speaker'] ?? ''}'.trim().toUpperCase(), style: t.numbers(10, t.accent, spacing: 2)),
+        const SizedBox(height: 6),
+        Text('${talk['shown'] ?? ''}', style: t.face(14.5, t.ink)),
+        if (talk['atChoices'] == true)
+          for (var i = 0; i < choices.length; i++)
+            SizedBox(height: 44, child: InkWell(key: ValueKey('choice-$i'), onTap: () => unawaited(_session?.act('choose', target: '$i')),
+              child: Align(alignment: Alignment.centerLeft,
+                child: Text('${i == talk['choice'] ? '▶ ' : ''}${choices[i]['label']}', style: t.face(13.5, t.ink)))))
+        else
+          SizedBox(height: 44, child: InkWell(key: const ValueKey('talk-on'), onTap: () => unawaited(_session?.act('interact')),
+            child: Align(alignment: Alignment.centerRight, child: Text('ON ▸', style: t.numbers(11, t.accent))))),
+      ]))));
+  }
+
+  Widget _options(LedgerTokens t) => ListView(children: [
+    SizedBox(height: 44, child: InkWell(key: const ValueKey('save-and-leave'), onTap: () => unawaited(_leave()),
+      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Align(alignment: Alignment.centerLeft, child: Text('Save and return to the title', style: t.face(14.5, t.pageInk)))))),
+    SizedBox(height: 300, child: LedgerThemePicker(controller: _ledger)),
+  ]);
+
+  Widget _title(LedgerTokens t) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
+    mainAxisSize: MainAxisSize.min, children: [
+      Text('AI WORLD', style: t.face(27, t.ink, weight: FontWeight.w500, spacing: 10)),
+      const SizedBox(height: 24),
+      if (_last != null) _titleButton('Continue', t, () => _open(_last!), const ValueKey('continue')),
+      _titleButton('New game', t, _root == null ? null : _newGame, const ValueKey('new-game')),
+      if (_trouble != null) Padding(padding: const EdgeInsets.only(top: 16),
+        child: Text(_trouble!, style: t.numbers(11, t.dim, spacing: 0))),
+    ]))));
+
+  Widget _titleButton(String label, LedgerTokens t, VoidCallback? onPressed, Key key) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: SizedBox(key: key, width: 240, height: 44, child: TextButton(onPressed: onPressed,
+      style: TextButton.styleFrom(backgroundColor: t.action, foregroundColor: t.actionInk, shape: const RoundedRectangleBorder()),
+      child: Text(label.toUpperCase(), style: t.numbers(12.5, t.actionInk, spacing: 2)))));
+}

@@ -34,7 +34,7 @@ class LedgerShell extends StatefulWidget {
   const LedgerShell({super.key, required this.world, required this.controller, required this.pages,
     this.readings = '', this.clock = '', this.bearings = '', this.place = '', this.actionCard,
     this.typingBuilder, this.surface = SessionSurface.ready, this.message = '', this.onReconnect,
-    this.onWorldComposition});
+    this.onWorldComposition, this.conversation});
   final Widget world;
   final LedgerController controller;
   final Map<String, LedgerPageBuilder> pages;
@@ -44,6 +44,9 @@ class LedgerShell extends StatefulWidget {
   final SessionSurface surface;
   final VoidCallback? onReconnect;
   final ValueChanged<Rect>? onWorldComposition;
+  /// What is being said: it stays on the glass over the world, between the thumb's home and the
+  /// action corner, so words and choices are never the same list (design/mobile/README.md, "A shop").
+  final Widget? conversation;
   @override
   State<LedgerShell> createState() => _LedgerShellState();
 }
@@ -136,6 +139,8 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
             child: SingleChildScrollView(child: Column(children: [
               for (final name in widget.pages.keys.take(4)) _tab(name, c, t),
             ]))),
+          if (widget.conversation != null && !showBook) Positioned(left: 136, right: 216, bottom: 40,
+            child: IgnorePointer(ignoring: parked, child: Align(alignment: Alignment.bottomCenter, child: widget.conversation!))),
           if (widget.actionCard != null) Positioned(right: 0, bottom: 0, width: 208,
             child: IgnorePointer(ignoring: parked, child: ExcludeSemantics(excluding: parked, child: widget.actionCard!))),
           if (parked && !showBook) Positioned(left: 56, bottom: 64, child: _slab('CONTROLS PARKED', t)),

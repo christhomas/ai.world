@@ -56,6 +56,8 @@ class GameSession {
   double _time = 0;
   bool _stepping = false;
   bool _closed = false;
+  /// Closing: the renderer may already be gone, so nothing more is drawn.
+  bool _closing = false;
   int _sinceScene = 0;
   /// Frames are drawn every this many steps: a frame is the whole scene, and the phone's renderer
   /// keeps drawing the last one between them.
@@ -157,7 +159,7 @@ class GameSession {
       _keeping ??= Timer(const Duration(seconds: 2), () { _keeping = null; _keepWorld(); });
     }
     final scene = models['scene'];
-    if (scene is Map && _pipeline != null) {
+    if (scene is Map && _pipeline != null && !_closing) {
       unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry)));
     }
     presentation.value = state;
@@ -182,7 +184,8 @@ class GameSession {
 
   /// Save, and let everything go.
   Future<void> close() async {
-    if (_closed) return;
+    if (_closed || _closing) return;
+    _closing = true;
     _ticker?.dispose();
     _ticker = null;
     try {
