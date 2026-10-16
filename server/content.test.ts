@@ -190,7 +190,9 @@ describe('the SQLite content catalogue', () => {
     const catalogue = new ContentCatalogue(open(scratch()), defaults, { check: checkContent });
     const wolf = bodyOf(defaults, 'creature:wolf') as { hp: number };
     expect(catalogue.edit(1, [{ id: 'creature:wolf', body: { ...wolf, hp: wolf.hp + 1 } }], 'first', 'tougher')).toBe(2);
-    expect(catalogue.edit(2, [{ id: 'spawning:deep', body: null }], 'second')).toBe(3);
+    // A file's own note is a record the game can lose; a spawn group is not, and the readers say so.
+    expect(() => catalogue.edit(2, [{ id: 'spawning:deep', body: null }], 'second')).toThrow('spawning.json.deep: is missing');
+    expect(catalogue.edit(2, [{ id: 'note:properties/beasts.json', body: null }], 'second')).toBe(3);
     expect(() => catalogue.rollback(2, 1, 'third')).toThrow('asked against revision 2');
     expect(() => catalogue.rollback(3, 3, 'third')).toThrow('not an earlier revision');
 
@@ -199,7 +201,7 @@ describe('the SQLite content catalogue', () => {
     expect(assemble(catalogue.records())).toEqual(assemble(defaults));
     expect(catalogue.history('creature:wolf').map((entry) => [entry.revision.id, entry.revision.reason, entry.deleted]))
       .toEqual([[1, 'seed', false], [2, 'edit', false], [4, 'rollback', false]]);
-    expect(catalogue.history('spawning:deep').map((entry) => [entry.revision.id, entry.deleted]))
+    expect(catalogue.history('note:properties/beasts.json').map((entry) => [entry.revision.id, entry.deleted]))
       .toEqual([[1, false], [3, true], [4, false]]);
     // History is not rewritten: revision 2 still says what it said.
     expect((bodyOf(catalogue.records(2), 'creature:wolf') as { hp: number }).hp).toBe(wolf.hp + 1);
