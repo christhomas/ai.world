@@ -30,12 +30,15 @@ let sequence = 0;
 let tick = -1;
 let time = 0;
 const stepTimes = [];
-const ask = (type, payload) => {
-  bare.__request = JSON.stringify({ version: 1, session, sequence, id: `r${sequence}`, type, payload });
+// what the app keeps of the private world, as the replies hand it over
+const worldRecords = {};
+const ask = (type, payload, engine = 'engine', id = session) => {
+  bare.__request = JSON.stringify({ version: 1, session: id, sequence, id: `r${sequence}`, type, payload });
   sequence++;
-  const reply = JSON.parse(call('engine.request(__request)'));
+  const reply = JSON.parse(call(`${engine}.request(__request)`));
   assert.equal(reply.requestId, `r${sequence - 1}`);
   if (reply.type !== 'result') throw new Error(`${type} failed: ${JSON.stringify(reply.payload)}`);
+  if (reply.payload.state?.models?.world) Object.assign(worldRecords, reply.payload.state.models.world);
   return reply.payload.state;
 };
 // an app's engine runs what was promised once the request returns; here that is the event loop's turn
@@ -100,13 +103,31 @@ state = await step();
 assert.ok(state.models.save, 'the game saved nothing');
 assert.equal(state.models.save.state.playerId, state.models.hero.playerId);
 
+const left = state.models.hero;
+const saved = state.models.save;
 ask('dispose', {});
+assert.ok(Object.keys(worldRecords).length > 0, 'the private world kept nothing for the app to keep');
+
+// and the app opens it again from what it kept: the save, and the world's own records
+bare.__continued = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 },
+  saved, world: worldRecords });
+call(`globalThis.again = AiWorldGameEngine.create('bare-again', __continued)`);
+sequence = 0;
+tick = -1;
+time = 0;
+const resumed = ask('start', { mode: 'local', world: 'bare' }, 'again', 'bare-again');
+assert.equal(resumed.models.hero.playerId, left.playerId, 'a continued game is the same hero');
+assert.ok(Math.hypot(resumed.models.hero.x - left.x, resumed.models.hero.z - left.z) < 0.5,
+  `continued at ${JSON.stringify(resumed.models.hero)}, left at ${JSON.stringify(left)}`);
+ask('dispose', {}, 'again', 'bare-again');
+
 const sorted = [...stepTimes].sort((a, b) => a - b);
 const evidence = {
   sourceSha: process.env.GAME_SOURCE_SHA, bundleBytes: source.length, loadMs: Math.round(loadMs),
   steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
   stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometries: geometries.size,
   largestScenePacketBytes: packetBytes, walked: +walked.toFixed(2),
+  worldRecords: Object.keys(worldRecords).length, continuedAt: resumed.models.hero,
 };
 await writeFile('mobile-frame-proof-out/game-proof.json', JSON.stringify(evidence, null, 2) + '\n');
 console.log('The whole game ran in a bare host from the app bundle:', JSON.stringify(evidence));

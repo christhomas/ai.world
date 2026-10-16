@@ -75,3 +75,23 @@ the drawn frame back, and checks the save the game hands back is the hero's. It 
 `HOSTED_GAME_READY` with the opening time, step median and p95, meshes, packets and distance walked.
 `hosted.py` pulls the frame, refuses a blank one, takes the screenshot beside it, and records all
 of it as `installed-<platform>-shared-game-session`.
+
+## Kept on the phone
+
+The private world saves itself through a vault of named strings, as it does in a browser worker.
+In the engine that vault is `KeptWorld`: it starts from the records the app kept last time (the
+`world` option), and every record the world writes comes back in the next reply's `world` model for
+the app to keep. The hero's save comes back the same way.
+
+`GameSession` (`client/flutter/lib/src/game_session.dart`) is the app's side of it:
+- It opens the slot's game, continuing it if a save was kept.
+- It steps the engine on a ticker with whatever the controls hold, sending a one-shot action once.
+- It draws a frame every `sceneEvery` steps.
+- It keeps the save (`player` namespace) and the world's records (`world` namespace, at most every
+  two seconds) through `CheckpointStore`, in app-private storage. Writes are atomic and the last good
+  checkpoint is recovered.
+- `save()` waits until both are on disk, and `close()` saves before letting the engine go.
+
+Each slot is its own pair of namespaces, so nothing of one game reaches another. The bare-host
+proof reopens the engine from the save and the records it handed back, and finds the same hero
+where he was left.

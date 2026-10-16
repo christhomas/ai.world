@@ -8,6 +8,7 @@ import { headlessGame, type HeadlessGame } from '../platform/headless-game';
 import { savedInMemory } from '../save/memory';
 import type { SessionSave } from '../save/store';
 import type { WorldKind } from '../world/countries';
+import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
 
 /** What an app asks for when it opens a game: which world, which save, and how big the picture is. */
@@ -20,6 +21,8 @@ export interface EngineOptions {
   viewport: { width: number; height: number };
   /** What the slot held, to continue from; a new game has none. */
   saved?: SessionSave;
+  /** The private world's records as the app last kept them, by name; a new world has none. */
+  world?: Record<string, string>;
 }
 
 function optionsFrom(text: string): EngineOptions {
@@ -27,10 +30,40 @@ function optionsFrom(text: string): EngineOptions {
   const positive = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n > 0;
   if (!value || typeof value !== 'object' || !Number.isSafeInteger(value.seed) || (value.kind !== 'road' && value.kind !== 'endless')
     || typeof value.slot !== 'string' || !value.slot || !value.viewport || !positive(value.viewport.width) || !positive(value.viewport.height)
-    || (value.name !== undefined && typeof value.name !== 'string')) {
+    || (value.name !== undefined && typeof value.name !== 'string')
+    || (value.world !== undefined && (typeof value.world !== 'object' || value.world === null
+      || Object.values(value.world).some((text) => typeof text !== 'string')))) {
     throw new Error('Invalid game options');
   }
   return value as EngineOptions;
+}
+
+/**
+ * The private world's records, kept where the app keeps things (#564, #577).
+ *
+ * The world saves itself through a vault of named strings, synchronously, as it always has. Here the
+ * vault starts from what the app kept last time, and everything the world writes is handed back to
+ * the app in the next reply for it to keep durably: the world's own records, beside the hero's save.
+ */
+export class KeptWorld implements Vault {
+  private readonly kept: Map<string, string>;
+  private readonly changed = new Set<string>();
+  constructor(records: Record<string, string> = {}) { this.kept = new Map(Object.entries(records)); }
+  read(name: string): string | null { return this.kept.get(name) ?? null; }
+  write(name: string, text: string): void {
+    if (this.kept.get(name) === text) return;
+    this.kept.set(name, text);
+    this.changed.add(name);
+  }
+  list(prefix: string): string[] { return [...this.kept.keys()].filter((name) => name.startsWith(prefix)); }
+  /** What has been written since the last time this was asked, or null if nothing has. */
+  takeChanges(): Record<string, string> | null {
+    if (!this.changed.size) return null;
+    const changes: Record<string, string> = {};
+    for (const name of this.changed) changes[name] = this.kept.get(name)!;
+    this.changed.clear();
+    return changes;
+  }
 }
 
 /** How far a stick must lean before the hero walks: the page's stick's dead zone over its range. */
@@ -78,6 +111,7 @@ export function create(session: string, optionsText: string): { request(text: st
   const gate = new RequestGate(session);
   const store = savedInMemory();
   const packets = new ScenePackets();
+  const world = new KeptWorld(options.world);
   let host: HeadlessGame | null = null;
   let game: GameHandle | null = null;
   let revision = 0;
@@ -104,6 +138,9 @@ export function create(session: string, optionsText: string): { request(text: st
     // a save the game has written since the last reply, for the app to keep where it keeps things
     const saved = store.read(options.slot);
     if (saved !== undefined && saved !== lastSave) { lastSave = saved; models.save = JSON.parse(saved) as Json; }
+    // and the world's own records, written since the last reply
+    const records = world.takeChanges();
+    if (records) models.world = records;
     return {
       revision: ++revision, tick, renderTimeMs,
       owner: talk.isOpen || shown.panel ? 'BOOK' as const : 'WORLD' as const,
@@ -141,7 +178,7 @@ export function create(session: string, optionsText: string): { request(text: st
             throw new Error('This engine opens one local game, in the slot it was created for');
           }
           host = headlessGame({ viewport: options.viewport, clock: engineClock, now: () => engineClock.now(),
-            random: Math.random, name: options.name });
+            random: Math.random, name: options.name, vault: world });
           game = composeGame({ store, slotKey: options.slot, saved: options.saved, seed: options.seed,
             worldName: undefined, world: options.kind }, host.platform);
           return reply({ full: true, state: presentation(null) });
