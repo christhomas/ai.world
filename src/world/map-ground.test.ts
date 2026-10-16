@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BIOMES, type Biome } from './biomes';
+import { BIOMES, Biome } from './biomes';
 import type { RoadGraph } from './graph';
 import { SEA_RGB, groundColour, mapPad, mapPicture, type MapGround } from './map-ground';
 
-const meadow = Object.keys(BIOMES)[0] as Biome;
+const meadow = Biome.Plains;
 /** Land east of the middle, sea west of it, and a peak standing at (20, 0). */
 const ground: MapGround = {
   probe: (x) => ({ land: x > 0, biome: meadow }),

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:ai_world_flutter/src/game_session.dart';
 import 'package:ai_world_flutter/src/network/world_socket_link.dart';
