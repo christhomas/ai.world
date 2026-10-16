@@ -74,6 +74,16 @@ class ParityTests(unittest.TestCase):
         self.assertEqual(found['failures'], [])
         self.assertNotIn('mae', found)
 
+    def test_a_world_the_app_shows_through_is_not_a_world_frame(self):
+        drawn = scene(scale=2).convert('RGBA')
+        drawn.putalpha(Image.new('L', drawn.size, 255))
+        self.assertEqual(parity.compare(scene(), drawn, LIMITS, BACKGROUND, drawn)['failures'], [])
+        water = drawn.copy()
+        water.paste((40, 90, 160, 200), (0, 0, 48, 24))
+        found = parity.compare(scene(), water, LIMITS, BACKGROUND, water)
+        self.assertGreater(found['translucent'], 0)
+        self.assertTrue(any('not opaque' in why for why in found['failures']), found['failures'])
+
     def test_the_turn_that_undoes_a_portrait_screenshot_is_found(self):
         drawn = scene(scale=2)
         portrait = drawn.rotate(90, expand=True)
