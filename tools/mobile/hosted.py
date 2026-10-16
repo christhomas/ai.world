@@ -35,8 +35,8 @@ def command(args, timeout=600, cwd=ROOT, check=True):
     return result.returncode
 
 
-def output(args):
-    return subprocess.check_output(args, text=True, timeout=30).strip()
+def output(args, timeout=30):
+    return subprocess.check_output(args, text=True, timeout=timeout).strip()
 
 
 def validate_android_ui(xml):
@@ -192,6 +192,13 @@ def capture(platform):
                      device, 'world.ai.aiWorldFlutter'])
         save(status='waiting-native-ready', device=device)
 
+        def game_progress(text):
+            # how far the installed game got and how fast it ran, kept even when it did not finish
+            said = re.findall(r'HOSTED_GAME_(?:OPENED|PROGRESS|FAILED) [^\n]*', text)
+            if said:
+                save(installed_game_progress=said[-3:])
+            return ' | '.join(said[-3:])
+
         def wait_for(marker, seconds, what):
             deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
@@ -199,11 +206,13 @@ def capture(platform):
                 if 'HOSTED_NATIVE_FAILED' in text:
                     raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
                 if 'HOSTED_GAME_FAILED' in text:
-                    raise RuntimeError('The installed game session failed; inspect native.log')
+                    raise RuntimeError('The installed game session failed; inspect native.log. '
+                                       + game_progress(text))
                 if marker in text:
                     return text
                 time.sleep(1)
-            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization')
+            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization. '
+                               + game_progress('\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))))
 
         text = wait_for(f'HOSTED_STATE_ENGINE_READY platform={platform}', 90, 'installed state engine proof')
         if f'HOSTED_HERO_CHECKPOINT_READY platform={platform}' not in text:
@@ -214,14 +223,23 @@ def capture(platform):
              {'name': f'installed-{platform}-hero-file-checkpoint', 'passed': True,
               'scope': 'hero-state-only', 'app_process_restart': False}])
 
+        container = []
+
+        def app_files():
+            # The simulator's container for the app does not move while it runs, so it is asked for
+            # once. Asking takes seconds on a busy runner and has run past half a minute.
+            if not container:
+                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data'], timeout=180))
+                container.append(data / 'Library/Application Support/ai-world')
+            return container[0]
+
         def advance(index):
             # The app waits on this file before drawing the next scene, so each is photographed whole.
             name = f'parity-advance-{index}'
             if platform == 'android':
                 command([*adb, 'shell', f"run-as world.ai.ai_world_flutter sh -c 'mkdir -p files/ai-world && touch files/ai-world/{name}'"])
             else:
-                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data']))
-                root = data / 'Library/Application Support/ai-world'
+                root = app_files()
                 root.mkdir(parents=True, exist_ok=True)
                 (root / name).touch()
 
@@ -230,8 +248,7 @@ def capture(platform):
             if platform == 'android':
                 return subprocess.run([*adb, 'exec-out', 'run-as', 'world.ai.ai_world_flutter', 'cat', f'files/ai-world/{file}'],
                                       stdout=subprocess.PIPE, check=True, timeout=180).stdout
-            data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data']))
-            return (data / 'Library/Application Support/ai-world' / file).read_bytes()
+            return (app_files() / file).read_bytes()
 
         for index, scene in enumerate(json.loads(STATE.read_text())['scenes']):
             name = scene['name']
@@ -246,7 +263,8 @@ def capture(platform):
                 pixels = pull(f'parity-{index}-{pass_name}.rgba')
                 if len(pixels) != width * height * 4:
                     raise RuntimeError(f'{name} {pass_name}: {len(pixels)} bytes read back for {width}x{height}')
-                Image.frombytes('RGBA', (width, height), pixels).convert('RGB').save(OUT / f'{name}-{pass_name}-framebuffer.png')
+                # alpha kept: the comparison fails a world that is not opaque over the app
+                Image.frombytes('RGBA', (width, height), pixels).save(OUT / f'{name}-{pass_name}-framebuffer.png')
             for pass_name in ['first', 'repeat']:
                 time.sleep(2)
                 shot = f'{name}-{pass_name}'

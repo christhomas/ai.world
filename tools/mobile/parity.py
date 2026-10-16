@@ -117,6 +117,12 @@ def compare(web, native, limits, background=None, repeat=None):
     if web is not None:
         found['web'] = blankness(web, background)
     failures = []
+    if native.mode == 'RGBA':
+        # Flutter puts the world's texture over the app: anything short of opaque is the app showing through
+        alpha = native.getchannel('A').histogram()
+        found['translucent'] = round(sum(alpha[:255]) / (native.width * native.height), 5)
+        if found['translucent'] > 0:
+            failures.append(f'{found["translucent"] * 100:.2f}% of the native frame is not opaque, so the app shows through the world')
     if is_blank(found['native'], limits['blank']):
         failures.append(f'native frame is blank: {found["native"]}')
     if repeat is not None:

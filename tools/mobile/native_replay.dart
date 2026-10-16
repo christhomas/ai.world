@@ -88,7 +88,11 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
       if (reply['type'] != 'result') throw StateError('Game request failed: ${reply['payload']}');
       return Map<String, dynamic>.from(reply['payload']['state'] as Map);
     }
-    state(await engine.request('start', {'mode': 'local', 'world': 'installed'}));
+    try {
+      state(await engine.request('start', {'mode': 'local', 'world': 'installed'}));
+    } catch (error) {
+      throw StateError('Opening the world failed after ${opening.elapsedMilliseconds} ms: $error');
+    }
     final opened = opening.elapsedMilliseconds;
     debugPrint('HOSTED_GAME_OPENED platform=${Platform.operatingSystem} openMs=$opened sha=${engine.sourceSha}');
     final cache = SceneGeometryCache();
@@ -117,12 +121,28 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
       if (scene == null) throw StateError('A scene was asked for and none came');
       return ((scene['frame'] as Map)['nodes'] as List).where((node) => (node as Map)['kind'] == 'mesh').length;
     }
+    String ms(int micros) => (micros / 1000).toStringAsFixed(2);
+    String timings() {
+      final sorted = [...stepMicros]..sort();
+      if (sorted.isEmpty) return 'steps=0';
+      return 'steps=${sorted.length} stepMedianMs=${ms(sorted[sorted.length ~/ 2])} '
+          'stepP95Ms=${ms(sorted[(sorted.length * 0.95).floor()])} stepMaxMs=${ms(sorted.last)}';
+    }
+    // how fast this phone's engine runs the game is the evidence (#559), so it is said as it goes,
+    // and a game too slow to bring its ground in ten minutes fails with what it measured
+    final arriving = Stopwatch()..start();
     var meshes = 0;
     for (var round = 0; round < 80 && meshes < 40; round++) {
       for (var n = 0; n < 15; n++) { await step(); }
       meshes = await drawn();
+      debugPrint('HOSTED_GAME_PROGRESS platform=${Platform.operatingSystem} openMs=$opened round=$round '
+          'meshes=$meshes elapsedMs=${arriving.elapsedMilliseconds} ${timings()}');
+      if (arriving.elapsed > const Duration(minutes: 10)) break;
     }
-    if (meshes < 40) throw StateError('Only $meshes meshes of ground arrived');
+    if (meshes < 40) {
+      throw StateError('Only $meshes meshes of ground arrived in ${arriving.elapsedMilliseconds} ms '
+          '(opening took $opened ms; ${timings()})');
+    }
     final from = Map<String, dynamic>.from((await step())['models']['hero'] as Map);
     for (var n = 0; n < 45; n++) { await step(move: [0, 1]); }
     meshes = await drawn();
@@ -132,13 +152,11 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
     await Future<void>.delayed(const Duration(milliseconds: 1500));
     final shot = await renderer.snapshot();
     await File('${store.path}/game-first.rgba').writeAsBytes(shot.rgba, flush: true);
-    state(await engine.request('resync', {'reason': 'save'}));
-    final saved = (await step())['models']['save'] as Map?;
+    // the save comes back with the reply that asked for it, or with the next one
+    final asked = state(await engine.request('resync', {'reason': 'save'}));
+    final saved = ((asked['models'] as Map)['save'] ?? (await step())['models']['save']) as Map?;
     if (saved == null || (saved['state'] as Map?)?['playerId'] != to['playerId']) throw StateError('The game saved nothing of the hero');
-    stepMicros.sort();
-    String ms(int micros) => (micros / 1000).toStringAsFixed(2);
-    debugPrint('HOSTED_GAME_READY platform=${Platform.operatingSystem} openMs=$opened steps=${stepMicros.length} '
-        'stepMedianMs=${ms(stepMicros[stepMicros.length ~/ 2])} stepP95Ms=${ms(stepMicros[(stepMicros.length * 0.95).floor()])} '
+    debugPrint('HOSTED_GAME_READY platform=${Platform.operatingSystem} openMs=$opened ${timings()} '
         'meshes=$meshes packets=$packets walked=${walked.toStringAsFixed(2)} framebuffer=${shot.width}x${shot.height}');
   } finally {
     await engine.dispose();
