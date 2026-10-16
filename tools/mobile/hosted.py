@@ -98,6 +98,9 @@ def capture(platform):
             command([*adb, 'shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1'])
             if output([*adb, 'shell', 'settings', 'get', 'global', 'hide_error_dialogs']) != '1':
                 raise RuntimeError('Could not hide Android error dialogs on the dedicated emulator')
+            # That stops new ones; a dialog already up when the setting lands is closed here, which
+            # Android's not-responding and crash dialogs do on this broadcast.
+            command([*adb, 'shell', 'am', 'broadcast', '-a', 'android.intent.action.CLOSE_SYSTEM_DIALOGS'])
             command([*adb, 'install', '-r', str(APP / 'build/app/outputs/flutter-apk/app-debug.apk')])
             command([*adb, 'logcat', '-c'])
             logs = OUT / 'native.log'
