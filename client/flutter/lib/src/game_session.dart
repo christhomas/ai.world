@@ -72,6 +72,8 @@ class GameSession {
   final Map<String, Map<String, dynamic>> portraits = {};
   /// The journal as the game last sent it; it is sent only when it changes.
   Map<String, dynamic> journal = const {};
+  /// The roster as the game last sent it, while the roster page asks for it.
+  Map<String, dynamic> roster = const {};
   /// The map's ground and roads, sent once (`src/world/map-ground.ts`).
   Map<String, dynamic>? mapPicture;
   /// The map's markers and title as last sent, and every chunk walked and province charted so far.
@@ -193,6 +195,8 @@ class GameSession {
     if (faces is Map) faces.forEach((key, face) => portraits['$key'] = Map<String, dynamic>.from(face as Map));
     final read = models['journal'];
     if (read is Map) journal = Map<String, dynamic>.from(read);
+    final register = models['roster'];
+    if (register is Map) roster = Map<String, dynamic>.from(register);
     final picture = models['mapPicture'];
     if (picture is Map) mapPicture = Map<String, dynamic>.from(picture);
     final mapped = models['map'];

@@ -16,6 +16,7 @@ import { WORLD } from '../core/config';
 import { PROVINCE, provinceCorner } from '../world/provinces';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
+import { ROSTER_ORDERS, type RosterOrder } from '../game/roster-view';
 
 /** What an app asks for when it opens a game: which world, which save, and how big the picture is. */
 export interface EngineOptions {
@@ -109,7 +110,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  * - `start` opens the game the options named, against the world in this engine;
  * - `step` moves time on by `dtSeconds`, with the stick, the held buttons and any one-shot actions;
  * - `action` is a player action by name (`interact`, `attack`, `inventory`…), `choose` a row of the
- *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `say` a line typed into the
+ *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `read` the roster while a
+ *   page shows it (`roster:<order>`, or nothing to stop), `say` a line typed into the
  *   console (`args.text`), `take` a carried thing out of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
  * - `parcel` is what the app's socket to a shared world did: opened, a message, or closed (#565);
@@ -133,6 +135,9 @@ export function create(session: string, optionsText: string): { request(text: st
   let wantScene = false;
   let lastSave = '';
   let lastJournal = '';
+  /** The roster is long, so it is sent only while the app's roster page is open, in its order. */
+  let rosterOrder: RosterOrder | null = null;
+  let lastRoster = '';
   let mapDrawn = false;
   let lastMap = '';
   let lastMapAt = -Infinity;
@@ -165,6 +170,10 @@ export function create(session: string, optionsText: string): { request(text: st
     // the journal changes when an errand, a find or a tile walked does, and is sent only then
     const journal = JSON.stringify(host!.journal());
     if (journal !== lastJournal) { lastJournal = journal; models.journal = JSON.parse(journal) as Json; }
+    if (rosterOrder) {
+      const roster = JSON.stringify(host!.roster(rosterOrder));
+      if (roster !== lastRoster) { lastRoster = roster; models.roster = JSON.parse(roster) as Json; }
+    }
     // the map over its picture: what has newly been walked or charted, every time; the markers
     // and title when they change, at most once a second, because a ferry's marker moves every step
     // both only ever grow, so the same size is nothing new
@@ -271,6 +280,14 @@ export function create(session: string, optionsText: string): { request(text: st
                 throw new Error('Nothing to change');
               }
               host.conversation.nudgeAt(row, dir);
+            } else if (action === 'read') {
+              // `roster:<order>` while the app's roster page is open; nothing when it closes
+              const asked = target === null ? null : target.replace(/^roster:/, '');
+              if (asked !== null && (!target!.startsWith('roster:') || !(ROSTER_ORDERS as readonly string[]).includes(asked))) {
+                throw new Error(`Nothing to read called ${target}`);
+              }
+              rosterOrder = asked as RosterOrder | null;
+              lastRoster = '';
             } else if (action === 'say') {
               // a line typed into the console: the text is the action's argument
               const text = (request.payload.args as { text?: unknown } | null)?.text;

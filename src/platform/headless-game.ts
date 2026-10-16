@@ -18,6 +18,7 @@ import { Conversation } from '../ui/conversation';
 import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
+import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { mountainAt } from '../world/ranges';
 import type { RoadGraph } from '../world/graph';
@@ -103,6 +104,8 @@ export interface HeadlessGame {
   pack(): { take(id: string): void; stow(slot: string): void };
   /** The journal as the page's journal shows it: what is owed, found and sailing, and nothing undiscovered. */
   journal(): JournalView;
+  /** Everybody on the register as the page's roster reads them, in this order (#575). */
+  roster(by: RosterOrder): RosterView;
   /**
    * A line typed into the console, as the page's console takes it (#576): `?` asks the game, `/` is
    * a gesture or a command, and anything else is said out loud to whoever is in the world.
@@ -317,6 +320,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   const toggle = (panel: string) => { shown.panel = shown.panel === panel ? null : panel; };
   let pack: ReturnType<HeadlessGame['pack']> | null = null;
   let reading: ScreenParts['journalInput'] | null = null;
+  let registered: Parameters<ScreenParts['roster']['reads']> | null = null;
   let charting: ScreenParts['mapInput'] | null = null;
   let mapped: { graph: RoadGraph; ground: MapGround; picture?: MapPicture } | null = null;
 
@@ -352,7 +356,8 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     },
     floorMap: () => ({ reveal() {}, draw() {} }),
     kin: () => ({ show() {} }),
-    roster: () => ({ reads() {} }),
+    // what the roster reads, kept for when the app's roster page asks
+    roster: () => ({ reads: (...read) => { registered = read; } }),
     dialogue: () => dialogue,
     sound: () => sound,
     journal: () => ({ refresh() {} }),
@@ -462,6 +467,11 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     say(text) {
       const said = text.trim();
       if (said) chat.onSend?.(said);
+    },
+    roster(by) {
+      if (!registered) throw new Error('the game has not been assembled on this host yet');
+      const [register, villages, crowd, near] = registered;
+      return rosterView(register(), by, villages(), doingNear(crowd, near?.()));
     },
     journal() {
       if (!reading) throw new Error('the game has not been assembled on this host yet');

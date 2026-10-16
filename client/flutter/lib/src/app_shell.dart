@@ -12,6 +12,7 @@ import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
 import 'screens/map_page.dart';
 import 'screens/options_page.dart';
+import 'screens/roster_page.dart';
 import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
@@ -205,6 +206,9 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
             charted: session.charted, hero: hero, tokens: tokens),
           'options': (context, tokens) => OptionsPage(slot: session.slot, tokens: tokens, controller: _ledger,
             leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough'))),
+          // past the four tabs: reached from Options
+          'roster': (context, tokens) => RosterPage(roster: session.roster, tokens: tokens,
+            read: (by) => unawaited(session.act('read', target: by == null ? null : 'roster:$by'))),
         },
         place: '${hud['area'] ?? ''}',
         readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',

@@ -41,6 +41,9 @@ class OptionsPage extends StatelessWidget {
       LedgerRow(key: const ValueKey('see-through'), tokens: t, name: 'See through walls',
         consequence: 'what stands between you and the camera', verb: 'SWITCH', onPressed: seeThrough),
       label('WORLD'),
+      LedgerRow(key: const ValueKey('open-roster'), tokens: t, name: 'The roster',
+        consequence: 'everybody on the register, and how they are getting on', verb: 'READ',
+        onPressed: () => controller.open('roster')),
       LedgerRow(key: const ValueKey('world-line'), tokens: t, name: 'Seed ${slot.seed} · ${slot.kind}',
         consequence: slot.server ?? 'alone, on this phone'),
       if (invite != null)

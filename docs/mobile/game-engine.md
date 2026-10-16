@@ -18,7 +18,7 @@ The app then sends:
 | `start` `remote` | opens it against the shared world the `server` option names (#565) |
 | `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `nudge` a row's number (`row:1`, `row:-1`), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `nudge` a row's number (`row:1`, `row:-1`), `read` the roster while a page shows it (`roster:village`, `name`, `age`, `purse` or `hunger`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
@@ -35,6 +35,7 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - any faces the app has not been sent (`portraits`), each once;
 - the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries),
   only when it has changed since the last reply;
+- the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture
