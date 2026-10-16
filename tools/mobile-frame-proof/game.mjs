@@ -99,21 +99,22 @@ assert.equal(state.owner, 'BOOK');
 state = ask('action', { action: 'close', target: null, args: null });
 assert.equal(state.owner, 'WORLD');
 
-// a save comes back to the app to keep
-ask('resync', { reason: 'save' });
+// a save comes back to the app to keep: with the very reply that asked for it when the store writes
+// at once, or with the next reply when the write finishes after the request has returned
+const asked = ask('resync', { reason: 'save' });
 await settle();
 state = await step();
-assert.ok(state.models.save, 'the game saved nothing');
-assert.equal(state.models.save.state.playerId, state.models.hero.playerId);
+const save = asked.models.save ?? state.models.save;
+assert.ok(save, 'the game saved nothing');
+assert.equal(save.state.playerId, state.models.hero.playerId);
 
 const left = state.models.hero;
-const saved = state.models.save;
 ask('dispose', {});
 assert.ok(Object.keys(worldRecords).length > 0, 'the private world kept nothing for the app to keep');
 
 // and the app opens it again from what it kept: the save, and the world's own records
 bare.__continued = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 },
-  saved, world: worldRecords });
+  saved: save, world: worldRecords });
 call(`globalThis.again = AiWorldGameEngine.create('bare-again', __continued)`);
 sequence = 0;
 tick = -1;
