@@ -48,6 +48,8 @@ export class Mount {
   /** Kept only so the mount can clear its rider's carrier when it leaves the world. */
   private rider: Player | null = null;
   private saved: HorseSave | null = null;
+  /** Undefined outside a probe loan; null means the player originally owned no horse. */
+  private beforeLoan: HorseSave | null | undefined;
 
   /** The traversal carrier is the one source of truth for whether this horse is being ridden. */
   get riding(): boolean {
@@ -107,6 +109,27 @@ export class Mount {
     this.entity = null;
     this.restore(world, renderer);
     return name;
+  }
+
+  /** A probe may try several mounts without replacing the player's original horse or cargo. */
+  borrow(x: number, z: number, world: TileWorld, renderer: EntityRenderer, breed: Breed = breedOf('horse')): void {
+    if (this.beforeLoan === undefined) this.beforeLoan = this.toJSON();
+    try {
+      this.stable(renderer);
+      this.buy(x, z, world, renderer, breed);
+    } catch (error) {
+      this.returnBorrowed(world, renderer);
+      throw error;
+    }
+  }
+
+  /** Idempotent cleanup, including a loan taken when the player owned nothing. */
+  returnBorrowed(world: TileWorld, renderer: EntityRenderer): void {
+    if (this.beforeLoan === undefined) return;
+    this.stable(renderer);
+    this.saved = this.beforeLoan;
+    this.beforeLoan = undefined;
+    this.restore(world, renderer);
   }
 
   /** Put the horse back in the world after a load, or when the hero returns outdoors. */
@@ -197,7 +220,9 @@ export class Mount {
 
   toJSON(): HorseSave | null {
     this.remember();
-    return this.saved ? { ...this.saved, cargo: this.saved.cargo ? { ...this.saved.cargo } : undefined } : null;
+    // Autosave during a played check must not persist its temporary purchase.
+    const saved = this.beforeLoan === undefined ? this.saved : this.beforeLoan;
+    return saved ? { ...saved, cargo: saved.cargo ? { ...saved.cargo } : undefined } : null;
   }
 
   static from(json: HorseSave | null | undefined, rng: Rng): Mount {

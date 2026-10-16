@@ -6,6 +6,7 @@ import { Wildlife } from './wildlife';
 import { GameState } from './state';
 import { createAuthority, type Authority } from './authority';
 import type { CreatureSnap } from '../../server/protocol';
+import { KINDS } from '../entities/animals';
 
 /**
  * What the client does when the world says one of its creatures is dead.
@@ -70,7 +71,7 @@ function aClient() {
   /** The world telling us what lives here, and then that one of them is dead. */
   const worldSays = authority.heeding;
   return {
-    authority, worldSays, state, wildlife, bodies, buried,
+    authority, worldSays, state, wildlife, bodies, buried, player: ctx.player,
     noticed, cleared, rustling, said,
     inTheMine: (id: string | null) => { inAMine = id; },
   };
@@ -79,6 +80,23 @@ function aClient() {
 /** One creature of the world's, standing where it can be killed. */
 const wolf = (id = 7, kind = 'wolf'): CreatureSnap =>
   ({ id, kind, x: 12, z: 34, y: 1, yaw: 0, walk: 0, state: 'idle', hp: 30 });
+
+describe('the authority over a mounted rider', () => {
+  it('ignores an on-foot answer while mounted and resumes after the carrier is cleared', () => {
+    const { authority, worldSays, player } = aClient();
+    expect(authority.outdoors()).toBe(true);
+    player.entity.mounted = KINDS.horse;
+    expect(player.riding).toBe(false); // This flag describes ferries, not a horse's carrier.
+    expect(authority.outdoors()).toBe(false);
+
+    worldSays.onWhereYouAre(1, 100, 100);
+
+    expect(player.entity).toMatchObject({ x: 0, z: 0 });
+    expect(authority.walking.answers).toBe(0);
+    player.entity.mounted = null;
+    expect(authority.outdoors()).toBe(true);
+  });
+});
 
 describe('a creature the world killed for us', () => {
   it('leaves a body where it fell, so there is something to take a hide off', () => {
