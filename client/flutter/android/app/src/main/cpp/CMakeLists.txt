@@ -22,4 +22,9 @@ add_library(ai_world_state_engine SHARED state_engine.c
 target_include_directories(ai_world_state_engine PRIVATE ${quickjs_SOURCE_DIR})
 target_compile_definitions(ai_world_state_engine PRIVATE _GNU_SOURCE CONFIG_VERSION="2026-06-04")
 target_compile_features(ai_world_state_engine PRIVATE c_std_11)
+# The engine is the whole game's interpreter, and a debug build's -O0 makes it several times slower
+# than the release a player installs. It is optimised in every build, so what the hosted proofs
+# measure is what ships (#559, #563).
+target_compile_options(ai_world_state_engine PRIVATE -O2)
+target_compile_definitions(ai_world_state_engine PRIVATE NDEBUG)
 target_link_libraries(ai_world_state_engine m dl log)
