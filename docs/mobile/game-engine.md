@@ -76,6 +76,10 @@ The native hosts give the whole game more than the hero:
 QuickJS runs every pending promise job after each call, because nothing else will. JavaScriptCore
 drains its own when a call returns.
 
+The QuickJS library is compiled with `-O2` and `NDEBUG` in every build type. The hosted proofs
+install a debug APK, and a debug build's `-O0` interpreter is several times slower than the one a
+release ships, so without this the proofs would measure something no player runs.
+
 The game's time limit is a guard against a runaway request, not a target. QuickJS interprets the
 whole game with no JIT; on the hosted emulator, opening a world took longer than the first limit of
 60 s. The limit was raised so the proof reports how long things take rather than an interrupt (#559).
