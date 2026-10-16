@@ -121,6 +121,12 @@ export function accountNamed(db: DatabaseSync, name: string): Account | null {
   return row ? (row as unknown as Account) : null;
 }
 
+/** The name an account goes by: a session knows the account's id, and a person reading a record wants this. */
+export function accountName(db: DatabaseSync, id: string): string | null {
+  const row = db.prepare('SELECT name FROM account WHERE id = ?').get(id);
+  return row ? String(row.name) : null;
+}
+
 /** How many people may open the tools, which is the question the bootstrap asks. */
 export function howManyAccounts(db: DatabaseSync): number {
   return Number((db.prepare('SELECT count(*) AS many FROM account').get() as { many: number }).many);
