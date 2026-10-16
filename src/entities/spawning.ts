@@ -1,5 +1,6 @@
 import spawning from '../../properties/spawning.json';
 import { Fields } from '../core/properties';
+import { replaceInPlace } from '../core/content';
 
 /**
  * The dials on how much of the world is alive at once, and what the law is paid.
@@ -13,20 +14,13 @@ import { Fields } from '../core/properties';
  * question: this one is how many and how far, that one is which.
  */
 
-const file = new Fields('properties/spawning.json', spawning);
-const reach = file.group('reach');
-const herds = file.group('herds');
-const water = file.group('water');
-const roads = file.group('roads');
-const village = file.group('village');
-const night = file.group('night');
-const bounty = file.group('bounty');
+const DIALS = readSpawning(spawning);
 
 /** Chunks around a player that get creatures. */
-export const SPAWN_RADIUS: number = reach.num('SPAWN_RADIUS');
+export let SPAWN_RADIUS: number = DIALS.SPAWN_RADIUS;
 
 /** Tiles: beyond this from anybody, creatures freeze rather than being thought for. */
-export const ACTIVE_RANGE: number = reach.num('ACTIVE_RANGE');
+export let ACTIVE_RANGE: number = DIALS.ACTIVE_RANGE;
 
 /**
  * Tiles: beyond this from anybody, a creature is on no list at all.
@@ -44,7 +38,7 @@ export const ACTIVE_RANGE: number = reach.num('ACTIVE_RANGE');
  * lists is all the country between here and the edge of what the world is holding, which at a spawn
  * radius of four chunks is about half of everything spawned.
  */
-export const WATCH_RANGE: number = reach.num('WATCH_RANGE');
+export let WATCH_RANGE: number = DIALS.WATCH_RANGE;
 
 /** What the law is paid, as a share of a bounty and as flat coin for an arrest. */
 export interface BountyRates {
@@ -53,11 +47,7 @@ export interface BountyRates {
   ARREST_WORST: number;
 }
 
-export const BOUNTY: BountyRates = {
-  RESCUE_SHARE: bounty.num('RESCUE_SHARE'),
-  ARREST: bounty.num('ARREST'),
-  ARREST_WORST: bounty.num('ARREST_WORST'),
-};
+export const BOUNTY: BountyRates = DIALS.BOUNTY;
 
 /** Spawn odds and sizes. Chances are per chunk, leashes in tiles. */
 export interface SpawnDials {
@@ -82,24 +72,61 @@ export interface SpawnDials {
   NIGHT_LEASH: number;
 }
 
-export const SPAWN: SpawnDials = {
-  MIN_LAND_TILES: herds.num('MIN_LAND_TILES'),
-  HERD_CHANCE: herds.num('HERD_CHANCE'),
-  SECOND_HERD_CHANCE: herds.num('SECOND_HERD_CHANCE'),
-  HERD_LEASH: herds.num('HERD_LEASH'),
-  MIN_WATER_TILES: water.num('MIN_WATER_TILES'),
-  WATER_HERD_CHANCE: water.num('WATER_HERD_CHANCE'),
-  DEEP_PACK_CHANCE: water.num('DEEP_PACK_CHANCE'),
-  DEEP_LEASH: water.num('DEEP_LEASH'),
-  WATER_LEASH: water.num('WATER_LEASH'),
-  MIN_ROAD_TILES: roads.num('MIN_ROAD_TILES'),
-  TRAVELLER_CHANCE: roads.num('TRAVELLER_CHANCE'),
-  TRAVELLER_LEASH: roads.num('TRAVELLER_LEASH'),
-  CONGREGATION_LEASH: village.num('CONGREGATION_LEASH'),
-  SHOPKEEPER_LEASH: village.num('SHOPKEEPER_LEASH'),
-  PLACE_ATTEMPTS: herds.num('PLACE_ATTEMPTS'),
-  SCATTER: herds.num('SCATTER'),
-  FLIER_RING: herds.num('FLIER_RING'),
-  NIGHT_PACK_CHANCE: night.num('NIGHT_PACK_CHANCE'),
-  NIGHT_LEASH: night.num('NIGHT_LEASH'),
-};
+export const SPAWN: SpawnDials = DIALS.SPAWN;
+
+/**
+ * The dials in a `properties/spawning.json`, read and checked. The game reads its own file with
+ * this at load; the content catalogue (#624) reads a proposed one before publishing it.
+ */
+export function readSpawning(json: unknown): {
+  SPAWN_RADIUS: number; ACTIVE_RANGE: number; WATCH_RANGE: number; BOUNTY: BountyRates; SPAWN: SpawnDials;
+} {
+  const file = new Fields('properties/spawning.json', json);
+  const reach = file.group('reach');
+  const herds = file.group('herds');
+  const water = file.group('water');
+  const roads = file.group('roads');
+  const village = file.group('village');
+  const night = file.group('night');
+  const bounty = file.group('bounty');
+  return {
+    SPAWN_RADIUS: reach.num('SPAWN_RADIUS'),
+    ACTIVE_RANGE: reach.num('ACTIVE_RANGE'),
+    WATCH_RANGE: reach.num('WATCH_RANGE'),
+    BOUNTY: {
+      RESCUE_SHARE: bounty.num('RESCUE_SHARE'),
+      ARREST: bounty.num('ARREST'),
+      ARREST_WORST: bounty.num('ARREST_WORST'),
+    },
+    SPAWN: {
+      MIN_LAND_TILES: herds.num('MIN_LAND_TILES'),
+      HERD_CHANCE: herds.num('HERD_CHANCE'),
+      SECOND_HERD_CHANCE: herds.num('SECOND_HERD_CHANCE'),
+      HERD_LEASH: herds.num('HERD_LEASH'),
+      MIN_WATER_TILES: water.num('MIN_WATER_TILES'),
+      WATER_HERD_CHANCE: water.num('WATER_HERD_CHANCE'),
+      DEEP_PACK_CHANCE: water.num('DEEP_PACK_CHANCE'),
+      DEEP_LEASH: water.num('DEEP_LEASH'),
+      WATER_LEASH: water.num('WATER_LEASH'),
+      MIN_ROAD_TILES: roads.num('MIN_ROAD_TILES'),
+      TRAVELLER_CHANCE: roads.num('TRAVELLER_CHANCE'),
+      TRAVELLER_LEASH: roads.num('TRAVELLER_LEASH'),
+      CONGREGATION_LEASH: village.num('CONGREGATION_LEASH'),
+      SHOPKEEPER_LEASH: village.num('SHOPKEEPER_LEASH'),
+      PLACE_ATTEMPTS: herds.num('PLACE_ATTEMPTS'),
+      SCATTER: herds.num('SCATTER'),
+      FLIER_RING: herds.num('FLIER_RING'),
+      NIGHT_PACK_CHANCE: night.num('NIGHT_PACK_CHANCE'),
+      NIGHT_LEASH: night.num('NIGHT_LEASH'),
+    },
+  };
+}
+
+/** Put a published revision's dials in place of the bundled ones (#624), keeping each table. */
+export function installSpawning(next: ReturnType<typeof readSpawning>): void {
+  SPAWN_RADIUS = next.SPAWN_RADIUS;
+  ACTIVE_RANGE = next.ACTIVE_RANGE;
+  WATCH_RANGE = next.WATCH_RANGE;
+  replaceInPlace(BOUNTY, next.BOUNTY);
+  replaceInPlace(SPAWN, next.SPAWN);
+}

@@ -7,6 +7,7 @@ import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 import registryPage from '../../tools/registry.html?raw';
 import worldEditorPage from '../../tools/world-editor.html?raw';
+import contentEditorPage from '../../tools/content-editor.html?raw';
 import { CATALOGUE } from './catalogue';
 import { toolDocument, toolsShell } from './shell';
 export { CATALOGUE } from './catalogue';
@@ -39,6 +40,7 @@ export type Asked =
   | { want: 'runtime' }
   | { want: 'registry-data' }
   | { want: 'world-editor-data' }
+  | { want: 'content-data' }
   | { want: 'tool'; id: string }
   /** The builder asking the worker to do something, or following what it is doing. */
   | { want: 'build' }
@@ -71,6 +73,8 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
   if (path === '/tools/registry/data') return { want: 'registry-data' };
   if (path === '/tools/world-editor/data') return method === 'GET' || method === 'POST'
     ? { want: 'world-editor-data' } : { want: 'nothing' };
+  if (path === '/tools/content/data') return method === 'GET' || method === 'POST'
+    ? { want: 'content-data' } : { want: 'nothing' };
   if (path === '/tools/world-editor') return method === 'GET'
     ? { want: 'tool', id: 'world-editor' } : { want: 'nothing' };
   /*
@@ -202,6 +206,8 @@ export interface PortalOptions {
   survey?: (req: IncomingMessage, res: ServerResponse) => void;
   /** Authenticated named-world editor; the server owns validation and publication. */
   worldEditor?: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+  /** The gameplay content catalogue, answered for the signed-in account (#624). */
+  content?: (req: IncomingMessage, res: ServerResponse, who: string) => Promise<void>;
   /** Built browser tools entry; resolved from the deployed client build, never source files. */
   runtimeAsset?: string;
   /** Account-scoped connections from builders on their owners' machines. */
@@ -438,6 +444,12 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
+    if (asked.want === 'content-data') {
+      if (options.content) await options.content(req, res, who);
+      else html(res, 404, page('Not a tool', '<h1>The content catalogue is not available.</h1>'));
+      return true;
+    }
+
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
     if (tool.id === 'registry' && options.survey) {
@@ -445,6 +457,9 @@ export function portalFor(options: PortalOptions) {
     }
     if (tool.id === 'world-editor' && options.worldEditor) {
       html(res, 200, toolDocument(worldEditorPage, tool.name, tool.id, CATALOGUE)); return true;
+    }
+    if (tool.id === 'content-editor' && options.content) {
+      html(res, 200, toolDocument(contentEditorPage, tool.name, tool.id, CATALOGUE)); return true;
     }
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
       + `<a class="card" href="/tools/">Back</a>`));

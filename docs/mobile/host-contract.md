@@ -14,7 +14,7 @@ The app bundles the shared TypeScript decisions and simulation. Flutter owns nat
 Metal/GLES own drawing. No WebView, companion relay, downloaded script or Dart rewrite of rules.
 M02/#559 selects the runtime from measurements. #560 extracts browser services, #561 scene
 construction, #562 typed models/actions, #563 app hosting, #564 local authority, #565 direct
-remote protocol. ABI version 1 is independent of server PROTOCOL_VERSION 25.
+remote protocol. ABI version 1 is independent of server PROTOCOL_VERSION 26.
 Unsupported ABI is an explicit version error before allocating game resources.
 
 ## Requests, results and cancellation

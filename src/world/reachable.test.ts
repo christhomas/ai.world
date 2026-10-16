@@ -64,7 +64,7 @@ function exportsOf(text: string): string[] {
   const names: string[] = [];
   for (const m of text.matchAll(/^export (?:async )?function (\w+)/gm)) names.push(m[1]);
   for (const m of text.matchAll(/^export class (\w+)/gm)) names.push(m[1]);
-  for (const m of text.matchAll(/^export const (\w+)\s*[:=]/gm)) names.push(m[1]);
+  for (const m of text.matchAll(/^export (?:const|let) (\w+)\s*[:=]/gm)) names.push(m[1]);
   return names;
 }
 

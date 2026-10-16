@@ -6,6 +6,7 @@ import monsters from '../../properties/monsters.json';
 import villain from '../../properties/villain.json';
 import tuning from '../../properties/behaviour.json';
 import { Fields, PropertiesError, asColour, flatten, readAll } from '../core/properties';
+import { replaceInPlace } from '../core/content';
 import { BLOW_NAMES, isBlow, type Blow } from './motion';
 import type { AnimRole, PartDef } from './rigs';
 
@@ -104,12 +105,12 @@ function palette(value: unknown, where: string): number[] {
 }
 
 /** One creature, field by field, so that a wrong one is named rather than quietly becoming NaN. */
-function readCreature(f: Fields, id: string): CreatureProperties {
+function readCreature(f: Fields, id: string, blows: readonly string[]): CreatureProperties {
   // the blow is checked against motion.ts's own list rather than one written out again here, so a
   // shape added to animations/motion.json is usable from a properties file the moment it exists
   const blow = f.has('blow') ? f.text('blow') : undefined;
-  if (blow !== undefined && !isBlow(blow)) {
-    throw new PropertiesError(`${f.where}.blow`, `"${blow}" is not one of: ${[...BLOW_NAMES].sort().join(', ')}`);
+  if (blow !== undefined && !isBlow(blow, blows)) {
+    throw new PropertiesError(`${f.where}.blow`, `"${blow}" is not one of: ${[...blows].sort().join(', ')}`);
   }
   return {
     id,
@@ -159,14 +160,24 @@ function dropOf(f: Fields): { id: string; chance: number } | undefined {
  * because they are read separately: somebody balancing a dungeon has no reason to scroll past
  * fourteen farm animals to reach the troll.
  */
-export const PROPERTIES: Record<string, CreatureProperties> = readAll({
+export const PROPERTIES: Record<string, CreatureProperties> = readProperties({
   'properties/beasts.json': beasts,
   'properties/birds.json': birds,
   'properties/sea.json': sea,
   'properties/people.json': people,
   'properties/monsters.json': monsters,
   'properties/villain.json': villain,
-}, readCreature);
+});
+
+/**
+ * Every creature in a set of properties files, read as the game reads its own. The blows a creature
+ * may throw are the motion file's; a proposed motion file's own can be named instead (#624).
+ */
+export function readProperties(
+  files: Readonly<Record<string, unknown>>, blows: readonly string[] = BLOW_NAMES,
+): Record<string, CreatureProperties> {
+  return readAll(files, (fields, id) => readCreature(fields, id, blows));
+}
 
 /**
  * The kinds that are people, which is the contents of one file.
@@ -182,9 +193,10 @@ export const PROPERTIES: Record<string, CreatureProperties> = readAll({
  * rock face was filed nowhere at all. A list of names beside a directory of names is a list that
  * falls out of step, and this one did within a day of the directory growing.
  */
-export const PERSON_KINDS: ReadonlySet<string> = new Set(
+const personKinds = new Set(
   Object.keys(people).filter((name) => typeof (people as Record<string, unknown>)[name] === 'object'),
 );
+export const PERSON_KINDS: ReadonlySet<string> = personKinds;
 
 /**
  * A creature, from what it is and the body that draws it.
@@ -286,30 +298,40 @@ export interface BehaviourDefaults {
   CHARGE_TIME: number;
 }
 
-const defaults = flatten('properties/behaviour.json', tuning);
+/**
+ * The behaviour tuning in a `properties/behaviour.json`, read and checked: the shared defaults, and
+ * the step every walker without a `climb` of its own may take.
+ */
+export function readBehaviourTuning(json: unknown): { behaviour: BehaviourDefaults; stepLimit: number } {
+  const defaults = flatten('properties/behaviour.json', json);
+  const behaviour: BehaviourDefaults = {
+    FLEE_TIME: defaults.pair('FLEE_TIME'),
+    STALK_RADIUS: defaults.num('STALK_RADIUS'),
+    ARRIVE_DISTANCE: defaults.num('ARRIVE_DISTANCE'),
+    BITE_RANGE: defaults.num('BITE_RANGE'),
+    BITE_COOLDOWN: defaults.num('BITE_COOLDOWN'),
+    WIND_UP: defaults.num('WIND_UP'),
+    BITE_SLIP: defaults.num('BITE_SLIP'),
+    HURT_TIME: defaults.num('HURT_TIME'),
+    BAR_TIME: defaults.num('BAR_TIME'),
+    KNOCKBACK: defaults.num('KNOCKBACK'),
+    PERSONAL: defaults.num('PERSONAL'),
+    ELBOW: defaults.num('ELBOW'),
+    SHOVE: defaults.num('SHOVE'),
+    HERD_DRIFT: defaults.num('HERD_DRIFT'),
+    PROWL_DRIFT: defaults.num('PROWL_DRIFT'),
+    HERD_DRIFT_TIME: defaults.pair('HERD_DRIFT_TIME'),
+    TURN_RATE: defaults.num('TURN_RATE'),
+    CIRCLE_RADIUS: defaults.num('CIRCLE_RADIUS'),
+    CHARGE_TIME: defaults.num('CHARGE_TIME'),
+  };
+  return { behaviour, stepLimit: defaults.num('STEP_LIMIT') };
+}
+
+const TUNING = readBehaviourTuning(tuning);
 
 /** Behaviour tuning shared by every creature. Distances in tiles, times in seconds. */
-export const BEHAVIOUR: BehaviourDefaults = {
-  FLEE_TIME: defaults.pair('FLEE_TIME'),
-  STALK_RADIUS: defaults.num('STALK_RADIUS'),
-  ARRIVE_DISTANCE: defaults.num('ARRIVE_DISTANCE'),
-  BITE_RANGE: defaults.num('BITE_RANGE'),
-  BITE_COOLDOWN: defaults.num('BITE_COOLDOWN'),
-  WIND_UP: defaults.num('WIND_UP'),
-  BITE_SLIP: defaults.num('BITE_SLIP'),
-  HURT_TIME: defaults.num('HURT_TIME'),
-  BAR_TIME: defaults.num('BAR_TIME'),
-  KNOCKBACK: defaults.num('KNOCKBACK'),
-  PERSONAL: defaults.num('PERSONAL'),
-  ELBOW: defaults.num('ELBOW'),
-  SHOVE: defaults.num('SHOVE'),
-  HERD_DRIFT: defaults.num('HERD_DRIFT'),
-  PROWL_DRIFT: defaults.num('PROWL_DRIFT'),
-  HERD_DRIFT_TIME: defaults.pair('HERD_DRIFT_TIME'),
-  TURN_RATE: defaults.num('TURN_RATE'),
-  CIRCLE_RADIUS: defaults.num('CIRCLE_RADIUS'),
-  CHARGE_TIME: defaults.num('CHARGE_TIME'),
-};
+export const BEHAVIOUR: BehaviourDefaults = TUNING.behaviour;
 
 /**
  * The height a walker can step up when its kind has no `climb` of its own.
@@ -318,4 +340,24 @@ export const BEHAVIOUR: BehaviourDefaults = {
  * ground, asked by the world as often as by a creature, and half the game already imports it
  * under this name.
  */
-export const STEP_LIMIT: number = defaults.num('STEP_LIMIT');
+export let STEP_LIMIT: number = TUNING.stepLimit;
+
+/**
+ * Put a published revision's creatures and tuning in place of the bundled ones (#624). Each table,
+ * and each creature's own record, stays the same object, so whatever already holds one sees the
+ * change. `people` is which of them are people: the creatures filed in `properties/people.json`.
+ */
+export function installProperties(
+  properties: Record<string, CreatureProperties>, people: readonly string[],
+  tuning: { behaviour: BehaviourDefaults; stepLimit: number },
+): void {
+  for (const id of Object.keys(PROPERTIES)) if (!properties[id]) delete PROPERTIES[id];
+  for (const [id, next] of Object.entries(properties)) {
+    if (PROPERTIES[id]) replaceInPlace(PROPERTIES[id], next);
+    else PROPERTIES[id] = next;
+  }
+  personKinds.clear();
+  for (const id of people) personKinds.add(id);
+  replaceInPlace(BEHAVIOUR, tuning.behaviour);
+  STEP_LIMIT = tuning.stepLimit;
+}

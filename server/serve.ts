@@ -9,7 +9,7 @@ import { Simulation, type SimOptions } from './sim';
 import { GroundWorker } from './groundworker';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
-import { addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
+import { accountName, addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
 import { migrateDomain, openDurable } from './durable/db';
 import { MINDS_SCHEMA } from './durable/minds';
 import { EVENTS_SCHEMA } from './durable/events';
@@ -21,6 +21,12 @@ import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 import { worldEditor } from './tools/worldeditor';
+import { contentEditor } from './tools/content';
+import { ContentCatalogue } from './content';
+import { changesFrom, fingerprint, inventory, type ContentRecord } from '../src/core/content';
+import { DEFAULT_CONTENT } from '../src/core/contentDefaults';
+import { checkContent } from '../src/entities/contentCheck';
+import { installContent } from '../src/entities/contentInstall';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -130,7 +136,7 @@ function toolsRuntimeAsset(staticDir?: string): string | undefined {
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
   sim: Simulation, channel: BuilderChannel, groundWorker: GroundWorker | null,
-  staticDir?: string,
+  content: ContentCatalogue | null, staticDir?: string,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
@@ -146,6 +152,7 @@ function openTools(
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
     worldEditor: worldEditor(sim, groundWorker),
+    content: content ? contentEditor(content, (id) => accountName(db, id) ?? id) : undefined,
     // written where the durable database is, from what the answer says as it streams past
     record: (run, id) => {
       try { writeDown(db, id, run); } catch (why) {
@@ -195,14 +202,42 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
   let vault: Vault;
-  try { vault = durable ? new SqliteVault(durable, dataDir) : new FileVault(); }
-  catch (error) { durable?.close(); throw error; }
+  let content: ContentCatalogue | null;
+  /*
+   * What clients are told about content, relative to the JSON this build bundles: a page built
+   * from the same bundle lays the changes over its own copy. Bound once the simulation exists.
+   */
+  const bundled = inventory(DEFAULT_CONTENT);
+  const bundle = fingerprint(bundled);
+  const contentMessage = (records: readonly ContentRecord[], revision: number): ServerMessage =>
+    ({ type: 'content', revision, bundle, ...changesFrom(bundled, records) });
+  let announce: ((message: ServerMessage) => void) | null = null;
+  try {
+    vault = durable ? new SqliteVault(durable, dataDir) : new FileVault();
+    /*
+     * Gameplay content is seeded into the same database the first time it is opened, and only
+     * then (#624). The server's simulation runs on its published revision, every edit or rollback
+     * the tools publish is installed into the running game as it commits, and every client in
+     * every world is sent it, so they draw and predict with what the server runs.
+     */
+    content = durable ? new ContentCatalogue(durable, bundled, {
+      check: checkContent,
+      published: (records, head) => { installContent(records); announce?.(contentMessage(records, head)); },
+    }) : null;
+    // The simulation runs on what the catalogue publishes. A catalogue that cannot be installed
+    // stops the server here rather than leaving it quietly running on the bundled JSON.
+    if (content) installContent(content.records());
+    if (content && !options.quiet) console.log(`gameplay content catalogue at revision ${content.head()}`);
+  } catch (error) { durable?.close(); throw error; }
   const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;
+  const catalogue = content;
   const sim = new Simulation({
     dataDir, vault, ground: true,
     prepare: options.prepare ?? groundWorker ?? undefined,
     minds: durable ?? undefined, chronicles: durable ?? undefined,
+    content: catalogue ? () => contentMessage(catalogue.records(), catalogue.head()) : undefined,
   });
+  announce = (message) => { sim.rooms.everyone(message); };
   let captureNow = 0;
   if (options.captureClock) {
     if (!options.operatorToken) throw new Error('capture clock requires an operator token');
@@ -219,7 +254,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, builderChannel, groundWorker, options.staticDir)
+      sim, builderChannel, groundWorker, content, options.staticDir)
     : null;
   const http = createServer((req, res) => {
     if (options.captureClock && req.url?.startsWith('/__shots/step?')) {
