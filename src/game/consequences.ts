@@ -7,7 +7,7 @@ import type { IsoCamera } from '../render/camera';
 import type { Remembering } from '../world/people';
 import type { Register } from '../world/register';
 import type { Structures } from '../world/structures';
-import type { Sound } from './audio';
+import type { SoundSurface } from '../platform/game-platform';
 import { GRUDGE, saidOf as saidOfRegard, type Grudges } from './grudge';
 import { HIRE } from './hire';
 import { clockAt, toldOnWaking, windOn, type Jail } from './jail';
@@ -44,7 +44,7 @@ export interface Consequence {
    * screen has. `main.ts` builds the one door.
    */
   recall: Remembering;
-  sound: Sound;
+  sound: SoundSurface;
   flash: (message: string) => void;
   /** One of a band standing in the world is dead, which is the band's own business. */
   oneFell: (who: Entity) => void;

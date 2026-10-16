@@ -2,7 +2,7 @@ import type { Input } from '../core/input';
 import type { Player } from '../entities/player';
 import type { IsoCamera } from '../render/camera';
 import type { SceneRig } from '../render/scene';
-import type { Sound } from './audio';
+import type { SoundSurface } from '../platform/game-platform';
 import type { SpellId } from './magic';
 import type { Online } from './online';
 import type { Places } from './places';
@@ -30,7 +30,7 @@ export interface Keys {
   player: Player;
   places: Places;
   online: Online;
-  sound: Sound;
+  sound: SoundSurface;
 
   /** Everything a key does to the screen, in the game's own words. */
   screen: Screen;

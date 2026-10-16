@@ -118,7 +118,7 @@ export function composeGame(start: GameStart, platform: GamePlatform): void {
   const {
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains, stamp: mine,
-  } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  } = growCountry({ seed, world, home, rig, props, seasonTintMaterials, savedManifest: saved?.manifest, jobs: platform.jobs });
   const prayedHighlands = manifest.layers().filter((a) => a.id.startsWith('highland:prayer:'));
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, growItHere, tally: streamTally } = streamTheCountry({
@@ -330,7 +330,7 @@ export function composeGame(start: GameStart, platform: GamePlatform): void {
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   let preparingRemoteCountry = false;
   const multiplayer = createMultiplayer({
-    worldLink: platform.worldLink,
+    worldLink: platform.worldLink, company: platform.company(),
     register, hires,
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso,
     dialogue, hud, chat, sound, questList, discovered, high, seed,

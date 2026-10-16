@@ -1,6 +1,6 @@
 import { Input } from '../core/input';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from '../render/autoquality';
-import { QUALITY, createSceneRig } from '../render/scene';
+import { QUALITY, createSceneRig, pageRigHost } from '../render/scene';
 import { RecordingPipeline } from '../render/recording';
 import { mountainAt } from '../world/ranges';
 import { Sound } from '../game/audio';
@@ -25,6 +25,8 @@ import { PhotoMode } from '../ui/photo';
 import { Chat } from '../ui/chat';
 import { Rucksack } from '../ui/rucksack';
 import { screenOf } from '../ui/panels';
+import { PlayerList } from '../ui/players';
+import { OtherPlayers } from '../render/others';
 import { browserWorldLink } from './browser-world-link';
 import { createPrayerHost, observeVisibility, returnToTitle } from './browser-lifecycle';
 import { createBrowserFrameHost } from './browser-frame';
@@ -61,7 +63,7 @@ export function browserPlatform(url: URL): GamePlatform {
       const flags = new URLSearchParams(location.search);
       const recording = flags.has('record-scene') || flags.has('record-only') ? new RecordingPipeline() : undefined;
       if (recording) (window as Window & { __recording?: RecordingPipeline }).__recording = recording;
-      const rig = createSceneRig($('gameContainer'), isOn('composer'), recording);
+      const rig = createSceneRig(pageRigHost($('gameContainer')), isOn('composer'), recording);
       canvas = rig.canvas;
       return rig;
     },
@@ -103,7 +105,28 @@ export function browserPlatform(url: URL): GamePlatform {
     photo: () => new PhotoMode(),
     chat: () => new Chat(),
     rucksack: (state) => new Rucksack(state),
-    screen: (panels) => screenOf({ ...panels, canvas: drawnOn() }),
+    // the page built every one of these itself, so they are its own widgets coming back
+    screen: (parts) => screenOf({
+      ...parts, canvas: drawnOn(),
+      hud: parts.hud as Hud, chat: parts.chat as Chat, dialogue: parts.dialogue as DialogueBox,
+      journal: parts.journal as Journal, rucksack: parts.rucksack as Rucksack, worldMap: parts.worldMap as WorldMap,
+      kinPanel: parts.kinPanel as KinPanel, roster: parts.roster as Roster, photo: parts.photo as PhotoMode,
+      playerList: parts.playerList as PlayerList,
+    }),
+    company() {
+      const status = $('onlineStatus');
+      const bar = $('duelbar');
+      return {
+        others: (renderer) => new OtherPlayers(renderer),
+        playerList: () => new PlayerList(),
+        status: (text) => { status.textContent = text; },
+        fight: (readout) => {
+          bar.classList.toggle('show', readout !== null);
+          if (readout !== null) bar.textContent = readout;
+        },
+        viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+      };
+    },
     frameHost: (flash) => createBrowserFrameHost(drawnOn(), $('castbar'), flash),
     gameEvents: createBrowserGameEvents,
     prayerHost: createPrayerHost,

@@ -6,9 +6,7 @@ import { VILLAGE_REACH, villageAt } from '../world/structures';
 import { BIOMES, HUB_NAME, SEA_NAME } from '../world/biomes';
 import type { CompassTarget } from './compass';
 import type { MapMarker } from './mapbase';
-import type { Compass } from './compass';
-import type { Clock } from './clock';
-import type { Hud } from './hud';
+import type { ClockSurface, CompassSurface, HudSurface, RucksackSurface } from '../platform/game-platform';
 import type { GameState } from '../game/state';
 import type { Player } from '../entities/player';
 import type { Structures } from '../world/structures';
@@ -18,7 +16,6 @@ import type { FerryLine } from '../game/ferry';
 import type { Quest } from '../game/quests';
 import type { Sailing } from '../game/sailing';
 import type { Places } from '../game/places';
-import type { Rucksack } from './rucksack';
 import { createActionPreview } from './action-preview';
 
 /**
@@ -48,10 +45,10 @@ export interface ReadoutContext {
   ferries: Array<{ line: FerryLine }>;
   sailing: Sailing;
   places: Places;
-  rucksack: Rucksack;
-  hud: Hud;
-  clock: Clock;
-  compass: Compass;
+  rucksack: RucksackSurface;
+  hud: HudSurface;
+  clock: ClockSurface;
+  compass: CompassSurface;
   /** Marks other people put on the map: companions and rally points. */
   companyMarkers: () => MapMarker[];
   /** Whether the fog of war still covers the map. */

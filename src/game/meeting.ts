@@ -7,8 +7,7 @@ import type { Player } from '../entities/player';
 import type { Person } from '../world/people';
 import type { Register } from '../world/register';
 import type { Doorway } from '../world/structures';
-import type { DialogueBox } from '../ui/dialogue';
-import type { Sound } from './audio';
+import type { DialogueSurface, SoundSurface } from '../platform/game-platform';
 import type { Gifts, Kindness } from './gifts';
 import type { Grudges } from './grudge';
 import type { Handover } from './handover';
@@ -49,8 +48,8 @@ export interface Meeting {
   gifts: Gifts;
   online: Online;
   handover: Handover;
-  sound: Sound;
-  dialogue: DialogueBox;
+  sound: SoundSurface;
+  dialogue: DialogueSurface;
   /** The lines a person says are seeded, so the same villager says the same things. */
   rng: () => number;
   /**

@@ -210,7 +210,7 @@ export interface SceneRig {
    * Handed out as a canvas rather than as the renderer that owns it, so that none of those three
    * has an opinion about how the picture got there.
    */
-  readonly canvas: HTMLCanvasElement;
+  readonly canvas: HTMLCanvasElement | null;
   /** Give the graphics context back. The renderer's, and nobody else's business how. */
   dispose(): void;
   /**
@@ -248,6 +248,47 @@ export function nativeRig(rig: SceneRig): { scene: THREE.Scene; water: WaterMate
 }
 
 /**
+ * Where a rig's picture goes, and what it remembers between games.
+ *
+ * The page's is a canvas in the game container, sized to the window, with its quality kept in local
+ * storage. A host whose frames are drawn by something else — an installed app's native renderer —
+ * has no canvas and no WebGL at all, and records each frame instead (#529, #560).
+ */
+export interface RigHost {
+  /** Where the canvas goes; null for a host with no page to put one on, and so no canvas. */
+  container: HTMLElement | null;
+  /** Ask for no WebGL context: the recorder is the only thing the frames go to (#529). */
+  recordOnly: boolean;
+  /** The picture's size, in CSS pixels. */
+  size(): { width: number; height: number };
+  pixelRatio(): number;
+  /** The level chosen last time, if one ever was. */
+  remembered(): Quality | null;
+  remember(level: Quality): void;
+}
+
+/** The page: the game container, the window, and the quality kept in local storage. */
+export function pageRigHost(container: HTMLElement): RigHost {
+  return {
+    container,
+    // the page's address does not change under a running game, so it is read once and not per draw
+    recordOnly: new URLSearchParams(location.search).has('record-only'),
+    size: () => ({ width: window.innerWidth, height: window.innerHeight }),
+    pixelRatio: () => window.devicePixelRatio,
+    remembered() {
+      try {
+        const saved = localStorage.getItem('ai.world/quality');
+        if (saved === 'low' || saved === 'medium' || saved === 'high') return saved;
+      } catch { /* private browsing: the default will do */ }
+      return null;
+    },
+    remember(level) {
+      try { localStorage.setItem('ai.world/quality', level); } catch { /* nothing to do */ }
+    },
+  };
+}
+
+/**
  * Build the rig, optionally drawing through a composer.
  *
  * `asked` is the title-screen switch (`switches.ts`); whether it is honoured is
@@ -255,9 +296,8 @@ export function nativeRig(rig: SceneRig): { scene: THREE.Scene; water: WaterMate
  * pass however the preference reads. See `secondrig.ts` for why this is the only thing that
  * differs between the two paths.
  */
-export function createSceneRig(container: HTMLElement, asked = false, recording?: RecordingPipeline): SceneRig {
-  // the page's address does not change under a running game, so it is read once and not per draw
-  const recordOnly = new URLSearchParams(location.search).has('record-only');
+export function createSceneRig(host: RigHost, asked = false, recording?: RecordingPipeline): SceneRig {
+  const { recordOnly } = host;
   /*
    * No WebGL at all when only the recorder is drawing (#529).
    *
@@ -274,14 +314,16 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     // on a machine with two graphics chips, ask for the quick one
     powerPreference: 'high-performance',
   });
-  // the surface input binds to and the page lays out, whichever is drawing
-  const canvas = renderer?.domElement ?? document.createElement('canvas');
+  // the surface input binds to and the page lays out, whichever is drawing; none off the page
+  const canvas = renderer?.domElement ?? (host.container ? document.createElement('canvas') : null);
   const sizeCanvas = () => {
-    if (renderer) { renderer.setSize(window.innerWidth, window.innerHeight); return; }
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    canvas.style.width = `${window.innerWidth}px`;
-    canvas.style.height = `${window.innerHeight}px`;
+    const { width, height } = host.size();
+    if (renderer) { renderer.setSize(width, height); return; }
+    if (!canvas) return;
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
   };
   sizeCanvas();
   if (renderer) {
@@ -290,7 +332,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = true;
   }
-  container.appendChild(canvas);
+  if (canvas) host.container?.appendChild(canvas);
 
   const sceneState = new SceneState();
   const { graph, lighting, waterNode, deepNode } = sceneState;
@@ -346,13 +388,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
   let shadowHalf = 0;
 
   /** The level chosen last time, if the player has ever chosen one. */
-  const remembered = ((): Quality => {
-    try {
-      const saved = localStorage.getItem('ai.world/quality');
-      if (saved === 'low' || saved === 'medium' || saved === 'high') return saved;
-    } catch { /* private browsing: the default will do */ }
-    return 'high';
-  })();
+  const remembered: Quality = host.remembered() ?? 'high';
 
   // straight at the canvas or through a composer, chosen once for the rig's life. Built after the
   // quality is known, because `low` refuses the composer
@@ -366,7 +402,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
     setQuality(level: Quality) {
       const want = QUALITY[level];
       this.quality = level;
-      renderer?.setPixelRatio(Math.min(window.devicePixelRatio, want.pixels));
+      renderer?.setPixelRatio(Math.min(host.pixelRatio(), want.pixels));
       if (renderer) renderer.shadowMap.enabled = want.shadows;
       sun.castShadow = want.shadows;
       lighting.sun.castShadow = want.shadows;
@@ -384,7 +420,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
           if (material) material.needsUpdate = true;
         }
       });
-      try { localStorage.setItem('ai.world/quality', level); } catch { /* nothing to do */ }
+      host.remember(level);
     },
     follow(x, z, zoom) {
       sun.target.position.set(x, 0, z);
@@ -403,7 +439,8 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       surfaceBridge.sync(deepNode);
       // the ground in shot is a rectangle zoom*aspect across by zoom*GROUND_DEPTH*2 deep, centred
       // on the target; nothing past its half-diagonal can be seen, so nothing there need be drawn
-      const size = renderer?.getSize(viewSize) ?? viewSize.set(canvas.width, canvas.height);
+      const size = renderer?.getSize(viewSize)
+        ?? (canvas ? viewSize.set(canvas.width, canvas.height) : viewSize.set(host.size().width, host.size().height));
       const aspect = size.x / Math.max(1, size.y);
       groundRadius = Math.hypot(zoom * aspect / 2, zoom * GROUND_DEPTH);
       setWorldView(scene, x, z, groundRadius + VIEW_MARGIN);
@@ -475,7 +512,7 @@ export function createSceneRig(container: HTMLElement, asked = false, recording?
       coast.dispose();
       presenter?.dispose();
       renderer?.dispose();
-      canvas.remove();
+      canvas?.remove();
     },
     brightness() {
       return { sun: sun.intensity, hemi: hemi.intensity };

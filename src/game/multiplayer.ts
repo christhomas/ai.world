@@ -10,11 +10,8 @@ import { Duel } from './duel';
 import { Breath, guardCovers } from './breath';
 import type { Mines } from './mines';
 import { Handover } from './handover';
-import { OtherPlayers } from '../render/others';
-import { PlayerList } from '../ui/players';
 import { compassDir } from '../world/structures';
 import { toldAsChange } from '../world/telling';
-import { $ } from '../ui/dom';
 import type { IsoCamera } from '../render/camera';
 import type { WorldKind } from '../world/countries';
 import { damageEntity, type Entity } from '../entities/entity';
@@ -27,10 +24,7 @@ import type { Plots } from './farming';
 import type { Quest } from './quests';
 import type { Mount } from './mount';
 import type { Sailing } from './sailing';
-import type { DialogueBox } from '../ui/dialogue';
-import type { Hud } from '../ui/hud';
-import type { Chat } from '../ui/chat';
-import type { Sound } from './audio';
+import type { ChatSurface, CompanySurfaces, DialogueSurface, HudSurface, SoundSurface } from '../platform/game-platform';
 import type { MapMarker } from '../ui/mapbase';
 import type { Register } from '../world/register';
 import type { HighCountry } from './highcountry';
@@ -51,6 +45,8 @@ import { claimCartCargo } from './cartloot';
  */
 export interface MultiplayerContext {
   worldLink: WorldLinkFactory;
+  /** Who else is here, drawn and listed, and the lines that say so: the host's to show. */
+  company: CompanySurfaces;
   high: HighCountry;
   player: Player;
   state: GameState;
@@ -66,10 +62,10 @@ export interface MultiplayerContext {
   sailing: Sailing;
   entityRenderer: EntityRenderer;
   camera: IsoCamera;
-  dialogue: DialogueBox;
-  hud: Hud;
-  chat: Chat;
-  sound: Sound;
+  dialogue: DialogueSurface;
+  hud: HudSurface;
+  chat: ChatSurface;
+  sound: SoundSurface;
   questList: Quest[];
   /** Places the hero has named, shared with the rest of the game. */
   discovered: Set<string>;
@@ -134,15 +130,13 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera,
     dialogue, hud, chat, sound, questList, discovered, register, hires, high, seed, placeName, persist, showOffer,
   } = ctx;
-  const onlineStatus = $('onlineStatus');
-  const duelBar = $('duelbar');
 
   const market = new Market();
   const party = new Party();
   const duel = new Duel();
   const handover = new Handover();
-  const others = new OtherPlayers(entityRenderer);
-  const playerList = new PlayerList();
+  const others = ctx.company.others(entityRenderer);
+  const playerList = ctx.company.playerList();
   /** Rally points people have dropped, each fading in its own time. */
   const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
 
@@ -431,9 +425,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
    */
   const showDuel = (): void => {
     const fighting = duel.active || warband.active;
-    duelBar.classList.toggle('show', fighting);
-    if (!fighting) return;
-    duelBar.textContent = warband.active ? warband.readout() : duel.readout();
+    ctx.company.fight(fighting ? (warband.active ? warband.readout() : duel.readout()) : null);
   };
 
   /** Bank what a monster somebody else resolved for us left behind. */
@@ -644,10 +636,11 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     });
     others.sync(online.players.values(), standingIn);
     others.settle(heightAt);
-    others.project(camera, window.innerWidth, window.innerHeight);
-    onlineStatus.textContent = online.connected
+    const view = ctx.company.viewport();
+    others.project(camera, view.width, view.height);
+    ctx.company.status(online.connected
       ? `online · ${online.count + 1} here${party.size ? ` · party of ${party.size}` : ''}`
-      : online.status;
+      : online.status);
   };
 
   const playerListInput = () => ({

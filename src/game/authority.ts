@@ -3,7 +3,7 @@ import type { Entity } from '../entities/entity';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
 import type { ChunkManager } from '../render/chunkManager';
-import type { Sound } from './audio';
+import type { SoundSurface } from '../platform/game-platform';
 import { spoils } from './combat';
 import { whatAKillMeans } from './consequences';
 import type { Places } from './places';
@@ -30,7 +30,7 @@ export interface Authority {
   entities: EntityManager;
   places: Places;
   sailing: Sailing;
-  sound: Sound;
+  sound: SoundSurface;
   /** The world's creatures above ground. */
   wildlife: Wildlife;
   /** And on whatever floor the hero is standing on, when he is standing on one. */

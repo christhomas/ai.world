@@ -10,7 +10,7 @@ import { WhaleSchool } from '../render/whales';
 import { compassDir, type Structures } from '../world/structures';
 import type { ChunkManager } from '../render/chunkManager';
 import type { TerrainSampler } from '../world/terrain';
-import type { Sound } from './audio';
+import type { SoundSurface } from '../platform/game-platform';
 import type { Director } from './director';
 import { gone, hauntsOf, toRaise, warningFor, type Haunt } from './haunts';
 import { SENDS, sentBy, type Nemesis } from './nemesis';
@@ -44,7 +44,7 @@ export interface Watched {
   nemesis: Nemesis;
   director: Director;
   sailing: Sailing;
-  sound: Sound;
+  sound: SoundSurface;
   flash: (message: string) => void;
   /** The screen's own flinch, for thirty tonnes of whale landing on the boat. */
   hurt: () => void;
