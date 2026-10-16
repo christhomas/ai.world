@@ -175,7 +175,8 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         return;
       }
       if (rebuilt === null) chat.line('This world runs another build of the game. Reload the page to play it as it is.', 'sys');
-      else entityRenderer.rebuild(rebuilt);
+      // a room or a floor open now draws with its own renderer, built from the models it entered with
+      else for (const drawing of [entityRenderer, places.underground?.renderer, places.indoors?.renderer]) drawing?.rebuild(rebuilt);
     },
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },

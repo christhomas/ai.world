@@ -1,11 +1,11 @@
 # Gameplay content catalogue
 
-Status: slices 1–4 of #624 for the server and browser clients. The bundled JSON in `models/`,
+Status: #624 is complete for the server and browser clients. The bundled JSON in `models/`,
 `properties/`, `behaviours/` and `animations/` seeds a SQLite catalogue the first time a server
 opens its durable database. **The server's simulation runs on the catalogue's published revision**,
 every edit or rollback published through the tools is installed into the running game as it
 commits, and **every client in every world is sent it** and installs it too. Solo play in a
-page's own worker still runs the bundled JSON; see "Not done yet".
+page's own worker runs the bundled JSON; see "Solo and offline play".
 
 ## Records
 
@@ -121,7 +121,11 @@ production server bundle and a fresh database. Through this page it:
 - has a second operator publish over the first, and checks the first's stale edit is refused;
 - refuses a spawn table naming a creature that does not exist;
 - restarts the server on the same database and checks the edits are what it runs;
-- rolls back to the seed, and checks the player is sent that too.
+- rolls back to the seed, and checks the player is sent that too;
+- opens the production game page joined to the server, publishes a hero with a magenta block above
+  his head, and checks the page draws it, then rolls back and checks the page draws him as he was.
+  The page's debug probes exist only in development builds, so it counts magenta pixels in a
+  screenshot.
 
 ## Through the tools portal
 
@@ -151,14 +155,18 @@ backup and restore in [self-hosting](self-hosting.md#data-backups-and-restore) c
 a backup restores its catalogue history with it. Deleting the database, or starting a server
 against a new one, seeds a fresh catalogue from whatever JSON that build carries.
 
-## Not done yet
+## Solo and offline play
 
-The remaining slices of #624 are not in this change:
+Solo play in a page's own worker, and the installed apps offline, run the content bundled with the
+build they shipped in. They keep no catalogue of their own, by decision (#624):
 
-- the solo/offline hosts' own seed-once catalogue: a page's worker world, and the installed apps
-  offline;
-- rebuilding creature meshes in an interior or dungeon renderer that is open during an edit (the
-  overworld's are rebuilt; a room builds its own from the installed models when entered);
-- a hosted check that a *rendered* client changes. The production proof stops at the wire, because
-  the page's debug probes exist only in development builds. The page's install and mesh rebuild
-  are covered by unit tests.
+- nothing can edit solo content, so a local catalogue would only ever hold old defaults;
+- a seed-once copy would stop a release's balance changes from reaching an existing solo player
+  until `CONTENT_DEFAULTS_VERSION` was raised, and would hide edits to `models/` or `properties/`
+  in development behind the cached copy.
+
+Online play runs the server's catalogue, as above. Keeping a joined server's published revision for
+offline play in that server's world belongs with the installed apps' storage (#577).
+
+A room or floor that is open when a revision lands rebuilds its changed creature bodies along with
+the overworld's.
