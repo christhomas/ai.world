@@ -46,7 +46,7 @@ final class CutawayState {
   };
 }
 
-/// One frame as the native renderer drew it: opaque RGBA8 pixels, top row first.
+/// One frame as the native renderer drew it: RGBA8 pixels with their alpha as drawn, top row first.
 final class RenderSnapshot {
   RenderSnapshot({required this.width, required this.height, required this.rgba}) {
     if (width < 1 || height < 1 || rgba.length != width * height * 4) {
