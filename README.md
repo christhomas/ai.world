@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.104.1 — 2026-10-16
+
+Ridden horses climb terraces again and stop at paddock rails
+
 ### v0.104.0 — 2026-10-16
 
 Live content: edit creatures, models, behaviours and spawn tables from the tools
@@ -626,10 +630,6 @@ A move never carries the hero, nests need a real ledge, record-only needs no Web
 ### v0.103.6 — 2026-09-30
 
 The GPU-free frame path lands, prayers stay saved, and a release tests nothing on the machine that cuts it
-
-### v0.103.5 — 2026-09-30
-
-An idle scene costs next to nothing to describe each frame, and boats on the Flutter client keep their colours in every season
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
