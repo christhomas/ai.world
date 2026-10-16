@@ -9,7 +9,7 @@ import { Simulation, type SimOptions } from './sim';
 import { GroundWorker } from './groundworker';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
-import { addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
+import { accountName, addAccount, migrate as migrateAccounts, pairedWorker, sweepSessions } from './tools/accounts';
 import { migrateDomain, openDurable } from './durable/db';
 import { MINDS_SCHEMA } from './durable/minds';
 import { EVENTS_SCHEMA } from './durable/events';
@@ -151,7 +151,7 @@ function openTools(
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
     worldEditor: worldEditor(sim, groundWorker),
-    content: content ? contentEditor(content) : undefined,
+    content: content ? contentEditor(content, (id) => accountName(db, id) ?? id) : undefined,
     // written where the durable database is, from what the answer says as it streams past
     record: (run, id) => {
       try { writeDown(db, id, run); } catch (why) {

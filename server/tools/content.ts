@@ -82,8 +82,12 @@ function requestOf(value: unknown):
   return { base: base as number, note, changes: out };
 }
 
-/** Called only after the tools portal has checked the signed-in session; `who` is that account. */
-export function contentEditor(catalogue: ContentCatalogue) {
+/**
+ * Called only after the tools portal has checked the signed-in session; `who` is that account's id,
+ * and `nameOf` the name it is written into a revision under, which is what anybody reading the
+ * history recognises.
+ */
+export function contentEditor(catalogue: ContentCatalogue, nameOf: (account: string) => string = (account) => account) {
   return async (req: IncomingMessage, res: ServerResponse, who: string): Promise<void> => {
     try {
       if (req.method === 'GET') {
@@ -113,9 +117,10 @@ export function contentEditor(catalogue: ContentCatalogue) {
         try { parsed = JSON.parse(body); } catch { reply(res, 400, { error: 'The edit is not JSON.' }); return; }
         const asked = requestOf(parsed);
         if (typeof asked === 'string') { reply(res, 400, { error: asked }); return; }
+        const author = nameOf(who);
         const head = 'rollback' in asked
-          ? catalogue.rollback(asked.base, asked.rollback, who, asked.note)
-          : catalogue.edit(asked.base, asked.changes, who, asked.note);
+          ? catalogue.rollback(asked.base, asked.rollback, author, asked.note)
+          : catalogue.edit(asked.base, asked.changes, author, asked.note);
         reply(res, 200, { head });
         return;
       }
