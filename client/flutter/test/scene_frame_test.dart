@@ -511,8 +511,8 @@ void main() {
           for (final id in named) <String, dynamic>{'id': id, 'kind': 'mesh', 'geometryId': id, 'world': identity, 'visible': true},
         ],
       },
-      if (geometries != null) 'geometries': geometries,
-      if (released != null) 'released': released,
+      'geometries': ?geometries,
+      'released': ?released,
     };
     final triangle = <String, dynamic>{
       'attributes': <String, dynamic>{'position': <String, dynamic>{'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 0, 1]}},
