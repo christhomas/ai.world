@@ -1,3 +1,4 @@
+import type { ContentWire } from '../core/content';
 import { EMOTES, type Clock, type CreatureSnap, type Letter, type PartyMember, type Presence,
   type ServerMessage, type Stall, type StallItem, type TradeOffer, type WorldDelta } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
@@ -18,6 +19,11 @@ import type { Anchor } from '../world/manifest';
  */
 
 export interface OnlineEvents {
+  /**
+   * The gameplay content this world runs (#624), as changes from the bundle whose fingerprint is
+   * `bundle`. Arrives before the welcome and again whenever an edit is published.
+   */
+  onContent?: (bundle: string, changed: ContentWire[], deleted: string[]) => void;
   /**
    * Bytes rather than words: the world itself, when the world starts sending it.
    *
@@ -188,6 +194,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       if (!o.local) {
         o.events.onSystem(`Joined world ${message.seed} as ${o.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
       }
+      break;
+    case 'content':
+      o.events.onContent?.(message.bundle, message.changed, message.deleted);
       break;
     case 'country':
       o.events.onCountryGrown(message.stamp, message.kind);

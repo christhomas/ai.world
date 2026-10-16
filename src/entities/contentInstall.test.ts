@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { ContentError, inventory, type ContentRecord } from '../core/content';
+import { ContentError, changesFrom, fingerprint, inventory, withChanges, type ContentRecord } from '../core/content';
 import { DEFAULT_CONTENT } from '../core/contentDefaults';
-import { installContent } from './contentInstall';
+import { bundledContent, installContent, installFromServer } from './contentInstall';
+import { createEntityScene } from '../render/entities';
+import { SceneGraph } from '../core/scenegraph';
+import { Entity, Herd } from './entity';
+import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { MODELS } from './models';
 import { BEHAVIOUR, PERSON_KINDS, PROPERTIES, STEP_LIMIT } from './properties';
@@ -89,5 +93,63 @@ describe('installing a content revision into the running game', () => {
     installContent(edited({ 'behaviour:grazer': bodyOf('behaviour:wanderer') }));
     expect(allTrees().grazer).not.toBe(before);
     expect(typeof allTrees().grazer).toBe('function');
+  });
+
+  it('says which bodies changed, so a renderer builds only those again', () => {
+    const wolfModel = bodyOf<{ parts?: unknown[] }>('model:wolf');
+    expect(installContent(defaults)).toEqual([]);
+    const changed = installContent(edited({
+      'model:wolf': { ...wolfModel, parts: [...(wolfModel.parts ?? []), { box: [0.13, 0.11, 0.17], at: [0, 1.1, 0], color: '#ff00ff' }] },
+    }));
+    expect(changed).toEqual(['wolf']);
+  });
+
+  it('draws a changed body again without losing anybody drawn with it', () => {
+    const graph = new SceneGraph(0);
+    const renderer = createEntityScene(graph);
+    const kind = KINDS.wolf;
+    const wolf = new Entity(kind, 0, 0, new Herd(kind, 0, 0, 0, 0, 0), 'redrawn', mulberry32(5));
+    expect(renderer.add(wolf)).toBe(true);
+    renderer.update();
+    const meshesBefore = graph.nodes.filter((node) => node.kind === 'instances').length;
+    expect(meshesBefore).toBeGreaterThan(0);
+    const wolfModel = bodyOf<{ parts?: unknown[] }>('model:wolf');
+    const rebuilt = installContent(edited({
+      'model:wolf': { ...wolfModel, parts: [...(wolfModel.parts ?? []), { box: [0.13, 0.11, 0.17], at: [0, 1.1, 0], color: '#ff00ff' }] },
+    }));
+    renderer.rebuild(rebuilt);
+    renderer.update();
+    expect(wolf.slot).toBeGreaterThanOrEqual(0);
+    expect(renderer.count).toBe(1);
+    expect(graph.nodes.filter((node) => node.kind === 'instances').length).toBe(meshesBefore + 1);
+    renderer.dispose();
+  });
+});
+
+describe('content a server sends to a client', () => {
+  afterEach(() => installContent(defaults));
+
+  it('travels as the changes from a bundle both ends fingerprint the same way', () => {
+    const wolf = bodyOf<{ hp: number }>('creature:wolf');
+    expect(fingerprint(defaults)).toBe(bundledContent());
+    expect(fingerprint(defaults)).toMatch(/^[0-9a-f]{16}$/);
+    const revision = edited({ 'creature:wolf': { ...wolf, hp: wolf.hp + 3 } })
+      .filter((record) => record.id !== 'note:properties/beasts.json');
+    expect(fingerprint(revision)).not.toBe(fingerprint(defaults));
+    const { changed, deleted } = changesFrom(defaults, revision);
+    expect(changed.map((wire) => wire.id)).toEqual(['creature:wolf']);
+    expect(deleted).toEqual(['note:properties/beasts.json']);
+    expect(changesFrom(defaults, defaults)).toEqual({ changed: [], deleted: [] });
+    expect(withChanges(defaults, changed, deleted).map((record) => [record.id, record.body]))
+      .toEqual(revision.map((record) => [record.id, record.body]));
+  });
+
+  it('installs what the server runs over this build\'s own bundle, and refuses another build\'s', () => {
+    const wolf = bodyOf<{ hp: number }>('creature:wolf');
+    const { changed, deleted } = changesFrom(defaults, edited({ 'creature:wolf': { ...wolf, hp: wolf.hp + 3 } }));
+    expect(installFromServer('0000000000000000', changed, deleted)).toBeNull();
+    expect(KINDS.wolf.hp).toBe(wolf.hp);
+    expect(installFromServer(bundledContent(), changed, deleted)).toEqual([]);
+    expect(KINDS.wolf.hp).toBe(wolf.hp + 3);
   });
 });

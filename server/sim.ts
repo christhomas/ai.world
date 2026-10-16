@@ -92,6 +92,12 @@ export interface SimOptions {
   minds?: DatabaseSync;
   /** The bounded parish Chronicle, in the same durable file under its own schema. */
   chronicles?: DatabaseSync;
+  /**
+   * What a joining client is told about the gameplay content this world runs, given the
+   * fingerprint of the content it was built with (#624). Only a server with a content catalogue
+   * says anything; a page's own worker runs the page's own content and has nothing to tell it.
+   */
+  content?: (bundle: string | undefined) => ServerMessage | null;
 }
 
 /** One player's connection, from the simulation's side. */
@@ -246,6 +252,7 @@ export class Simulation {
   /** Chunk requests heard while a client's first country was still being prepared. */
   private readonly wantedWhileWarming = new Map<Client, Map<string, [number, number]>>();
   private readonly prepare?: GroundSource;
+  private readonly contentFor?: (bundle: string | undefined) => ServerMessage | null;
   private readonly preparations: Preparations;
   /** A survey may grow an unnamed seed before its first player chooses which country it is. */
   private readonly groundKinds = new Map<number, 'road' | 'endless'>();
@@ -303,6 +310,7 @@ export class Simulation {
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
     this.prepare = options.prepare;
+    this.contentFor = options.content;
     this.preparations = new Preparations(options.prepareTimeout, this.hostClock);
     this.reach = options.reach ?? REACH;
   }
@@ -1153,6 +1161,9 @@ export class Simulation {
     const at = Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined;
     const joining = this.rooms.admit(wire, room, seed, cleanName(message.name), at, message.playerId);
 
+    // the content first, so everything the welcome sets going runs on what this world runs
+    const content = this.contentFor?.(message.content);
+    if (content) this.rooms.send(joining, content);
     this.rooms.send(joining, {
       type: 'welcome', id: joining.presence.id, seed, world: record,
       players: [...room.clients].filter((c) => c !== joining).map((c) => c.presence),

@@ -4,6 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
+import type { ContentWire } from '../src/core/content';
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 import type { WorldKind } from '../src/world/countries';
@@ -11,7 +12,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { TerrainLayer } from '../src/world/terrainlayers';
 import type { CarrierFact } from '../src/world/carrierbook';
 
-export const PROTOCOL_VERSION = 25;
+export const PROTOCOL_VERSION = 26;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
@@ -462,7 +463,7 @@ export type ClientMessage =
    * durable handle whose seed the server has already recorded; no terrain discriminator travels
    * because the endless country is the only country the running game can grow.
    */
-  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[]; highlands?: readonly Anchor[] }
+  | { type: 'join'; worldName?: string; seed: number; kind?: WorldKind; name: string; playerId?: string; version: number; day: number; time: number; x?: number; z?: number; terrain?: readonly TerrainLayer[]; highlands?: readonly Anchor[]; content?: string }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -808,6 +809,12 @@ export type ServerMessage =
    */
   | { type: 'arrested'; id: number }
   | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
+  /**
+   * The gameplay content this server runs (#624): its catalogue's published revision, as the
+   * records that differ from the bundled JSON whose fingerprint is `bundle`. Sent before the
+   * welcome, and to everyone whenever a tools edit publishes a revision.
+   */
+  | { type: 'content'; revision: number; bundle: string; changed: ContentWire[]; deleted: string[] }
   /** A newly joined country is still being prepared; repeats keep the page's loading state alive. */
   | { type: 'country-progress'; done: number; total: number }
   /**

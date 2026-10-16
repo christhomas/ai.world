@@ -1,12 +1,11 @@
 # Gameplay content catalogue
 
-Status: slices 1–3 of #624, and the server half of slice 4. The bundled JSON in `models/`,
+Status: slices 1–4 of #624 for the server and browser clients. The bundled JSON in `models/`,
 `properties/`, `behaviours/` and `animations/` seeds a SQLite catalogue the first time a server
 opens its durable database. **The server's simulation runs on the catalogue's published revision**,
-and every edit or rollback published through the tools is installed into the running game as it
-commits. **Clients are not sent the revision yet**: browsers and the native hosts still draw,
-predict and play solo with the bundled JSON, so an edit that changes something a client also
-computes (a model, the hero's own pace) is not yet seen the same way on both ends.
+every edit or rollback published through the tools is installed into the running game as it
+commits, and **every client in every world is sent it** and installs it too. Solo play in a
+page's own worker still runs the bundled JSON; see "Not done yet".
 
 ## Records
 
@@ -93,6 +92,19 @@ The server installs the catalogue's head when it starts, and refuses to start if
 never quietly falls back to the bundled JSON. Every committed revision is then installed as it
 commits. JavaScript runs one thing at a time, so that is always between two simulation ticks.
 
+## Sent to clients
+
+A browser joining a world sends the fingerprint of the content it was built with (`bundledContent`,
+64 bits of FNV-1a over its bundled records). Before the welcome, the server answers with a
+`content` message: the head revision, its own bundle's fingerprint, and only the records that
+differ from that bundle, which is usually none. It sends the same message to everyone whenever a
+revision is published. Protocol version 26 carries it.
+
+A page whose bundle matches lays the changes over its own copy and installs the result in place,
+as the server does. It then rebuilds the creature meshes whose models changed, keeping every
+creature drawn with them. A page whose bundle differs is a different build from its server; it
+is told to reload rather than given a third set of content that neither end runs.
+
 ## Through the tools portal
 
 `/tools/content/data` answers a signed-in tools account only. Anybody else is sent to the login
@@ -125,8 +137,9 @@ against a new one, seeds a fresh catalogue from whatever JSON that build carries
 
 The remaining slices of #624 are not in this change:
 
-- sending the published revision to clients, and installing it in browser and native hosts,
-  including rebuilding model geometry they have already built;
-- the solo/offline hosts' own seed-once catalogue;
+- the solo/offline hosts' own seed-once catalogue: a page's worker world, and the installed apps
+  offline;
+- rebuilding creature meshes in an interior or dungeon renderer that is open during an edit (the
+  overworld's are rebuilt; a room builds its own from the installed models when entered);
 - live revision delivery, and the tools editor;
 - the end-to-end proof on GitHub.
