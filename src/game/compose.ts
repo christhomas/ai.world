@@ -133,14 +133,14 @@ export function composeGame(start: GameStart, platform: GamePlatform): GameHandl
   // Attach cutaway before shader compilation; its uniform toggles without recompiling materials.
   const cutaway = new Cutaway();
   chunks.seeThrough(cutaway);
-  cutaway.show(wantsCutaway());
+  cutaway.show(wantsCutaway(platform.settings));
 
   const hud = platform.hud(rig, seed, worldName);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
   hud.setSeeThrough(cutaway.on);
   hud.onSeeThroughChange = (on) => {
     cutaway.show(on);
-    rememberCutaway(on);
+    rememberCutaway(on, platform.settings);
   };
   // the graphics choice in Options belongs to the host that draws: see `hud` there
   const { fog, minimap, worldMap } = platform.maps(graph, sampler);
@@ -616,7 +616,7 @@ export function composeGame(start: GameStart, platform: GamePlatform): GameHandl
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked,
     host: platform.frameHost((message) => hud.flash(message)),
-    blows, tidings: captureTidings(tidings), watch, announceWindUps, onAttack,
+    blows, tidings: captureTidings(tidings, platform.shotClock), watch, announceWindUps, onAttack,
     noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,

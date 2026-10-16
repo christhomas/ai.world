@@ -67,6 +67,8 @@ export function browserPlatform(url: URL): GamePlatform {
     frameClock: browserClock,
     jobs: { chunks: browserChunkJobs, grower: growerFor },
     chunkKeep: browserKeep,
+    settings: localStorage,
+    shotClock: (window as Window & { __shotClock?: { newsReady: boolean } }).__shotClock,
     rig() {
       const flags = new URLSearchParams(location.search);
       const recording = flags.has('record-scene') || flags.has('record-only') ? new RecordingPipeline() : undefined;

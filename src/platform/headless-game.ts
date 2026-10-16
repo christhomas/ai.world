@@ -201,6 +201,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let visible = true;
   const watching = new Set<(active: boolean) => void>();
   let handles: Parameters<typeof installProbes>[0] | null = null;
+  const remembered = new Map<string, string>();
 
   const rigHost: RigHost = {
     container: null,
@@ -343,6 +344,10 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       grower: (seed, country) => createCountryGrower(seed, country.store, countryInProcess(clock, now)),
     },
     chunkKeep: keptInMemory,
+    settings: {
+      getItem: (key) => remembered.get(key) ?? null,
+      setItem: (key, value) => { remembered.set(key, value); },
+    },
     company: () => company,
     worldLink: worldInProcess(clock, () => options.vault ?? new Forgetful()),
     // play alone, against the world in this thread: what the page does when no link names a server

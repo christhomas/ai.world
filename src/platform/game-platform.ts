@@ -158,6 +158,10 @@ export interface GamePlatform {
   chunkKeep(): Keep;
   /** Other players, and the lines that say who is here. */
   company(): CompanySurfaces;
+  /** Small preferences the game remembers between games, like whether the hero is seen through walls. */
+  readonly settings: Pick<Storage, 'getItem' | 'setItem'>;
+  /** A screenshot harness's clock, which holds the first daily news until the ground has settled. */
+  readonly shotClock?: { newsReady: boolean };
   /** How a shared world is reached, and the private one beside it. */
   readonly worldLink: WorldLinkFactory;
   /** Whose world to play in at the start, and how somebody asks for another. */

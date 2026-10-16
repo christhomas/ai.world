@@ -94,7 +94,7 @@ export function screenOf(p: Panels): Screen {
     toggleSeeThrough: () => {
       const on = !p.cutaway.on;
       p.cutaway.show(on);
-      rememberCutaway(on);
+      rememberCutaway(on, localStorage);
       // the switch in Options is the same switch, so it has to move too
       p.hud.setSeeThrough(on);
       return on;
