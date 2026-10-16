@@ -7,6 +7,7 @@ import { openDurable } from './durable/db';
 import { ContentCatalogue } from './content';
 import { ContentError, assemble, brokenReferences, inventory, type ContentRecord } from '../src/core/content';
 import { DEFAULT_CONTENT } from '../src/core/contentDefaults';
+import { checkContent } from '../src/entities/contentCheck';
 
 const DIRECTORIES = ['animations', 'behaviours', 'models/creatures', 'properties'];
 
@@ -145,7 +146,7 @@ describe('the SQLite content catalogue', () => {
     next = withBody(next, 'spawning:deep', { ...spawning, kinds: { ...spawning.kinds, orca: 9 } });
     next = [...next, ...kraken];
     db = open(file);
-    const upgraded = new ContentCatalogue(db, next, 2);
+    const upgraded = new ContentCatalogue(db, next, { defaultsVersion: 2 });
     expect(upgraded.head()).toBe(4);
     expect(upgraded.revisions().at(-1)).toMatchObject({ reason: 'upgrade', defaults: 2, parent: 3 });
     const records = upgraded.records();
@@ -157,7 +158,7 @@ describe('the SQLite content catalogue', () => {
 
     // Opening at the version it already has is a restart, not another upgrade.
     db = open(file);
-    expect(new ContentCatalogue(db, next, 2).head()).toBe(4);
+    expect(new ContentCatalogue(db, next, { defaultsVersion: 2 }).head()).toBe(4);
   });
 
   it('leaves the previous revision intact when an upgrade would publish a broken reference', () => {
@@ -169,11 +170,40 @@ describe('the SQLite content catalogue', () => {
     // The catalogue works out what a body names itself, so a griffin in the table is enough.
     const broken = withBody(defaults, 'spawning:highland', { ...spawning, kinds: { ...spawning.kinds, griffin: 1 } });
     db = open(file);
-    expect(() => new ContentCatalogue(db, broken, 2)).toThrow('spawning:highland names creature:griffin');
+    expect(() => new ContentCatalogue(db, broken, { defaultsVersion: 2 })).toThrow('spawning:highland names creature:griffin');
     const kept = new ContentCatalogue(db, defaults);
     expect(kept.head()).toBe(1);
     expect(kept.revisions()).toHaveLength(1);
     expect(bodyOf(kept.records(), 'spawning:highland')).toEqual(spawning);
+  });
+
+  it('refuses an edit the game could not load, before it is published', () => {
+    const catalogue = new ContentCatalogue(open(scratch()), defaults, { check: checkContent });
+    expect(catalogue.head()).toBe(1);
+    expect(() => catalogue.edit(1, [{ id: 'behaviour:grazer', body: { do: 'grazee' } }], 'operator'))
+      .toThrow('no such action "grazee"');
+    expect(catalogue.head()).toBe(1);
+    expect(catalogue.revisions()).toHaveLength(1);
+  });
+
+  it('rolls back to an earlier revision as a new one, deletions and all, and keeps the trail', () => {
+    const catalogue = new ContentCatalogue(open(scratch()), defaults, { check: checkContent });
+    const wolf = bodyOf(defaults, 'creature:wolf') as { hp: number };
+    expect(catalogue.edit(1, [{ id: 'creature:wolf', body: { ...wolf, hp: wolf.hp + 1 } }], 'first', 'tougher')).toBe(2);
+    expect(catalogue.edit(2, [{ id: 'spawning:deep', body: null }], 'second')).toBe(3);
+    expect(() => catalogue.rollback(2, 1, 'third')).toThrow('asked against revision 2');
+    expect(() => catalogue.rollback(3, 3, 'third')).toThrow('not an earlier revision');
+
+    expect(catalogue.rollback(3, 1, 'third')).toBe(4);
+    expect(catalogue.revisions().at(-1)).toMatchObject({ reason: 'rollback', author: 'third', note: 'back to revision 1', parent: 3 });
+    expect(assemble(catalogue.records())).toEqual(assemble(defaults));
+    expect(catalogue.history('creature:wolf').map((entry) => [entry.revision.id, entry.revision.reason, entry.deleted]))
+      .toEqual([[1, 'seed', false], [2, 'edit', false], [4, 'rollback', false]]);
+    expect(catalogue.history('spawning:deep').map((entry) => [entry.revision.id, entry.deleted]))
+      .toEqual([[1, false], [3, true], [4, false]]);
+    // History is not rewritten: revision 2 still says what it said.
+    expect((bodyOf(catalogue.records(2), 'creature:wolf') as { hp: number }).hp).toBe(wolf.hp + 1);
+    expect(() => catalogue.rollback(4, 1, 'fourth')).toThrow('already matches revision 1');
   });
 
   it('refuses to rewrite or delete history', () => {

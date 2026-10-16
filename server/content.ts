@@ -89,6 +89,24 @@ export interface ContentChange {
   body: unknown;
 }
 
+/** How a catalogue is opened. Everything has a default except the database and the bundled records. */
+export interface ContentOptions {
+  /** Raised past a catalogue's own to upgrade it. See `CONTENT_DEFAULTS_VERSION`. */
+  defaultsVersion?: number;
+  now?: () => string;
+  /**
+   * Problems with a set of live records, beyond references, that refuse a revision before it is
+   * published. The server hands it the game's own readers (`checkContent`).
+   */
+  check?: (records: readonly ContentRecord[]) => string[];
+}
+
+/** One revision that wrote a record, and whether it deleted it. */
+export interface ContentHistory {
+  revision: ContentRevision;
+  deleted: boolean;
+}
+
 /** A row as stored: the record, plus whether a person or the bundle last said what it is. */
 interface Stored {
   record: ContentRecord;
@@ -113,13 +131,14 @@ const asRevision = (row: Record<string, unknown>): ContentRevision => ({
 export class ContentCatalogue {
   private readonly defaults: readonly ContentRecord[];
   private readonly defaultsHash: string;
+  private readonly defaultsVersion: number;
+  private readonly now: () => string;
+  private readonly check: (records: readonly ContentRecord[]) => string[];
 
-  constructor(
-    private readonly db: DatabaseSync,
-    defaults: readonly ContentRecord[],
-    private readonly defaultsVersion = CONTENT_DEFAULTS_VERSION,
-    private readonly now: () => string = () => new Date().toISOString(),
-  ) {
+  constructor(private readonly db: DatabaseSync, defaults: readonly ContentRecord[], options: ContentOptions = {}) {
+    this.defaultsVersion = options.defaultsVersion ?? CONTENT_DEFAULTS_VERSION;
+    this.now = options.now ?? (() => new Date().toISOString());
+    this.check = options.check ?? (() => []);
     // What a record names is read from its body here, as it is for an edit, rather than trusted.
     this.defaults = defaults.map((record) => contentRecord(record.id, record.source, record.field, record.ordinal, record.body));
     this.defaultsHash = hashOf(this.defaults.map((record) => [record.id, record.body]));
@@ -169,6 +188,42 @@ export class ContentCatalogue {
     });
   }
 
+  /**
+   * Publish revision `to` again, as a new revision on top of `base`, which has to still be the head.
+   *
+   * Every record goes back to what it was at `to`, including whether it existed and where its value
+   * came from; a record that did not exist yet is deleted. Nothing is removed from history: the
+   * revisions between stay where they are, and rolling forward again is another rollback.
+   */
+  rollback(base: number, to: number, author: string, note = ''): number {
+    if (!author.trim()) throw new ContentError('content rollback', 'needs an author');
+    return this.write((head) => {
+      if (base !== head) throw new ContentError('content rollback', `was asked against revision ${base}, but the catalogue is at ${head}`);
+      if (!Number.isSafeInteger(to) || to < 1 || to >= head) {
+        throw new ContentError('content rollback', `revision ${to} is not an earlier revision of this catalogue`);
+      }
+      const then = new Map(this.state(to).map((row) => [row.record.id, row]));
+      const rows: Stored[] = [];
+      for (const now of this.state(head)) {
+        const was = then.get(now.record.id);
+        if (!was) {
+          if (!now.deleted) rows.push({ ...now, deleted: true, hash: 'deleted', origin: 'edit' });
+        } else if (was.deleted !== now.deleted || was.hash !== now.hash || was.origin !== now.origin
+          || was.record.ordinal !== now.record.ordinal) {
+          rows.push(was);
+        }
+      }
+      if (rows.length === 0) throw new ContentError('content rollback', `the head already matches revision ${to}`);
+      return { reason: 'rollback', author, note: note || `back to revision ${to}`, rows };
+    });
+  }
+
+  /** Every revision that wrote a record, oldest first, which is the record's audit trail. */
+  history(id: string): ContentHistory[] {
+    return this.db.prepare('SELECT revision, body IS NULL AS deleted FROM content_record WHERE id = ? ORDER BY revision')
+      .all(id).map((row) => ({ revision: this.revisionAt(Number(row.revision)), deleted: Number(row.deleted) === 1 }));
+  }
+
   /** Seed an empty catalogue, or upgrade one whose defaults are older than this build asks for. */
   private adopt(): void {
     const head = this.db.prepare('SELECT revision FROM content_head WHERE id = 1').get();
@@ -213,7 +268,8 @@ export class ContentCatalogue {
       for (const stored of next.rows) after.set(stored.record.id, stored);
       const live = [...after.values()].filter((stored) => !stored.deleted).map((stored) => stored.record);
       const broken = brokenReferences(live);
-      if (broken.length) throw new ContentError('content catalogue', `refused ${next.reason}: ${broken.join('; ')}`);
+      const problems = broken.length ? broken : this.check(live);
+      if (problems.length) throw new ContentError('content catalogue', `refused ${next.reason}: ${problems.join('; ')}`);
       const revision = Number(this.db.prepare(
         'INSERT INTO content_revision (parent, reason, author, note, defaults, defaults_hash, created_at) '
         + 'VALUES (?, ?, ?, ?, ?, ?, ?)',
