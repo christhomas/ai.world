@@ -43,6 +43,8 @@ async function playFence(page, say, go, face, observedWalk) {
   // The nearest usable rail can be villages away. Whatever comes after this trial expects the hero
   // where it left him, so he is put back there: the hunt chooses its crag by distance from him.
   const home = await page.evaluate(() => ({ x: window.__player.x, z: window.__player.z }));
+  // The first thing to go wrong is the one reported; cleanup that fails after it is only logged.
+  let failure = null;
   try {
     const yards = await page.evaluate(() => {
       const p = window.__player;
@@ -110,8 +112,14 @@ async function playFence(page, say, go, face, observedWalk) {
       pressed.mounted === 'horse' && moved > 1 && stopped > 0 && stopped <= fence.near + 0.3 &&
       trace.minRider > 0 && trace.minHorse > 0 && outside,
       JSON.stringify({ moved, stopped, fence, pressed, trace, after }));
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
-    try { await page.keyboard.up('w'); }
+    // A key that will not come up is still reported, as it always was, but only once the horse is
+    // back and the hero is home: every check after this one depends on both.
+    let stuckKey = null;
+    try { await page.keyboard.up('w'); } catch (error) { stuckKey = error; }
     finally {
       await page.evaluate(() => {
         if (window.__fenceTrace) cancelAnimationFrame(window.__fenceTrace.frame);
@@ -119,12 +127,18 @@ async function playFence(page, say, go, face, observedWalk) {
         window.__returnHorse();
       });
     }
-    const restored = await page.evaluate(() => window.__mount().saved);
-    say('the fence trial returns the original horse and cargo', JSON.stringify(restored) === JSON.stringify(original),
-      JSON.stringify(restored));
-    await go(home.x, home.z, 0);
-    await page.waitForFunction(({ x, z }) => window.__player.placed &&
-      Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 10000, polling: 100 });
+    try {
+      const restored = await page.evaluate(() => window.__mount().saved);
+      say('the fence trial returns the original horse and cargo', JSON.stringify(restored) === JSON.stringify(original),
+        JSON.stringify(restored));
+      await go(home.x, home.z, 0);
+      await page.waitForFunction(({ x, z }) => window.__player.placed &&
+        Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 10000, polling: 100 });
+    } catch (cleanup) {
+      if (!failure && !stuckKey) throw cleanup;
+      console.error('the fence trial could not also tidy up after itself:', cleanup);
+    }
+    if (stuckKey) throw stuckKey;
   }
 }
 
