@@ -105,6 +105,24 @@ as the server does. It then rebuilds the creature meshes whose models changed, k
 creature drawn with them. A page whose bundle differs is a different build from its server; it
 is told to reload rather than given a third set of content that neither end runs.
 
+## The editor
+
+**Content Catalogue** in the tools sidebar (`/tools/content-editor`) lists every record by kind, with a
+filter. Choose one to see its JSON body, where it came from and its history. Publish a change with
+a note, or delete the record. Any revision in the recent list can be rolled back to. The page says
+which revision the game is running. When an edit is refused, it shows the game's own reason: a
+stale base (somebody published first; the page reloads), a dangling reference, or anything the
+readers would fail on.
+
+`tools/content-proof.cjs` runs in the "Tools database and shell proof" workflow, against the
+production server bundle and a fresh database. Through this page it:
+- edits the wolf;
+- checks that a player already in a world is sent the revision;
+- has a second operator publish over the first, and checks the first's stale edit is refused;
+- refuses a spawn table naming a creature that does not exist;
+- restarts the server on the same database and checks the edits are what it runs;
+- rolls back to the seed, and checks the player is sent that too.
+
 ## Through the tools portal
 
 `/tools/content/data` answers a signed-in tools account only. Anybody else is sent to the login
@@ -141,5 +159,6 @@ The remaining slices of #624 are not in this change:
   offline;
 - rebuilding creature meshes in an interior or dungeon renderer that is open during an edit (the
   overworld's are rebuilt; a room builds its own from the installed models when entered);
-- live revision delivery, and the tools editor;
-- the end-to-end proof on GitHub.
+- a hosted check that a *rendered* client changes. The production proof stops at the wire, because
+  the page's debug probes exist only in development builds. The page's install and mesh rebuild
+  are covered by unit tests.
