@@ -2,6 +2,7 @@ import spawning from '../../properties/spawning.json';
 import { KINDS } from './animals';
 import { Biome } from '../world/biomes';
 import { Fields, asText } from '../core/properties';
+import { refill, replaceInPlace } from '../core/content';
 import type { TileWorld } from './entity';
 import { tileCentre } from './chunkspots';
 import type { ChunkTiles } from '../world/tiles';
@@ -87,7 +88,7 @@ export const NIGHT_PREDATORS: Record<Biome, string[]> = TABLES.NIGHT_PREDATORS;
 export const BIOME_HUNTERS: Record<Biome, SpawnWeight[]> = TABLES.BIOME_HUNTERS;
 
 /** What waits underground, by how far down you are. One entry per floor, counting from one. */
-const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> = TABLES.DUNGEON_BANDS;
+const DUNGEON_BANDS: SpawnWeight[][] = TABLES.DUNGEON_BANDS;
 
 /**
  * What is waiting in a flooded hold.
@@ -161,11 +162,11 @@ interface SpawnTables {
   WATER_ANIMALS: Record<Biome, SpawnWeight[]>;
   NIGHT_PREDATORS: Record<Biome, string[]>;
   BIOME_HUNTERS: Record<Biome, SpawnWeight[]>;
-  DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]>;
-  DROWNED_MONSTERS: readonly SpawnWeight[];
-  HIGHLAND_ANIMALS: readonly SpawnWeight[];
-  PRAYED_HIGHLAND_ANIMALS: readonly SpawnWeight[];
-  DEEP_ANIMALS: readonly SpawnWeight[];
+  DUNGEON_BANDS: SpawnWeight[][];
+  DROWNED_MONSTERS: SpawnWeight[];
+  HIGHLAND_ANIMALS: SpawnWeight[];
+  PRAYED_HIGHLAND_ANIMALS: SpawnWeight[];
+  DEEP_ANIMALS: SpawnWeight[];
 }
 
 /**
@@ -188,4 +189,25 @@ export function readSpawns(json: unknown, damage: (kind: string) => number): Spa
     PRAYED_HIGHLAND_ANIMALS: weights(file.group('prayedHighland').group('kinds')),
     DEEP_ANIMALS: weights(file.group('deep').group('kinds')),
   };
+}
+
+/**
+ * Put a published revision's spawn tables in place of the bundled ones (#624). Every list stays the
+ * same list, including each floor of the dungeon ladder, so the shallow band exported above — the
+ * first floor, by reference — and a drowned hold's roster follow the change.
+ */
+export function installSpawns(next: SpawnTables): void {
+  replaceInPlace(TABLES.BIOME_ANIMALS, next.BIOME_ANIMALS);
+  replaceInPlace(TABLES.WATER_ANIMALS, next.WATER_ANIMALS);
+  replaceInPlace(TABLES.NIGHT_PREDATORS, next.NIGHT_PREDATORS);
+  replaceInPlace(TABLES.BIOME_HUNTERS, next.BIOME_HUNTERS);
+  next.DUNGEON_BANDS.forEach((band, floor) => {
+    if (DUNGEON_BANDS[floor]) refill(DUNGEON_BANDS[floor], band);
+    else DUNGEON_BANDS.push(band);
+  });
+  DUNGEON_BANDS.length = next.DUNGEON_BANDS.length;
+  refill(TABLES.DROWNED_MONSTERS, next.DROWNED_MONSTERS);
+  refill(TABLES.HIGHLAND_ANIMALS, next.HIGHLAND_ANIMALS);
+  refill(TABLES.PRAYED_HIGHLAND_ANIMALS, next.PRAYED_HIGHLAND_ANIMALS);
+  refill(TABLES.DEEP_ANIMALS, next.DEEP_ANIMALS);
 }

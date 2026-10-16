@@ -46,6 +46,7 @@ import hero from '../../models/creatures/hero.json';
 import woman from '../../models/creatures/woman.json';
 import man from '../../models/creatures/man.json';
 import { Fields, PropertiesError, asNumber } from '../core/properties';
+import { refill } from '../core/content';
 import {
   ANIM_ROLES, biped, box, cone, cyl, ico, quadruped,
   type BipedOpts, type PartDef, type QuadOpts,
@@ -284,6 +285,18 @@ const FILES: Record<string, unknown> = {
 
 /** Every body in the game, by the name the rest of it knows the creature under. */
 export const MODELS: Record<string, PartDef[]> = readModels(FILES);
+
+/**
+ * Put a published revision's bodies in place of the bundled ones (#624). Each creature's list of
+ * parts stays the same list, which is the one its kind and the renderer already hold.
+ */
+export function installModels(models: Record<string, PartDef[]>): void {
+  for (const id of Object.keys(MODELS)) if (!models[id]) delete MODELS[id];
+  for (const [id, parts] of Object.entries(models)) {
+    if (MODELS[id]) refill(MODELS[id], parts);
+    else MODELS[id] = parts;
+  }
+}
 
 /** Model files keyed by creature, read and checked as the game reads its own (#624). */
 export function readModels(files: Readonly<Record<string, unknown>>): Record<string, PartDef[]> {

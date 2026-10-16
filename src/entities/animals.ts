@@ -1,6 +1,7 @@
 import { MODELS, modelFile } from './models';
 import { PROPERTIES, creature, type CreatureProperties } from './properties';
 import type { PartDef } from './rigs';
+import { replaceInPlace } from '../core/content';
 
 /**
  * Every creature in the game, joined from the two halves it is kept in.
@@ -51,4 +52,20 @@ export const KINDS: Record<string, AnimalKind> = Object.fromEntries(
 // them the two directories have to agree about what exists.
 for (const id of Object.keys(PROPERTIES)) {
   if (!KINDS[id]) throw new Error(`properties/: "${id}" has properties but there is no ${modelFile(id)} to draw it with, so nothing in the game would ever show it`);
+}
+
+/**
+ * Join the installed models and properties again after a revision replaces them (#624). Each kind
+ * stays the same object, which every entity of that kind already holds, so a wolf already in the
+ * world runs at the new speed from its next step.
+ */
+export function rebuildKinds(): void {
+  const fresh: Record<string, AnimalKind> = Object.fromEntries(
+    Object.entries(MODELS).map(([id, parts]) => [id, creature(id, parts)]),
+  );
+  for (const id of Object.keys(KINDS)) if (!fresh[id]) delete KINDS[id];
+  for (const [id, kind] of Object.entries(fresh)) {
+    if (KINDS[id]) replaceInPlace(KINDS[id], kind);
+    else KINDS[id] = kind;
+  }
 }

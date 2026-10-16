@@ -7,11 +7,16 @@ import { addAccount, migrate } from './accounts';
 import { startServer, type RunningServer } from '../serve';
 import { DEFAULT_CONTENT } from '../../src/core/contentDefaults';
 import { CONTENT_BODY_LIMIT } from './content';
+import { KINDS } from '../../src/entities/animals';
+import { inventory } from '../../src/core/content';
+import { installContent } from '../../src/entities/contentInstall';
 
 describe('the content catalogue through the tools portal', () => {
   let dir = '', server: RunningServer | null = null;
   afterEach(async () => {
     await server?.close(); server = null;
+    // The server installs what it publishes into this process's game; put the bundle back.
+    installContent(inventory(DEFAULT_CONTENT));
     if (dir) rmSync(dir, { recursive: true, force: true });
     dir = '';
   });
@@ -55,6 +60,8 @@ describe('the content catalogue through the tools portal', () => {
     const edited = await post({ base: 1, note: 'tougher wolves', changes: [{ id: 'creature:wolf', body: { ...wolf, hp: wolf.hp + 5 } }] });
     expect(edited.status, await edited.clone().text()).toBe(200);
     expect(await edited.json()).toEqual({ head: 2 });
+    // The running game changed with it: this process is the server, and its wolves are the edited ones.
+    expect(KINDS.wolf.hp).toBe(wolf.hp + 5);
     const after = await (await get('/tools/content/data')).json() as { revisions: { author: string; note: string }[] };
     expect(after.revisions.at(-1)).toMatchObject({ author: 'operator', note: 'tougher wolves' });
 
@@ -74,6 +81,7 @@ describe('the content catalogue through the tools portal', () => {
       { head: number; record: { body: unknown }; history: { revision: { reason: string; author: string } }[] };
     expect(back.head).toBe(3);
     expect(back.record.body).toEqual(wolf);
+    expect(KINDS.wolf.hp).toBe(wolf.hp);
     expect(back.history.map((entry) => [entry.revision.reason, entry.revision.author]))
       .toEqual([['seed', 'bundled defaults'], ['edit', 'operator'], ['rollback', 'operator']]);
   });

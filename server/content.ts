@@ -99,6 +99,11 @@ export interface ContentOptions {
    * published. The server hands it the game's own readers (`checkContent`).
    */
   check?: (records: readonly ContentRecord[]) => string[];
+  /**
+   * Told the live records of every revision once it is committed. The server installs them into
+   * the running game with it (`installContent`), so a published edit is the edit the game runs.
+   */
+  published?: (records: readonly ContentRecord[], head: number) => void;
 }
 
 /** One revision that wrote a record, and whether it deleted it. */
@@ -142,11 +147,13 @@ export class ContentCatalogue {
   private readonly defaultsVersion: number;
   private readonly now: () => string;
   private readonly check: (records: readonly ContentRecord[]) => string[];
+  private readonly published: (records: readonly ContentRecord[], head: number) => void;
 
   constructor(private readonly db: DatabaseSync, defaults: readonly ContentRecord[], options: ContentOptions = {}) {
     this.defaultsVersion = options.defaultsVersion ?? CONTENT_DEFAULTS_VERSION;
     this.now = options.now ?? (() => new Date().toISOString());
     this.check = options.check ?? (() => []);
+    this.published = options.published ?? (() => undefined);
     // What a record names is read from its body here, as it is for an edit, rather than trusted.
     this.defaults = defaults.map((record) => contentRecord(record.id, record.source, record.field, record.ordinal, record.body));
     this.defaultsHash = hashOf(this.defaults.map((record) => [record.id, record.body]));
@@ -293,6 +300,8 @@ export class ContentCatalogue {
       this.db.prepare('INSERT INTO content_head (id, revision) VALUES (1, ?) '
         + 'ON CONFLICT(id) DO UPDATE SET revision = excluded.revision').run(revision);
       this.db.exec('COMMIT');
+      // Outside the transaction: what is told is what is now published, whatever the listener does.
+      this.published(live, revision);
       return revision;
     } catch (error) {
       try { this.db.exec('ROLLBACK'); }

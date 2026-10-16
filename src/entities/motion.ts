@@ -1,5 +1,6 @@
 import motion from '../../animations/motion.json';
 import type { AnimalKind, AnimRole } from './animals';
+import { replaceInPlace } from '../core/content';
 
 /**
  * How everything in the game moves, read out of animations/motion.json.
@@ -204,13 +205,15 @@ export function readMotion(json: unknown): Motion {
   }
   const CYCLES = sectionOf<Cycle>(file.walking, 'walking');
   const STROKES = sectionOf<Cycle>(file.swimming, 'swimming');
-  const AFLOAT = file.floating;
   const IDLES = sectionOf<Cycle>(file.idling, 'idling');
   const BLOWS = sectionOf<Strike>(file.blows, 'blows');
-  const BODY = file.body;
-  const RUN = file.running;
-  const FLINCH = file.flinch;
-  const DYING = file.dying;
+  // Copies, not the file's own objects: an installed revision replaces these in place, and doing
+  // that to the imported JSON would quietly rewrite the bundled defaults the catalogue seeds from.
+  const AFLOAT = { ...file.floating };
+  const BODY = { ...file.body };
+  const RUN = { ...file.running };
+  const FLINCH = { ...file.flinch };
+  const DYING = { ...file.dying };
 
   for (const [name, cycle] of Object.entries(CYCLES)) {
     role('walking', name);
@@ -282,8 +285,10 @@ function axisOf(name: string): 'x' | 'y' | 'z' {
   return CYCLES[name]?.axis ?? IDLES[name]?.axis ?? 'z';
 }
 
+const blowNames: string[] = Object.keys(BLOWS);
+
 /** Every blow the file describes, which is what a creature is allowed to throw. */
-export const BLOW_NAMES: readonly string[] = Object.keys(BLOWS);
+export const BLOW_NAMES: readonly string[] = blowNames;
 
 /**
  * How long a creature staggers after a hit.
@@ -291,7 +296,7 @@ export const BLOW_NAMES: readonly string[] = Object.keys(BLOWS);
  * The game counts the stagger down itself, so this is the file's opinion of the same length: keep
  * the two together or a flinch will still be settling long after the creature can fight back.
  */
-export const FLINCH_LASTS: number = FLINCH.lasts;
+export let FLINCH_LASTS: number = FLINCH.lasts;
 
 /**
  * How long a body takes to fall, and so how long a killed creature stays in the world.
@@ -299,7 +304,26 @@ export const FLINCH_LASTS: number = FLINCH.lasts;
  * The game counts it down itself, exactly as it counts down a stagger, so this is the file's
  * opinion of the same length and the two have to agree.
  */
-export const DYING_LASTS: number = DYING.lasts;
+export let DYING_LASTS: number = DYING.lasts;
+
+/**
+ * Put a motion file read by `readMotion` in place of the one the game is using, keeping every table
+ * so that whatever holds one sees the change (#624).
+ */
+export function installMotion(next: Motion): void {
+  replaceInPlace(CYCLES, next.CYCLES);
+  replaceInPlace(STROKES, next.STROKES);
+  replaceInPlace(IDLES, next.IDLES);
+  replaceInPlace(BLOWS, next.BLOWS);
+  replaceInPlace(AFLOAT, next.AFLOAT);
+  replaceInPlace(BODY, next.BODY);
+  replaceInPlace(RUN, next.RUN);
+  replaceInPlace(FLINCH, next.FLINCH);
+  replaceInPlace(DYING, next.DYING);
+  blowNames.splice(0, blowNames.length, ...Object.keys(next.BLOWS));
+  FLINCH_LASTS = next.FLINCH.lasts;
+  DYING_LASTS = next.DYING.lasts;
+}
 
 /**
  * How far through going down a body is: nought at the moment it is killed, one when it is still.

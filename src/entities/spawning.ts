@@ -1,5 +1,6 @@
 import spawning from '../../properties/spawning.json';
 import { Fields } from '../core/properties';
+import { replaceInPlace } from '../core/content';
 
 /**
  * The dials on how much of the world is alive at once, and what the law is paid.
@@ -16,10 +17,10 @@ import { Fields } from '../core/properties';
 const DIALS = readSpawning(spawning);
 
 /** Chunks around a player that get creatures. */
-export const SPAWN_RADIUS: number = DIALS.SPAWN_RADIUS;
+export let SPAWN_RADIUS: number = DIALS.SPAWN_RADIUS;
 
 /** Tiles: beyond this from anybody, creatures freeze rather than being thought for. */
-export const ACTIVE_RANGE: number = DIALS.ACTIVE_RANGE;
+export let ACTIVE_RANGE: number = DIALS.ACTIVE_RANGE;
 
 /**
  * Tiles: beyond this from anybody, a creature is on no list at all.
@@ -37,7 +38,7 @@ export const ACTIVE_RANGE: number = DIALS.ACTIVE_RANGE;
  * lists is all the country between here and the edge of what the world is holding, which at a spawn
  * radius of four chunks is about half of everything spawned.
  */
-export const WATCH_RANGE: number = DIALS.WATCH_RANGE;
+export let WATCH_RANGE: number = DIALS.WATCH_RANGE;
 
 /** What the law is paid, as a share of a bounty and as flat coin for an arrest. */
 export interface BountyRates {
@@ -119,4 +120,13 @@ export function readSpawning(json: unknown): {
       NIGHT_LEASH: night.num('NIGHT_LEASH'),
     },
   };
+}
+
+/** Put a published revision's dials in place of the bundled ones (#624), keeping each table. */
+export function installSpawning(next: ReturnType<typeof readSpawning>): void {
+  SPAWN_RADIUS = next.SPAWN_RADIUS;
+  ACTIVE_RANGE = next.ACTIVE_RANGE;
+  WATCH_RANGE = next.WATCH_RANGE;
+  replaceInPlace(BOUNTY, next.BOUNTY);
+  replaceInPlace(SPAWN, next.SPAWN);
 }
