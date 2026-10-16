@@ -193,7 +193,7 @@ describe('the SQLite content catalogue', () => {
     // A file's own note is a record the game can lose; a spawn group is not, and the readers say so.
     expect(() => catalogue.edit(2, [{ id: 'spawning:deep', body: null }], 'second')).toThrow('spawning.json.deep: is missing');
     expect(catalogue.edit(2, [{ id: 'note:properties/beasts.json', body: null }], 'second')).toBe(3);
-    expect(() => catalogue.rollback(2, 1, 'third')).toThrow('asked against revision 2');
+    expect(() => catalogue.rollback(2, 1, 'third')).toThrow('made against revision 2');
     expect(() => catalogue.rollback(3, 3, 'third')).toThrow('not an earlier revision');
 
     expect(catalogue.rollback(3, 1, 'third')).toBe(4);

@@ -1,6 +1,6 @@
 # Gameplay content catalogue
 
-Status: slices 1–3 of #624, without the HTTP API. The bundled JSON in `models/`, `properties/`, `behaviours/` and
+Status: slices 1–3 of #624. The bundled JSON in `models/`, `properties/`, `behaviours/` and
 `animations/` now seeds a SQLite catalogue the first time a server opens its durable database.
 **Nothing in the game reads the catalogue yet**: the simulation, the browser and the native hosts
 still run on the bundled JSON. Edits through the catalogue therefore change no gameplay. Live
@@ -75,6 +75,27 @@ immutable: SQLite triggers abort any UPDATE or DELETE on them. Each revision rec
 reason, author, note, time, the defaults version in force and a SHA-256 of the bundled defaults
 the writing build carried.
 
+## Through the tools portal
+
+`/tools/content/data` answers a signed-in tools account only. Anybody else is sent to the login
+page, and the session cookie is `SameSite=Strict`. The account becomes the author of every revision
+it writes.
+
+- `GET` returns the head, the last 50 revisions and every record's ID, kind, source and key.
+- `GET ?id=creature:wolf` returns that record and its history (404 if there is no such record).
+- `POST` with `application/json` and `{ "base": 2, "note": "…", "changes": [{ "id": "creature:wolf",
+  "body": { … } }] }` edits up to 64 records. A null body deletes one. `{ "base": 3, "rollback": 1 }`
+  rolls back instead. The answer is `{ "head": n }`.
+
+Status codes:
+
+| Code | Meaning |
+|---|---|
+| 409 | `base` is no longer the head; reload and try again |
+| 400 | A malformed request, or content the game would not load, with the game's message |
+| 413 | A body over 256 KiB |
+| 415 | A body that is not JSON |
+
 ## Backup and restore
 
 The catalogue lives in the same `ai-world.sqlite` as worlds, accounts and chronicles, so the volume
@@ -86,7 +107,6 @@ against a new one, seeds a fresh catalogue from whatever JSON that build carries
 
 The remaining slices of #624 are not in this change:
 
-- the authenticated tools API: bounded, revision-checked edits, history and rollback over HTTP;
 - the runtime readers that load the published revision in the server simulation and the
   browser/native hosts, and the offline cache;
 - live revision delivery, and the tools editor;
