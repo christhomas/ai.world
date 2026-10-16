@@ -20,6 +20,7 @@ import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
+import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
 import { mountainAt } from '../world/ranges';
 import type { RoadGraph } from '../world/graph';
 import type { MapMarker } from '../ui/mapbase';
@@ -115,6 +116,11 @@ export interface HeadlessGame {
   mapPicture(): MapPicture;
   /** What the map shows over its picture: the markers, the title, and whether it is fogged at all. */
   mapReading(): { title: string; fogged: boolean; markers: MapMarker[] };
+  /**
+   * The floor the hero is on, while he is underground: what changes it (cells seen, chests opened,
+   * the doors unlocked), cheaply, and its picture as the page's floor map paints it. Null above ground.
+   */
+  floor(): { changed: string; picture(): FloorPicture } | null;
   /** Everything the game was assembled from, once it has been: what a test or an inspector reads. */
   handles(): Parameters<typeof installProbes>[0];
 }
@@ -323,6 +329,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let registered: Parameters<ScreenParts['roster']['reads']> | null = null;
   let charting: ScreenParts['mapInput'] | null = null;
   let mapped: { graph: RoadGraph; ground: MapGround; picture?: MapPicture } | null = null;
+  let below: { sight: FloorSight; opened: (i: number) => boolean; unlocked: boolean } | null = null;
 
   const company: CompanySurfaces = {
     // a shared world's other players arrive with its socket (#565); a private world has none
@@ -354,7 +361,18 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
         worldMap: { isOpen: false, pan() {}, draw() {} },
       };
     },
-    floorMap: () => ({ reveal() {}, draw() {} }),
+    // a floor's map, kept as the page's floor map keeps it, for when the app's map asks
+    floorMap: (map) => {
+      const floor = { sight: new FloorSight(map), opened: (_i: number) => false, unlocked: false };
+      below = floor;
+      return {
+        reveal: (x, z, radius) => floor.sight.reveal(x, z, radius),
+        draw: (_x, _z, opened, chestId, unlocked) => {
+          floor.opened = (i) => opened.has(chestId(i));
+          floor.unlocked = unlocked;
+        },
+      };
+    },
     kin: () => ({ show() {} }),
     // what the roster reads, kept for when the app's roster page asks
     roster: () => ({ reads: (...read) => { registered = read; } }),
@@ -481,6 +499,15 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       if (!mapped) throw new Error('the game has not been assembled on this host yet');
       mapped.picture ??= mapPicture(mapped.graph, mapped.ground);
       return mapped.picture;
+    },
+    floor() {
+      const floor = below;
+      if (!floor || !handles?.places.underground) return null;
+      const opened = floor.sight.map.chests.filter((_c, i) => floor.opened(i)).length;
+      return {
+        changed: `${floor.sight.map.floor}:${floor.sight.known}:${opened}:${floor.unlocked}`,
+        picture: () => floorPicture(floor.sight, floor.opened, floor.unlocked),
+      };
     },
     mapReading() {
       if (!charting) throw new Error('the game has not been assembled on this host yet');

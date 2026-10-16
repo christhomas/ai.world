@@ -203,7 +203,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
             take: (id) => unawaited(session.act('take', target: id)), stow: (slot) => unawaited(session.act('stow', target: slot))),
           'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens),
           'map': (context, tokens) => MapPage(picture: session.mapPicture, map: session.map, walked: session.walked,
-            charted: session.charted, hero: hero, tokens: tokens),
+            charted: session.charted, hero: hero, tokens: tokens, floor: session.floor),
           'options': (context, tokens) => OptionsPage(slot: session.slot, tokens: tokens, controller: _ledger,
             leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough'))),
           // past the four tabs: reached from Options

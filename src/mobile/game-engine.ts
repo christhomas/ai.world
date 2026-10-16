@@ -139,6 +139,7 @@ export function create(session: string, optionsText: string): { request(text: st
   let rosterOrder: RosterOrder | null = null;
   let lastRoster = '';
   let mapDrawn = false;
+  let lastFloor: string | null = null;
   let lastMap = '';
   let lastMapAt = -Infinity;
   const knownChunks = new Set<string>();
@@ -173,6 +174,13 @@ export function create(session: string, optionsText: string): { request(text: st
     if (rosterOrder) {
       const roster = JSON.stringify(host!.roster(rosterOrder));
       if (roster !== lastRoster) { lastRoster = roster; models.roster = JSON.parse(roster) as Json; }
+    }
+    // underground, the map is the floor: sent when what has been seen of it changes, and null once
+    // the hero is back above ground
+    const floor = host!.floor();
+    if ((floor?.changed ?? null) !== lastFloor) {
+      lastFloor = floor?.changed ?? null;
+      models.floor = floor ? json(floor.picture()) : null;
     }
     // the map over its picture: what has newly been walked or charted, every time; the markers
     // and title when they change, at most once a second, because a ferry's marker moves every step

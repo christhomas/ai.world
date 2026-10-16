@@ -74,6 +74,8 @@ class GameSession {
   Map<String, dynamic> journal = const {};
   /// The roster as the game last sent it, while the roster page asks for it.
   Map<String, dynamic> roster = const {};
+  /// The floor the hero is on while he is underground; null above ground.
+  Map<String, dynamic>? floor;
   /// The map's ground and roads, sent once (`src/world/map-ground.ts`).
   Map<String, dynamic>? mapPicture;
   /// The map's markers and title as last sent, and every chunk walked and province charted so far.
@@ -197,6 +199,10 @@ class GameSession {
     if (read is Map) journal = Map<String, dynamic>.from(read);
     final register = models['roster'];
     if (register is Map) roster = Map<String, dynamic>.from(register);
+    if (models.containsKey('floor')) {
+      final below = models['floor'];
+      floor = below is Map ? Map<String, dynamic>.from(below) : null;
+    }
     final picture = models['mapPicture'];
     if (picture is Map) mapPicture = Map<String, dynamic>.from(picture);
     final mapped = models['map'];

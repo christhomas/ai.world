@@ -35,6 +35,9 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - any faces the app has not been sent (`portraits`), each once;
 - the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries),
   only when it has changed since the last reply;
+- underground, the floor (`floor`, `dungeon/floor-picture.ts`: the seen cells as runs of colour
+  with the entrance and the seen chests), when what has been seen of it changes, and `null` once
+  the hero is back above ground;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
   charted since the last one sent. New ground goes every time; markers and title go when they

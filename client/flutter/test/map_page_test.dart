@@ -34,6 +34,36 @@ void main() {
     expect(brightness(40, 40), greaterThan(brightness(8, 8) * 2), reason: 'walked country is clear of the dark');
   });
 
+  test('underground, the floor\'s way in, its chests and the hero are marked as the page marks them', () async {
+    const floor = <String, dynamic>{'size': 2, 'colours': [0x05060c, 0x6a5a48], 'runs': [0, 1, 1, 1, 1, 2],
+      'entrance': [1, 0], 'chests': [{'x': 1, 'z': 1, 'colour': 0xf1c40f}]};
+    final recorder = ui.PictureRecorder();
+    FloorPainter(floor: floor, image: null, hero: const {'x': 0.5, 'z': 1.5}, zoom: 1)
+      .paint(Canvas(recorder), const Size(16, 16));
+    final image = await recorder.endRecording().toImage(16, 16);
+    final bytes = (await image.toByteData())!;
+    int rgb(int x, int y) => bytes.getUint32((y * 16 + x) * 4) >> 8;
+    expect(rgb(12, 3), 0x8fa0ff, reason: 'the way in');
+    expect(rgb(14, 14), 0xf1c40f, reason: 'a chest seen');
+    expect(rgb(4, 12), 0xff4d4d, reason: 'the hero');
+    expect(rgb(2, 2), 0x05060c, reason: 'the dark');
+  });
+
+  testWidgets('underground the map is the floor, and it opens on the hero standing in it', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(328, 390));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: MapPage(picture: picture,
+      floor: const {'size': 40, 'colours': [0x05060c], 'runs': [0, 1600], 'entrance': null, 'chests': []},
+      map: const {'title': 'Old Mill Depths'}, walked: const {}, charted: const {}, hero: const {'x': 12, 'z': 30},
+      tokens: LedgerTokens.all[LedgerTheme.stone]!))));
+    await tester.pumpAndSettle();
+    expect(find.text('OLD MILL DEPTHS'), findsOneWidget);
+    final view = tester.widget<InteractiveViewer>(find.byKey(const ValueKey('map-view'))).transformationController!;
+    final middle = view.toScene(tester.getSize(find.byKey(const ValueKey('map-view'))).center(Offset.zero));
+    expect(middle.dx, closeTo(12 * MapPage.floorTile, 0.01));
+    expect(middle.dy, closeTo(30 * MapPage.floorTile, 0.01));
+  });
+
   testWidgets('opens on the hero, pans by drag, zooms by button, and finds him again', (tester) async {
     await tester.binding.setSurfaceSize(const Size(328, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
