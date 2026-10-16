@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'game_session.dart';
+import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
 import 'shell/input_owner.dart';
@@ -169,7 +170,12 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           LedgerStick(input: _input, health: hp / maxHp, breath: wind),
         ]),
         controller: _ledger,
-        pages: {'options': (context, tokens) => _options(tokens)},
+        // the four tabs, in the design's order; a screen registers its page here (#573–#575)
+        pages: {
+          'pack': (context, tokens) => PackPage(pack: Map<String, dynamic>.from(models['pack'] as Map? ?? const {}), tokens: tokens,
+            take: (id) => unawaited(session.act('take', target: id)), stow: (slot) => unawaited(session.act('stow', target: slot))),
+          'options': (context, tokens) => _options(tokens),
+        },
         place: '${hud['area'] ?? ''}',
         readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',
         clock: _clock(hero),

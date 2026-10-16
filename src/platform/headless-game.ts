@@ -16,6 +16,7 @@ import type { CountryReply } from '../world/countrymessages';
 import type { WorldLinkFactory } from '../game/online';
 import { Conversation } from '../ui/conversation';
 import type { Speaker } from '../ui/dialogue';
+import { stowWorn, takeFromPack } from '../game/pack';
 import type { installProbes } from '../game/probes';
 import type {
   ChatSurface, CompanySurfaces, DialogueSurface, GameAsks, GamePlatform, HudSurface, SoundSurface,
@@ -88,6 +89,8 @@ export interface HeadlessGame {
   frame(ms: number): void;
   /** In sight or not, as an app going to the background is. */
   setVisible(visible: boolean): void;
+  /** The pack, as a tap on a row of it answers: the same rules and the same word afterwards as the page's. */
+  pack(): { take(id: string): void; stow(slot: string): void };
   /** Everything the game was assembled from, once it has been: what a test or an inspector reads. */
   handles(): Parameters<typeof installProbes>[0];
 }
@@ -291,6 +294,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   });
 
   const toggle = (panel: string) => { shown.panel = shown.panel === panel ? null : panel; };
+  let pack: ReturnType<HeadlessGame['pack']> | null = null;
 
   const company: CompanySurfaces = {
     // a shared world's other players arrive with its socket (#565); a private world has none
@@ -323,7 +327,19 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     compass: () => ({ update() {} }),
     photo: () => ({ toggle: () => false }),
     chat: () => chat,
-    rucksack: () => ({ onChange: null, refresh() {}, toggle: () => toggle('rucksack') }),
+    rucksack: (state) => {
+      // a row taken or a slot stowed says so the way the page's rucksack does: through onChange,
+      // which the game points at the HUD, a sound and a save
+      const surface = {
+        onChange: null as ((message: string) => void) | null,
+        refresh() {},
+        toggle: () => toggle('rucksack'),
+        take(id: string) { const said = takeFromPack(state, id); if (said) surface.onChange?.(said); },
+        stow(slot: string) { const said = stowWorn(state, slot); if (said) surface.onChange?.(said); },
+      };
+      pack = surface;
+      return surface;
+    },
     screen: (parts) => ({
       busy: () => (talk.isOpen ? 'talking' : shown.panel ? 'reading' : null),
       say,
@@ -399,6 +415,10 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     handles() {
       if (!handles) throw new Error('the game has not been assembled on this host yet');
       return handles;
+    },
+    pack() {
+      if (!pack) throw new Error('the game has not been assembled on this host yet');
+      return pack;
     },
     setVisible(next) {
       if (next === visible) return;

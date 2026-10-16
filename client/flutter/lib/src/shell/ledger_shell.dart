@@ -207,7 +207,9 @@ class LedgerRow extends StatelessWidget {
       child: Padding(padding: const EdgeInsets.only(left: 12, right: 12), child: Row(children: [
         Transform.rotate(angle: math.pi / 4, child: ColoredBox(color: chip, child: const SizedBox(width: 13, height: 13))),
         const SizedBox(width: 12), Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: tokens.face(14.5, tokens.pageInk))),
-        Text(consequence, style: tokens.numbers(11, tokens.pageDim, spacing: 0)), const SizedBox(width: 8),
+        // a consequence gives way before the name or the verb does, on one line
+        Flexible(child: Text(consequence, maxLines: 1, overflow: TextOverflow.ellipsis, style: tokens.numbers(11, tokens.pageDim, spacing: 0))),
+        const SizedBox(width: 8),
         Text(verb, style: tokens.numbers(11, tokens.pageInk, weight: FontWeight.w600, spacing: 0)),
       ]))))));
 }

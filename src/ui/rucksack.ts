@@ -1,5 +1,6 @@
 import { $ } from './dom';
-import { ITEMS, SLOTS, SLOT_ICONS, SLOT_NAMES, isConsumable, isEquippable, itemSummary, sellPrice, type EquipSlot } from '../game/items';
+import { packView, stowWorn, takeFromPack } from '../game/pack';
+import type { EquipSlot } from '../game/items';
 import type { GameState } from '../game/state';
 
 /**
@@ -41,58 +42,41 @@ export class Rucksack {
     if (this.open) this.render(false);
   }
 
+  // what a tap does is the game's, in `game/pack.ts`, so a phone's pack page does the same
   private unequip(slot: EquipSlot): void {
-    const item = this.state.unequip(slot);
-    if (item) this.onChange?.(`Stowed the ${item.name}.`);
+    const said = stowWorn(this.state, slot);
+    if (said) this.onChange?.(said);
     this.render(true);
   }
 
   private useOrEquip(id: string): void {
-    const item = ITEMS[id];
-    if (!item) return;
-    if (isEquippable(item)) {
-      const worn = this.state.equip(id);
-      if (worn) this.onChange?.(`Equipped the ${worn.name}.`);
-    } else if (isConsumable(item)) {
-      const message = this.state.use(id);
-      if (message) this.onChange?.(message);
-    } else {
-      this.onChange?.(`${item.name}: ${item.desc} Worth ${sellPrice(item)} gold to the right buyer.`);
-    }
+    const said = takeFromPack(this.state, id);
+    if (said) this.onChange?.(said);
     this.render(true);
   }
 
   private render(force: boolean): void {
     if (!force && this.state.version === this.shownVersion) return;
     this.shownVersion = this.state.version;
-    const s = this.state;
+    const view = packView(this.state);
 
-    const dolls = SLOTS.map((slot) => {
-      const item = s.worn(slot);
-      const body = item
-        ? `<div class="r-item list-row worn" data-slot="${slot}" title="${itemSummary(item)}"><span class="r-emoji">${item.emoji}</span><span class="r-name">${item.name}</span></div>`
-        : `<div class="r-item list-row empty"><span class="r-emoji">${SLOT_ICONS[slot]}</span><span class="r-name">empty</span></div>`;
-      return `<div class="r-slot"><div class="r-slot-name">${SLOT_NAMES[slot]}</div>${body}</div>`;
+    const dolls = view.worn.map((worn) => {
+      const body = worn.id
+        ? `<div class="r-item list-row worn" data-slot="${worn.slot}" title="${worn.note}"><span class="r-emoji">${worn.emoji}</span><span class="r-name">${worn.name}</span></div>`
+        : `<div class="r-item list-row empty"><span class="r-emoji">${worn.icon}</span><span class="r-name">empty</span></div>`;
+      return `<div class="r-slot"><div class="r-slot-name">${worn.slotName}</div>${body}</div>`;
     }).join('');
 
-    const carried = [...s.inventory.items.entries()]
-      .map(([id, n]) => ({ item: ITEMS[id], n }))
-      .filter((e) => e.item)
-      .sort((a, b) => rank(a.item.slot) - rank(b.item.slot) || a.item.name.localeCompare(b.item.name))
-      .map(({ item, n }) => {
-        const action = isEquippable(item) ? 'wear' : isConsumable(item) ? 'use' : 'look';
-        const note = itemSummary(item) || item.desc;
-        return `<div class="r-item list-row ${action}" data-item="${item.id}" title="${note}">
-          <span class="r-emoji">${item.emoji}</span>
-          <span class="r-name">${item.name}${n > 1 ? ` ×${n}` : ''}</span>
-          <span class="r-note">${isEquippable(item) ? 'wear' : isConsumable(item) ? 'use' : `${sellPrice(item)}g`}</span>
-        </div>`;
-      });
+    const carried = view.carried.map((thing) => `<div class="r-item list-row ${thing.verb}" data-item="${thing.id}" title="${thing.note}">
+          <span class="r-emoji">${thing.emoji}</span>
+          <span class="r-name">${thing.name}${thing.count > 1 ? ` ×${thing.count}` : ''}</span>
+          <span class="r-note">${thing.verb === 'look' ? `${thing.price}g` : thing.verb}</span>
+        </div>`);
 
     this.el.innerHTML = `
       <h2>Rucksack</h2>
       <div class="r-stats">
-        💰 ${s.inventory.gold} gold · ♥ ${s.hp}/${s.maxHpTotal} · ⚔ ${s.attack} attack · 🛡 ${s.defence} defence
+        💰 ${view.gold} gold · ♥ ${view.hp}/${view.maxHp} · ⚔ ${view.attack} attack · 🛡 ${view.defence} defence
       </div>
       <div class="r-columns">
         <div class="r-worn"><h3>Worn</h3>${dolls}</div>
@@ -102,18 +86,5 @@ export class Rucksack {
         </div>
       </div>
       <div class="r-hint">Click carried gear to wear it, worn gear to stow it, food to eat it · I or Escape to close</div>`;
-  }
-}
-
-/** Sort order in the pack: weapons, armour, tools, then everything else. */
-function rank(slot: EquipSlot | undefined): number {
-  switch (slot) {
-    case 'hand': return 0;
-    case 'offhand': return 1;
-    case 'head': return 2;
-    case 'body': return 3;
-    case 'feet': return 4;
-    case 'trinket': return 5;
-    default: return 6;
   }
 }

@@ -11,6 +11,7 @@ import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
+import { packView } from '../game/pack';
 
 /** What an app asks for when it opens a game: which world, which save, and how big the picture is. */
 export interface EngineOptions {
@@ -100,8 +101,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  *
  * - `start` opens the game the options named, against the world in this engine;
  * - `step` moves time on by `dtSeconds`, with the stick, the held buttons and any one-shot actions;
- * - `action` is a player action by name (`interact`, `attack`, `inventory`…) or `choose` a row of
- *   the conversation by index;
+ * - `action` is a player action by name (`interact`, `attack`, `inventory`…), `choose` a row of the
+ *   conversation by index, `take` a carried thing out of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
  * - `resync` `scene` asks for the next frame, and `renderer` says the app's renderer has forgotten
  *   everything it was sent;
@@ -133,6 +134,7 @@ export function create(session: string, optionsText: string): { request(text: st
         choices: (talk.node.choices ?? []).map((c) => ({ label: c.label, note: c.note ?? null, adjusts: !!c.adjust })),
         waiting: talk.waiting,
       } : null),
+      pack: json(packView(state)),
       hero: json({ x: player.x, z: player.z, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
     };
@@ -214,6 +216,9 @@ export function create(session: string, optionsText: string): { request(text: st
               const row = Number(target);
               if (!Number.isSafeInteger(row) || !host.conversation.isOpen) throw new Error('Nothing to choose from');
               host.conversation.choose(row);
+            } else if (action === 'take' || action === 'stow') {
+              if (typeof target !== 'string') throw new Error(`${action} needs a thing to ${action}`);
+              host.pack()[action](target);
             } else act(action);
             return reply({ state: presentation(null) });
           }

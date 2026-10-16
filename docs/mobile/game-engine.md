@@ -16,7 +16,7 @@ The app then sends:
 |---|---|
 | `start` `local` | opens the game in that slot, against the world in this engine |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), or `choose` a conversation row by index |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
