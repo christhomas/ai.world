@@ -49,6 +49,8 @@ class GameSession {
   final ValueNotifier<Map<String, dynamic>> presentation = ValueNotifier(const {});
   /// A failure the player should be told about, such as a save that could not be written.
   final ValueNotifier<String?> trouble = ValueNotifier(null);
+  /// Every face the game has painted this session, by the key a conversation names it by.
+  final Map<String, Map<String, dynamic>> portraits = {};
   Map<String, Object?> _input = stillInput;
   Ticker? _ticker;
   Duration _last = Duration.zero;
@@ -158,6 +160,9 @@ class GameSession {
       // the world writes often and a little at a time; it is kept at most every couple of seconds
       _keeping ??= Timer(const Duration(seconds: 2), () { _keeping = null; _keepWorld(); });
     }
+    // a face is sent once, the first time somebody wears it, and named by key after that
+    final faces = models['portraits'];
+    if (faces is Map) faces.forEach((key, face) => portraits['$key'] = Map<String, dynamic>.from(face as Map));
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {
       unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry)));

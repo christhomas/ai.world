@@ -8,6 +8,12 @@ II shell (`docs/flutter-ledger-shell.md`), and is drawn by the native GLES and M
 Saves and the private world's records are kept in app-private storage, so nothing is fetched and
 no other computer is involved. See `docs/mobile/game-engine.md`.
 
+Everything somebody says is a conversation in the shared game (`src/game/interact`): talking,
+shops, quests, hiring, gifts, shrines, the jail. The app shows them all on the glass with
+`ConversationBand`: the speaker's own portrait, painted by the game and sent once, the words, and
+the answers as a list of 44px rows of their own, with − and + on a row that carries a number.
+While somebody talks the world's controls are parked, as they are on the page.
+
 ## The development scene feed
 
 For renderer work only, the app can follow a game running in a desktop browser instead:

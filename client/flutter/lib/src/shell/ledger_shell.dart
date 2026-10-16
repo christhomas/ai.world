@@ -24,6 +24,17 @@ class LedgerController extends ChangeNotifier {
   void back() { if (_routes.isNotEmpty) _routes.removeLast(); input.focus(route == null ? InputOwner.world : InputOwner.book, busy: route == null ? null : 'reading'); notifyListeners(); }
   void close() { _routes.clear(); input.focus(InputOwner.world); notifyListeners(); }
   void typing() { input.focus(InputOwner.typing, busy: 'typing'); notifyListeners(); }
+  /// Somebody is talking (#574): the world's controls park under the words, and the words take the
+  /// touches until the conversation is over. The engine says when; this only follows it.
+  void talking(bool open) {
+    if (open == (input.busy == 'talking')) return;
+    if (open) {
+      input.focus(InputOwner.book, busy: 'talking');
+    } else {
+      input.focus(route == null ? InputOwner.world : InputOwner.book, busy: route == null ? null : 'reading');
+    }
+    notifyListeners();
+  }
   void finishTyping() { input.focus(route == null ? InputOwner.world : InputOwner.book, busy: route == null ? null : 'reading'); notifyListeners(); }
   void selectTheme(LedgerTheme next) { theme = next; notifyListeners(); }
 }
@@ -140,10 +151,10 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
               for (final name in widget.pages.keys.take(4)) _tab(name, c, t),
             ]))),
           if (widget.conversation != null && !showBook) Positioned(left: 136, right: 216, bottom: 40,
-            child: IgnorePointer(ignoring: parked, child: Align(alignment: Alignment.bottomCenter, child: widget.conversation!))),
+            child: IgnorePointer(ignoring: parked && c.input.busy != 'talking', child: Align(alignment: Alignment.bottomCenter, child: widget.conversation!))),
           if (widget.actionCard != null) Positioned(right: 0, bottom: 0, width: 208,
             child: IgnorePointer(ignoring: parked, child: ExcludeSemantics(excluding: parked, child: widget.actionCard!))),
-          if (parked && !showBook) Positioned(left: 56, bottom: 64, child: _slab('CONTROLS PARKED', t)),
+          if (parked && !showBook && c.input.busy != 'talking') Positioned(left: 56, bottom: 64, child: _slab('CONTROLS PARKED', t)),
           if (showBook) Positioned(left: 0, top: 0, bottom: 0, width: bookWidth,
             child: FocusScope(node: _bookFocus, autofocus: true, onKeyEvent: (_, event) {
               if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) { c.back(); return KeyEventResult.handled; }

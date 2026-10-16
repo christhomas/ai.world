@@ -16,7 +16,7 @@ The app then sends:
 |---|---|
 | `start` `local` | opens the game in that slot, against the world in this engine |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `nudge` a row's number (`row:1`, `row:-1`), `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
@@ -28,7 +28,9 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 
 **Each reply** carries what the game has said:
 - the HUD presentation;
-- the conversation (speaker, words shown, choices, the lit row, an expiring menu's count);
+- the conversation (speaker, words shown, choices, the lit row, an expiring menu's count, and the
+  keys of the speaker's and the hero's faces);
+- any faces the app has not been sent (`portraits`), each once;
 - where the hero is;
 - the owner (WORLD or BOOK) and busy mode;
 - any save written since the last reply, for the app to keep. Every reply can carry one, so an app
@@ -38,6 +40,11 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 `StepClock` runs the world's ticks, the jobs' replies and any page-shaped timers as the step passes
 them. `host-globals.ts` installs `performance.now`, timers, `queueMicrotask`, `structuredClone` and
 a silent console only where the engine lacks them.
+
+**Faces.** `portraits.ts` paints a face with the page's own `paint`, so a portrait in the app is
+the same rectangles the dialogue box's canvas is filled with: five numbers a rectangle (x, y,
+width, height, colour index), once with the mouth shut and once open. A face is sent the first time
+somebody wears it and named by key after that, so the app keeps them for the session.
 
 **Scene.** `ScenePackets` sends a frame with only the geometry the app has not been sent, named by
 the graph's own buffers rather than by hashing them. Each packet has a budget of numbers, so

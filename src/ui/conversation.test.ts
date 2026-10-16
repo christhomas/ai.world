@@ -73,6 +73,25 @@ describe('a conversation, wherever it is drawn', () => {
     expect(talk.node?.choices?.[1].label, 'the end of its range leaves it alone').toBe('Sell 1');
   });
 
+  it('runs the number on the row a thumb is on, and nothing before the choices are showing', () => {
+    const sell = (n: number): DialogueNode => node(['How many?'], [
+      { label: 'Never mind', next: () => null },
+      { label: `Sell ${n}`, next: () => null, adjust: (dir) => sell(n + dir) },
+    ]);
+    const talk = new Conversation();
+    talk.start(sell(1));
+    talk.nudgeAt(1, 1);
+    expect(talk.node?.choices?.[1].label, 'still typing: nothing to change yet').toBe('Sell 1');
+    talk.advance();
+    talk.nudgeAt(1, 1);
+    talk.nudgeAt(1, 1);
+    expect(talk.node?.choices?.[1].label).toBe('Sell 3');
+    expect(talk.choice, 'the lit row follows the thumb').toBe(1);
+    talk.nudgeAt(0, 1);
+    talk.nudgeAt(5, 1);
+    expect(talk.node?.choices?.[1].label, 'a row with no number, or no row at all, changes nothing').toBe('Sell 3');
+  });
+
   it('closes a menu nobody answers, says so while counting, and stops counting once somebody does', () => {
     const talk = new Conversation();
     let left = 0;

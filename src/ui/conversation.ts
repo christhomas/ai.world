@@ -146,6 +146,13 @@ export class Conversation {
     this.select();
   }
 
+  /** The − or + on this row, as left and right on it do: a touch changes the row it is on. */
+  nudgeAt(index: number, dir: number): void {
+    if (!this.node?.choices || index < 0 || index >= this.node.choices.length || !this.atChoices) return;
+    this.choice = index;
+    this.nudge(dir);
+  }
+
   /** The last page is all there and has choices under it. */
   get atChoices(): boolean {
     if (!this.node) return false;

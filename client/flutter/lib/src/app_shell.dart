@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'game_session.dart';
+import 'screens/conversation_band.dart';
 import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
@@ -109,6 +110,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         pipeline: FlutterFramePipeline(renderer), channel: widget.engineChannel, assets: widget.assets);
       if (!mounted) { await session.close(); return; }
       session.trouble.addListener(() => setState(() => _trouble = session.trouble.value));
+      // a conversation parks the world's controls, as the game does on the page
+      session.presentation.addListener(() => _ledger.talking(session.presentation.value['busy'] == 'talking'));
       session.run(this);
       setState(() { _session = session; _phase = _Phase.playing; });
     } catch (error) {
@@ -181,7 +184,10 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         clock: _clock(hero),
         bearings: _trouble ?? '${hero['gold'] ?? 0} GOLD',
         message: _trouble ?? '',
-        conversation: talk == null ? null : _conversation(Map<String, dynamic>.from(talk), t),
+        conversation: talk == null ? null : ConversationBand(talk: Map<String, dynamic>.from(talk), portraits: session.portraits, tokens: t,
+          onAdvance: () => unawaited(session.act('interact')),
+          onChoose: (row) => unawaited(session.act('choose', target: '$row')),
+          onNudge: (row, dir) => unawaited(session.act('nudge', target: '$row:$dir'))),
         actionCard: LedgerActionCard(input: _input, tokens: t,
           subject: action == null ? 'NOTHING IN REACH' : action.toUpperCase(),
           verbs: action == null ? const {} : {'TALK · USE': () => unawaited(session.act('interact'))},
@@ -194,25 +200,6 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     final minutes = ((((hero['time'] as num?) ?? 0) * 24 * 60).floor()) % (24 * 60);
     final hh = '${minutes ~/ 60}'.padLeft(2, '0'), mm = '${minutes % 60}'.padLeft(2, '0');
     return '$hh:$mm · DAY ${hero['day'] ?? 1} · ${'${hero['season'] ?? ''}'.toUpperCase()}';
-  }
-
-  /// What is being said, and the answers to it: the words stay on the glass over the world.
-  Widget _conversation(Map<String, dynamic> talk, LedgerTokens t) {
-    final choices = (talk['choices'] as List? ?? const []).cast<Map>();
-    return ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: ColoredBox(color: t.surface, child: Padding(padding: const EdgeInsets.all(10),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('${talk['emoji'] ?? ''} ${talk['speaker'] ?? ''}'.trim().toUpperCase(), style: t.numbers(10, t.accent, spacing: 2)),
-        const SizedBox(height: 6),
-        Text('${talk['shown'] ?? ''}', style: t.face(14.5, t.ink)),
-        if (talk['atChoices'] == true)
-          for (var i = 0; i < choices.length; i++)
-            SizedBox(height: 44, child: InkWell(key: ValueKey('choice-$i'), onTap: () => unawaited(_session?.act('choose', target: '$i')),
-              child: Align(alignment: Alignment.centerLeft,
-                child: Text('${i == talk['choice'] ? '▶ ' : ''}${choices[i]['label']}', style: t.face(13.5, t.ink)))))
-        else
-          SizedBox(height: 44, child: InkWell(key: const ValueKey('talk-on'), onTap: () => unawaited(_session?.act('interact')),
-            child: Align(alignment: Alignment.centerRight, child: Text('ON ▸', style: t.numbers(11, t.accent))))),
-      ]))));
   }
 
   Widget _options(LedgerTokens t) => ListView(children: [

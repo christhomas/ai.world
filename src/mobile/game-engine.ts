@@ -10,6 +10,7 @@ import type { SessionSave } from '../save/store';
 import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
+import { Portraits } from './portraits';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
 
@@ -102,7 +103,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  * - `start` opens the game the options named, against the world in this engine;
  * - `step` moves time on by `dtSeconds`, with the stick, the held buttons and any one-shot actions;
  * - `action` is a player action by name (`interact`, `attack`, `inventory`…), `choose` a row of the
- *   conversation by index, `take` a carried thing out of the pack by id or `stow` what a slot wears;
+ *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `take` a carried thing out
+ *   of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
  * - `resync` `scene` asks for the next frame, and `renderer` says the app's renderer has forgotten
  *   everything it was sent;
@@ -113,6 +115,7 @@ export function create(session: string, optionsText: string): { request(text: st
   const gate = new RequestGate(session);
   const store = savedInMemory();
   const packets = new ScenePackets();
+  const portraits = new Portraits();
   const world = new KeptWorld(options.world);
   let host: HeadlessGame | null = null;
   let game: GameHandle | null = null;
@@ -133,12 +136,16 @@ export function create(session: string, optionsText: string): { request(text: st
         page: talk.page, pages: talk.node.pages.length, choice: talk.choice, atChoices: talk.atChoices,
         choices: (talk.node.choices ?? []).map((c) => ({ label: c.label, note: c.note ?? null, adjusts: !!c.adjust })),
         waiting: talk.waiting,
+        // drawn faces, by the key `models.portraits` sent them under; no face is the emoji
+        face: portraits.name(talk.node.face), heroFace: portraits.name(shown.hero),
       } : null),
       pack: json(packView(state)),
       hero: json({ x: player.x, z: player.z, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
     };
     if (scene) models.scene = scene;
+    const faces = portraits.take();
+    if (faces) models.portraits = json(faces);
     // a save the game has written since the last reply, for the app to keep where it keeps things
     const saved = store.read(options.slot);
     if (saved !== undefined && saved !== lastSave) { lastSave = saved; models.save = JSON.parse(saved) as Json; }
@@ -216,6 +223,13 @@ export function create(session: string, optionsText: string): { request(text: st
               const row = Number(target);
               if (!Number.isSafeInteger(row) || !host.conversation.isOpen) throw new Error('Nothing to choose from');
               host.conversation.choose(row);
+            } else if (action === 'nudge') {
+              // `row:dir`, the − or + on a row that carries a number
+              const [row, dir] = String(target).split(':').map(Number);
+              if (!Number.isSafeInteger(row) || (dir !== 1 && dir !== -1) || !host.conversation.isOpen) {
+                throw new Error('Nothing to change');
+              }
+              host.conversation.nudgeAt(row, dir);
             } else if (action === 'take' || action === 'stow') {
               if (typeof target !== 'string') throw new Error(`${action} needs a thing to ${action}`);
               host.pack()[action](target);

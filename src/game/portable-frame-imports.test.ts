@@ -171,7 +171,7 @@ describe('portable frame runtime boundary', () => {
       ...inspect('src/mobile/game-engine.ts')])];
     for (const part of ['src/game/frame.ts', 'src/game/multiplayer.ts', 'src/game/places.ts', 'src/render/scene.ts',
       'src/render/chunkManager.ts', 'src/workers/chunkmesher.ts', 'src/workers/local-world-host.ts', 'src/ui/conversation.ts',
-      'src/mobile/host-globals.ts', 'src/mobile/scene-packet.ts']) {
+      'src/mobile/host-globals.ts', 'src/mobile/scene-packet.ts', 'src/mobile/portraits.ts', 'src/ui/portrait.ts']) {
       expect(files).toContain(part);
     }
     for (const page of ['src/main.ts', 'src/platform/browser-game.ts', 'src/platform/browser-rig.ts',
