@@ -92,6 +92,12 @@ def capture(platform):
             command([*adb, 'shell', 'settings', 'put', 'secure', 'immersive_mode_confirmations', 'confirmed'])
             if output([*adb, 'shell', 'settings', 'get', 'secure', 'immersive_mode_confirmations']) != 'confirmed':
                 raise RuntimeError('Could not confirm Android fullscreen tutorial on the dedicated emulator')
+            # A loaded hosted emulator raises "isn't responding" dialogs over whatever is in front, and
+            # one did cover the app in two pull request runs (UI packages=['android']). Android's own
+            # test harnesses switch them off; the capture still refuses anything but the app on screen.
+            command([*adb, 'shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1'])
+            if output([*adb, 'shell', 'settings', 'get', 'global', 'hide_error_dialogs']) != '1':
+                raise RuntimeError('Could not hide Android error dialogs on the dedicated emulator')
             command([*adb, 'install', '-r', str(APP / 'build/app/outputs/flutter-apk/app-debug.apk')])
             command([*adb, 'logcat', '-c'])
             logs = OUT / 'native.log'
