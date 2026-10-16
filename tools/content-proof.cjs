@@ -140,8 +140,9 @@ let browser;
   await stop();
   start();
   await ready();
-  await signIn(page);
+  // Sessions are in the same database, so the operator is still signed in after the restart.
   await page.goto(`${origin}/tools/content-editor`);
+  assert.equal(new URL(page.url()).pathname, '/tools/content-editor', 'the session survived the restart');
   await page.waitForFunction(() => document.querySelector('#running')?.textContent.includes('revision 3'));
   assert.equal((await openRecord(page, 'creature:wolf')).hp, wolf.hp + 11, 'the edit survived a restart');
   const bryn = await player(protocol);
