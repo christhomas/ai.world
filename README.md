@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.104.0 — 2026-10-16
+
+Live content: edit creatures, models, behaviours and spawn tables from the tools
+
 ### v0.103.13 — 2026-10-14
 
 Shared tools shell and database-backed world discovery
@@ -626,10 +630,6 @@ The GPU-free frame path lands, prayers stay saved, and a release tests nothing o
 ### v0.103.5 — 2026-09-30
 
 An idle scene costs next to nothing to describe each frame, and boats on the Flutter client keep their colours in every season
-
-### v0.103.4 — 2026-09-30
-
-endless worlds grow shrines so the prayer can be said, an editor's sky eyrie offers the flight up, and the native renderers take colour the way the web does
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
