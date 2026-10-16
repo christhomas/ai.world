@@ -5,6 +5,7 @@ import { build } from 'vite';
 import { readFile, writeFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 await build({ configFile: false, logLevel: 'warn',
@@ -13,7 +14,9 @@ await build({ configFile: false, logLevel: 'warn',
     lib: { entry: 'src/mobile/game-engine.ts', name: 'AiWorldGameEngine', formats: ['iife'], fileName: () => 'game.js' } } });
 const source = await readFile('mobile-frame-proof-out/game.js', 'utf8');
 
-const bare = {};
+// the one thing both native hosts put in the engine's context before the bundle: identifiers from
+// the platform's own secure randomness (state_engine.c, StateEngineBridge.swift)
+const bare = { crypto: { randomUUID: () => randomUUID() } };
 const call = (code) => runInNewContext(code, bare, { timeout: 120000 });
 for (const name of ['window', 'document', 'setTimeout', 'performance', 'structuredClone', 'process', 'require', 'Worker', 'WebSocket']) {
   assert.equal(runInNewContext(`typeof ${name}`, {}), 'undefined', `${name} exists in a bare context`);
