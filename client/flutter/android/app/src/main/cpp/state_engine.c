@@ -10,7 +10,7 @@
 #include <time.h>
 #include "quickjs.h"
 
-typedef struct { JSRuntime *runtime; JSContext *context; JSValue engine; double deadline; } Engine;
+typedef struct { JSRuntime *runtime; JSContext *context; JSValue engine; double deadline; double budget; size_t reply_limit; } Engine;
 static double now_ms(void) {
   struct timespec value; clock_gettime(CLOCK_MONOTONIC, &value);
   return value.tv_sec * 1000.0 + value.tv_nsec / 1e6;
@@ -50,14 +50,35 @@ static void release(Engine *engine) {
   if (engine->runtime) JS_FreeRuntime(engine->runtime);
   free(engine);
 }
-static jbyteArray reply(JNIEnv *env, int failed, const char *text, size_t length) {
-  if (length > 1024 * 1024) { failed = 1; text = "Engine response too large"; length = strlen(text); }
+/*
+ * What a promise left to do, done now: an embedded engine has no event loop, so nothing else will.
+ * A job that throws is reported and the rest still run; the deadline still applies.
+ */
+static void drain(Engine *engine) {
+  JSContext *context;
+  for (int ran = 0; ran < 1000000; ran++) {
+    int status = JS_ExecutePendingJob(engine->runtime, &context);
+    if (status == 0) return;
+    if (status < 0) {
+      JSValue error = JS_GetException(context);
+      const char *message = JS_ToCString(context, error);
+      __android_log_print(ANDROID_LOG_WARN, "AiWorldStateEngine", "pending job failed: %s", message ? message : "?");
+      JS_FreeCString(context, message); JS_FreeValue(context, error);
+    }
+  }
+}
+static jbyteArray reply_within(JNIEnv *env, int failed, const char *text, size_t length, size_t limit) {
+  if (length > limit) { failed = 1; text = "Engine response too large"; length = strlen(text); }
   jbyteArray out = (*env)->NewByteArray(env, (jsize)length + 1);
   if (!out) return NULL;
   jbyte flag = failed ? 1 : 0;
+  /* the whole reply or nothing: a reply the size of a world's first ground can be refused here */
   (*env)->SetByteArrayRegion(env, out, 0, 1, &flag);
   (*env)->SetByteArrayRegion(env, out, 1, (jsize)length, (const jbyte *)text);
   return out;
+}
+static jbyteArray reply(JNIEnv *env, int failed, const char *text, size_t length) {
+  return reply_within(env, failed, text, length, 1024 * 1024);
 }
 static jbyteArray exception_reply(JNIEnv *env, Engine *engine) {
   JSValue error = JS_GetException(engine->context); size_t length = 0;
@@ -66,20 +87,31 @@ static jbyteArray exception_reply(JNIEnv *env, Engine *engine) {
   JS_FreeCString(engine->context, text); JS_FreeValue(engine->context, error); return out;
 }
 
+/*
+ * One engine: the bundle, the global it exposes (`AiWorldStateEngine` for the hero alone, or
+ * `AiWorldGameEngine` for the whole game), and the string its `create` is handed after the session.
+ * The whole game needs more of everything than the hero does: memory, time to open a world, and a
+ * reply big enough to carry the ground it streams.
+ */
 JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_create(
-  JNIEnv *env, jobject self, jbyteArray source, jbyteArray session, jbyteArray saved_hero) {
+  JNIEnv *env, jobject self, jbyteArray source, jbyteArray entry, jbyteArray session, jbyteArray options,
+  jint memory_mb, jint budget_ms, jint reply_mb) {
   (void)self;
-  size_t source_length = 0, session_length = 0, saved_length = 0;
-  char *code = copy_bytes(env, source, 8 * 1024 * 1024, &source_length);
+  size_t source_length = 0, entry_length = 0, session_length = 0, saved_length = 0;
+  char *code = copy_bytes(env, source, 32 * 1024 * 1024, &source_length);
+  char *named = copy_bytes(env, entry, 64, &entry_length);
   char *identity = copy_bytes(env, session, 1024, &session_length);
-  char *saved = saved_hero ? copy_bytes(env, saved_hero, 1024 * 1024, &saved_length) : NULL;
+  char *saved = options ? copy_bytes(env, options, 8 * 1024 * 1024, &saved_length) : NULL;
   Engine *engine = calloc(1, sizeof *engine);
-  if (!code || !identity || !engine || (saved_hero && !saved)) goto failed;
+  if (!code || !named || !identity || !engine || (options && !saved)) goto failed;
+  if (memory_mb < 16 || memory_mb > 1024 || budget_ms < 100 || budget_ms > 600000 || reply_mb < 1 || reply_mb > 64) goto failed;
   engine->engine = JS_UNDEFINED;
+  engine->budget = budget_ms;
+  engine->reply_limit = (size_t)reply_mb * 1024 * 1024;
   engine->runtime = JS_NewRuntime(); if (!engine->runtime) goto failed;
-  JS_SetMemoryLimit(engine->runtime, 64 * 1024 * 1024);
-  JS_SetMaxStackSize(engine->runtime, 1024 * 1024);
-  engine->deadline = now_ms() + 5000;
+  JS_SetMemoryLimit(engine->runtime, (size_t)memory_mb * 1024 * 1024);
+  JS_SetMaxStackSize(engine->runtime, 4 * 1024 * 1024);
+  engine->deadline = now_ms() + engine->budget * 4;
   JS_SetInterruptHandler(engine->runtime, interrupt, engine);
   engine->context = JS_NewContext(engine->runtime); if (!engine->context) goto failed;
   JSValue global = JS_GetGlobalObject(engine->context), crypto = JS_NewObject(engine->context);
@@ -88,7 +120,7 @@ JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_creat
   JSValue evaluated = JS_Eval(engine->context, code, source_length, "ai-world-bundle://engine.js", JS_EVAL_TYPE_GLOBAL);
   int bad = JS_IsException(evaluated); JS_FreeValue(engine->context, evaluated);
   if (!bad) {
-    JSValue module = JS_GetPropertyStr(engine->context, global, "AiWorldStateEngine");
+    JSValue module = JS_GetPropertyStr(engine->context, global, named);
     JSValue factory = JS_GetPropertyStr(engine->context, module, "create");
     JSValue arguments[2] = { JS_NewStringLen(engine->context, identity, session_length),
       saved ? JS_NewStringLen(engine->context, saved, saved_length) : JS_NULL };
@@ -96,17 +128,18 @@ JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_creat
     JS_FreeValue(engine->context, arguments[0]); JS_FreeValue(engine->context, arguments[1]);
     JS_FreeValue(engine->context, factory); JS_FreeValue(engine->context, module);
     bad = JS_IsException(engine->engine) || !JS_IsObject(engine->engine);
+    if (!bad) drain(engine);
   }
   JS_FreeValue(engine->context, global);
   if (bad) goto failed;
-  free(code); free(identity); free(saved); return (jlong)(intptr_t)engine;
+  free(code); free(named); free(identity); free(saved); return (jlong)(intptr_t)engine;
 failed:
   if (engine && engine->context) {
     JSValue error = JS_GetException(engine->context); const char *message = JS_ToCString(engine->context, error);
     __android_log_print(ANDROID_LOG_ERROR, "AiWorldStateEngine", "%s", message ? message : "Engine initialization failed");
     JS_FreeCString(engine->context, message); JS_FreeValue(engine->context, error);
   }
-  free(code); free(identity); free(saved); release(engine); return 0;
+  free(code); free(named); free(identity); free(saved); release(engine); return 0;
 }
 JNIEXPORT jbyteArray JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_request(
   JNIEnv *env, jobject self, jlong handle, jbyteArray input) {
@@ -115,7 +148,7 @@ JNIEXPORT jbyteArray JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_
   if (!engine) return reply(env, 1, "Engine retired", 14);
   size_t length = 0; char *text = copy_bytes(env, input, 1024 * 1024, &length);
   if (!text) return reply(env, 1, "Invalid request bytes", 21);
-  engine->deadline = now_ms() + 5000;
+  engine->deadline = now_ms() + engine->budget;
   JSValue function = JS_GetPropertyStr(engine->context, engine->engine, "request");
   JSValue argument = JS_NewStringLen(engine->context, text, length); free(text);
   JSValue value = JS_Call(engine->context, function, engine->engine, 1, &argument);
@@ -123,8 +156,10 @@ JNIEXPORT jbyteArray JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_
   if (JS_IsException(value)) { JS_FreeValue(engine->context, value); return exception_reply(env, engine); }
   if (!JS_IsString(value)) { JS_FreeValue(engine->context, value); return reply(env, 1, "Invalid engine response", 23); }
   const char *result = JS_ToCStringLen(engine->context, &length, value);
-  jbyteArray out = result ? reply(env, 0, result, length) : exception_reply(env, engine);
-  JS_FreeCString(engine->context, result); JS_FreeValue(engine->context, value); return out;
+  jbyteArray out = result ? reply_within(env, 0, result, length, engine->reply_limit) : exception_reply(env, engine);
+  JS_FreeCString(engine->context, result); JS_FreeValue(engine->context, value);
+  drain(engine);
+  return out;
 }
 JNIEXPORT void JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_dispose(
   JNIEnv *env, jobject self, jlong handle) {

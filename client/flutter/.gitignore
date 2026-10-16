@@ -50,3 +50,5 @@ app.*.map.json
 # Built from the repository sources before Flutter packaging.
 /assets/engine/engine.js
 /assets/engine/manifest.json
+/assets/engine/game.js
+/assets/engine/game-manifest.json

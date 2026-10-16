@@ -1,6 +1,6 @@
 # The game in an app's JavaScript engine
 
-Refs #563, #566. This is the engine side; the native hosts come next.
+Refs #563, #566.
 
 `src/mobile/game-engine.ts` is the bundle an installed app runs: the whole game, on the headless
 host (`docs/mobile/game-platform.md`), driven by requests in the shared host contract
@@ -48,3 +48,30 @@ plays it in a bare JavaScript context: no window, timers, performance clock, str
 require or worker. It opens a world, waits for the ground to arrive, walks the hero with the stick,
 opens and closes the pack as a book, saves, and records bundle size, load time and step timings.
 It runs in the "Portable mobile frame" workflow.
+
+## In the installed apps
+
+`tools/mobile/build-engine.mjs` builds `game.js` and `game-manifest.json` (scope `game`) beside the
+hero engine, from the same commit, into the app's assets; nothing is fetched at run time.
+`StateEngine.openGame` loads it through the same checked channel as the hero engine, naming the
+global `AiWorldGameEngine` and handing it the options.
+
+The native hosts give the whole game more than the hero:
+
+| | hero | game |
+|---|---|---|
+| memory (QuickJS) | 64 MB | 768 MB |
+| a request may take | 5 s | 60 s; opening, four times that |
+| a reply may be | 1 MB | 32 MB |
+| a bundle may be | 32 MB | 32 MB |
+
+QuickJS runs every pending promise job after each call, because nothing else will. JavaScriptCore
+drains its own when a call returns.
+
+**Hosted proof.** After the renderer scenes, the hosted replay (`tools/mobile/native_replay.dart`)
+opens the game from the bundled engine on both phones. It streams the ground into the same native
+renderer, a packet at a time, until 40 meshes have arrived. It walks the hero with the stick, reads
+the drawn frame back, and checks the save the game hands back is the hero's. It logs
+`HOSTED_GAME_READY` with the opening time, step median and p95, meshes, packets and distance walked.
+`hosted.py` pulls the frame, refuses a blank one, takes the screenshot beside it, and records all
+of it as `installed-<platform>-shared-game-session`.

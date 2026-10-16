@@ -198,6 +198,8 @@ def capture(platform):
                 text = '\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))
                 if 'HOSTED_NATIVE_FAILED' in text:
                     raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
+                if 'HOSTED_GAME_FAILED' in text:
+                    raise RuntimeError('The installed game session failed; inspect native.log')
                 if marker in text:
                     return text
                 time.sleep(1)
@@ -277,6 +279,31 @@ def capture(platform):
             advance(index)
         wait_for('HOSTED_NATIVE_READY', 120, 'end of the replayed scenes')
         save(status='renderer-smoke-passed')
+
+        # the whole shared game in the app's own JavaScript engine (#563), drawn by the same renderer
+        save(status='waiting-installed-game')
+        text = wait_for(f'HOSTED_GAME_READY platform={platform}', 1200, 'the installed game session')
+        line = re.search(rf'HOSTED_GAME_READY platform={platform} [^\n]*', text).group(0)
+        stats = dict(pair.split('=', 1) for pair in line.split()[1:] if '=' in pair)
+        width, height = (int(n) for n in stats['framebuffer'].split('x'))
+        pixels = pull('game-first.rgba')
+        if len(pixels) != width * height * 4:
+            raise RuntimeError(f'installed game: {len(pixels)} bytes read back for {width}x{height}')
+        drawn = Image.frombytes('RGBA', (width, height), pixels)
+        drawn.save(OUT / 'installed-game-framebuffer.png')
+        if platform == 'android':
+            with (OUT / 'installed-game.png').open('wb') as file:
+                subprocess.run([*adb, 'exec-out', 'screencap', '-p'], stdout=file, check=True, timeout=30)
+        else:
+            command([*sim, 'io', device, 'screenshot', str(OUT / 'installed-game.png')])
+        import parity
+        found = parity.blankness(drawn)
+        if parity.is_blank(found, parity.thresholds()['blank']):
+            raise RuntimeError(f'installed game: the frame the shared session drew is blank: {found}')
+        state = json.loads(STATE.read_text())
+        save(installed_game={**stats, 'frame': found}, status='installed-game-passed',
+             assertions=state['assertions'] + [{'name': f'installed-{platform}-shared-game-session', 'passed': True,
+                                                'scope': 'whole game in the bundled engine, drawn natively', **stats}])
     finally:
         for process in processes:
             process.terminate()
@@ -387,6 +414,11 @@ def report(platform):
                 ('difference x4', f'{name}-diff.png', 0), (f'device screenshot, turned {turn}', f'{name}-first.png', turn))]
             sections.append('<table><tr>' + ''.join(f'<th>{html.escape(label)}</th>' for label, path, _ in cells if path.exists()) + '</tr><tr>' +
                             ''.join(f'<td><img src="{thumbnail(path, turn=angle)}"></td>' for _, path, angle in cells if path.exists()) + '</tr></table>')
+    if state.get('installed_game'):
+        sections.append('<h2>installed game</h2><pre>' + html.escape(json.dumps(state['installed_game'])) + '</pre>')
+        if pictures:
+            sections.append('<table><tr>' + ''.join(f'<td><img src="{thumbnail(OUT / file)}"></td>'
+                            for file in ('installed-game-framebuffer.png', 'installed-game.png') if (OUT / file).exists()) + '</tr></table>')
     sections.append('<details><summary>manifest</summary><pre>' + html.escape(json.dumps(state, indent=2)) + '</pre></details>')
     for log in sorted(OUT.glob('*.log')):
         sections.append('<details><summary>' + html.escape(log.name) + '</summary><pre>' +

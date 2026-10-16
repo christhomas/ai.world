@@ -1,6 +1,7 @@
 // Hosted renderer replay only. This does not implement or certify installed gameplay.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:ai_world_flutter/ai_world_flutter.dart';
 import 'package:ai_world_flutter/src/storage/checkpoint_store.dart';
 import 'package:flutter/material.dart';
@@ -57,12 +58,91 @@ Future<void> main() async {
           }
         }
         debugPrint('HOSTED_NATIVE_READY scenes=${scenes.length}');
+        try {
+          await proveInstalledGame(renderer, pipeline, advance);
+        } catch (error, stack) {
+          debugPrint('HOSTED_GAME_FAILED $error\n$stack');
+          rethrow;
+        }
       } catch (error, stack) {
         debugPrint('HOSTED_NATIVE_FAILED $error\n$stack');
         rethrow;
       }
     })),
   ));
+}
+
+/// The whole shared game, in this app's own JavaScript engine (#563): a world opened from the bundled
+/// engine, its ground streamed into the native renderer a packet at a time, the hero walked by the
+/// stick, the frame he ended in read back, and the save the game wrote handed to the app.
+Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeline pipeline, Directory store) async {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final size = view.physicalSize / view.devicePixelRatio;
+  final opening = Stopwatch()..start();
+  final engine = await StateEngine.openGame('installed-game:${Platform.operatingSystem}', {
+    'seed': 3, 'kind': 'road', 'slot': 'installed', 'name': 'Rowan',
+    'viewport': {'width': size.width.roundToDouble(), 'height': size.height.roundToDouble()},
+  });
+  try {
+    Map<String, dynamic> state(Map<String, dynamic> reply) {
+      if (reply['type'] != 'result') throw StateError('Game request failed: ${reply['payload']}');
+      return Map<String, dynamic>.from(reply['payload']['state'] as Map);
+    }
+    state(await engine.request('start', {'mode': 'local', 'world': 'installed'}));
+    final opened = opening.elapsedMilliseconds;
+    debugPrint('HOSTED_GAME_OPENED platform=${Platform.operatingSystem} openMs=$opened sha=${engine.sourceSha}');
+    final cache = SceneGeometryCache();
+    final stepMicros = <int>[];
+    var tick = -1;
+    var time = 0.0;
+    var packets = 0;
+    Future<Map<String, dynamic>> step({List<double> move = const [0, 0]}) async {
+      tick++;
+      time += 1000 / 30;
+      final watch = Stopwatch()..start();
+      final reply = state(await engine.request('step', {'tick': tick, 'dtSeconds': 1 / 30, 'renderTimeMs': time,
+        'input': {'move': move, 'look': [0, 0], 'held': {'guard': false, 'run': false}, 'actions': <String>[],
+          'owner': 'WORLD', 'busy': null}}));
+      stepMicros.add(watch.elapsedMicroseconds);
+      final scene = (reply['models'] as Map)['scene'];
+      if (scene != null) {
+        packets++;
+        await pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene as Map), geometryCache: cache));
+      }
+      return reply;
+    }
+    Future<int> drawn() async {
+      state(await engine.request('resync', {'reason': 'scene'}));
+      final scene = (await step())['models']['scene'] as Map?;
+      if (scene == null) throw StateError('A scene was asked for and none came');
+      return ((scene['frame'] as Map)['nodes'] as List).where((node) => (node as Map)['kind'] == 'mesh').length;
+    }
+    var meshes = 0;
+    for (var round = 0; round < 80 && meshes < 40; round++) {
+      for (var n = 0; n < 15; n++) { await step(); }
+      meshes = await drawn();
+    }
+    if (meshes < 40) throw StateError('Only $meshes meshes of ground arrived');
+    final from = Map<String, dynamic>.from((await step())['models']['hero'] as Map);
+    for (var n = 0; n < 45; n++) { await step(move: [0, 1]); }
+    meshes = await drawn();
+    final to = Map<String, dynamic>.from((await step())['models']['hero'] as Map);
+    final walked = math.sqrt(math.pow((to['x'] as num) - (from['x'] as num), 2) + math.pow((to['z'] as num) - (from['z'] as num), 2));
+    if (walked <= 1) throw StateError('The hero walked $walked tiles, from $from to $to');
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    final shot = await renderer.snapshot();
+    await File('${store.path}/game-first.rgba').writeAsBytes(shot.rgba, flush: true);
+    state(await engine.request('resync', {'reason': 'save'}));
+    final saved = (await step())['models']['save'] as Map?;
+    if (saved == null || (saved['state'] as Map?)?['playerId'] != to['playerId']) throw StateError('The game saved nothing of the hero');
+    stepMicros.sort();
+    String ms(int micros) => (micros / 1000).toStringAsFixed(2);
+    debugPrint('HOSTED_GAME_READY platform=${Platform.operatingSystem} openMs=$opened steps=${stepMicros.length} '
+        'stepMedianMs=${ms(stepMicros[stepMicros.length ~/ 2])} stepP95Ms=${ms(stepMicros[(stepMicros.length * 0.95).floor()])} '
+        'meshes=$meshes packets=$packets walked=${walked.toStringAsFixed(2)} framebuffer=${shot.width}x${shot.height}');
+  } finally {
+    await engine.dispose();
+  }
 }
 
 /// A scene decoded to exactly what was recorded, with real geometry, before any picture of it counts.

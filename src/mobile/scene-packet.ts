@@ -27,7 +27,7 @@ export class ScenePackets {
   private readonly sent = new Set<string>();
   private next = 0;
 
-  constructor(private readonly budget = 1_500_000) {}
+  constructor(private readonly budget = 300_000) {}
 
   /** Geometry this many numbers large is sent in one packet at most. */
   get numbersPerPacket(): number { return this.budget; }

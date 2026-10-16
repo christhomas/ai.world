@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'host_contract.dart';
 
-/// Owned installed hero-state VM. This is not the complete world/render/storage GameSession.
+/// An owned bundled engine in the app's own JavaScript VM: the hero alone (`open`), or the whole
+/// shared game (`openGame`, #563). Requests and replies are the shared host contract either way.
 class StateEngine {
   StateEngine._(this.session, this.sourceSha, this._token, this._channel);
   static const _native = MethodChannel('world.ai/state-engine');
@@ -16,21 +17,35 @@ class StateEngine {
   Future<void> _tail = Future<void>.value();
   bool get isRetired => _retired;
 
-  static Future<StateEngine> open(String session, {Object? savedHero, AssetBundle? assets, MethodChannel? channel}) async {
+  static Future<StateEngine> open(String session, {Object? savedHero, AssetBundle? assets, MethodChannel? channel}) =>
+    _open(session, manifestPath: 'assets/engine/manifest.json', sourcePath: 'assets/engine/engine.js',
+      scope: 'hero-state', arguments: {'savedHero': savedHero == null ? null : jsonEncode(savedHero)},
+      assets: assets, channel: channel);
+
+  /// The whole game: `options` names the seed, kind of world, save slot, hero and viewport (see
+  /// `src/mobile/game-engine.ts`). Nothing in it is fetched; the bundle was built with the app.
+  static Future<StateEngine> openGame(String session, Map<String, Object?> options,
+      {AssetBundle? assets, MethodChannel? channel}) =>
+    _open(session, manifestPath: 'assets/engine/game-manifest.json', sourcePath: 'assets/engine/game.js',
+      scope: 'game', arguments: {'entry': 'AiWorldGameEngine', 'options': jsonEncode(options)},
+      assets: assets, channel: channel);
+
+  static Future<StateEngine> _open(String session, {required String manifestPath, required String sourcePath,
+      required String scope, required Map<String, Object?> arguments, AssetBundle? assets, MethodChannel? channel}) async {
     HostRequestGate(session);
     final bundle = assets ?? rootBundle;
-    final manifest = jsonDecode(await bundle.loadString('assets/engine/manifest.json')) as Map<String, dynamic>;
-    if (manifest['contractVersion'] != hostContractVersion || manifest['scope'] != 'hero-state' ||
+    final manifest = jsonDecode(await bundle.loadString(manifestPath)) as Map<String, dynamic>;
+    if (manifest['contractVersion'] != hostContractVersion || manifest['scope'] != scope ||
         manifest['sourceSha'] is! String || !RegExp(r'^[0-9a-f]{40}$').hasMatch(manifest['sourceSha'] as String) ||
         manifest['bundleSha256'] is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(manifest['bundleSha256'] as String)) {
       throw const FormatException('Invalid engine manifest');
     }
-    final source = await bundle.load('assets/engine/engine.js');
+    final source = await bundle.load(sourcePath);
     final native = channel ?? _native;
     final token = await native.invokeMethod<String>('create', {
       'session': session, 'source': source.buffer.asUint8List(source.offsetInBytes, source.lengthInBytes),
       'bundleSha256': manifest['bundleSha256'],
-      'savedHero': savedHero == null ? null : jsonEncode(savedHero),
+      ...arguments,
     });
     if (token == null || token.isEmpty) throw StateError('Native engine did not return an owner');
     return StateEngine._(session, manifest['sourceSha'] as String, token, native);
