@@ -183,3 +183,61 @@ export function refill<T>(target: T[], source: readonly T[]): T[] {
   target.splice(0, target.length, ...source);
   return target;
 }
+
+/** A record as it travels to a client. What it names is worked out again where it lands. */
+export interface ContentWire {
+  id: string;
+  source: string;
+  field: string | null;
+  ordinal: number;
+  body: unknown;
+}
+
+/**
+ * A short fingerprint of a set of records, so two ends can tell whether they started from the same
+ * bundled JSON without sending it to each other. Two FNV-1a passes, 64 bits between them: an
+ * accident check between a page and its own server, not a seal against anybody.
+ */
+export function fingerprint(records: readonly ContentRecord[]): string {
+  const text = JSON.stringify(records.map((r) => [r.id, r.source, r.field, r.ordinal, r.body]));
+  let a = 0x811c9dc5, b = 0xcbf29ce4;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c, 0x01000193) >>> 0;
+  }
+  return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0');
+}
+
+const sameRecord = (a: ContentRecord, b: ContentRecord): boolean => a.source === b.source && a.field === b.field
+  && a.ordinal === b.ordinal && JSON.stringify(a.body) === JSON.stringify(b.body);
+
+/** What a revision says that a bundle does not: records added or changed, and records it no longer has. */
+export function changesFrom(
+  bundle: readonly ContentRecord[], revision: readonly ContentRecord[],
+): { changed: ContentWire[]; deleted: string[] } {
+  const bundled = new Map(bundle.map((record) => [record.id, record]));
+  const kept = new Set(revision.map((record) => record.id));
+  const changed = revision.filter((record) => {
+    const was = bundled.get(record.id);
+    return !was || !sameRecord(was, record);
+  }).map(({ id, source, field, ordinal, body }) => ({ id, source, field, ordinal, body }));
+  return { changed, deleted: bundle.filter((record) => !kept.has(record.id)).map((record) => record.id) };
+}
+
+/** A bundle with a revision's changes laid over it, which is that revision again. */
+export function withChanges(
+  bundle: readonly ContentRecord[], changed: readonly ContentWire[], deleted: readonly string[],
+): ContentRecord[] {
+  const gone = new Set(deleted);
+  const over = new Map(changed.map((wire) => [wire.id, wire]));
+  const records = bundle.filter((record) => !gone.has(record.id)).map((record) => {
+    const wire = over.get(record.id);
+    return wire ? contentRecord(wire.id, wire.source, wire.field, wire.ordinal, wire.body) : record;
+  });
+  const present = new Set(records.map((record) => record.id));
+  for (const wire of changed) {
+    if (!present.has(wire.id)) records.push(contentRecord(wire.id, wire.source, wire.field, wire.ordinal, wire.body));
+  }
+  return records;
+}

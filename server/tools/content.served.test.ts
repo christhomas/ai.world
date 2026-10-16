@@ -9,7 +9,9 @@ import { DEFAULT_CONTENT } from '../../src/core/contentDefaults';
 import { CONTENT_BODY_LIMIT } from './content';
 import { KINDS } from '../../src/entities/animals';
 import { inventory } from '../../src/core/content';
-import { installContent } from '../../src/entities/contentInstall';
+import { bundledContent, installContent } from '../../src/entities/contentInstall';
+import { WebSocket } from 'ws';
+import { PROTOCOL_VERSION, type ServerMessage } from '../protocol';
 
 describe('the content catalogue through the tools portal', () => {
   let dir = '', server: RunningServer | null = null;
@@ -46,6 +48,24 @@ describe('the content catalogue through the tools portal', () => {
       body: typeof value === 'string' ? value : JSON.stringify(value),
     });
 
+    // A player in a world hears the content before the welcome, and every edit after it.
+    const socket = new WebSocket(`ws://127.0.0.1:${server.port}`);
+    const heard: ServerMessage[] = [];
+    socket.on('message', (raw) => heard.push(JSON.parse(String(raw)) as ServerMessage));
+    await new Promise((open, fail) => { socket.on('open', open); socket.on('error', fail); });
+    const until = async (found: () => boolean) => {
+      for (let waited = 0; !found(); waited += 25) {
+        if (waited > 20_000) throw new Error(`heard only ${heard.map((m) => m.type).join(', ')}`);
+        await new Promise((wake) => setTimeout(wake, 25));
+      }
+    };
+    socket.send(JSON.stringify({ type: 'join', seed: 5, name: 'Rowan', version: PROTOCOL_VERSION, day: 1, time: 0.3, content: bundledContent() }));
+    await until(() => heard.some((m) => m.type === 'welcome'));
+    const first = heard.findIndex((m) => m.type === 'content');
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThan(heard.findIndex((m) => m.type === 'welcome'));
+    expect(heard[first]).toEqual({ type: 'content', revision: 1, bundle: bundledContent(), changed: [], deleted: [] });
+
     const listing = await (await get('/tools/content/data')).json() as { head: number; records: { id: string }[] };
     expect(listing.head).toBe(1);
     expect(listing.records.map((record) => record.id)).toContain('creature:wolf');
@@ -62,6 +82,10 @@ describe('the content catalogue through the tools portal', () => {
     expect(await edited.json()).toEqual({ head: 2 });
     // The running game changed with it: this process is the server, and its wolves are the edited ones.
     expect(KINDS.wolf.hp).toBe(wolf.hp + 5);
+    await until(() => heard.some((m) => m.type === 'content' && m.revision === 2));
+    const told = heard.find((m) => m.type === 'content' && m.revision === 2) as Extract<ServerMessage, { type: 'content' }>;
+    expect(told.changed.map((wire) => [wire.id, (wire.body as { hp: number }).hp])).toEqual([['creature:wolf', wolf.hp + 5]]);
+    socket.close();
     const after = await (await get('/tools/content/data')).json() as { revisions: { author: string; note: string }[] };
     expect(after.revisions.at(-1)).toMatchObject({ author: 'operator', note: 'tougher wolves' });
 

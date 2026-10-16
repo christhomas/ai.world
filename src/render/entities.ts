@@ -539,18 +539,35 @@ export class EntityRenderer {
   dispose(): void {
     if (this.retired) return;
     this.retired = true;
-    for (const p of this.pools.values()) {
-      for (const entity of p.entities) entity.slot = -1;
-      for (const part of p.meshes) {
-        part.unmount?.();
-        if (part.node) this.graph?.remove(part.node);
-        this.scene.remove(part.mesh);
-        part.mesh.geometry.dispose();
-        (part.mesh.material as THREE.Material).dispose();
-        part.mesh.dispose();
-      }
-    }
+    for (const p of this.pools.values()) this.drop(p);
     this.pools.clear();
     this.bars.dispose();
+  }
+
+  /**
+   * Build these kinds' bodies again, keeping everybody drawn with them, after an installed content
+   * revision changed their models (#624). A pool's meshes are made from its kind's parts once.
+   */
+  rebuild(ids: readonly string[]): void {
+    if (this.retired) return;
+    for (const id of ids) {
+      const old = this.pools.get(id);
+      if (!old) continue;
+      this.pools.delete(id);
+      this.drop(old);
+      for (const e of old.entities) this.add(e);
+    }
+  }
+
+  private drop(p: KindPool): void {
+    for (const entity of p.entities) entity.slot = -1;
+    for (const part of p.meshes) {
+      part.unmount?.();
+      if (part.node) this.graph?.remove(part.node);
+      this.scene.remove(part.mesh);
+      part.mesh.geometry.dispose();
+      (part.mesh.material as THREE.Material).dispose();
+      part.mesh.dispose();
+    }
   }
 }

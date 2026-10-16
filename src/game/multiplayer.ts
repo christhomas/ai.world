@@ -1,3 +1,4 @@
+import { installFromServer } from '../entities/contentInstall';
 import {
   type CreatureSnap, PING_LIFE } from '../../server/protocol';
 import { ITEMS, SLOTS } from './items';
@@ -166,6 +167,16 @@ export function createMultiplayer(ctx: MultiplayerContext) {
   const online = new Online({
     onChat: (line) => chat.line(line),
     onSystem: (line) => { chat.line(line, 'sys'); hud.flash(line); },
+    // what the world runs, laid over what this page was built with; a model it changed is drawn again
+    onContent: (bundle, changed, deleted) => {
+      let rebuilt: string[] | null;
+      try { rebuilt = installFromServer(bundle, changed, deleted); } catch (why) {
+        chat.line(`This world's content could not be installed: ${String(why)}`, 'sys');
+        return;
+      }
+      if (rebuilt === null) chat.line('This world runs another build of the game. Reload the page to play it as it is.', 'sys');
+      else entityRenderer.rebuild(rebuilt);
+    },
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),

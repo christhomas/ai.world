@@ -1,3 +1,4 @@
+import { bundledContent } from '../entities/contentInstall';
 import { WORLD_PAUSE, WORLD_RESUME, type Link, type LinkEvents } from '../net/link-contract';
 import {
   EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
@@ -181,7 +182,7 @@ export class Online {
       onStorageFailure: why => { if (attempt === this.attempt) this.events.onSystem(why); },
       onOpen: () => { if (attempt !== this.attempt) return; this.send({
         type: 'join', worldName, seed, kind: country.kind, name: this.name, playerId, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
-        x: country.at?.x, z: country.at?.z,
+        x: country.at?.x, z: country.at?.z, content: this.local ? undefined : bundledContent(),
         terrain: this.local ? country.terrain : undefined,
         highlands: this.local ? country.highlands : undefined,
       }); },
