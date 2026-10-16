@@ -134,7 +134,7 @@ class GameSession {
   Future<Map<String, dynamic>> step(double dt) async {
     if (++_sinceScene >= sceneEvery) {
       _sinceScene = 0;
-      await engine.request('resync', {'reason': 'scene'});
+      _take(await engine.request('resync', {'reason': 'scene'}));
     }
     _tick++;
     _time += dt * 1000;
@@ -171,8 +171,9 @@ class GameSession {
 
   /// Save the hero and the world now, and wait until both are on disk.
   Future<void> save() async {
-    await engine.request('resync', {'reason': 'save'});
-    // the save is written after the request returns, and handed over with the next reply
+    // every reply can carry the save: this one when the game writes it at once, the next one when
+    // the write finishes after the request has returned
+    _take(await engine.request('resync', {'reason': 'save'}));
     _tick++;
     _take(await engine.request('step', {'tick': _tick, 'dtSeconds': 0.001, 'renderTimeMs': _time += 1, 'input': stillInput}));
     _keeping?.cancel();
