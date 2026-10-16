@@ -66,4 +66,26 @@ describe('the game on a host with no page', () => {
       opened.dispose();
     }
   });
+
+  it('can be thrown away while it is still loading and opened again, with nothing of it left running', async () => {
+    for (let start = 0; start < 3; start++) {
+      const game = headlessGame({
+        viewport: { width: 1200, height: 540 }, clock: systemClock, now: () => performance.now(), random: Math.random,
+      });
+      const opened = composeGame({ store: savedInMemory(), slotKey: `again-${start}`, saved: undefined, seed: 3 + start,
+        worldName: undefined, world: 'road' }, game.platform);
+      const { online } = game.handles();
+      // a frame or two in: the world in this thread has not answered yet, and the ground is not here
+      game.frame(frame);
+      await breathe();
+      opened.dispose();
+      // whatever was already due may finish; after that nothing draws, steps or connects again
+      game.frame(frame);
+      await breathe();
+      const drawn = game.recording.frames;
+      for (let step = 0; step < 20; step++) { game.frame(frame); await breathe(); }
+      expect(game.recording.frames, `start ${start}: nothing draws after the game is disposed`).toBe(drawn);
+      expect(online.connected, `start ${start}: the world is let go`).toBe(false);
+    }
+  });
 });
