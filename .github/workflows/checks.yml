@@ -272,6 +272,18 @@ jobs:
           channel: stable
           cache: true
 
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Bundle shared state engine before Flutter packaging
+        working-directory: .
+        run: |
+          pnpm install --frozen-lockfile
+          node tools/mobile/build-engine.mjs
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
