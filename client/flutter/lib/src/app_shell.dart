@@ -113,7 +113,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       _world = NativeWorldView(key: const ValueKey('world'), onCreated: (renderer) => _start(slot, renderer));
     });
     unawaited(_settings?.commit('last', {'slot': slot.slot, 'seed': slot.seed, 'kind': slot.kind, 'name': slot.name,
-        if (slot.server != null) 'server': slot.server})
+        'server': ?slot.server})
       .catchError((Object _) {}));
   }
 
