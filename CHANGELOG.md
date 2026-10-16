@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.104.0 — 2026-10-16
+
+Live content: edit creatures, models, behaviours and spawn tables from the tools
+
 ## v0.103.13 — 2026-10-14
 
 Shared tools shell and database-backed world discovery
