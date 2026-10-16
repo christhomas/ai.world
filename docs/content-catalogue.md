@@ -1,10 +1,12 @@
 # Gameplay content catalogue
 
-Status: slices 1–3 of #624. The bundled JSON in `models/`, `properties/`, `behaviours/` and
-`animations/` now seeds a SQLite catalogue the first time a server opens its durable database.
-**Nothing in the game reads the catalogue yet**: the simulation, the browser and the native hosts
-still run on the bundled JSON. Edits through the catalogue therefore change no gameplay. Live
-editing is not claimed until a production reader consumes a published revision.
+Status: slices 1–3 of #624, and the server half of slice 4. The bundled JSON in `models/`,
+`properties/`, `behaviours/` and `animations/` seeds a SQLite catalogue the first time a server
+opens its durable database. **The server's simulation runs on the catalogue's published revision**,
+and every edit or rollback published through the tools is installed into the running game as it
+commits. **Clients are not sent the revision yet**: browsers and the native hosts still draw,
+predict and play solo with the bundled JSON, so an edit that changes something a client also
+computes (a model, the hero's own pace) is not yet seen the same way on both ends.
 
 ## Records
 
@@ -75,6 +77,22 @@ immutable: SQLite triggers abort any UPDATE or DELETE on them. Each revision rec
 reason, author, note, time, the defaults version in force and a SHA-256 of the bundled defaults
 the writing build carried.
 
+## Installed into the running server
+
+`installContent` (`src/entities/contentInstall.ts`) reads a whole revision with the game's own
+readers first, and refuses it with nothing changed if any of them fails. Only then does it replace
+each content table **in place**: `KINDS`, `PROPERTIES`, `MODELS`, the behaviour trees, the motion
+tables and the spawn tables. The objects stay the same ones the rest of the game already holds,
+so a wolf already in the world walks at its new speed from its next step and decides with its new
+tree from its next tick. The scalar dials (`STEP_LIMIT`, `SPAWN_RADIUS`, `ACTIVE_RANGE`,
+`WATCH_RANGE`, `FLINCH_LASTS`, `DYING_LASTS`) are live `export let` bindings for the same reason.
+Bodies are copied before they are read, so nothing installed shares an object with the bundled
+JSON.
+
+The server installs the catalogue's head when it starts, and refuses to start if it cannot. It
+never quietly falls back to the bundled JSON. Every committed revision is then installed as it
+commits. JavaScript runs one thing at a time, so that is always between two simulation ticks.
+
 ## Through the tools portal
 
 `/tools/content/data` answers a signed-in tools account only. Anybody else is sent to the login
@@ -107,7 +125,8 @@ against a new one, seeds a fresh catalogue from whatever JSON that build carries
 
 The remaining slices of #624 are not in this change:
 
-- the runtime readers that load the published revision in the server simulation and the
-  browser/native hosts, and the offline cache;
+- sending the published revision to clients, and installing it in browser and native hosts,
+  including rebuilding model geometry they have already built;
+- the solo/offline hosts' own seed-once catalogue;
 - live revision delivery, and the tools editor;
 - the end-to-end proof on GitHub.

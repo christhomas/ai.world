@@ -26,6 +26,7 @@ import { ContentCatalogue } from './content';
 import { inventory } from '../src/core/content';
 import { DEFAULT_CONTENT } from '../src/core/contentDefaults';
 import { checkContent } from '../src/entities/contentCheck';
+import { installContent } from '../src/entities/contentInstall';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -206,11 +207,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     vault = durable ? new SqliteVault(durable, dataDir) : new FileVault();
     /*
      * Gameplay content is seeded into the same database the first time it is opened, and only
-     * then (#624). Nothing in the simulation reads it yet: the game still runs on the bundled
-     * JSON, and the catalogue's job for now is to have its first revision before anything does.
-     * The tools can read, edit and roll it back.
+     * then (#624). The server's simulation runs on its published revision, and every edit or
+     * rollback the tools publish is installed into the running game as it commits. Clients are
+     * not yet sent the revision: they draw and predict with the bundled JSON.
      */
-    content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT), { check: checkContent }) : null;
+    content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT), {
+      check: checkContent,
+      published: (records) => installContent(records),
+    }) : null;
+    // The simulation runs on what the catalogue publishes. A catalogue that cannot be installed
+    // stops the server here rather than leaving it quietly running on the bundled JSON.
+    if (content) installContent(content.records());
     if (content && !options.quiet) console.log(`gameplay content catalogue at revision ${content.head()}`);
   } catch (error) { durable?.close(); throw error; }
   const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;

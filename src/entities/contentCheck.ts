@@ -1,10 +1,24 @@
 import { assemble, type ContentKind, type ContentRecord } from '../core/content';
 import { readModels } from './models';
-import { readBehaviourTuning, readProperties } from './properties';
+import { readBehaviourTuning, readProperties, type CreatureProperties } from './properties';
 import { compileBehaviours, treeNameIn } from './behaviours';
 import { BLOW_NAMES, readMotion } from './motion';
 import { readSpawning } from './spawning';
 import { readSpawns } from './spawns';
+
+/** Everything a set of content records says, read by the game's own readers. */
+export interface ReadContent {
+  motion: ReturnType<typeof readMotion>;
+  models: ReturnType<typeof readModels>;
+  properties: Record<string, CreatureProperties>;
+  /** The creatures filed as people, which is the contents of `properties/people.json`. */
+  people: string[];
+  tuning: ReturnType<typeof readBehaviourTuning>;
+  behaviourFiles: Record<string, unknown>;
+  trees: ReturnType<typeof compileBehaviours>;
+  spawning: ReturnType<typeof readSpawning>;
+  spawns: ReturnType<typeof readSpawns>;
+}
 
 /**
  * Whether a proposed set of content records is one the game could run, asked with the game's own
@@ -22,6 +36,11 @@ import { readSpawns } from './spawns';
  * Returns every problem rather than the first, so whoever wrote the edit sees all of it at once.
  */
 export function checkContent(records: readonly ContentRecord[]): string[] {
+  return readContent(records).problems;
+}
+
+/** The same reading, keeping what was read when nothing was wrong, which is what installing needs. */
+export function readContent(records: readonly ContentRecord[]): { problems: string[]; read: ReadContent | null } {
   const problems: string[] = [];
   const attempt = <T>(read: () => T): T | null => {
     try { return read(); } catch (error) {
@@ -51,14 +70,13 @@ export function checkContent(records: readonly ContentRecord[]): string[] {
   const models = attempt(() => readModels(Object.fromEntries(records.filter((record) => record.kind === 'model')
     .map((record) => [record.id.slice('model:'.length), record.body]))));
   const properties = attempt(() => readProperties(filesOf('creature'), blows));
-  const tuning = fileOf('tuning');
-  if (tuning) attempt(() => readBehaviourTuning(tuning.json));
-  const trees = attempt(() => compileBehaviours(filesOf('behaviour')));
-  const spawning = fileOf('spawning');
-  if (spawning) {
-    attempt(() => readSpawning(spawning.json));
-    attempt(() => readSpawns(spawning.json, (kind) => properties?.[kind]?.damage ?? 0));
-  }
+  const tuningFile = fileOf('tuning');
+  const tuning = tuningFile && attempt(() => readBehaviourTuning(tuningFile.json));
+  const behaviourFiles = filesOf('behaviour');
+  const trees = attempt(() => compileBehaviours(behaviourFiles));
+  const spawningFile = fileOf('spawning');
+  const spawning = spawningFile && attempt(() => readSpawning(spawningFile.json));
+  const spawns = spawningFile && attempt(() => readSpawns(spawningFile.json, (kind) => properties?.[kind]?.damage ?? 0));
 
   if (models && properties) {
     for (const id of Object.keys(models)) {
@@ -72,5 +90,10 @@ export function checkContent(records: readonly ContentRecord[]): string[] {
       }
     }
   }
-  return problems;
+  if (problems.length || !motion || !models || !properties || !tuning || !trees || !spawning || !spawns) {
+    return { problems, read: null };
+  }
+  const people = records.filter((record) => record.kind === 'creature' && record.source === 'properties/people.json')
+    .map((record) => record.id.slice('creature:'.length));
+  return { problems, read: { motion, models, properties, people, tuning, behaviourFiles, trees, spawning, spawns } };
 }

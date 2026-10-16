@@ -163,3 +163,23 @@ export function brokenReferences(records: readonly ContentRecord[]): string[] {
   return records.flatMap((record) => record.refs.filter((ref) => !ids.has(ref))
     .map((ref) => `${record.id} names ${ref}, which does not exist`));
 }
+
+/**
+ * Make `target` hold exactly what `source` holds, keeping the object itself.
+ *
+ * A published revision is installed into the game's content tables in place (#624), because the
+ * rest of the game holds them: an entity holds its kind, the renderer holds a model's parts, a
+ * module re-exports a table. Keys keep the order they already had, so a bestiary walked in its
+ * written order is walked in the same order after an edit.
+ */
+export function replaceInPlace<T extends object>(target: T, source: T): T {
+  const into = target as Record<string, unknown>;
+  for (const key of Object.keys(into)) if (!(key in source)) delete into[key];
+  return Object.assign(target, source);
+}
+
+/** The same, for a list. */
+export function refill<T>(target: T[], source: readonly T[]): T[] {
+  target.splice(0, target.length, ...source);
+  return target;
+}

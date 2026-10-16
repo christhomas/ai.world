@@ -3,6 +3,7 @@ import villagers from '../../behaviours/villagers.json';
 import monsters from '../../behaviours/monsters.json';
 import villain from '../../behaviours/villain.json';
 import { compileAll, type BehaviourFile, type Spec } from '../core/behaviourFile';
+import { replaceInPlace } from '../core/content';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
 import type { Node } from '../core/behaviour';
 import type { Behaviour } from './animals';
@@ -53,6 +54,16 @@ const SPECS: Record<string, Spec> = {
   ...(monsters as unknown as BehaviourFile),
   ...(villain as unknown as BehaviourFile),
 };
+
+/**
+ * Put a published revision's behaviour files in place of the bundled ones (#624): the compiled
+ * trees, and the specs they were compiled from, which the long-run reckoning reads. A creature
+ * looks its tree up every tick, so the next tick runs the new one, from its first branch.
+ */
+export function installBehaviours(files: Readonly<Record<string, unknown>>, trees: Record<string, Node<Mind>>): void {
+  replaceInPlace(TREES, trees);
+  replaceInPlace(SPECS, Object.assign({}, ...Object.values(files)) as Record<string, Spec>);
+}
 
 /** Which behaviour kind is driven by which tree. Every kind of creature has one. */
 const DRIVEN_BY: Record<Behaviour, string> = {

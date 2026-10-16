@@ -6,6 +6,7 @@ import monsters from '../../properties/monsters.json';
 import villain from '../../properties/villain.json';
 import tuning from '../../properties/behaviour.json';
 import { Fields, PropertiesError, asColour, flatten, readAll } from '../core/properties';
+import { replaceInPlace } from '../core/content';
 import { BLOW_NAMES, isBlow, type Blow } from './motion';
 import type { AnimRole, PartDef } from './rigs';
 
@@ -192,9 +193,10 @@ export function readProperties(
  * rock face was filed nowhere at all. A list of names beside a directory of names is a list that
  * falls out of step, and this one did within a day of the directory growing.
  */
-export const PERSON_KINDS: ReadonlySet<string> = new Set(
+const personKinds = new Set(
   Object.keys(people).filter((name) => typeof (people as Record<string, unknown>)[name] === 'object'),
 );
+export const PERSON_KINDS: ReadonlySet<string> = personKinds;
 
 /**
  * A creature, from what it is and the body that draws it.
@@ -338,4 +340,24 @@ export const BEHAVIOUR: BehaviourDefaults = TUNING.behaviour;
  * ground, asked by the world as often as by a creature, and half the game already imports it
  * under this name.
  */
-export const STEP_LIMIT: number = TUNING.stepLimit;
+export let STEP_LIMIT: number = TUNING.stepLimit;
+
+/**
+ * Put a published revision's creatures and tuning in place of the bundled ones (#624). Each table,
+ * and each creature's own record, stays the same object, so whatever already holds one sees the
+ * change. `people` is which of them are people: the creatures filed in `properties/people.json`.
+ */
+export function installProperties(
+  properties: Record<string, CreatureProperties>, people: readonly string[],
+  tuning: { behaviour: BehaviourDefaults; stepLimit: number },
+): void {
+  for (const id of Object.keys(PROPERTIES)) if (!properties[id]) delete PROPERTIES[id];
+  for (const [id, next] of Object.entries(properties)) {
+    if (PROPERTIES[id]) replaceInPlace(PROPERTIES[id], next);
+    else PROPERTIES[id] = next;
+  }
+  personKinds.clear();
+  for (const id of people) personKinds.add(id);
+  replaceInPlace(BEHAVIOUR, tuning.behaviour);
+  STEP_LIMIT = tuning.stepLimit;
+}

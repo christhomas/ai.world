@@ -44,7 +44,6 @@
 export const EXCUSED = new Map<string, string>([
   ['src/dungeon/castlerooms.ts: HANGS_ON_WALLS', 'castle.test checks that file-driven hangings occupy walls'],
   ['src/entities/monsters.ts: MONSTER_KINDS', 'monster tests inspect the curated monster kinds'],
-  ['src/entities/motion.ts: FLINCH_LASTS', 'motion tests use the exported duration as their timing boundary'],
   ['src/entities/shapes.ts: partPoints', 'sites tests measure a prop\'s corners with it: the one door onto placedPieces'],
   ['src/entities/spawns.ts: DUNGEON_MONSTERS', 'danger tests exercise every shallow-dungeon spawn kind'],
   ['src/entities/villain.ts: VILLAIN_KINDS', 'villain tests inspect the curated villain kinds'],

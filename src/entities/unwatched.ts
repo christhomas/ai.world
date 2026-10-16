@@ -61,7 +61,7 @@ import { dutyAt, rangeIn, ringIn } from './timetable';
  * Not one of the four holds a number of its own about how a creature behaves. How far a wanderer
  * ranges and what hours an innkeeper keeps are read straight out of `behaviours/` by
  * `timetable.ts`, so there is one copy of each and changing it in the JSON changes the week as well
- * as the minute. The numbers that *are* here — `SETTLES`, `RIM_BIAS` — are about the closed form
+ * as the minute. The numbers that *are* here — `settles()`, `RIM_BIAS` — are about the closed form
  * itself rather than about any creature, and each says what it was measured against.
  *
  * ## What this file deliberately does not do
@@ -132,7 +132,8 @@ export class LongRunError extends Error {
  * move the simulation would not have made, which is how a creature comes to teleport eight tiles
  * the moment a player turns their back.
  */
-const SETTLES = BEHAVIOUR.HERD_DRIFT_TIME[0];
+/** Read when asked, not at load: an installed revision (#624) may change the drift it is taken from. */
+const settles = (): number => BEHAVIOUR.HERD_DRIFT_TIME[0];
 
 /**
  * How many spots to try before giving up and leaving something where it is.
@@ -217,7 +218,7 @@ const RIM_BIAS = 0.4;
 /** Move a herd's anchor to where a week of drifting would plausibly have left it. */
 function settleAnchor(h: Herd, away: Away): void {
   const ground = away.ground;
-  if (!ground || away.seconds < SETTLES) return;
+  if (!ground || away.seconds < settles()) return;
   const reach = spreadAfter(h, away.seconds);
   // a herd whose anchor cannot have moved keeps the anchor it has, which is not the same thing as
   // being sent home: a villager's anchor is wherever their trade last put them, and hauling it back
@@ -338,7 +339,7 @@ const driftsInRange: LongRun = {
     + 'trail an anchor that has already moved on, and this draws them round where it stands now',
   settle: (e, away) => {
     forgets(e);
-    if (away.seconds < SETTLES) return false;
+    if (away.seconds < settles()) return false;
     return placeNear(e, rangeOf(e), away, 0);
   },
 };
@@ -392,7 +393,7 @@ const ridesItsCircle: LongRun = {
   settle: (e, away) => {
     forgets(e);
     const ground = away.ground;
-    if (!ground || away.seconds < SETTLES) return false;
+    if (!ground || away.seconds < settles()) return false;
     const h = e.herd;
     const around = h.angle + (e.slot % 3) * 2.1;
     const radius = ringOf(e);
@@ -456,7 +457,7 @@ const keepsItsHours: LongRun = {
     + 'trade leaves to them',
   settle: (e, away) => {
     forgets(e);
-    if (away.seconds < SETTLES) return false;
+    if (away.seconds < settles()) return false;
     const spec = specFor(e);
     if (!spec) return false;
     const duty = dutyAt(spec, away.time);
@@ -676,7 +677,7 @@ export function catchUp(herd: Herd, away: Away): Aftermath {
  * alternative is a closed form that puts a flock somewhere the simulation never would.
  */
 function advanceRing(herd: Herd, away: Away): void {
-  if (herd.kind.behaviour !== 'fly' || away.seconds < SETTLES) return;
+  if (herd.kind.behaviour !== 'fly' || away.seconds < settles()) return;
   let rate = 0;
   for (const e of herd.members) {
     if (e.dead || e.dying > 0) continue;
