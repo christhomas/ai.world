@@ -113,7 +113,9 @@ def orientation(screenshot, framebuffer):
 def compare(web, native, limits, background=None, repeat=None):
     """Every measurement of one scene, and the reasons it fails, if it does."""
     cols, rows = limits['grid']
-    found = {'native': blankness(native, background), 'web': blankness(web, background)}
+    found = {'native': blankness(native, background)}
+    if web is not None:
+        found['web'] = blankness(web, background)
     failures = []
     if is_blank(found['native'], limits['blank']):
         failures.append(f'native frame is blank: {found["native"]}')
