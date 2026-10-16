@@ -97,6 +97,10 @@ jobs:
         run: python3 tools/mobile/hosted.py prepare android
         env:
           PARITY_FRAMES: ${{ runner.temp }}/parity-frames
+      - name: Put the Android shaders through the reference GLSL compiler
+        run: |
+          sudo apt-get install -y glslang-tools
+          python3 tools/mobile/glsl.py
       - name: Enable and require hosted KVM acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
