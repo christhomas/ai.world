@@ -192,6 +192,13 @@ def capture(platform):
                      device, 'world.ai.aiWorldFlutter'])
         save(status='waiting-native-ready', device=device)
 
+        def game_progress(text):
+            # how far the installed game got and how fast it ran, kept even when it did not finish
+            said = re.findall(r'HOSTED_GAME_(?:OPENED|PROGRESS|FAILED) [^\n]*', text)
+            if said:
+                save(installed_game_progress=said[-3:])
+            return ' | '.join(said[-3:])
+
         def wait_for(marker, seconds, what):
             deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
@@ -199,11 +206,13 @@ def capture(platform):
                 if 'HOSTED_NATIVE_FAILED' in text:
                     raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
                 if 'HOSTED_GAME_FAILED' in text:
-                    raise RuntimeError('The installed game session failed; inspect native.log')
+                    raise RuntimeError('The installed game session failed; inspect native.log. '
+                                       + game_progress(text))
                 if marker in text:
                     return text
                 time.sleep(1)
-            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization')
+            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization. '
+                               + game_progress('\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))))
 
         text = wait_for(f'HOSTED_STATE_ENGINE_READY platform={platform}', 90, 'installed state engine proof')
         if f'HOSTED_HERO_CHECKPOINT_READY platform={platform}' not in text:

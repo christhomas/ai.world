@@ -26,7 +26,10 @@ internal object NativeStateEngine {
 private data class EngineLimits(val memoryMb: Int, val budgetMs: Int, val replyMb: Int)
 private val LIMITS = mapOf(
     "AiWorldStateEngine" to EngineLimits(64, 5_000, 1),
-    "AiWorldGameEngine" to EngineLimits(768, 60_000, 32),
+    // a runaway guard, not a performance target: QuickJS interprets the whole game without a JIT and
+    // took more than a minute to open a world on the hosted emulator, so the proof reports what it
+    // measured instead of an interrupt (#559, #563)
+    "AiWorldGameEngine" to EngineLimits(768, 300_000, 32),
 )
 
 /** Native handles stay on the owner executor. Flutter receives only opaque tokens and UTF-8 JSON. */
