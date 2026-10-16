@@ -11,6 +11,7 @@ import 'screens/console_page.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
 import 'screens/map_page.dart';
+import 'screens/options_page.dart';
 import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
@@ -202,7 +203,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens),
           'map': (context, tokens) => MapPage(picture: session.mapPicture, map: session.map, walked: session.walked,
             charted: session.charted, hero: hero, tokens: tokens),
-          'options': (context, tokens) => _options(tokens),
+          'options': (context, tokens) => OptionsPage(slot: session.slot, tokens: tokens, controller: _ledger,
+            leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough'))),
         },
         place: '${hud['area'] ?? ''}',
         readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',
@@ -226,13 +228,6 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     final hh = '${minutes ~/ 60}'.padLeft(2, '0'), mm = '${minutes % 60}'.padLeft(2, '0');
     return '$hh:$mm · DAY ${hero['day'] ?? 1} · ${'${hero['season'] ?? ''}'.toUpperCase()}';
   }
-
-  Widget _options(LedgerTokens t) => ListView(children: [
-    SizedBox(height: 44, child: InkWell(key: const ValueKey('save-and-leave'), onTap: () => unawaited(_leave()),
-      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Align(alignment: Alignment.centerLeft, child: Text('Save and return to the title', style: t.face(14.5, t.pageInk)))))),
-    SizedBox(height: 300, child: LedgerThemePicker(controller: _ledger)),
-  ]);
 
   Widget _title(LedgerTokens t) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
     mainAxisSize: MainAxisSize.min, children: [
