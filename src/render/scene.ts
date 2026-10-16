@@ -6,6 +6,8 @@ import type { SceneGraph } from '../core/scenegraph';
 import { SceneState, type SceneLighting } from './scene-state';
 import { fogReach } from './scene-math';
 export { fogReach } from './scene-math';
+import { setWorldView } from './scene-view';
+export { worldView, setWorldView, type WorldView } from './scene-view';
 import { CoastField, COAST } from './coastfield';
 import { WaterMaterial } from './water';
 import type { RecordingPipeline } from './recording';
@@ -64,34 +66,6 @@ const SHADOW_SPREAD = 1.1;
  * weaker with it — the same shadows, drawn with stripes through them.
  */
 const SHADOW_BIAS = 0.16;
-
-/**
- * Where the camera is looking and how far from that point a thing can still be in shot. The rig
- * writes it on the scene every frame; anything drawing into that scene can read it and skip the
- * work of what nobody can see. Interiors and dungeons have no rig, so their scenes carry none of
- * this and nothing there is culled.
- */
-export interface WorldView {
-  x: number;
-  z: number;
-  /** Ground distance from (x, z) past which nothing can appear on screen. */
-  radius: number;
-}
-
-/** The view the rig last recorded on a scene, or null if no rig ever has. */
-export function worldView(scene: THREE.Object3D): WorldView | null {
-  return (scene.userData.worldView as WorldView | undefined) ?? null;
-}
-
-/**
- * Tell a scene where the camera is looking. Written in place rather than replaced, because this
- * happens every frame and a fresh object every frame is rubbish for the collector to sweep.
- */
-export function setWorldView(scene: THREE.Object3D, x: number, z: number, radius: number): void {
-  const view = scene.userData.worldView as WorldView | undefined;
-  if (view) { view.x = x; view.z = z; view.radius = radius; }
-  else scene.userData.worldView = { x, z, radius } satisfies WorldView;
-}
 
 /**
  * How far the sun's shadow camera has to see, given where the sun stands over what the camera is
