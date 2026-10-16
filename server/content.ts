@@ -115,6 +115,14 @@ interface Stored {
   origin: 'default' | 'edit';
 }
 
+/** A write made against a head that has since moved. Nothing was written; reload and try again. */
+export class StaleContent extends ContentError {
+  constructor(what: string, base: number, head: number | null) {
+    super(what, `was made against revision ${base}, but the catalogue is at ${head}`);
+    this.name = 'StaleContent';
+  }
+}
+
 const hashOf = (body: unknown): string => createHash('sha256').update(JSON.stringify(body)).digest('hex');
 
 const asRevision = (row: Record<string, unknown>): ContentRevision => ({
@@ -172,7 +180,7 @@ export class ContentCatalogue {
     if (!author.trim()) throw new ContentError('content edit', 'needs an author');
     if (changes.length === 0) throw new ContentError('content edit', 'changes nothing');
     return this.write((head) => {
-      if (base !== head) throw new ContentError('content edit', `was made against revision ${base}, but the catalogue is at ${head}`);
+      if (base !== head) throw new StaleContent('content edit', base, head);
       const current = new Map(this.state(head).map((row) => [row.record.id, row]));
       const rows: Stored[] = [];
       for (const change of changes) {
@@ -198,7 +206,7 @@ export class ContentCatalogue {
   rollback(base: number, to: number, author: string, note = ''): number {
     if (!author.trim()) throw new ContentError('content rollback', 'needs an author');
     return this.write((head) => {
-      if (base !== head) throw new ContentError('content rollback', `was asked against revision ${base}, but the catalogue is at ${head}`);
+      if (base !== head) throw new StaleContent('content rollback', base, head);
       if (!Number.isSafeInteger(to) || to < 1 || to >= head) {
         throw new ContentError('content rollback', `revision ${to} is not an earlier revision of this catalogue`);
       }

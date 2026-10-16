@@ -191,7 +191,7 @@ describe('the SQLite content catalogue', () => {
     const wolf = bodyOf(defaults, 'creature:wolf') as { hp: number };
     expect(catalogue.edit(1, [{ id: 'creature:wolf', body: { ...wolf, hp: wolf.hp + 1 } }], 'first', 'tougher')).toBe(2);
     expect(catalogue.edit(2, [{ id: 'spawning:deep', body: null }], 'second')).toBe(3);
-    expect(() => catalogue.rollback(2, 1, 'third')).toThrow('asked against revision 2');
+    expect(() => catalogue.rollback(2, 1, 'third')).toThrow('made against revision 2');
     expect(() => catalogue.rollback(3, 3, 'third')).toThrow('not an earlier revision');
 
     expect(catalogue.rollback(3, 1, 'third')).toBe(4);

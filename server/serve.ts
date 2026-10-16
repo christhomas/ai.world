@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 import { worldEditor } from './tools/worldeditor';
+import { contentEditor } from './tools/content';
 import { ContentCatalogue } from './content';
 import { inventory } from '../src/core/content';
 import { DEFAULT_CONTENT } from '../src/core/contentDefaults';
@@ -134,7 +135,7 @@ function toolsRuntimeAsset(staticDir?: string): string | undefined {
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
   sim: Simulation, channel: BuilderChannel, groundWorker: GroundWorker | null,
-  staticDir?: string,
+  content: ContentCatalogue | null, staticDir?: string,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
@@ -150,6 +151,7 @@ function openTools(
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
     worldEditor: worldEditor(sim, groundWorker),
+    content: content ? contentEditor(content) : undefined,
     // written where the durable database is, from what the answer says as it streams past
     record: (run, id) => {
       try { writeDown(db, id, run); } catch (why) {
@@ -199,14 +201,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
   let vault: Vault;
+  let content: ContentCatalogue | null;
   try {
     vault = durable ? new SqliteVault(durable, dataDir) : new FileVault();
     /*
      * Gameplay content is seeded into the same database the first time it is opened, and only
      * then (#624). Nothing in the simulation reads it yet: the game still runs on the bundled
      * JSON, and the catalogue's job for now is to have its first revision before anything does.
+     * The tools can read, edit and roll it back.
      */
-    const content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT), { check: checkContent }) : null;
+    content = durable ? new ContentCatalogue(durable, inventory(DEFAULT_CONTENT), { check: checkContent }) : null;
     if (content && !options.quiet) console.log(`gameplay content catalogue at revision ${content.head()}`);
   } catch (error) { durable?.close(); throw error; }
   const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;
@@ -231,7 +235,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, builderChannel, groundWorker, options.staticDir)
+      sim, builderChannel, groundWorker, content, options.staticDir)
     : null;
   const http = createServer((req, res) => {
     if (options.captureClock && req.url?.startsWith('/__shots/step?')) {
