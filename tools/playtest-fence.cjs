@@ -116,29 +116,34 @@ async function playFence(page, say, go, face, observedWalk) {
     failure = error;
     throw error;
   } finally {
-    // A key that will not come up is still reported, as it always was, but only once the horse is
-    // back and the hero is home: every check after this one depends on both.
+    // Each step of tidying up is tried whatever the one before it did: every check after this one
+    // needs the horse returned and the hero home. A stuck key is reported, as it always was; any
+    // other cleanup failure is reported only when nothing went wrong before it, and logged if not.
     let stuckKey = null;
+    const later = [];
     try { await page.keyboard.up('w'); } catch (error) { stuckKey = error; }
-    finally {
+    try {
       await page.evaluate(() => {
         if (window.__fenceTrace) cancelAnimationFrame(window.__fenceTrace.frame);
         delete window.__fenceTrace;
         window.__returnHorse();
       });
-    }
-    try {
       const restored = await page.evaluate(() => window.__mount().saved);
       say('the fence trial returns the original horse and cargo', JSON.stringify(restored) === JSON.stringify(original),
         JSON.stringify(restored));
+    } catch (error) { later.push(error); }
+    try {
       await go(home.x, home.z, 0);
       await page.waitForFunction(({ x, z }) => window.__player.placed &&
         Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 10000, polling: 100 });
-    } catch (cleanup) {
-      if (!failure && !stuckKey) throw cleanup;
-      console.error('the fence trial could not also tidy up after itself:', cleanup);
+    } catch (error) { later.push(error); }
+    if (stuckKey || failure) {
+      for (const error of later) console.error('the fence trial could not also tidy up after itself:', error);
+      if (stuckKey) throw stuckKey;
+    } else if (later.length) {
+      for (const error of later.slice(1)) console.error('the fence trial could not also tidy up after itself:', error);
+      throw later[0];
     }
-    if (stuckKey) throw stuckKey;
   }
 }
 
