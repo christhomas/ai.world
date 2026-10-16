@@ -68,27 +68,35 @@ assert.equal(opened.owner, 'WORLD');
 await settle();
 
 // the world in this engine answers and the ground arrives, a budget of geometry at a time
+// held as an app holds it: what arrives is kept, and what the engine says has left the scene is let go
 const geometries = new Set();
+let sent = 0;
+let released = 0;
+const hold = (scene) => {
+  for (const id of Object.keys(scene.geometries)) { geometries.add(id); sent++; }
+  for (const id of scene.released) { assert.ok(geometries.delete(id), `${id} released but never held`); released++; }
+  for (const node of scene.frame.nodes) if (node.geometryId) assert.ok(geometries.has(node.geometryId), `${node.geometryId} named but not held`);
+};
 let meshes = 0;
 let packetBytes = 0;
 for (let round = 0; round < 60 && meshes < 40; round++) {
   for (let n = 0; n < 15; n++) await step();
   const scene = await sceneNow();
-  for (const id of Object.keys(scene.geometries)) geometries.add(id);
+  hold(scene);
   packetBytes = Math.max(packetBytes, JSON.stringify(scene).length);
   meshes = scene.frame.nodes.filter((node) => node.kind === 'mesh').length;
 }
 const scene = await sceneNow();
-for (const id of Object.keys(scene.geometries)) geometries.add(id);
+hold(scene);
 const kinds = new Set(scene.frame.nodes.map((node) => node.kind));
 assert.ok(meshes >= 40, `only ${meshes} meshes arrived`);
 for (const kind of ['mesh', 'directional', 'ambient']) assert.ok(kinds.has(kind), `no ${kind} in the frame`);
-for (const node of scene.frame.nodes) if (node.geometryId) assert.ok(geometries.has(node.geometryId), `${node.geometryId} named before it was sent`);
 
 // a thumb on the stick walks him
 let state = await step();
 const from = state.models.hero;
 for (let n = 0; n < 45; n++) state = await step({ move: [0, 1] });
+hold(await sceneNow());
 state = await step();
 const walked = Math.hypot(state.models.hero.x - from.x, state.models.hero.z - from.z);
 assert.ok(walked > 1, `the hero walked ${walked} tiles from ${JSON.stringify(from)} to ${JSON.stringify(state.models.hero)}`);
@@ -129,7 +137,8 @@ const sorted = [...stepTimes].sort((a, b) => a - b);
 const evidence = {
   sourceSha: process.env.GAME_SOURCE_SHA, bundleBytes: source.length, loadMs: Math.round(loadMs),
   steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
-  stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometries: geometries.size,
+  stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometriesSent: sent,
+  geometriesHeld: geometries.size, geometriesReleased: released,
   largestScenePacketBytes: packetBytes, walked: +walked.toFixed(2),
   worldRecords: Object.keys(worldRecords).length, continuedAt: resumed.models.hero,
 };

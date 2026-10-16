@@ -31,6 +31,8 @@ final class SceneFrame {
       }
       return <String, dynamic>{...node, ...geometry};
     }).toList();
+    // what has left the scene is let go once this frame, which no longer names it, is resolved
+    geometryCache?.release(json['released']);
     return SceneFrame._(
       renderTimeMs: (time as num?)?.toDouble(),
       camera: Map<String, dynamic>.from(packet['camera'] as Map),
@@ -136,6 +138,17 @@ final class SceneGeometryCache {
   }
 
   Map<String, dynamic>? lookup(String id) => _geometries[id];
+
+  /// Geometry the engine says has left the scene (#566). If it comes back it is sent again.
+  void release(Object? raw) {
+    if (raw == null) return;
+    for (final id in raw as List) {
+      _geometries.remove('$id');
+    }
+  }
+
+  /// How many geometries are held: bounded by the scene, not by how far the hero has walked.
+  int get length => _geometries.length;
 }
 
 /// Maps the same neutral frame submitted to WebGL and recording onto native buffers.

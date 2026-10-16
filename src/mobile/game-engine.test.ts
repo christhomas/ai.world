@@ -68,6 +68,22 @@ describe('the scene a step at a time', () => {
     expect(Object.keys(packets.packet(frame([mesh('ground', ground)])).geometries)).toHaveLength(1);
   });
 
+  it('lets go of geometry the scene has left, and sends it again if it comes back', () => {
+    const ground = new Float32Array(9), hut = new Float32Array(9);
+    const packets = new ScenePackets(300_000, 2);
+    const first = packets.packet(frame([mesh('ground', ground), mesh('hut', hut)]));
+    const hutId = first.frame.nodes[1].geometryId;
+    expect(packets.packet(frame([mesh('ground', ground)])).released, 'a packet away is not yet gone').toEqual([]);
+    expect(packets.packet(frame([mesh('ground', ground)])).released).toEqual([hutId]);
+    expect(packets.held).toBe(1);
+    const back = packets.packet(frame([mesh('ground', ground), mesh('hut', hut)]));
+    expect(Object.keys(back.geometries), 'back again, it is sent again under its own name').toEqual([hutId]);
+    expect(back.frame.nodes[1].geometryId).toBe(hutId);
+    // walking on over new ground: the app never holds more than the scene and the last packet or so
+    for (let n = 0; n < 50; n++) packets.packet(frame([mesh('ground', new Float32Array(9))]));
+    expect(packets.held).toBeLessThanOrEqual(2);
+  });
+
   it('keeps a packet within its budget and holds back what did not fit, children and all', () => {
     const packets = new ScenePackets(30);
     const [a, b, child] = [new Float32Array(9), new Float32Array(30), new Float32Array(9)];

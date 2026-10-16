@@ -10,6 +10,8 @@ export interface ScenePacket {
   geometries: Record<string, { attributes: Node['attributes']; indices: Node['indices'] }>;
   /** Nodes left out of this frame because their geometry did not fit; they arrive with it. */
   withheld: number;
+  /** Geometry the app was sent that has left the scene: no frame has named it for a while. */
+  released: string[];
 }
 
 /**
@@ -21,18 +23,25 @@ export interface ScenePacket {
  * geometry the app already holds. New geometry goes out once, within a budget of numbers per
  * packet so that opening a world is a few steps of arriving ground rather than one enormous reply;
  * a node whose geometry has not gone yet waits for it rather than being drawn without it.
+ *
+ * What the app holds is bounded by what the scene holds (#566): a geometry no packet has named for
+ * `keep` packets in a row has left it — a chunk walked away from, a place left — and the packet says
+ * so, for the app to let it go. If it comes back it is sent again, under the same name.
  */
 export class ScenePackets {
   private readonly names = new WeakMap<object, string>();
-  private readonly sent = new Set<string>();
+  /** Which geometry the app holds, and the packet that last named each. */
+  private readonly sent = new Map<string, number>();
   private next = 0;
+  private packets = 0;
 
-  constructor(private readonly budget = 300_000) {}
+  constructor(private readonly budget = 300_000, private readonly keep = 4) {}
 
   /** Geometry this many numbers large is sent in one packet at most. */
   get numbersPerPacket(): number { return this.budget; }
 
   packet(recorded: FrameDescription): ScenePacket {
+    const packet = ++this.packets;
     const frame = expandForFlutter(recorded);
     const geometries: ScenePacket['geometries'] = {};
     let spent = 0;
@@ -57,16 +66,23 @@ export class ScenePackets {
         if (spent > 0 && spent + size > this.budget) { kept[at] = -1; withheld++; continue; }
         spent += size;
         geometries[id] = { attributes: node.attributes, indices: node.indices };
-        this.sent.add(id);
       }
+      this.sent.set(id, packet);
       const rest: Wire = { ...node, parent, geometryId: id };
       delete rest.attributes;
       delete rest.indices;
       kept[at] = nodes.length;
       nodes.push(rest);
     }
-    return { frame: { ...frame, nodes }, geometries, withheld };
+    const released: string[] = [];
+    for (const [id, named] of this.sent) {
+      if (packet - named >= this.keep) { released.push(id); this.sent.delete(id); }
+    }
+    return { frame: { ...frame, nodes }, geometries, withheld, released };
   }
+
+  /** How many geometries the app holds now, by this engine's account. */
+  get held(): number { return this.sent.size; }
 
   /** The app has forgotten everything it was sent: a new renderer, or a recovered one. */
   forget(): void { this.sent.clear(); }

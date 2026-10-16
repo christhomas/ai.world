@@ -51,7 +51,11 @@ somebody wears it and named by key after that, so the app keeps them for the ses
 **Scene.** `ScenePackets` sends a frame with only the geometry the app has not been sent, named by
 the graph's own buffers rather than by hashing them. Each packet has a budget of numbers, so
 opening a world takes a few steps of arriving ground. A node waits for its geometry rather than
-being drawn without it.
+being drawn without it. A geometry no packet has named for four packets in a row has left the
+scene, and the packet's `released` list says so; the app's `SceneGeometryCache` lets it go after
+resolving that frame, and it is sent again if it ever comes back (#566). The app holds what the
+scene holds, however far the hero walks; the bare-host proof keeps geometry the same way and
+reports how much it was sent, holds and let go.
 
 **Proof.** `tools/mobile-frame-proof/game.mjs` bundles the engine exactly as the apps do and
 plays it in a bare JavaScript context: no window, timers, performance clock, structuredClone,
