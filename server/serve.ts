@@ -3,6 +3,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
 import type { ServerMessage, WorldInvite } from './protocol';
 import { FileVault } from './filevault';
+import { SqliteVault } from './sqlitevault';
+import type { Vault } from './vault';
 import { Simulation, type SimOptions } from './sim';
 import { GroundWorker } from './groundworker';
 import { Rooms, type Wire } from './rooms';
@@ -15,6 +17,7 @@ import { lastRuns, migrateBook, writeDown } from './builder/book';
 import type { BuilderAt } from './builder/proxy';
 import { BuilderChannel } from './builder/channel';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 import { worldEditor } from './tools/worldeditor';
@@ -65,8 +68,8 @@ export interface ServerOptions {
    */
   toolsSecret?: string;
   /**
-   * Where the durable database lives. Defaults to `ai-world.sqlite` beside the worlds; `null`
-   * turns it off entirely, which is what a test that wants nothing on disk asks for.
+   * Where server worlds, accounts, memories and chronicles live. Defaults to `ai-world.sqlite`
+   * in dataDir; `null` explicitly retains the legacy file vault without database-backed tools.
    */
   durableDb?: string | null;
   /** Whether an `X-Forwarded-Proto` in front of this server can be believed. See `overHttps`. */
@@ -115,9 +118,19 @@ function wireFor(socket: WebSocket): Wire {
  * an async function and a route that returns a promise to a caller checking it for `true` is a
  * route that never fires. The handler owns the response from the moment it says yes.
  */
+function toolsRuntimeAsset(staticDir?: string): string | undefined {
+  if (!staticDir) return undefined;
+  try {
+    const html = readFileSync(`${staticDir}/tools/tools-app.html`, 'utf8');
+    const asset = html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/i)?.[1];
+    return asset && /^\/assets\/[a-zA-Z0-9_.-]+\.js$/.test(asset) ? asset : undefined;
+  } catch { return undefined; }
+}
+
 function openTools(
   db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
   sim: Simulation, channel: BuilderChannel, groundWorker: GroundWorker | null,
+  staticDir?: string,
 ) {
   migrateAccounts(db);
   // the builder's own book lives in the same file, as its own domain: who asked for what, and
@@ -128,6 +141,7 @@ function openTools(
   sweepSessions(db);
   const portal = portalFor({
     db, secret, trustProxy, channel,
+    runtimeAsset: toolsRuntimeAsset(staticDir),
     // The portal has already proved the session before calling this. No operator token is made,
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
@@ -166,8 +180,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   /*
    * The one durable database, if this deployment has been given one.
    *
-   * Both the tools portal and the half of a villager that no seed implies live in it, in their own
-   * tables — see `durable/db.ts` for why that is one file rather than two. Opened here so that the
+   * World documents, tools accounts and the half of a villager that no seed implies live in it,
+   * in their own tables. Opened here so that the
    * simulation and the portal are handed the same handle rather than each opening the same path,
    * which is two write locks on one file and a `SQLITE_BUSY` waiting to happen.
    */
@@ -180,9 +194,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     migrateDomain(durable, 'register', MINDS_SCHEMA);
     migrateDomain(durable, 'chronicle', EVENTS_SCHEMA);
   }
+  let vault: Vault;
+  try { vault = durable ? new SqliteVault(durable, dataDir) : new FileVault(); }
+  catch (error) { durable?.close(); throw error; }
   const groundWorker = options.asyncCountry && !options.prepare ? new GroundWorker() : null;
   const sim = new Simulation({
-    dataDir, vault: new FileVault(), ground: true,
+    dataDir, vault, ground: true,
     prepare: options.prepare ?? groundWorker ?? undefined,
     minds: durable ?? undefined, chronicles: durable ?? undefined,
   });
@@ -202,7 +219,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const builderChannel = new BuilderChannel();
   const tools = durable && options.toolsSecret
     ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
-      sim, builderChannel, groundWorker)
+      sim, builderChannel, groundWorker, options.staticDir)
     : null;
   const http = createServer((req, res) => {
     if (options.captureClock && req.url?.startsWith('/__shots/step?')) {
@@ -289,7 +306,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   const port = await listen(http, options.port ?? 8787);
   if (!options.quiet) {
-    console.log(`ai.world server listening on :${port}, worlds in ${dataDir}`);
+    console.log(`ai.world server listening on :${port}, worlds in ${durable ? options.durableDb ?? join(dataDir, 'ai-world.sqlite') : dataDir}`);
     if (pages) console.log(`serving the game itself from ${options.staticDir} — open http://<this machine>:${port}/`);
   }
 

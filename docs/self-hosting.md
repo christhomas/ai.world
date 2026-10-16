@@ -50,10 +50,21 @@ and set `image: ai-world:local` in `compose.yaml` before starting Compose.
 
 ## Data, backups and restore
 
-The `ai-world-data` volume mounted at `/data` holds the named-world records, per-world server state,
-and SQLite database for tools accounts, sessions and other durable server data. Compose leaves this
-volume in place when a container is recreated or when you run `docker compose down`. Do not use
+The `ai-world-data` volume mounted at `/data` holds `ai-world.sqlite`: named-world records, world and
+province state, tools accounts, sessions, villager memories and chronicles share this database.
+Compose leaves this volume in place when a container is recreated or when you run `docker compose down`. Do not use
 `docker compose down --volumes` unless you intend to delete it.
+
+On the first start with database-backed world storage, the server imports the legacy
+`world-records.json`, seed-numbered world JSON files and their province JSON directories in one
+transaction. It retains the original files without modifying them; newer database rows win over
+legacy copies. An unreadable legacy file aborts the import and server startup, so a partial scan
+cannot become an empty catalogue. Damaged JSON is copied intact for diagnosis. After a successful
+import, the database is authoritative and those old files are not reimported on later starts.
+New world saves write only to SQLite. Restore a database backup to roll back world changes; the
+retained JSON files are archival copies and do not track subsequent play. A deliberate
+`durableDb: null` embedded-server configuration retains the legacy file vault and disables the
+database-backed tools; the normal Docker deployment always uses SQLite.
 
 The game client's solo saves are different: they live in that browser's IndexedDB, under the
 website origin. They are not copied to the Docker host, shared with another browser, or included in
