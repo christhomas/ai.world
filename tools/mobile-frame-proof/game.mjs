@@ -63,7 +63,10 @@ const sceneNow = async () => {
   return state.models.scene;
 };
 
+// how long opening a world takes here, with a JIT, is the yardstick the phones' engines are held to
+const starting = performance.now();
 const opened = ask('start', { mode: 'local', world: 'bare' });
+const startMs = performance.now() - starting;
 assert.equal(opened.owner, 'WORLD');
 await settle();
 
@@ -71,6 +74,7 @@ await settle();
 const geometries = new Set();
 let meshes = 0;
 let packetBytes = 0;
+const arriving = performance.now();
 for (let round = 0; round < 60 && meshes < 40; round++) {
   for (let n = 0; n < 15; n++) await step();
   const scene = await sceneNow();
@@ -78,6 +82,7 @@ for (let round = 0; round < 60 && meshes < 40; round++) {
   packetBytes = Math.max(packetBytes, JSON.stringify(scene).length);
   meshes = scene.frame.nodes.filter((node) => node.kind === 'mesh').length;
 }
+const groundMs = performance.now() - arriving;
 const scene = await sceneNow();
 for (const id of Object.keys(scene.geometries)) geometries.add(id);
 const kinds = new Set(scene.frame.nodes.map((node) => node.kind));
@@ -128,6 +133,7 @@ ask('dispose', {}, 'again', 'bare-again');
 const sorted = [...stepTimes].sort((a, b) => a - b);
 const evidence = {
   sourceSha: process.env.GAME_SOURCE_SHA, bundleBytes: source.length, loadMs: Math.round(loadMs),
+  startMs: Math.round(startMs), groundMs: Math.round(groundMs),
   steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
   stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometries: geometries.size,
   largestScenePacketBytes: packetBytes, walked: +walked.toFixed(2),
