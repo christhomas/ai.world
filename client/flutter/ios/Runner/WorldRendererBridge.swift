@@ -138,7 +138,7 @@ private struct MeshStyle {
 private struct CpuMesh { let vertices: Data; let indices: Data; let style: MeshStyle }
 private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle; let center: SIMD3<Float> }
 
-/// One frame read back from the render target: opaque RGBA8, top row first, as Dart reads it.
+/// One frame read back from the render target: RGBA8 as drawn, top row first, as Dart reads it.
 typealias RenderSnapshot = (width: Int, height: Int, rgba: Data)
 
 private final class MetalWorldRenderer: NSObject, FlutterTexture {
@@ -468,14 +468,14 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       let outcome: Result<RenderSnapshot, Error>
       if buffer.status == .completed {
         var rgba = Data(bytes: copy.contents(), count: row * height)
-        // the target is BGRA
+        // the target is BGRA; alpha is kept as drawn, because Flutter composites this texture over
+        // the app and a pixel that is not opaque is the app showing through the world
         rgba.withUnsafeMutableBytes { raw in
           let bytes = raw.bindMemory(to: UInt8.self)
           for at in stride(from: 0, to: bytes.count, by: 4) {
             let blue = bytes[at]
             bytes[at] = bytes[at + 2]
             bytes[at + 2] = blue
-            bytes[at + 3] = 255
           }
         }
         outcome = .success((width: width, height: height, rgba: rgba))
