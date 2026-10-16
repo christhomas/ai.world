@@ -11,6 +11,8 @@ import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
 import { Portraits } from './portraits';
+import { WORLD } from '../core/config';
+import { PROVINCE, provinceCorner } from '../world/provinces';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
 
@@ -125,6 +127,11 @@ export function create(session: string, optionsText: string): { request(text: st
   let wantScene = false;
   let lastSave = '';
   let lastJournal = '';
+  let mapDrawn = false;
+  let lastMap = '';
+  let lastMapAt = -Infinity;
+  const knownChunks = new Set<string>();
+  const knownProvinces = new Set<string>();
 
   const presentation = (scene: Json | null) => {
     const shown = host!.presentation;
@@ -141,7 +148,7 @@ export function create(session: string, optionsText: string): { request(text: st
         face: portraits.name(talk.node.face), heroFace: portraits.name(shown.hero),
       } : null),
       pack: json(packView(state)),
-      hero: json({ x: player.x, z: player.z, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
+      hero: json({ x: player.x, z: player.z, yaw: player.entity.yaw, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
     };
     if (scene) models.scene = scene;
@@ -150,6 +157,22 @@ export function create(session: string, optionsText: string): { request(text: st
     // the journal changes when an errand, a find or a tile walked does, and is sent only then
     const journal = JSON.stringify(host!.journal());
     if (journal !== lastJournal) { lastJournal = journal; models.journal = JSON.parse(journal) as Json; }
+    // the map over its picture: what has newly been walked or charted, every time; the markers
+    // and title when they change, at most once a second, because a ferry's marker moves every step
+    // both only ever grow, so the same size is nothing new
+    const walked = state.explored.size === knownChunks.size ? [] : [...state.explored].filter((key) => !knownChunks.has(key));
+    const charted = state.charted.size === knownProvinces.size ? [] : [...state.charted].filter((id) => !knownProvinces.has(id));
+    const reading = JSON.stringify(host!.mapReading());
+    if (walked.length > 0 || charted.length > 0 || (reading !== lastMap && renderTimeMs - lastMapAt >= 1000)) {
+      for (const key of walked) knownChunks.add(key);
+      for (const id of charted) knownProvinces.add(id);
+      lastMap = reading;
+      lastMapAt = renderTimeMs;
+      // a chunk by its key and a province by its corner, with the size of each, so the app can
+      // take the dark off them without knowing how either is named
+      models.map = json({ ...JSON.parse(reading) as object, chunk: WORLD.CHUNK_SIZE, province: PROVINCE, walked,
+        charted: charted.map((id) => { const at = provinceCorner(id); return `${at.x},${at.z}`; }) });
+    }
     // a save the game has written since the last reply, for the app to keep where it keeps things
     const saved = store.read(options.slot);
     if (saved !== undefined && saved !== lastSave) { lastSave = saved; models.save = JSON.parse(saved) as Json; }
@@ -219,7 +242,11 @@ export function create(session: string, optionsText: string): { request(text: st
             host.frame(ms);
             wantScene = false;
             const frame = capturing ? host.recording.last : null;
-            return reply({ state: presentation(frame ? json(packets.packet(frame)) : null) });
+            const shown = presentation(frame ? json(packets.packet(frame)) : null);
+            // the map's picture, once, with the first step: drawn from the terrain, it is the one
+            // model too big to send twice
+            if (!mapDrawn) { mapDrawn = true; shown.models.mapPicture = json(host.mapPicture()); }
+            return reply({ state: shown });
           }
           case 'action': {
             const { action, target } = request.payload;

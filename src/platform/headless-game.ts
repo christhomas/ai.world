@@ -18,6 +18,10 @@ import { Conversation } from '../ui/conversation';
 import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
+import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
+import { mountainAt } from '../world/ranges';
+import type { RoadGraph } from '../world/graph';
+import type { MapMarker } from '../ui/mapbase';
 import type { installProbes } from '../game/probes';
 import type {
   ChatSurface, CompanySurfaces, DialogueSurface, GameAsks, GamePlatform, HudSurface, ScreenParts, SoundSurface,
@@ -94,6 +98,10 @@ export interface HeadlessGame {
   pack(): { take(id: string): void; stow(slot: string): void };
   /** The journal as the page's journal shows it: what is owed, found and sailing, and nothing undiscovered. */
   journal(): JournalView;
+  /** The map's ground and roads, built once from the terrain the page's map is drawn from. */
+  mapPicture(): MapPicture;
+  /** What the map shows over its picture: the markers, the title, and whether it is fogged at all. */
+  mapReading(): { title: string; fogged: boolean; markers: MapMarker[] };
   /** Everything the game was assembled from, once it has been: what a test or an inspector reads. */
   handles(): Parameters<typeof installProbes>[0];
 }
@@ -299,6 +307,8 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   const toggle = (panel: string) => { shown.panel = shown.panel === panel ? null : panel; };
   let pack: ReturnType<HeadlessGame['pack']> | null = null;
   let reading: ScreenParts['journalInput'] | null = null;
+  let charting: ScreenParts['mapInput'] | null = null;
+  let mapped: { graph: RoadGraph; ground: MapGround; picture?: MapPicture } | null = null;
 
   const company: CompanySurfaces = {
     // a shared world's other players arrive with its socket (#565); a private world has none
@@ -316,11 +326,19 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     input: () => input,
     touch: () => ({ dispose() {} }),
     hud: () => hud,
-    maps: () => ({
-      fog: { reveal() {} },
-      minimap: { draw() {} },
-      worldMap: { isOpen: false, pan() {}, draw() {} },
-    }),
+    maps: (graph, sampler) => {
+      // kept to draw the map from when it is asked for, from the same terrain and mountains the
+      // page's map is drawn from (`browser-game.ts`)
+      mapped = { graph, ground: {
+        probe: (x, z) => sampler.probe(x, z),
+        rock: sampler.ranges ? (x, z) => mountainAt(sampler.ranges!, x, z) ?? 0 : undefined,
+      } };
+      return {
+        fog: { reveal() {} },
+        minimap: { draw() {} },
+        worldMap: { isOpen: false, pan() {}, draw() {} },
+      };
+    },
     floorMap: () => ({ reveal() {}, draw() {} }),
     kin: () => ({ show() {} }),
     roster: () => ({ reads() {} }),
@@ -347,6 +365,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     screen: (parts) => {
       // what the journal is drawn from, which the engine reads when the app's journal page asks
       reading = parts.journalInput;
+      charting = parts.mapInput;
       return {
         busy: () => (talk.isOpen ? 'talking' : shown.panel ? 'reading' : null),
         say,
@@ -431,6 +450,16 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     journal() {
       if (!reading) throw new Error('the game has not been assembled on this host yet');
       return journalView(reading());
+    },
+    mapPicture() {
+      if (!mapped) throw new Error('the game has not been assembled on this host yet');
+      mapped.picture ??= mapPicture(mapped.graph, mapped.ground);
+      return mapped.picture;
+    },
+    mapReading() {
+      if (!charting) throw new Error('the game has not been assembled on this host yet');
+      const { title, fog, markers } = charting();
+      return { title, fogged: fog, markers };
     },
     setVisible(next) {
       if (next === visible) return;

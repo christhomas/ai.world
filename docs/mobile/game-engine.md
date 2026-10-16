@@ -33,7 +33,12 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - any faces the app has not been sent (`portraits`), each once;
 - the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries),
   only when it has changed since the last reply;
-- where the hero is;
+- the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
+  charted since the last one sent. New ground goes every time; markers and title go when they
+  change, at most once a second, because a ferry's marker moves every step. The map's picture
+  (`mapPicture`, `world/map-ground.ts`: the page map's own ground colours and roads at a cell to
+  two tiles, sent as runs of colour) goes once, with the first step;
+- where the hero is and which way he faces (`yaw`);
 - the owner (WORLD or BOOK) and busy mode;
 - any save written since the last reply, for the app to keep. Every reply can carry one, so an app
   reads it from all of them, `resync` and `action` replies included.

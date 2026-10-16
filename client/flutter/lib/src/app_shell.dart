@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'game_session.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
+import 'screens/map_page.dart';
 import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
@@ -179,6 +180,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           'pack': (context, tokens) => PackPage(pack: Map<String, dynamic>.from(models['pack'] as Map? ?? const {}), tokens: tokens,
             take: (id) => unawaited(session.act('take', target: id)), stow: (slot) => unawaited(session.act('stow', target: slot))),
           'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens),
+          'map': (context, tokens) => MapPage(picture: session.mapPicture, map: session.map, walked: session.walked,
+            charted: session.charted, hero: hero, tokens: tokens),
           'options': (context, tokens) => _options(tokens),
         },
         place: '${hud['area'] ?? ''}',

@@ -53,6 +53,11 @@ class GameSession {
   final Map<String, Map<String, dynamic>> portraits = {};
   /// The journal as the game last sent it; it is sent only when it changes.
   Map<String, dynamic> journal = const {};
+  /// The map's ground and roads, sent once (`src/world/map-ground.ts`).
+  Map<String, dynamic>? mapPicture;
+  /// The map's markers and title as last sent, and every chunk walked and province charted so far.
+  Map<String, dynamic> map = const {};
+  final Set<String> walked = {}, charted = {};
   Map<String, Object?> _input = stillInput;
   Ticker? _ticker;
   Duration _last = Duration.zero;
@@ -167,6 +172,14 @@ class GameSession {
     if (faces is Map) faces.forEach((key, face) => portraits['$key'] = Map<String, dynamic>.from(face as Map));
     final read = models['journal'];
     if (read is Map) journal = Map<String, dynamic>.from(read);
+    final picture = models['mapPicture'];
+    if (picture is Map) mapPicture = Map<String, dynamic>.from(picture);
+    final mapped = models['map'];
+    if (mapped is Map) {
+      map = Map<String, dynamic>.from(mapped);
+      walked.addAll(((mapped['walked'] as List?) ?? const []).map((key) => '$key'));
+      charted.addAll(((mapped['charted'] as List?) ?? const []).map((id) => '$id'));
+    }
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {
       unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry)));
