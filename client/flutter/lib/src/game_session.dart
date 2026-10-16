@@ -107,7 +107,7 @@ class GameSession {
       'viewport': {'width': viewport.width, 'height': viewport.height},
       'saved': ?saved,
       'world': records,
-      if (slot.server != null) 'server': slot.server,
+      'server': ?slot.server,
     }, channel: channel, assets: assets);
     final session = GameSession._(slot, engine, saves, world, records, pipeline, sockets);
     try {
