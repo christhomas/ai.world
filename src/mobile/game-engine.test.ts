@@ -49,7 +49,7 @@ describe('the scene a step at a time', () => {
     castShadow: false, receiveShadow: false,
     attributes: { position: { size: 3, values: positions }, normal: { size: 3, values: positions } },
     indices: new Uint32Array([0, 1, 2]),
-  } as FrameDescription['nodes'][number]);
+  } as unknown as FrameDescription['nodes'][number]);
   const frame = (nodes: FrameDescription['nodes']): FrameDescription => ({
     camera: { projection: [], world: [], orthographic: true }, background: 0, nodes, renderTimeMs: 0,
   } as unknown as FrameDescription);
