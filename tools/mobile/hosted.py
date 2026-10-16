@@ -244,7 +244,8 @@ def capture(platform):
                 pixels = pull(f'parity-{index}-{pass_name}.rgba')
                 if len(pixels) != width * height * 4:
                     raise RuntimeError(f'{name} {pass_name}: {len(pixels)} bytes read back for {width}x{height}')
-                Image.frombytes('RGBA', (width, height), pixels).convert('RGB').save(OUT / f'{name}-{pass_name}-framebuffer.png')
+                # alpha kept: the comparison fails a world that is not opaque over the app
+                Image.frombytes('RGBA', (width, height), pixels).save(OUT / f'{name}-{pass_name}-framebuffer.png')
             for pass_name in ['first', 'repeat']:
                 time.sleep(2)
                 shot = f'{name}-{pass_name}'
