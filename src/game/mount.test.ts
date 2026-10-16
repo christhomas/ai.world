@@ -111,6 +111,35 @@ describe('putting a rider down', () => {
     expect(player.y).toBe(mount.entity!.y + mount.breed.saddle);
   });
 
+  it('carries its rider up a step he could take on foot, measured from its own ground', () => {
+    const renderer = offscreenEntityRenderer();
+    // A terrace just within the rider's own climb, as the hunt's haul to the crag meets. Read at
+    // the moment of asking, because a hero's climb is whatever his gear makes it.
+    let step = 0;
+    const ground: TileWorld = { ...meadow, heightAt: (x) => x >= 2 ? step : 0 };
+    const rider = new Player(ground, renderer, 0, 0);
+    expect(rider.entity.kind.climb).toBeGreaterThan(0);
+    step = rider.entity.kind.climb * 0.9;
+    const horse = new Mount(() => 0.5);
+    horse.buy(0, 0, ground, renderer);
+    // The horse has no climb of its own: at grass it keeps to its terrace.
+    expect(horse.entity!.kind.climb).toBe(0);
+    horse.mount(rider);
+    const input = { isDown: (key: string) => key === 'w' } as unknown as Input;
+    const iso = { target: { x: 0, y: 0, z: 0 },
+      basis: () => ({ fx: 1, fz: 0, rx: 0, rz: 1 }) } as unknown as IsoCamera;
+    rider.speedScale = horse.breed.pace.open;
+    expect(horse.riding).toBe(true);
+
+    for (let frame = 0; frame < 30; frame++) {
+      rider.update(input, iso, 0.1);
+      horse.update(rider, ground);
+    }
+
+    expect(rider.x).toBeGreaterThan(3);
+    expect(horse.entity!.x).toBe(rider.x);
+  });
+
   it('boards at the parked horse instead of moving it onto the dismount ledge', () => {
     const renderer = offscreenEntityRenderer();
     const ledge: TileWorld = { ...meadow, blocked: (x) => x > 0.8 };

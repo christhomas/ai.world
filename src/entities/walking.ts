@@ -29,6 +29,7 @@ import type { TileWorld } from '../world/tiles';
  */
 export function canStand(
   world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number, yaw = 0, over = 0,
+  climb = kind.climb,
 ): boolean {
   if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
@@ -53,9 +54,9 @@ export function canStand(
   // Not onto a mountain. The rim of one is gentle for a tile or two before the flank stands up, so
   // a deer following its herd wanders up it and is then stuck on a cliff with nothing to eat; the
   // goats and the things that climb are placed on the high ground rather than walking to it.
-  if (!kind.climb && world.buried?.(x, z)) return false;
+  if (!climb && world.buried?.(x, z)) return false;
   if (kind.behaviour === 'travel' && !world.isRoad(x, z)) return false;
-  if (fromY !== undefined && Math.abs(h - fromY) > kind.climb) return false;
+  if (fromY !== undefined && Math.abs(h - fromY) > climb) return false;
   return true;
 }
 
@@ -208,6 +209,15 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
   // The rider is drawn at saddle height. Hooves step from their ground, not from the saddle.
   const fromY = e.mounted ? groundY(world, k, e.x, e.z) ?? e.y : e.y;
   /*
+   * And as far up as the rider could step, when the animal under him has no climb of its own.
+   *
+   * A horse's `climb` is nought, which for a horse at grass means it keeps to its own terrace. A
+   * ridden one has always gone where its rider pointed it, terraces included: the server used to
+   * walk a mounted hero on foot, at his own climb, and the hunt's haul to the crag depends on it.
+   * Measuring from the hooves instead of the saddle (above) must not also take that away.
+   */
+  const climb = e.mounted && !k.climb ? e.kind.climb : k.climb;
+  /*
    * Whoever is standing there stops you — unless you are already standing in them.
    *
    * A horse is nearly two tiles nose to tail, and things do end up inside each other: a creature
@@ -273,12 +283,12 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
     if (mx === 0 && mz === 0) continue;
     const nx = e.x + mx, nz = e.z + mz;
     if (boxedIn) {
-      if (!standable(world, k, nx, nz, fromY)) continue;
+      if (!standable(world, k, nx, nz, fromY, climb)) continue;
       // no deeper than it already is, with a whisker of slack so that a step across the middle of
       // something is not refused by the last bit of a float
       if (wasIn > 0 && world.depth!(nx, nz, bodyBox(k, e.yaw, over)) > wasIn + DEEPER) continue;
     } else {
-      if (!canStand(world, k, nx, nz, fromY, e.yaw, over)) continue;
+      if (!canStand(world, k, nx, nz, fromY, e.yaw, over, climb)) continue;
       // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
       // length of the step that crossed it. Not for anything that flies: a bird goes over a cottage
       // rather than round it, which is what `canStand` says by letting it stand anywhere, and a path
@@ -325,13 +335,15 @@ export function spaceNear(world: TileWorld, kind: AnimalKind, x: number, z: numb
  * right for a step and wrong for an escape. Somebody inside a wall needs the first answer without
  * the second.
  */
-function standable(world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number): boolean {
+function standable(
+  world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number, climb = kind.climb,
+): boolean {
   if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
   if (h === null) return false;
-  if (!kind.climb && world.buried?.(x, z)) return false;
-  if (fromY !== undefined && Math.abs(h - fromY) > kind.climb) return false;
+  if (!climb && world.buried?.(x, z)) return false;
+  if (fromY !== undefined && Math.abs(h - fromY) > climb) return false;
   return true;
 }
 
