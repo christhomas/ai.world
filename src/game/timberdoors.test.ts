@@ -39,7 +39,7 @@ describe('the ways wood gets into a yard', () => {
     expect(body('src/game/counter.ts'), 'a counter that does not land wood is a counter wood vanishes at')
       .toContain('ctx.yard?.(');
     expect(body('src/game/meeting.ts'), 'and a conversation that never gets the door').toContain('yard: landWood');
-    expect(body('src/main.ts'), 'and a game that never hands one over').toContain('landWood: houses.yard.brought');
+    expect(body('src/game/compose.ts'), 'and a game that never hands one over').toContain('landWood: houses.yard.brought');
     expect(body('src/game/interact/builder.ts'), 'the wright has to be askable, or the cart is unobtainable')
       .toContain('cartChoice(');
   });

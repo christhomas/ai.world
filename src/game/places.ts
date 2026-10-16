@@ -6,7 +6,7 @@ import type { SceneRig } from '../render/scene';
 import type { ChunkManager } from '../render/chunkManager';
 import type { Manifest } from '../world/manifest';
 import type { Doorway, ShopType } from '../world/structures';
-import { generateDungeon, type DungeonStyle } from '../dungeon/generate';
+import { generateDungeon, type DungeonMap, type DungeonStyle } from '../dungeon/generate';
 import { dungeonSceneFor, type DungeonScene } from '../render/dungeon';
 import { DungeonWorld } from '../dungeon/world';
 import { generateInterior, interiorSeed, interiorTitle, type InteriorKind } from '../interior/generate';
@@ -19,7 +19,7 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { bodyForTrade } from '../entities/trades';
 import type { Player } from '../entities/player';
-import { DungeonMinimap } from '../ui/dungeonmap';
+import type { DungeonMinimap } from '../ui/dungeonmap';
 import { FACEWORK, putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../world/chests';
@@ -79,7 +79,7 @@ export interface PlaceContext {
   overworldRenderer: EntityRenderer;
   /** Follows the hero between scenes so worn gear is drawn wherever they are. */
   heroGear: HeroGear;
-  minimapCanvas: HTMLCanvasElement;
+  floorMap: (map: DungeonMap) => DungeonMinimap;   // a floor's map, wherever the host draws one
   rng: Rng;
   flash: (message: string) => void;
   chime: () => void;
@@ -286,7 +286,7 @@ export class Places {
   // --- underground ---
 
   enterDungeon(poi: Underground, kind: PlaceStyle = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {
-    const { manifest, state, props, rig, iso, player, overworldRenderer, minimapCanvas } = this.ctx;
+    const { manifest, state, props, rig, iso, player, overworldRenderer, floorMap } = this.ctx;
     /*
      * A castle's floors hang off a `dungeon` anchor, and the seeds still come out different.
      *
@@ -385,7 +385,7 @@ export class Places {
      * anybody walked into it.
      */
     putTheCrewToWork(monsters, world.map, this.ctx.crewIn(anchorId), anchor.seed);
-    this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
+    this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: floorMap(world.map), poi };
     this.ctx.setCaveAmbience(true);
     const depth = floor > 1 ? ` — floor ${floor}` : '';
     /*

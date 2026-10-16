@@ -57,7 +57,11 @@ const ALLOWED: Record<string, number> = {
   // new one: `talk.ts` reached the seven hundred lines the test below allows and the shop came
   // out of it whole. Two files draw the same dialogue panel where one did. A number that only
   // counts imports cannot tell a split from a reach, so the note has to.
-  'game->ui': 21,
+  //
+  // The twenty-second is `compose.ts`, which is `main.ts`'s assembly moved into the game so that a
+  // phone can run it too (#560). Every panel it used to build comes from its host now; what it
+  // still reaches for is `createReadouts`, which works out what the HUD reads and draws nothing.
+  'game->ui': 22,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,

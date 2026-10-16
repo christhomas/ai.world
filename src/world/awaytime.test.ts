@@ -126,8 +126,11 @@ describe('whose clock has been running', () => {
      * it — so `online.connected` is true either way and says nothing about whose clock ran. Read
      * from the source, because the distinction is invisible in the types and was the whole fault.
      */
-    const main = readFileSync(new URL('../main.ts', import.meta.url), 'utf8');
-    expect(main).toContain("daysToLive(state.awayFor, url.searchParams.has('server'))");
-    expect(main, 'the connection is not what decides this').not.toMatch(/daysToLive\([^)]*online\.connected/);
+    const game = readFileSync(new URL('../game/compose.ts', import.meta.url), 'utf8');
+    expect(game).toContain('daysToLive(state.awayFor, asks.server)');
+    expect(game, 'the connection is not what decides this').not.toMatch(/daysToLive\([^)]*online\.connected/);
+    // and on the page, what was asked is whether the link names a server
+    const page = readFileSync(new URL('../platform/browser-game.ts', import.meta.url), 'utf8');
+    expect(page).toContain("server: url.searchParams.has('server')");
   });
 });

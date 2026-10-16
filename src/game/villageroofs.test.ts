@@ -99,11 +99,11 @@ describe('what the villages raised, asked once', () => {
    * asserts its own: by reading the source.
    */
   it('is what the boot file asks for, rather than six lines of the same wiring', () => {
-    const boot = readFileSync('src/main.ts', 'utf8');
+    const boot = readFileSync('src/game/compose.ts', 'utf8');
     expect(boot.includes('whatTheVillagesRaised('),
-      'main.ts no longer asks villageroofs.ts for the roofs and the acres together').toBe(true);
+      'compose.ts no longer asks villageroofs.ts for the roofs and the acres together').toBe(true);
     expect(boot.includes('fieldsAreSurveyedBy'),
-      'main.ts has gone back to wiring the field survey itself').toBe(false);
+      'compose.ts has gone back to wiring the field survey itself').toBe(false);
   });
 });
 
