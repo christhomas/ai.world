@@ -46,6 +46,11 @@ export interface HeadlessOptions {
   asks?: Partial<GameAsks>;
   /** The name the hero goes by in the world. */
   name?: string;
+  /**
+   * A shared world to join instead of the one in this thread (#565): its address, and the link the
+   * game reaches it by, since a host with no page has no socket of its own.
+   */
+  server?: { url: string; link: WorldLinkFactory };
   /** The game has asked to leave for the title. */
   leave?(): void;
   /** A prayer has asked for the game to begin again. */
@@ -319,6 +324,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     viewport: () => viewport,
   };
 
+  const alone = worldInProcess(clock, () => options.vault ?? new Forgetful());
   const platform: GamePlatform = {
     asks: { server: false, at: undefined, time: null, freeCamera: false, ...options.asks },
     rig: () => createSceneRig(rigHost, false, recording),
@@ -414,10 +420,11 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       setItem: (key, value) => { remembered.set(key, value); },
     },
     company: () => company,
-    worldLink: worldInProcess(clock, () => options.vault ?? new Forgetful()),
-    // play alone, against the world in this thread: what the page does when no link names a server
+    worldLink: (url, events) => (url ? options.server?.link(url, events) ?? null : alone(url, events)),
+    // play alone, against the world in this thread, unless a shared world was asked for: what the
+    // page does with and without a link that names a server
     join: ({ seed, kind, terrain, highlands, worldName, where, state, online }) => {
-      online.connect('', seed, options.name || 'Traveller', { day: state.day, time: state.time },
+      online.connect(options.server?.url ?? '', seed, options.name || 'Traveller', { day: state.day, time: state.time },
         { at: where(), kind, terrain, highlands }, worldName, state.playerId);
     },
     hidden: () => !visible,

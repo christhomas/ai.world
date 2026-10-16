@@ -11,6 +11,7 @@ import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
 import { Portraits } from './portraits';
+import { ParcelLink } from './parcel-link';
 import { WORLD } from '../core/config';
 import { PROVINCE, provinceCorner } from '../world/provinces';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
@@ -28,6 +29,8 @@ export interface EngineOptions {
   saved?: SessionSave;
   /** The private world's records as the app last kept them, by name; a new world has none. */
   world?: Record<string, string>;
+  /** A shared world's address to join instead of the private one (#565); `start` then says `remote`. */
+  server?: string;
 }
 
 function optionsFrom(text: string): EngineOptions {
@@ -36,6 +39,7 @@ function optionsFrom(text: string): EngineOptions {
   if (!value || typeof value !== 'object' || !Number.isSafeInteger(value.seed) || (value.kind !== 'road' && value.kind !== 'endless')
     || typeof value.slot !== 'string' || !value.slot || !value.viewport || !positive(value.viewport.width) || !positive(value.viewport.height)
     || (value.name !== undefined && typeof value.name !== 'string')
+    || (value.server !== undefined && (typeof value.server !== 'string' || !/^wss?:\/\/[^\s]+$/.test(value.server)))
     || (value.world !== undefined && (typeof value.world !== 'object' || value.world === null
       || Object.values(value.world).some((text) => typeof text !== 'string')))) {
     throw new Error('Invalid game options');
@@ -108,6 +112,7 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  *   conversation by index, `nudge` a row's number (`row:1` or `row:-1`), `take` a carried thing out
  *   of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
+ * - `parcel` is what the app's socket to a shared world did: opened, a message, or closed (#565);
  * - `resync` `scene` asks for the next frame, and `renderer` says the app's renderer has forgotten
  *   everything it was sent;
  * - `dispose` saves nothing more and lets everything go.
@@ -118,6 +123,7 @@ export function create(session: string, optionsText: string): { request(text: st
   const store = savedInMemory();
   const packets = new ScenePackets();
   const portraits = new Portraits();
+  const parcels = new ParcelLink();
   const world = new KeptWorld(options.world);
   let host: HeadlessGame | null = null;
   let game: GameHandle | null = null;
@@ -152,6 +158,8 @@ export function create(session: string, optionsText: string): { request(text: st
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
     };
     if (scene) models.scene = scene;
+    // a shared world's socket: what the app is asked to open or close, and the parcels to send on it
+    Object.assign(models, parcels.take());
     const faces = portraits.take();
     if (faces) models.portraits = json(faces);
     // the journal changes when an errand, a find or a tile walked does, and is sent only then
@@ -212,11 +220,13 @@ export function create(session: string, optionsText: string): { request(text: st
         JSON.stringify({ ...base, type, payload } satisfies HostResult, plainArrays);
       try {
         if (request.type === 'start') {
-          if (host || request.payload.mode !== 'local' || request.payload.world !== options.slot) {
-            throw new Error('This engine opens one local game, in the slot it was created for');
+          // a private world, or the shared one the options named: the app says which it expects
+          if (host || request.payload.mode !== (options.server ? 'remote' : 'local') || request.payload.world !== options.slot) {
+            throw new Error('This engine opens one game, in the slot and the world it was created for');
           }
           host = headlessGame({ viewport: options.viewport, clock: engineClock, now: () => engineClock.now(),
-            random: Math.random, name: options.name, vault: world });
+            random: Math.random, name: options.name, vault: world,
+            server: options.server ? { url: options.server, link: parcels.connect } : undefined });
           game = composeGame({ store, slotKey: options.slot, saved: options.saved, seed: options.seed,
             worldName: undefined, world: options.kind }, host.platform);
           return reply({ full: true, state: presentation(null) });
@@ -267,6 +277,10 @@ export function create(session: string, optionsText: string): { request(text: st
             } else act(action);
             return reply({ state: presentation(null) });
           }
+          case 'parcel':
+            // what the app's socket to the shared world did; a stale socket's news is dropped
+            parcels.deliver(request.payload);
+            return reply({ state: presentation(null) });
           case 'lifecycle':
             host.setVisible(request.payload.state === 'active');
             renderTimeMs = request.payload.renderTimeMs;

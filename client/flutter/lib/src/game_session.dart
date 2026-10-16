@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import 'network/world_socket_link.dart';
 import 'scene_frame.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
@@ -12,16 +14,29 @@ import 'storage/checkpoint_store.dart';
 /// Which game: the world it is played in and the slot it is kept in.
 @immutable
 class GameSlot {
-  const GameSlot({required this.slot, required this.seed, this.kind = 'road', this.name = 'Traveller'});
+  const GameSlot({required this.slot, required this.seed, this.kind = 'road', this.name = 'Traveller', this.server});
   /// Printable ASCII, at most 48 characters: it names the slot's files.
   final String slot;
   final int seed;
   /// `road` or `endless`, the two countries the game grows.
   final String kind;
   final String name;
+  /// A shared world's address (`wss://…`) to join instead of a private world (#565).
+  final String? server;
 
   StorageScope scope(String domain) => StorageScope(domain: domain, world: slot, seed: seed, player: 'local-hero', kind: kind);
 }
+
+/// Opens a shared world's socket for a session; the app's own is `NativeWorldSocketLink`.
+typedef ParcelSocketFactory = ParcelSocket Function(Uri url,
+    {required void Function() onOpen, required void Function(Object parcel) onMessage, required void Function(String why) onClose});
+
+/// The app's own socket. Only a debug build may reach a world without TLS, and then only on this
+/// machine or the local network; a release build speaks `wss` or nothing.
+ParcelSocket nativeParcelSocket(Uri url,
+    {required void Function() onOpen, required void Function(Object parcel) onMessage, required void Function(String why) onClose}) =>
+  NativeWorldSocketLink(config: WorldSocketConfig(endpoint: url, allowInsecureDevelopment: kDebugMode),
+    onOpen: onOpen, onMessage: onMessage, onClose: onClose, onStatus: (_) {});
 
 /// Nothing held: the input the session sends when nobody is touching anything.
 const stillInput = <String, Object?>{
@@ -36,7 +51,7 @@ const stillInput = <String, Object?>{
 /// game left is a game continued and nothing of one slot reaches another. Nothing is fetched and
 /// nothing runs anywhere but on the phone.
 class GameSession {
-  GameSession._(this.slot, this.engine, this.saves, this.world, this._records, this._pipeline);
+  GameSession._(this.slot, this.engine, this.saves, this.world, this._records, this._pipeline, this._sockets);
 
   final GameSlot slot;
   final StateEngine engine;
@@ -44,6 +59,10 @@ class GameSession {
   final CheckpointStore world;
   final Map<String, String> _records;
   final FlutterFramePipeline? _pipeline;
+  final ParcelSocketFactory _sockets;
+  /// The shared world's socket the game asked for, and which of its connections that was.
+  ParcelSocket? _socket;
+  int _connection = 0;
   final SceneGeometryCache _geometry = SceneGeometryCache();
   /// What the game last said: the HUD, the conversation, the hero, who owns the input.
   final ValueNotifier<Map<String, dynamic>> presentation = ValueNotifier(const {});
@@ -75,7 +94,8 @@ class GameSession {
 
   /// Open the slot's game: continue it if it was kept, start it if not.
   static Future<GameSession> open(GameSlot slot, {required Directory root, required Size viewport,
-      FlutterFramePipeline? pipeline, MethodChannel? channel, AssetBundle? assets}) async {
+      FlutterFramePipeline? pipeline, MethodChannel? channel, AssetBundle? assets,
+      ParcelSocketFactory sockets = nativeParcelSocket}) async {
     final saves = await CheckpointStore.open(root, slot.scope('player'));
     final world = await CheckpointStore.open(root, slot.scope('world'));
     final saved = await saves.load('save');
@@ -87,10 +107,11 @@ class GameSession {
       'viewport': {'width': viewport.width, 'height': viewport.height},
       if (saved != null) 'saved': saved,
       'world': records,
+      if (slot.server != null) 'server': slot.server,
     }, channel: channel, assets: assets);
-    final session = GameSession._(slot, engine, saves, world, records, pipeline);
+    final session = GameSession._(slot, engine, saves, world, records, pipeline, sockets);
     try {
-      session._take(await engine.request('start', {'mode': 'local', 'world': slot.slot}));
+      session._take(await engine.request('start', {'mode': slot.server == null ? 'local' : 'remote', 'world': slot.slot}));
       return session;
     } catch (_) {
       await engine.dispose();
@@ -180,12 +201,74 @@ class GameSession {
       walked.addAll(((mapped['walked'] as List?) ?? const []).map((key) => '$key'));
       charted.addAll(((mapped['charted'] as List?) ?? const []).map((id) => '$id'));
     }
+    _relay(models);
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {
       unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry)));
     }
     presentation.value = state;
     return state;
+  }
+
+  /// A shared world's socket, as the game asks for it: opened, sent on, closed (#565).
+  void _relay(Map<String, dynamic> models) {
+    final asked = models['link'];
+    if (asked is Map && asked['connect'] is String) {
+      _connect('${asked['connect']}', (asked['generation'] as num).toInt());
+    } else if (asked is Map && asked['close'] != null) {
+      _disconnect();
+    }
+    final outbox = models['outbox'];
+    final socket = _socket;
+    if (outbox is! List || socket == null) return;
+    final connection = _connection;
+    for (final parcel in outbox.cast<Map>()) {
+      final Object sent = parcel['text'] ?? base64Decode('${parcel['binary']}');
+      unawaited(socket.send(sent).catchError((Object error) {
+        // a parcel the socket would not take is a connection that is no use: the game hears it closed
+        if (connection != _connection) return;
+        _disconnect();
+        unawaited(_tell(connection, 'close', '$error'));
+      }));
+    }
+  }
+
+  void _connect(String url, int connection) {
+    _disconnect();
+    _connection = connection;
+    try {
+      final socket = _sockets(Uri.parse(url),
+        onOpen: () => unawaited(_tell(connection, 'open')),
+        onMessage: (parcel) => unawaited(_tell(connection, 'message', parcel)),
+        onClose: (why) => unawaited(_tell(connection, 'close', why)));
+      _socket = socket;
+      unawaited(socket.start().catchError((Object error) => _tell(connection, 'close', '$error')));
+    } catch (error) {
+      // an address the app will not open, such as a cleartext one in a release build
+      unawaited(_tell(connection, 'close', '$error'));
+    }
+  }
+
+  void _disconnect() {
+    final socket = _socket;
+    _socket = null;
+    if (socket != null) unawaited(socket.close());
+  }
+
+  /// What the socket did, told to the game, unless the game has moved on to another connection.
+  Future<void> _tell(int connection, String event, [Object? data]) async {
+    if (_closed || connection != _connection) return;
+    final message = event == 'message';
+    try {
+      _take(await engine.request('parcel', {
+        'generation': connection, 'event': event,
+        'text': message && data is String ? data : null,
+        'binary': message && data is! String ? base64Encode(data as List<int>) : null,
+        'why': event == 'close' ? '${data ?? 'closed'}' : null,
+      }));
+    } catch (error) {
+      trouble.value = 'The shared world could not be heard: $error';
+    }
   }
 
   Future<void> _keepWorld() => world.commit('records', Map<String, String>.of(_records))
@@ -215,6 +298,7 @@ class GameSession {
       await save();
     } finally {
       _closed = true;
+      _disconnect();
       await engine.dispose();
     }
   }

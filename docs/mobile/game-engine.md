@@ -15,6 +15,8 @@ The app then sends:
 | request | does |
 |---|---|
 | `start` `local` | opens the game in that slot, against the world in this engine |
+| `start` `remote` | opens it against the shared world the `server` option names (#565) |
+| `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), held guard and run, and one-shot actions |
 | `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `nudge` a row's number (`row:1`, `row:-1`), `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
@@ -40,6 +42,8 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   two tiles, sent as runs of colour) goes once, with the first step;
 - where the hero is and which way he faces (`yaw`);
 - the owner (WORLD or BOOK) and busy mode;
+- for a shared world, `link` (`connect` an address, with the connection's generation, or `close`
+  it) and `outbox`, the parcels the game sent since the last reply;
 - any save written since the last reply, for the app to keep. Every reply can carry one, so an app
   reads it from all of them, `resync` and `action` replies included.
 
@@ -47,6 +51,15 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 `StepClock` runs the world's ticks, the jobs' replies and any page-shaped timers as the step passes
 them. `host-globals.ts` installs `performance.now`, timers, `queueMicrotask`, `structuredClone` and
 a silent console only where the engine lacks them.
+
+**Shared worlds.** An engine has no WebSocket, so the game's `Online` reaches a shared world
+through `ParcelLink`: the app's socket (`NativeWorldSocketLink`) carries the same text and binary
+parcels a page's socket does, and the engine and the app hand them across in replies and `parcel`
+requests. Every connection has a generation; a socket the game has replaced or closed is fenced on
+both sides, so its late news never reaches the connection after it. The app follows the page's
+invite links (`?seed=…&server=wss://…`); a release build reaches only `wss` addresses. Named-world
+invites, which also carry authored terrain, are refused with a message until the engine takes that
+terrain.
 
 **Faces.** `portraits.ts` paints a face with the page's own `paint`, so a portrait in the app is
 the same rectangles the dialogue box's canvas is filled with: five numbers a rectangle (x, y,

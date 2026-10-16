@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'game_session.dart';
+import 'invite.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
 import 'screens/map_page.dart';
@@ -63,7 +64,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       GameSlot? slot;
       if (last != null) {
         slot = GameSlot(slot: last['slot'] as String, seed: last['seed'] as int, kind: last['kind'] as String,
-          name: last['name'] as String? ?? 'Traveller');
+          name: last['name'] as String? ?? 'Traveller', server: last['server'] as String?);
         if (!await GameSession.kept(slot, root: root)) slot = null;
       }
       if (!mounted) return;
@@ -93,6 +94,15 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     _open(GameSlot(slot: 'local-${DateTime.now().millisecondsSinceEpoch}', seed: seed, name: 'Traveller'));
   }
 
+  /// A shared world, from the invite link somebody sent (#565, #572).
+  bool _joining = false;
+  final _invite = TextEditingController();
+  void _join() {
+    final (invite, why) = WorldInvite.parse(_invite.text);
+    if (invite == null) { setState(() => _trouble = why); return; }
+    _open(invite.slot());
+  }
+
   void _open(GameSlot slot) {
     setState(() {
       _phase = _Phase.opening;
@@ -101,7 +111,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       // one world view for the whole game, kept across every route and theme
       _world = NativeWorldView(key: const ValueKey('world'), onCreated: (renderer) => _start(slot, renderer));
     });
-    unawaited(_settings?.commit('last', {'slot': slot.slot, 'seed': slot.seed, 'kind': slot.kind, 'name': slot.name})
+    unawaited(_settings?.commit('last', {'slot': slot.slot, 'seed': slot.seed, 'kind': slot.kind, 'name': slot.name,
+        if (slot.server != null) 'server': slot.server})
       .catchError((Object _) {}));
   }
 
@@ -146,6 +157,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_session?.close());
+    _invite.dispose();
     super.dispose();
   }
 
@@ -220,6 +232,15 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       const SizedBox(height: 24),
       if (_last != null) _titleButton('Continue', t, () => _open(_last!), const ValueKey('continue')),
       _titleButton('New game', t, _root == null ? null : _newGame, const ValueKey('new-game')),
+      if (!_joining) _titleButton('Join a world', t, _root == null ? null : () => setState(() => _joining = true), const ValueKey('join'))
+      else ...[
+        SizedBox(width: 240, child: TextField(key: const ValueKey('invite'), controller: _invite, autocorrect: false,
+          keyboardType: TextInputType.url, style: t.numbers(12, t.ink, spacing: 0),
+          decoration: InputDecoration(hintText: 'Paste the invite link', hintStyle: t.numbers(12, t.dim, spacing: 0)),
+          onSubmitted: (_) => _join())),
+        const SizedBox(height: 8),
+        _titleButton('Join', t, _join, const ValueKey('join-world')),
+      ],
       if (_trouble != null) Padding(padding: const EdgeInsets.only(top: 16),
         child: Text(_trouble!, style: t.numbers(11, t.dim, spacing: 0))),
     ]))));
