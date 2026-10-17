@@ -21,7 +21,9 @@ void main() {
     // game button is live once they have been
     bool ready() => tester.widget<TextButton>(find.descendant(
       of: find.byKey(const ValueKey('new-game')), matching: find.byType(TextButton))).onPressed != null;
-    for (var n = 0; n < 100 && !ready(); n++) {
+    // every step of the file work waits for a turn of the real event loop, and the saved games
+    // add a few dozen of them, so the title is given a good while
+    for (var n = 0; n < 400 && !ready(); n++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pump();
     }
@@ -66,7 +68,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('delete-sure')));
     await tester.pumpAndSettle();
     // the deletion is real work on real files; the title comes back with nothing to continue
-    for (var n = 0; n < 100 && find.byKey(const ValueKey('new-game')).evaluate().isEmpty; n++) {
+    for (var n = 0; n < 400 && find.byKey(const ValueKey('new-game')).evaluate().isEmpty; n++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pump();
     }

@@ -50,7 +50,8 @@ class KeptGames {
       }
     }
     games = kept;
-    if (listed is! List || kept.length != listed.length) await _write();
+    // written only when there is something to keep: the old setting moved into a list, or a game let go
+    if (listed is List ? kept.length != listed.length : found.isNotEmpty) await _write();
   }
 
   /// The game just opened goes to the top: it is what Continue opens next time.
