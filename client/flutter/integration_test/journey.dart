@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:ai_world_flutter/src/app_shell.dart';
 import 'package:ai_world_flutter/src/game_session.dart';
-import 'package:ai_world_flutter/src/state_engine.dart';
 import 'package:flutter/material.dart' show ButtonStyleButton, InkWell;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,15 +66,6 @@ Future<({int width, int height, double spread})> drawn() async {
   final mean = sum / n;
   return (width: shot.width, height: shot.height, spread: (squares / n - mean * mean).clamp(0, double.infinity).toDouble());
 }
-
-/// Where the journey writes down what the next launch must find: in the app's own storage, which a
-/// reinstall over the same app keeps and a lost save would not explain away.
-Future<File> notes() async => File('${await StateEngine.storageRoot()}/journey-left.json');
-
-Future<void> remember(Map<String, Object?> left) async =>
-  (await notes()).writeAsBytes(utf8.encode(jsonEncode(left)), flush: true);
-
-Future<Map<String, dynamic>> recall() async => jsonDecode(await (await notes()).readAsString()) as Map<String, dynamic>;
 
 /// Whether what is under `key` answers a finger. A button the app has not turned on yet, such as
 /// the title's while it is still reading storage, takes a tap and does nothing with it.

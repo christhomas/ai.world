@@ -7,8 +7,8 @@
     python3 tools/mobile/journey.py ios all                 # every part
 
 Each part is a Flutter integration test in client/flutter/integration_test/ that drives the production
-app by touch. `flutter test` installs the app over itself, so a later part is a new launch of the same
-app with its storage intact: a save that did not survive fails `continue`. While a part runs, every
+app by touch. `flutter test` uninstalls the app after each part, storage and all, so a part that needs
+a new launch of the app (the journey's continue) starts it again itself. While a part runs, every
 `JOURNEY_SHOT <name>` it prints is photographed with the OS's own capture, so the native world is in
 the picture, and every `JOURNEY_STEP {...}` is recorded. A part passes only when it said every step it
 owes. The report embeds the pictures, the steps, the commands and their output, and says whether a
@@ -20,8 +20,10 @@ import io
 import json
 import os
 from pathlib import Path
+import queue
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,19 +34,17 @@ CROSSPLAY = 'integration_test/crossplay_test.dart'
 # without saying all of them has not shown it did anything, and fails.
 PARTS = {
     'journey': ('integration_test/journey_test.dart',
-                ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left']),
-    'continue': ('integration_test/continue_test.dart', ['continued']),
+                ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left',
+                 'continued']),
     'crossplay': (CROSSPLAY, ['joined a shared world', 'saw the web player', 'stayed for the web player',
                               'the web player saw the phone']),
-    # the device playtest's parts (#681), each opening the game the last one left, or a new one
+    # the device playtest's parts (#681), each opening a new game: flutter test uninstalls the app between them
     'combat': ('integration_test/combat_test.dart',
                ['world open', 'stick bearings measured', 'a creature to fight', 'walked up to it', 'a blow landed',
                 'guard held and let go']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
-JOURNEYS = ['journey', 'continue', 'crossplay']
-# a part that can only follow another in the same run: continuing needs the game the journey left
-NEEDS = {'continue': 'journey'}
+JOURNEYS = ['journey', 'crossplay']
 STEPS = {step for _, steps in PARTS.values() for step in steps}
 
 
@@ -56,9 +56,6 @@ def chosen(names):
     unknown = [name for name in parts if name not in PARTS]
     if unknown:
         return None, f'no part called {", ".join(unknown)}; the parts are {", ".join(PARTS)}'
-    for part, before in NEEDS.items():
-        if part in parts and (before not in parts or parts.index(before) > parts.index(part)):
-            return None, f'{part} continues the game {before} leaves, so {before} has to run first'
     return parts, None
 
 
@@ -103,6 +100,14 @@ def photograph(platform, serial, name):
     return path
 
 
+# How long a part may say nothing before it is taken to have hung, and how long it may run at all. A
+# part waits up to ten minutes for a world to open on a slow emulator and says so either side, so a
+# silence twice that long is not slowness: on 2026-10-17 an iOS part built, said it was loading, and
+# then nothing for eighty minutes, until the job's own limit took the report with it.
+SILENT_MINUTES = 20
+PART_MINUTES = 40
+
+
 def run_part(platform, serial, part, record, defines=()):
     """One journey part, start to finish, photographing what it asks to be photographed."""
     args = ['flutter', 'test', part, '-d', serial, '--reporter', 'expanded', *[f'--dart-define={d}' for d in defines]]
@@ -110,7 +115,27 @@ def run_part(platform, serial, part, record, defines=()):
     log = (OUT / f'{Path(part).stem}.log').open('w')
     started = time.monotonic()
     process = subprocess.Popen(args, cwd=APP, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    for line in process.stdout:
+    # read on a thread of its own, so a part that goes quiet can be noticed rather than waited on
+    said = queue.Queue()
+    threading.Thread(target=lambda: ([said.put(line) for line in process.stdout], said.put(None)), daemon=True).start()
+    heard = time.monotonic()
+    stopped = None
+    while True:
+        try:
+            line = said.get(timeout=min(15, SILENT_MINUTES * 15))
+        except queue.Empty:
+            if time.monotonic() - heard > SILENT_MINUTES * 60:
+                stopped = f'said nothing for {SILENT_MINUTES} minutes'
+            elif time.monotonic() - started > PART_MINUTES * 60:
+                stopped = f'ran past {PART_MINUTES} minutes'
+            if stopped:
+                process.kill()
+                log.write(f'\n[journey.py] {Path(part).stem} {stopped}, and was stopped\n')
+                break
+            continue
+        if line is None:
+            break
+        heard = time.monotonic()
         log.write(line)
         log.flush()
         text = line.strip()
@@ -121,10 +146,11 @@ def run_part(platform, serial, part, record, defines=()):
         elif text.startswith('JOURNEY_STEP '):
             record['steps'].append({**json.loads(text.split(' ', 1)[1]), 'part': Path(part).stem,
                                     'atSeconds': round(time.monotonic() - started, 1)})
-    code = process.wait(timeout=60 * 40)
+    code = process.wait(timeout=120)
     log.close()
-    record['parts'].append({'part': part, 'exit': code, 'seconds': round(time.monotonic() - started, 1)})
-    return code
+    record['parts'].append({'part': part, 'exit': code if not stopped else 1, 'seconds': round(time.monotonic() - started, 1),
+                            **({'stopped': stopped} if stopped else {})})
+    return code if not stopped else 1
 
 
 def device_log(platform, serial):
@@ -226,14 +252,9 @@ def main(platform, names=()):
     try:
         serial, made = device(platform)
         subprocess.run(['node', 'tools/mobile/build-engine.mjs'], cwd=ROOT, check=True, timeout=600)
-        # every part is played and reported, so one that fails does not hide what the others found;
-        # only a part that continues another's game is let go when that one failed
+        # every part is played and reported, so one that fails does not hide what the others found
         failed = []
         for part in parts:
-            if NEEDS.get(part) in failed:
-                record['parts'].append({'part': part, 'skipped': f'{NEEDS[part]} failed'})
-                failed.append(part)
-                continue
             test, _ = PARTS[part]
             code = crossplay(platform, serial, record) if test == CROSSPLAY else run_part(platform, serial, test, record)
             said = {step['step'] for step in record['steps']}
