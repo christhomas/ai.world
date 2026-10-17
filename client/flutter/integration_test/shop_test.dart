@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:ai_world_flutter/main.dart' as app;
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
