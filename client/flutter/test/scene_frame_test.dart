@@ -246,16 +246,18 @@ void main() {
     await FlutterFramePipeline(native).draw(SceneFrame.fromJson(<String, dynamic>{
       'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
       'background': 0x123456,
-      'fog': null,
+      'fog': <String, dynamic>{'colour': 0x123456, 'near': 5, 'far': 30},
       'nodes': <Map<String, dynamic>>[
         <String, dynamic>{'kind': 'ambient', 'colour': 0x808080, 'intensity': 0.5, 'visible': true},
         // the autumn sun's case: a computed colour warmer than its hex can say
         <String, dynamic>{
           'kind': 'hemisphere', 'colour': 0xffe0a0, 'linearColour': <num>[1.3, 0.8, 0.35],
-          'groundColour': 0x402010, 'intensity': 2, 'visible': true,
+          'groundColour': 0x402010, 'linearGroundColour': <num>[0.1, 0.2, 1.1],
+          'intensity': 2, 'visible': true,
         },
         <String, dynamic>{
           'kind': 'directional', 'colour': 0xffa020, 'intensity': 3, 'visible': true,
+          'linearColour': <num>[1.04, 0.8, 0.35],
           'world': identity, 'target': <num>[0, 0, 0],
         },
         <String, dynamic>{
@@ -285,6 +287,9 @@ void main() {
       ],
     }));
     final scene = calls.singleWhere((call) => call.method == 'sceneFrame').arguments as Map;
+    // Clear and fog colours stay in output sRGB; fog is mixed after the fragment's encode.
+    expect(scene['background'], 0x123456);
+    expect(scene['fog'], <String, dynamic>{'colour': 0x123456, 'near': 5, 'far': 30});
     final lights = (scene['lights'] as List).cast<Map>();
     List<double> channels(Object? values) => (values as List).cast<num>().map((v) => v.toDouble()).toList();
     final grey = _linear(0x80);
@@ -292,12 +297,12 @@ void main() {
 
     // a hex is sRGB, decoded before the intensity scales it
     expect(channels(lights[0]['linear']), closeToList(<double>[grey * .5, grey * .5, grey * .5]));
-    // the unclamped channels win over the hex, and the ground's hex is decoded like any other
+    // the unclamped channels win over the hex for sky, ground and the autumn sun
     expect(channels(lights[1]['linear']), closeToList(<double>[2.6, 1.6, 0.7]));
     expect(channels(lights[1]['linearGround']),
-        closeToList(<double>[_linear(0x40) * 2, _linear(0x20) * 2, _linear(0x10) * 2]));
+        closeToList(<double>[0.2, 0.4, 2.2]));
     expect(channels(lights[2]['linear']),
-        closeToList(<double>[3, _linear(0xa0) * 3, _linear(0x20) * 3]));
+        closeToList(<double>[3.12, 2.4, 1.05]));
     // point lights carry their decay, and one without takes three.js's default of two
     expect(channels(lights[3]['linear']), closeToList(<double>[14, 14, 14]));
     expect(lights[3]['decay'], 1.4);

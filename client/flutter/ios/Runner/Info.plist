@@ -9,6 +9,8 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect to the local scene feed during development.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>The file picker includes photo library support. Importing a game uses Files and does not browse your photos.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

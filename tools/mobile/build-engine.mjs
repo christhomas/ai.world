@@ -27,3 +27,5 @@ async function bundle(entry, global, file, manifest, scope) {
 await bundle('src/game/mobile-state-engine.ts', 'AiWorldStateEngine', 'engine.js', 'manifest.json', 'hero-state');
 // and the whole shared game (#563)
 await bundle('src/mobile/game-engine.ts', 'AiWorldGameEngine', 'game.js', 'game-manifest.json', 'game');
+// The ground and country CPU jobs share a second context on their own native thread (#559).
+await bundle('src/mobile/job-engine.ts', 'AiWorldJobEngine', 'jobs.js', 'jobs-manifest.json', 'jobs');
