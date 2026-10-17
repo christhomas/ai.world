@@ -147,8 +147,8 @@ async function playFence(page, say, go, face, observedWalk) {
         try { ground = p.ground.heightAt(x, z); } catch (error) { ground = String(error); }
         return { hero: { x: p.x, z: p.z, placed: p.placed }, away: Math.hypot(p.x - x, p.z - z),
           place: window.__place(), ground, solid: window.__solid(x, z), stream: window.__stream, mount: window.__mount(),
-          // and where the ground under him has got to: chunk, square of country, worker
-          work: window.__chunkWork?.(x, z), country: window.__country?.(), grown: window.__grownDetails?.() };
+          // and where the ground under him has got to: the squares of country, and the chunk workers
+          country: window.__country?.(), grown: window.__grownDetails?.() };
       }, home);
       await go(home.x, home.z, 0);
       if (!await placedHome(60000)) {

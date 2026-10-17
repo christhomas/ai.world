@@ -173,17 +173,6 @@ export class ChunkManager implements TileWorld, ChunkSource {
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
   /** Capture waits for the worker queue itself, not a debug label from the previous frame. */
-  /** The chunks round a point and what each waits on, so a probe can say why there is no ground. */
-  workAt(x: number, z: number): object {
-    const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
-    const queued = new Set(this.queue.map((job) => chunkKey(job.cx, job.cz)));
-    const chunks = [-1, 0, 1].flatMap((dz) => [-1, 0, 1].map((dx) => {
-      const key = chunkKey(cx + dx, cz + dz), patch = this.patches ? patchOfChunk(cx + dx, cz + dz) : null;
-      return { key, loaded: this.loaded.has(key), pending: this.pending.has(key), sent: this.sent.has(key), queued: queued.has(key), patch, held: patch === null ? null : this.patches!.has(patch) };
-    }));
-    return { focus: [this.focusCx, this.focusCz], idle: this.idle.length, ready: this.ready, workers: this.workers.length, paused: this.paused, queued: this.queue.length, chunks };
-  }
-
   captureProgress(): { loaded: number; pending: number; desired: number; grown: number } {
     return {
       loaded: this.loaded.size,
@@ -498,10 +487,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
     }
     this.idle.push(w);
     const k = chunkKey(msg.cx, msg.cz);
+    if (msg.type === 'lost') this.told.forget(w, msg.patch);
     if (this.pending.get(k) !== msg.id) { this.pump(); return; } // stale
     this.pending.delete(k);
     const far = Math.max(Math.abs(msg.cx - this.focusCx), Math.abs(msg.cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) { this.pump(); return; }
+    // painted from a square the worker had let go of: told it again and asked again, first in line
+    if (msg.type === 'lost') { if (msg.chunk) this.sent.set(k, msg.chunk); this.queue.unshift({ cx: msg.cx, cz: msg.cz, since: 0 }); this.pump(); return; }
 
     // Ground drawn over must leave the scene as well as the loaded map. Keeping its group behind
     // draws two coplanar terrains with different z-buffer wins on each capture and leaks draw calls.
