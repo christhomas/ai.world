@@ -33,6 +33,8 @@ let sequence = 0;
 let tick = -1;
 let time = 0;
 const stepTimes = [];
+// where the engine's time went, by kind of job, as the game last said (#559)
+let work = {};
 // what the app keeps of the private world, as the replies hand it over
 const worldRecords = {};
 const ask = (type, payload, engine = 'engine', id = session) => {
@@ -52,6 +54,7 @@ const step = async (input = {}, ms = 1000 / 30) => {
   time += ms;
   const began = performance.now();
   const state = ask('step', { tick, dtSeconds: ms / 1000, renderTimeMs: time, input: { ...still, ...input } });
+  if (state.models.perf) work = state.models.perf.jobs;
   stepTimes.push(performance.now() - began);
   await settle();
   return state;
@@ -141,7 +144,7 @@ ask('dispose', {}, 'again', 'bare-again');
 const sorted = [...stepTimes].sort((a, b) => a - b);
 const evidence = {
   sourceSha: process.env.GAME_SOURCE_SHA, bundleBytes: source.length, loadMs: Math.round(loadMs),
-  startMs: Math.round(startMs), groundMs: Math.round(groundMs),
+  startMs: Math.round(startMs), groundMs: Math.round(groundMs), jobs: work,
   steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
   stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometriesSent: sent,
   geometriesHeld: geometries.size, geometriesReleased: released,

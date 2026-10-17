@@ -18,6 +18,7 @@ import { Conversation } from '../ui/conversation';
 import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
+import { OtherBodies, type NamePlate } from '../render/other-bodies';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
@@ -53,6 +54,11 @@ export interface HeadlessOptions {
    * game reaches it by, since a host with no page has no socket of its own.
    */
   server?: { url: string; link: WorldLinkFactory };
+  /**
+   * The wall clock, for timing jobs in real milliseconds: an engine's own clock is the step's, which
+   * stands still while a job runs. `Date.now` by default, which every engine has.
+   */
+  realNow?(): number;
   /** The game has asked to leave for the title. */
   leave?(): void;
   /** A prayer has asked for the game to begin again. */
@@ -86,6 +92,8 @@ export interface Presentation {
   /** The panel the screen has open, if any; a conversation is `conversation`. */
   panel: string | null;
   hero: Speaker | null;
+  /** Other players' names, where they hang over their heads in the viewport (#576). */
+  plates: NamePlate[];
 }
 
 export interface HeadlessGame {
@@ -105,6 +113,8 @@ export interface HeadlessGame {
   pack(): { take(id: string): void; stow(slot: string): void };
   /** The journal as the page's journal shows it: what is owed, found and sailing, and nothing undiscovered. */
   journal(): JournalView;
+  /** Real time spent so far on the world, the ground and the country, each its own kind of job. */
+  jobTimes(): JobTimes;
   /** Everybody on the register as the page's roster reads them, in this order (#575). */
   roster(by: RosterOrder): RosterView;
   /**
@@ -150,6 +160,36 @@ const keep = <T>(list: T[], item: T): void => {
   list.push(item);
   if (list.length > KEPT) list.splice(0, list.length - KEPT);
 };
+
+/**
+ * Real time spent on each kind of job on this host, so a slow phone says what it was slow at (#559):
+ * how many runs, how many milliseconds in all, and the longest single run.
+ */
+export interface JobTimes {
+  [kind: string]: { runs: number; ms: number; longest: number };
+}
+
+/** A clock whose callbacks are timed, in real milliseconds, under one kind of job. */
+function timedClock(clock: HostClock, kind: string, times: JobTimes, real: () => number): HostClock {
+  const timed = (callback: () => void) => () => {
+    const began = real();
+    try {
+      callback();
+    } finally {
+      const took = real() - began;
+      const t = (times[kind] ??= { runs: 0, ms: 0, longest: 0 });
+      t.runs++;
+      t.ms += took;
+      if (took > t.longest) t.longest = took;
+    }
+  };
+  return {
+    now: () => clock.now(),
+    yield: () => clock.yield(),
+    after: (callback, milliseconds) => clock.after(timed(callback), milliseconds),
+    every: (callback, milliseconds) => clock.every(timed(callback), milliseconds),
+  };
+}
 
 /** Chunks meshed on the host's own turn, in the order asked, by the mesher the page's workers run. */
 export function chunksInProcess(clock: HostClock, now: () => number): ChunkJobHost {
@@ -234,7 +274,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   const shown: Presentation = {
     toasts: [], loading: null, area: '', action: null, quests: 0, link: false,
     breath: { wind: 1, warded: 0, arm: 1, guarding: false }, hurts: 0, chat: [], status: '', fight: null,
-    sounds: [], fishing: 'idle', volume: 0.6, panel: null, hero: null,
+    sounds: [], fishing: 'idle', volume: 0.6, panel: null, hero: null, plates: [],
   };
   const say = (line: string) => keep(shown.toasts, line);
   const cue = (name: string) => keep(shown.sounds, name);
@@ -332,15 +372,29 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let below: { sight: FloorSight; opened: (i: number) => boolean; unlocked: boolean } | null = null;
 
   const company: CompanySurfaces = {
-    // a shared world's other players arrive with its socket (#565); a private world has none
-    others: () => ({ sync() {}, settle() {}, project() {}, age() {}, emote() {}, clear() {} }),
+    // a shared world's other players, arriving with its socket (#565): drawn by the same entity
+    // renderer as everybody, with their names kept for the app to hang over their heads
+    others: (renderer) => {
+      const people = new OtherBodies(renderer);
+      return {
+        sync: (players, place) => people.sync(players, place),
+        settle: (heightAt) => people.settle(heightAt),
+        project: (camera, width, height) => { shown.plates = people.plates(camera, width, height); },
+        age: (dt) => people.age(dt),
+        emote: (id, emoji) => people.emote(id, emoji),
+        clear: () => { people.clear(); shown.plates = []; },
+      };
+    },
     playerList: () => ({ refresh() {} }),
     status: (text) => { shown.status = text; },
     fight: (readout) => { shown.fight = readout; },
     viewport: () => viewport,
   };
 
-  const alone = worldInProcess(clock, () => options.vault ?? new Forgetful());
+  // the world, the ground and the country each run on a clock that times them (#559)
+  const jobTimes: JobTimes = {};
+  const real = options.realNow ?? (() => Date.now());
+  const alone = worldInProcess(timedClock(clock, 'world', jobTimes, real), () => options.vault ?? new Forgetful());
   const platform: GamePlatform = {
     asks: { server: false, at: undefined, time: null, freeCamera: false, ...options.asks },
     rig: () => createSceneRig(rigHost, false, recording),
@@ -439,8 +493,9 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       restart: () => options.restart?.(),
     }),
     jobs: {
-      chunks: chunksInProcess(clock, now),
-      grower: (seed, country) => createCountryGrower(seed, country.store, countryInProcess(clock, now)),
+      chunks: chunksInProcess(timedClock(clock, 'chunks', jobTimes, real), now),
+      grower: (seed, country) => createCountryGrower(seed, country.store,
+        countryInProcess(timedClock(clock, 'country', jobTimes, real), now)),
     },
     chunkKeep: keptInMemory,
     settings: {
@@ -482,6 +537,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       if (!pack) throw new Error('the game has not been assembled on this host yet');
       return pack;
     },
+    jobTimes: () => jobTimes,
     say(text) {
       const said = text.trim();
       if (said) chat.onSend?.(said);

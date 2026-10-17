@@ -137,6 +137,8 @@ export function create(session: string, optionsText: string): { request(text: st
   let wantScene = false;
   let lastSave = '';
   let lastJournal = '';
+  let lastPerf = '';
+  let lastPerfAt = -Infinity;
   /** The roster is long, so it is sent only while the app's roster page is open, in its order. */
   let rosterOrder: RosterOrder | null = null;
   let lastRoster = '';
@@ -176,6 +178,12 @@ export function create(session: string, optionsText: string): { request(text: st
     if (rosterOrder) {
       const roster = JSON.stringify(host!.roster(rosterOrder));
       if (roster !== lastRoster) { lastRoster = roster; models.roster = JSON.parse(roster) as Json; }
+    }
+    // where the time went on this phone's engine (#559): each kind of job's runs, total and longest,
+    // at most every two seconds and only when it has changed
+    if (renderTimeMs - lastPerfAt >= 2000) {
+      const perf = JSON.stringify({ jobs: host!.jobTimes() });
+      if (perf !== lastPerf) { lastPerf = perf; lastPerfAt = renderTimeMs; models.perf = JSON.parse(perf) as Json; }
     }
     // underground, the map is the floor: sent when what has been seen of it changes, and null once
     // the hero is back above ground

@@ -44,7 +44,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - name: Photograph the parity scenes on the web, keeping the frame each one drew
-        run: node tools/shots.cjs town night autumn interior dungeon sea night-sea
+        run: node tools/shots.cjs town night autumn winter cattle mountain farming horse estate interior dungeon sea night-sea
         env:
           PORT: '5186'
           PARITY: ${{ runner.temp }}/parity-kept
@@ -83,6 +83,8 @@ jobs:
           flutter-version: 3.47.1
           channel: stable
       - run: python3 -m pip install Pillow==11.3.0
+      # the web player the installed journey meets in a shared world (#583)
+      - run: pnpm exec playwright install --with-deps chromium
       - uses: actions/download-artifact@v4
         with:
           name: parity-frames
@@ -167,6 +169,8 @@ jobs:
       - run: python3 -m venv "$RUNNER_TEMP/mobile-python"
       - run: |
           "$RUNNER_TEMP/mobile-python/bin/pip" install Pillow==11.3.0
+      # the web player the installed journey meets in a shared world (#583)
+      - run: pnpm exec playwright install chromium
       - uses: actions/download-artifact@v4
         with:
           name: parity-frames

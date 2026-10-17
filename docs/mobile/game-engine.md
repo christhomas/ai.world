@@ -38,6 +38,8 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - underground, the floor (`floor`, `dungeon/floor-picture.ts`: the seen cells as runs of colour
   with the entrance and the seen chests), when what has been seen of it changes, and `null` once
   the hero is back above ground;
+- where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
+  and the country, each as runs, total and longest, at most every two seconds;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
   charted since the last one sent. New ground goes every time; markers and title go when they
