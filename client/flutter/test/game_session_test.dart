@@ -10,8 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 class GameAssets extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
-    final text = key.endsWith('game-manifest.json') ? jsonEncode({'contractVersion': 1,
-      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': 'game'}) : 'bundled game';
+    final text = key.endsWith('manifest.json') ? jsonEncode({'contractVersion': 1,
+      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': key.contains('jobs') ? 'jobs' : 'game'}) : 'bundled game';
     return ByteData.sublistView(Uint8List.fromList(utf8.encode(text)));
   }
 }
@@ -30,6 +30,7 @@ class StandInEngine {
   Future<Object?> answer(MethodCall call) async {
     final args = call.arguments as Map;
     if (call.method == 'create') {
+      if (args['entry'] == 'AiWorldJobEngine') return 'jobs-owner';
       expect(args['entry'], 'AiWorldGameEngine');
       opened.add(jsonDecode(args['options'] as String) as Map<String, dynamic>);
       return 'owner-${opened.length}';
