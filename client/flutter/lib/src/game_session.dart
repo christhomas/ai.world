@@ -238,10 +238,11 @@ class GameSession {
     for (final parcel in outbox.cast<Map>()) {
       final Object sent = parcel['text'] ?? base64Decode('${parcel['binary']}');
       unawaited(socket.send(sent).catchError((Object error) {
-        // a parcel the socket would not take is a connection that is no use: the game hears it closed
+        // a parcel the socket would not take is a connection that is no use: the game hears it closed,
+        // then the socket is let go
         if (connection != _connection) return;
-        _disconnect();
         unawaited(_tell(connection, 'close', '$error'));
+        _disconnect();
       }));
     }
   }
@@ -262,9 +263,11 @@ class GameSession {
     }
   }
 
+  /// Let the socket go, and with it its connection: anything it says afterwards is not passed on.
   void _disconnect() {
     final socket = _socket;
     _socket = null;
+    _connection = 0;
     if (socket != null) unawaited(socket.close());
   }
 
