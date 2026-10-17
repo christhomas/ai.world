@@ -6,7 +6,6 @@ import { Solids, boxesFrom, type Body } from '../world/solids';
 import { blocking, type Footprints } from '../world/footprints';
 import { BLOCKS_WALKING } from '../world/biomes';
 import type { ChunkJob, ChunkJobHost } from '../world/chunkjobs';
-import { browserChunkJobs } from './chunkworkers';
 import { readPropStream } from './chunkprops';
 import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from '../world/messages';
 import { partsOf } from '../world/endless';
@@ -219,15 +218,16 @@ export class ChunkManager implements TileWorld, ChunkSource {
      * patch it falls in, and the workers are told about a patch the first time one of them is asked
      * for a chunk inside it.
      */
-    private readonly patches?: Patchwork,
+    private readonly patches: Patchwork | undefined,
     /**
      * Ask for a square of country that is not grown yet.
      *
      * Separate from `patches` because holding a store and blocking to fill it are different powers:
      * this one says "somebody else please", and the chunk that wanted it waits its turn.
      */
-    private readonly wantPatch?: (patch: string) => void,
-    private readonly jobs: ChunkJobHost = browserChunkJobs,
+    private readonly wantPatch: ((patch: string) => void) | undefined,
+    /** Who meshes the chunks: the page's workers, or a host's own ordered jobs. */
+    private readonly jobs: ChunkJobHost,
   ) {
     this.terrainBridge = new ThreeGraphBridge(graph, scene, this.terrainMaterial, waterMaterial);
     this.propBatch = new PropBatch(scene, props, glowMaterial, graph);

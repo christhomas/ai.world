@@ -13,9 +13,36 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # the installed-app journeys, driven by touch on an emulator and a simulator (#584)
+  integration_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
   assets:
     - assets/engine/
+    - assets/licences/
+  # The Ledger II faces (design/mobile/README.md), bundled so the interface reads the same offline.
+  # SIL Open Font License 1.1; the licences are in assets/licences/ and registered at start-up.
+  fonts:
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-Variable.ttf
+    - family: EBGaramond
+      fonts:
+        - asset: assets/fonts/EBGaramond-Variable.ttf
+    - family: BarlowCondensed
+      fonts:
+        - asset: assets/fonts/BarlowCondensed-Regular.ttf
+        - asset: assets/fonts/BarlowCondensed-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/BarlowCondensed-SemiBold.ttf
+          weight: 600
+    - family: IBMPlexMono
+      fonts:
+        - asset: assets/fonts/IBMPlexMono-Regular.ttf
+        - asset: assets/fonts/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexMono-SemiBold.ttf
+          weight: 600

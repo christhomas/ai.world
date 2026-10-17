@@ -4,9 +4,10 @@ import type { DayCycle } from './daycycle';
 import { ChunkManager } from './chunkManager';
 import { Mountains, type MountainMaterial } from './mountains';
 import { SkyIslands } from './skyisland';
+import type { ChunkJobHost } from '../world/chunkjobs';
 
 /** The country passes neutral world data; WebGL scene and materials stay in the render layer. */
-export function countryRenderers(rig: SceneRig, props: PropLibrary, daycycle: DayCycle) {
+export function countryRenderers(rig: SceneRig, props: PropLibrary, daycycle: DayCycle, jobs: ChunkJobHost) {
   const { scene, water } = nativeRig(rig);
   return {
     chunks: (
@@ -14,7 +15,7 @@ export function countryRenderers(rig: SceneRig, props: PropLibrary, daycycle: Da
       patches?: ConstructorParameters<typeof ChunkManager>[6],
       wantPatch?: ConstructorParameters<typeof ChunkManager>[7],
     ) => new ChunkManager(
-      scene, rig.graph, sampler, props, water.material, daycycle.glowMaterial, patches, wantPatch,
+      scene, rig.graph, sampler, props, water.material, daycycle.glowMaterial, patches, wantPatch, jobs,
     ),
     mountains: (rock: MountainMaterial) => new Mountains(scene, rock.material, rig.graph),
     skyIslands: () => new SkyIslands(scene, props, water.material, daycycle.glowMaterial, rig.graph),

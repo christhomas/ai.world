@@ -15,10 +15,8 @@ import type { Structures } from '../../world/structures';
 import type { Around } from '../../world/around';
 import type { TerrainSampler } from '../../world/terrain';
 import type { Manifest } from '../../world/manifest';
-import type { DialogueBox, DialogueChoice, DialogueNode } from '../../ui/dialogue';
-import type { Hud } from '../../ui/hud';
-import type { Chat } from '../../ui/chat';
-import type { Sound } from '../audio';
+import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
+import type { ChatSurface, DialogueSurface, HudSurface, SoundSurface } from '../../platform/game-platform';
 import type { GameState } from '../state';
 import type { Register } from '../../world/register';
 import type { Jail } from '../jail';
@@ -160,10 +158,10 @@ export interface Surroundings {
   quests: Map<string, Quest>;
 
   // how an interaction answers back
-  dialogue: DialogueBox;
-  hud: Hud;
-  chat: Chat;
-  sound: Sound;
+  dialogue: DialogueSurface;
+  hud: HudSurface;
+  chat: ChatSurface;
+  sound: SoundSurface;
 
   // the few things only main.ts can do
   /** Whether it is raining, which the fish care about. */

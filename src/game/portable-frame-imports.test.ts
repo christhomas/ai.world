@@ -7,6 +7,8 @@ const FORBIDDEN = new Set(['window', 'document', 'localStorage', 'indexedDB', 'r
   'cancelAnimationFrame', 'Worker', 'WebSocket', 'AudioContext', 'HTMLElement', 'HTMLCanvasElement',
   'process', 'Buffer', 'require']);
 type Node = { type?: string; [key: string]: unknown };
+/** three's own add-ons that are arithmetic on buffers and nothing else. */
+const CPU_ADDONS = new Set(['three/addons/utils/BufferGeometryUtils.js']);
 
 /** Inspect runtime edges, including transitive ones; type-only browser declarations are erased. */
 function inspect(entry: string, sources = new Map<string, string>()): string[] {
@@ -49,7 +51,7 @@ function inspect(entry: string, sources = new Map<string, string>()): string[] {
               .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
             if (!found) throw new Error(`Unresolved portable import: ${file} -> ${name}`);
             visit(found);
-          } else if (name !== 'three') throw new Error(`Non-CPU portable dependency: ${file} -> ${name}`);
+          } else if (name !== 'three' && !CPU_ADDONS.has(name)) throw new Error(`Non-CPU portable dependency: ${file} -> ${name}`);
         }
       }
       if (node.type === 'ImportExpression' || (node.type === 'CallExpression' && (node.callee as Node)?.type === 'Import')) {
@@ -163,6 +165,20 @@ describe('portable frame runtime boundary', () => {
     expect(files).toContain('src/game/heard.ts');
     expect(files).not.toContain('src/net/link.ts');
     expect(files).not.toContain('src/platform/browser-world-link.ts');
+  });
+  it('assembles the whole game on a host with no page, workers, storage or GPU adapters', () => {
+    const files = [...new Set([...inspect('src/game/compose.ts'), ...inspect('src/platform/headless-game.ts'),
+      ...inspect('src/mobile/game-engine.ts')])];
+    for (const part of ['src/game/frame.ts', 'src/game/multiplayer.ts', 'src/game/places.ts', 'src/render/scene.ts',
+      'src/render/chunkManager.ts', 'src/workers/chunkmesher.ts', 'src/workers/local-world-host.ts', 'src/ui/conversation.ts',
+      'src/mobile/host-globals.ts', 'src/mobile/scene-packet.ts', 'src/mobile/portraits.ts', 'src/ui/portrait.ts']) {
+      expect(files).toContain(part);
+    }
+    for (const page of ['src/main.ts', 'src/platform/browser-game.ts', 'src/platform/browser-rig.ts',
+      'src/render/chunkworkers.ts', 'src/world/countryworker.ts', 'src/render/secondrig.ts', 'src/net/link.ts',
+      'src/platform/browser-chunk-keep.ts', 'src/ui/dialogue.ts', 'src/ui/hud.ts', 'src/game/audio.ts']) {
+      expect(files).not.toContain(page);
+    }
   });
   it('keeps browser, Node, workers, networking and GPU adapters out of runtime imports', () => {
     const files = inspect('src/game/portable-frame.ts');

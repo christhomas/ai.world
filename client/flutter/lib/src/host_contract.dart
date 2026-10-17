@@ -3,6 +3,9 @@ import 'dart:typed_data';
 /// In-process app contract. Independent of the shared-world network protocol.
 const hostContractVersion = 1;
 const _maxSafe = 9007199254740991;
+/// The most characters a parcel may carry across the bridge, as `PARCEL_CHARS` in host-contract.ts.
+const parcelChars = 8 * 1024 * 1024;
+final _base64 = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
 
 Map<String, dynamic> validateHostRequest(dynamic value) {
   Never fail(String code) => throw FormatException(code);
@@ -29,6 +32,15 @@ Map<String, dynamic> validateHostRequest(dynamic value) {
     case 'cancel': valid = exact(p, ['requestId']) && text(p['requestId']);
     case 'resync': valid = exact(p, ['reason']) && text(p['reason']);
     case 'dispose': valid = p.isEmpty;
+    case 'parcel':
+      bool parcelText(dynamic v) => v is String && v.length <= parcelChars;
+      bool base64(dynamic v) => parcelText(v) && (v as String).length % 4 == 0 && _base64.hasMatch(v);
+      valid = exact(p, ['generation', 'event', 'text', 'binary', 'why']) && integer(p['generation']) && p['generation'] > 0 && switch (p['event']) {
+        'open' => p['text'] == null && p['binary'] == null && p['why'] == null,
+        'message' => p['why'] == null && ((parcelText(p['text']) && p['binary'] == null) || (p['text'] == null && base64(p['binary']))),
+        'close' => p['text'] == null && p['binary'] == null && p['why'] is String && (p['why'] as String).length <= 1024,
+        _ => false,
+      };
     case 'lifecycle': valid = exact(p, ['state', 'renderTimeMs']) && ['active', 'inactive', 'background'].contains(p['state']) && finite(p['renderTimeMs']) && p['renderTimeMs'] >= 0;
     case 'step':
       final i = p['input'];

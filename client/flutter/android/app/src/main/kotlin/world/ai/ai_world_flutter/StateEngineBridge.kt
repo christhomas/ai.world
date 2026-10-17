@@ -13,10 +13,24 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal object NativeStateEngine {
     init { System.loadLibrary("ai_world_state_engine") }
-    external fun create(source: ByteArray, session: ByteArray, savedHero: ByteArray?): Long
+    external fun create(source: ByteArray, entry: ByteArray, session: ByteArray, options: ByteArray?,
+        memoryMb: Int, budgetMs: Int, replyMb: Int): Long
     external fun request(handle: Long, request: ByteArray): ByteArray
     external fun dispose(handle: Long)
 }
+
+/**
+ * What each bundled engine is allowed. The hero alone is small and quick; the whole game holds a
+ * world, takes a while to open one, and answers with the ground it streams.
+ */
+private data class EngineLimits(val memoryMb: Int, val budgetMs: Int, val replyMb: Int)
+private val LIMITS = mapOf(
+    "AiWorldStateEngine" to EngineLimits(64, 5_000, 1),
+    // a runaway guard, not a performance target: QuickJS interprets the whole game without a JIT and
+    // took more than a minute to open a world on the hosted emulator, so the proof reports what it
+    // measured instead of an interrupt (#559, #563)
+    "AiWorldGameEngine" to EngineLimits(768, 300_000, 32),
+)
 
 /** Native handles stay on the owner executor. Flutter receives only opaque tokens and UTF-8 JSON. */
 class StateEngineBridge(messenger: BinaryMessenger, context: Context) : MethodChannel.MethodCallHandler {
@@ -43,12 +57,16 @@ class StateEngineBridge(messenger: BinaryMessenger, context: Context) : MethodCh
                         val source = requireNotNull(call.argument<ByteArray>("source"))
                         val session = requireNotNull(call.argument<String>("session"))
                         val expected = requireNotNull(call.argument<String>("bundleSha256"))
-                        require(source.size <= 8 * 1024 * 1024 && session.isNotEmpty() && session.length <= 256)
+                        val entry = call.argument<String>("entry") ?: "AiWorldStateEngine"
+                        val limits = requireNotNull(LIMITS[entry]) { "Unknown bundled engine $entry" }
+                        require(source.size <= 32 * 1024 * 1024 && session.isNotEmpty() && session.length <= 256)
                         val digest = MessageDigest.getInstance("SHA-256").digest(source).joinToString("") { "%02x".format(it.toInt() and 255) }
                         require(digest == expected) { "Corrupted bundled engine" }
-                        val savedHero = call.argument<String>("savedHero")?.toByteArray(Charsets.UTF_8)
-                        require(savedHero == null || savedHero.size <= 1024 * 1024) { "Saved hero too large" }
-                        val handle = NativeStateEngine.create(source, session.toByteArray(Charsets.UTF_8), savedHero)
+                        // the hero engine is handed a saved hero; the game engine its options
+                        val options = (call.argument<String>("options") ?: call.argument<String>("savedHero"))?.toByteArray(Charsets.UTF_8)
+                        require(options == null || options.size <= 8 * 1024 * 1024) { "Engine options too large" }
+                        val handle = NativeStateEngine.create(source, entry.toByteArray(Charsets.UTF_8),
+                            session.toByteArray(Charsets.UTF_8), options, limits.memoryMb, limits.budgetMs, limits.replyMb)
                         check(handle != 0L) { "Cannot initialize bundled state engine; see native log" }
                         val token = UUID.randomUUID().toString()
                         engines[token] = handle

@@ -3,7 +3,7 @@ import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
 import { A_PASSAGE, type Beam } from '../render/beam';
 import type { IsoCamera } from '../render/camera';
-import type { Chat } from '../ui/chat';
+import type { ChatSurface } from '../platform/game-platform';
 import { noSuchTopic, topicFor, topicIndex } from '../ui/topics';
 import { BIOMES, biomeAnswersTo } from '../world/biomes';
 import type { Register } from '../world/register';
@@ -54,7 +54,7 @@ export interface Consoled {
   entities: EntityManager;
   register: Register;
   online: Online;
-  chat: Chat;
+  chat: ChatSurface;
   plots: Plots;
   remains: Remains;
   hires: Hires;

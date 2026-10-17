@@ -24,6 +24,15 @@ describe('portable host contract v1', () => {
     expect(() => gate.accept(fixture.step)).toThrow('out-of-order');
     expect(() => gate.accept({ ...fixture.step, id: 'next', sequence: 2, payload: { ...fixture.step.payload, tick: 1, renderTimeMs: 1 } })).toThrow('out-of-order');
   });
+  it('carries a shared world\'s parcels across, as the Dart gate takes them, and nothing else', () => {
+    const gate = new RequestGate('fixture:1');
+    gate.accept(fixture.start);
+    gate.accept(fixture.step);
+    for (const parcel of fixture.parcels) expect(gate.accept(parcel).type).toBe('parcel');
+    for (const bad of fixture.badParcels) {
+      expect(() => validateRequest({ ...fixture.start, type: 'parcel', payload: bad }), JSON.stringify(bad)).toThrow('invalid');
+    }
+  });
   it('rejects nonfinite input and disposes a generation permanently', () => {
     expect(() => validateRequest({ ...fixture.step, payload: { ...fixture.step.payload, dtSeconds: NaN } })).toThrow('invalid');
     const gate = new RequestGate('fixture:1'); gate.accept(fixture.start);

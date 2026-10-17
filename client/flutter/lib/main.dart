@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'ai_world_flutter.dart';
+import 'src/app_shell.dart';
+import 'src/shell/ledger_fonts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerLedgerFontLicences();
   await SystemChrome.setPreferredOrientations(const [
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -17,13 +20,17 @@ Future<void> main() async {
   runApp(const AiWorldClient());
 }
 
+/// The game, played on the phone. A renderer developer can instead point the app at the scene
+/// feed with `--dart-define=SCENE_FEED_URL=ws://…` (client/flutter/README.md); a normal build never
+/// looks for one, and has no address to fall back on.
 class AiWorldClient extends StatelessWidget {
   const AiWorldClient({super.key});
+  static const sceneFeed = String.fromEnvironment('SCENE_FEED_URL');
 
   @override
   Widget build(BuildContext context) => const MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: Scaffold(body: _WorldFeed()),
+    home: Scaffold(body: sceneFeed == '' ? AppShell() : _WorldFeed()),
   );
 }
 
@@ -34,10 +41,7 @@ class _WorldFeed extends StatefulWidget {
 }
 
 class _WorldFeedState extends State<_WorldFeed> {
-  static const address = String.fromEnvironment(
-    'SCENE_FEED_URL',
-    defaultValue: 'ws://10.0.2.2:8788',
-  );
+  static const address = AiWorldClient.sceneFeed;
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   List<int>? _latest;

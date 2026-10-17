@@ -1,0 +1,114 @@
+name: Android release
+
+# The installed Android game as a tester gets it (#580; docs/mobile/android-release.md): a release APK
+# for direct installation and an AAB for Play testing, built from the same commit as the game's own
+# release, with checksums, the R8 mapping and native symbols beside them. Signed with the app's key
+# when the repository holds one; otherwise signed with the debug key and named so, because such a
+# build cannot be upgraded by a properly signed one and is not for testers.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/android-release.yml'
+      - 'client/flutter/android/app/build.gradle.kts'
+      - 'client/flutter/android/app/proguard-rules.pro'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+      - name: Bundle the game the app plays, from this commit
+        run: node tools/mobile/build-engine.mjs
+      - name: Name the build after the game's own release
+        id: version
+        run: |
+          # the game's version, which the title screen shows, and a build number that only grows
+          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Put the app's signing key where the build reads it, if the repository has one
+        id: key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.AI_WORLD_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "signed=debug" >> "$GITHUB_OUTPUT"
+            echo "::warning::No Android signing key is configured; this build is debug-signed and not for testers (#580)."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ai-world.jks"
+          echo "AI_WORLD_KEYSTORE=$RUNNER_TEMP/ai-world.jks" >> "$GITHUB_ENV"
+          echo "signed=release" >> "$GITHUB_OUTPUT"
+      - name: Build the release APK and AAB
+        working-directory: client/flutter
+        env:
+          AI_WORLD_KEYSTORE_PASSWORD: ${{ secrets.AI_WORLD_ANDROID_KEYSTORE_PASSWORD }}
+          AI_WORLD_KEY_ALIAS: ${{ secrets.AI_WORLD_ANDROID_KEY_ALIAS }}
+          AI_WORLD_KEY_PASSWORD: ${{ secrets.AI_WORLD_ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter pub get
+          flutter build apk --release --build-name "${{ steps.version.outputs.name }}" --build-number "${{ steps.version.outputs.number }}"
+          flutter build appbundle --release --build-name "${{ steps.version.outputs.name }}" --build-number "${{ steps.version.outputs.number }}"
+      - name: Gather the artifacts, their checksums and what reads a crash
+        id: out
+        run: |
+          version="${{ steps.version.outputs.name }}"
+          kind="${{ steps.key.outputs.signed }}"
+          out="$RUNNER_TEMP/android-release"
+          mkdir -p "$out"
+          suffix=$([ "$kind" = release ] && echo "" || echo "-debug-signed")
+          cp client/flutter/build/app/outputs/flutter-apk/app-release.apk "$out/ai-world-$version$suffix.apk"
+          cp client/flutter/build/app/outputs/bundle/release/app-release.aab "$out/ai-world-$version$suffix.aab"
+          mapping=client/flutter/build/app/outputs/mapping/release/mapping.txt
+          if [ -f "$mapping" ]; then cp "$mapping" "$out/ai-world-$version-mapping.txt"; fi
+          symbols=$(find client/flutter/build/app/intermediates -name 'native-debug-symbols.zip' | head -1)
+          if [ -n "$symbols" ]; then cp "$symbols" "$out/ai-world-$version-native-symbols.zip"; fi
+          cp client/flutter/assets/engine/game-manifest.json "$out/ai-world-$version-game-manifest.json"
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$apksigner" verify --print-certs "$out/ai-world-$version$suffix.apk" | tee "$out/signature.txt"
+          (cd "$out" && sha256sum ai-world-* > SHA256SUMS && cat SHA256SUMS)
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Android ${version} (build ${{ steps.version.outputs.number }})"
+            echo "Signed with: **$kind** key."
+            echo '```'; cat "$out/SHA256SUMS"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: ${{ steps.out.outputs.dir }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Attach a properly signed build to the GitHub release
+        if: github.event_name == 'release' && steps.key.outputs.signed == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.out.outputs.dir }}"/ai-world-* "${{ steps.out.outputs.dir }}/SHA256SUMS" --clobber

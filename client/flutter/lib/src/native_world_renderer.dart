@@ -46,6 +46,17 @@ final class CutawayState {
   };
 }
 
+/// One frame as the native renderer drew it: RGBA8 pixels with their alpha as drawn, top row first.
+final class RenderSnapshot {
+  RenderSnapshot({required this.width, required this.height, required this.rgba}) {
+    if (width < 1 || height < 1 || rgba.length != width * height * 4) {
+      throw FormatException('A ${width}x$height snapshot cannot hold ${rgba.length} bytes');
+    }
+  }
+  final int width, height;
+  final Uint8List rgba;
+}
+
 /// Owns one native GLES/Metal renderer whose output Flutter composites as an opaque texture.
 final class NativeWorldRenderer {
   NativeWorldRenderer._(this.textureId, this._channel);
@@ -135,6 +146,20 @@ final class NativeWorldRenderer {
       };
     }
     return _invoke('sceneFrame', message);
+  }
+
+  /// Read back the next frame the renderer draws, from its own target rather than the screen, so
+  /// what is compared is what the GPU drew: no device rotation, status bar or compositor scaling.
+  Future<RenderSnapshot> snapshot() async {
+    if (_disposed) throw StateError('Renderer $textureId has been disposed');
+    final reply = await _channel.invokeMapMethod<String, Object?>('snapshot', <String, Object>{
+      'textureId': textureId,
+    });
+    final rgba = reply?['rgba'];
+    if (reply == null || rgba is! Uint8List || reply['width'] is! int || reply['height'] is! int) {
+      throw const FormatException('Native renderer returned no snapshot');
+    }
+    return RenderSnapshot(width: reply['width'] as int, height: reply['height'] as int, rgba: rgba);
   }
 
   Future<void> _invoke(String method, Map<String, Object> arguments) {

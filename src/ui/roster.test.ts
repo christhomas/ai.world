@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderBy } from './roster';
+import { orderBy } from '../game/roster-view';
 import type { Person } from '../world/people';
 
 /**

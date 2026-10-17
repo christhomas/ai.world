@@ -502,6 +502,33 @@ void main() {
     await native.dispose();
   });
 
+  test('geometry the engine releases is let go, and a frame naming it again has to bring it', () {
+    const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    Map<String, dynamic> packet(List<String> named, {Map<String, dynamic>? geometries, List<String>? released}) => <String, dynamic>{
+      'frame': <String, dynamic>{
+        'camera': <String, dynamic>{'orthographic': true, 'projection': identity, 'world': identity},
+        'nodes': <Map<String, dynamic>>[
+          for (final id in named) <String, dynamic>{'id': id, 'kind': 'mesh', 'geometryId': id, 'world': identity, 'visible': true},
+        ],
+      },
+      'geometries': ?geometries,
+      'released': ?released,
+    };
+    final triangle = <String, dynamic>{
+      'attributes': <String, dynamic>{'position': <String, dynamic>{'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 0, 1]}},
+      'indices': <int>[0, 1, 2],
+    };
+    final cache = SceneGeometryCache();
+    SceneFrame.fromJson(packet(['g1', 'g2'], geometries: {'g1': triangle, 'g2': triangle}), geometryCache: cache);
+    expect(cache.length, 2);
+    final kept = SceneFrame.fromJson(packet(['g1'], released: ['g2']), geometryCache: cache);
+    expect(kept.nodes.single['attributes'], isNotNull);
+    expect(cache.length, 1, reason: 'what left the scene is not held');
+    expect(() => SceneFrame.fromJson(packet(['g2']), geometryCache: cache), throwsFormatException);
+    SceneFrame.fromJson(packet(['g1', 'g2'], geometries: {'g2': triangle}), geometryCache: cache);
+    expect(cache.length, 2);
+  });
+
   test('cached geometry avoids repeat uploads while style changes and water attributes reach native', () async {
     const channel = MethodChannel('world.ai/cache-test');
     final calls = <MethodCall>[];

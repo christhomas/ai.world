@@ -2,9 +2,11 @@
 import base64
 import hashlib
 import html
+import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -33,8 +35,8 @@ def command(args, timeout=600, cwd=ROOT, check=True):
     return result.returncode
 
 
-def output(args):
-    return subprocess.check_output(args, text=True, timeout=30).strip()
+def output(args, timeout=30):
+    return subprocess.check_output(args, text=True, timeout=timeout).strip()
 
 
 def validate_android_ui(xml):
@@ -94,7 +96,7 @@ def prepare(platform):
     save(platform=platform, source_sha=output(['git', 'rev-parse', 'HEAD']),
          status='provisioning', gameplay='pending', seed=3,
          fixture_sha256=hashlib.sha256(fixture.read_bytes()).hexdigest(),
-         requested_render_time_ms=1000,
+         render_time='recorded with each scene; 1000 ms for the checked-in fixture',
          scenarios=[f'recorded-{scene["name"]}-native-renderer' for scene in scenes],
          scenes=scenes,
          configuration={'flutter': '3.47.1', 'android_api': 35, 'ios': '18.5',
@@ -190,16 +192,27 @@ def capture(platform):
                      device, 'world.ai.aiWorldFlutter'])
         save(status='waiting-native-ready', device=device)
 
+        def game_progress(text):
+            # how far the installed game got and how fast it ran, kept even when it did not finish
+            said = re.findall(r'HOSTED_GAME_(?:OPENED|PROGRESS|FAILED) [^\n]*', text)
+            if said:
+                save(installed_game_progress=said[-3:])
+            return ' | '.join(said[-3:])
+
         def wait_for(marker, seconds, what):
             deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
                 text = '\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))
                 if 'HOSTED_NATIVE_FAILED' in text:
                     raise RuntimeError('Native initialization/frame submission failed; inspect native.log')
+                if 'HOSTED_GAME_FAILED' in text:
+                    raise RuntimeError('The installed game session failed; inspect native.log. '
+                                       + game_progress(text))
                 if marker in text:
                     return text
                 time.sleep(1)
-            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization')
+            raise TimeoutError(f'No {what} after {seconds} seconds; crash or blank initialization. '
+                               + game_progress('\n'.join(p.read_text(errors='replace') for p in OUT.glob('*.log'))))
 
         text = wait_for(f'HOSTED_STATE_ENGINE_READY platform={platform}', 90, 'installed state engine proof')
         if f'HOSTED_HERO_CHECKPOINT_READY platform={platform}' not in text:
@@ -210,22 +223,48 @@ def capture(platform):
              {'name': f'installed-{platform}-hero-file-checkpoint', 'passed': True,
               'scope': 'hero-state-only', 'app_process_restart': False}])
 
+        container = []
+
+        def app_files():
+            # The simulator's container for the app does not move while it runs, so it is asked for
+            # once. Asking takes seconds on a busy runner and has run past half a minute.
+            if not container:
+                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data'], timeout=180))
+                container.append(data / 'Library/Application Support/ai-world')
+            return container[0]
+
         def advance(index):
             # The app waits on this file before drawing the next scene, so each is photographed whole.
             name = f'parity-advance-{index}'
             if platform == 'android':
                 command([*adb, 'shell', f"run-as world.ai.ai_world_flutter sh -c 'mkdir -p files/ai-world && touch files/ai-world/{name}'"])
             else:
-                data = Path(output([*sim, 'get_app_container', device, 'world.ai.aiWorldFlutter', 'data']))
-                root = data / 'Library/Application Support/ai-world'
+                root = app_files()
                 root.mkdir(parents=True, exist_ok=True)
                 (root / name).touch()
+
+        def pull(file):
+            # what the app read back from its own render target, beside the advance cue
+            if platform == 'android':
+                return subprocess.run([*adb, 'exec-out', 'run-as', 'world.ai.ai_world_flutter', 'cat', f'files/ai-world/{file}'],
+                                      stdout=subprocess.PIPE, check=True, timeout=180).stdout
+            return (app_files() / file).read_bytes()
 
         for index, scene in enumerate(json.loads(STATE.read_text())['scenes']):
             name = scene['name']
             save(status=f'waiting-scene-{name}')
-            wait_for(f'HOSTED_SCENE_READY index={index} ', 240, f'{name} scene')
+            text = wait_for(f'HOSTED_SCENE_READY index={index} ', 240, f'{name} scene')
             save(status=f'capturing-{name}')
+            size = re.search(rf'HOSTED_SCENE_READY index={index} \S+ .*?framebuffer=(\d+)x(\d+)', text)
+            if not size:
+                raise RuntimeError(f'{name}: the app did not say what size it read its target back at')
+            width, height = int(size.group(1)), int(size.group(2))
+            for pass_name in ['first', 'repeat']:
+                pixels = pull(f'parity-{index}-{pass_name}.rgba')
+                if len(pixels) != width * height * 4:
+                    raise RuntimeError(f'{name} {pass_name}: {len(pixels)} bytes read back for {width}x{height}')
+                # alpha kept: the comparison fails a world that is not opaque over the app
+                Image.frombytes('RGBA', (width, height), pixels).save(OUT / f'{name}-{pass_name}-framebuffer.png')
             for pass_name in ['first', 'repeat']:
                 time.sleep(2)
                 shot = f'{name}-{pass_name}'
@@ -258,6 +297,33 @@ def capture(platform):
             advance(index)
         wait_for('HOSTED_NATIVE_READY', 120, 'end of the replayed scenes')
         save(status='renderer-smoke-passed')
+
+        # the whole shared game in the app's own JavaScript engine (#563), drawn by the same renderer
+        save(status='waiting-installed-game')
+        text = wait_for(f'HOSTED_GAME_READY platform={platform}', 1200, 'the installed game session')
+        line = re.search(rf'HOSTED_GAME_READY platform={platform} [^\n]*', text).group(0)
+        stats = dict(pair.split('=', 1) for pair in line.split()[1:] if '=' in pair)
+        # the app's memory with the whole game loaded, while the replay holds it open (#559)
+        stats['memoryKb'] = app_memory_kb(platform, adb if platform == 'android' else None)
+        width, height = (int(n) for n in stats['framebuffer'].split('x'))
+        pixels = pull('game-first.rgba')
+        if len(pixels) != width * height * 4:
+            raise RuntimeError(f'installed game: {len(pixels)} bytes read back for {width}x{height}')
+        drawn = Image.frombytes('RGBA', (width, height), pixels)
+        drawn.save(OUT / 'installed-game-framebuffer.png')
+        if platform == 'android':
+            with (OUT / 'installed-game.png').open('wb') as file:
+                subprocess.run([*adb, 'exec-out', 'screencap', '-p'], stdout=file, check=True, timeout=30)
+        else:
+            command([*sim, 'io', device, 'screenshot', str(OUT / 'installed-game.png')])
+        import parity
+        found = parity.blankness(drawn)
+        if parity.is_blank(found, parity.thresholds()['blank']):
+            raise RuntimeError(f'installed game: the frame the shared session drew is blank: {found}')
+        state = json.loads(STATE.read_text())
+        save(installed_game={**stats, 'frame': found}, status='installed-game-passed',
+             assertions=state['assertions'] + [{'name': f'installed-{platform}-shared-game-session', 'passed': True,
+                                                'scope': 'whole game in the bundled engine, drawn natively', **stats}])
     finally:
         for process in processes:
             process.terminate()
@@ -275,6 +341,86 @@ def capture(platform):
             command(['adb', '-s', device, 'shell', 'am', 'force-stop', 'world.ai.ai_world_flutter'], check=False)
 
 
+def app_memory_kb(platform, adb):
+    """The app's resident memory in KiB, or None where it could not be read: Android's total PSS,
+    and the simulator app's resident size, which is a macOS process on the runner."""
+    try:
+        if platform == 'android':
+            info = output([*adb, 'shell', 'dumpsys', 'meminfo', 'world.ai.ai_world_flutter'])
+            found = re.search(r'TOTAL PSS:\s+(\d+)', info) or re.search(r'^\s*TOTAL\s+(\d+)', info, re.M)
+            return int(found.group(1)) if found else None
+        lines = output(['ps', '-axo', 'rss=,command=']).splitlines()
+        sizes = [int(line.split()[0]) for line in lines if 'Runner.app/Runner' in line]
+        return max(sizes) if sizes else None
+    except (subprocess.SubprocessError, ValueError):
+        return None
+
+
+def scene_packet(name, frames):
+    """The packet a scene was replayed from: the checked-in fixture, or one recorded on this commit."""
+    path = APP / 'test/fixtures/interior_frame.json' if name == 'interior-fixture' else frames / f'{name}.json'
+    return json.loads(path.read_text())
+
+
+def limits_for(name, every):
+    """The thresholds a scene is held to: the defaults, with anything its own entry overrides."""
+    limits = {key: every[key] for key in ('grid', 'blank', 'noise', 'web')}
+    for key, value in every.get('scenes', {}).get(name, {}).items():
+        limits[key] = {**limits[key], **value} if isinstance(value, dict) else value
+    return limits
+
+
+def compare(platform):
+    """Each replayed scene against the web picture of the same frame, and against its own repeat."""
+    from PIL import Image
+    import parity
+    frames = Path(os.environ['PARITY_FRAMES']) if os.environ.get('PARITY_FRAMES') else None
+    state = json.loads(STATE.read_text())
+    every = parity.thresholds()
+    sums = {}
+    if frames:
+        for line in (frames / 'SHA256SUMS').read_text().splitlines():
+            digest, name = line.split(maxsplit=1)
+            sums[name.lstrip('*')] = digest
+    results, failures = [], []
+    for scene in state['scenes']:
+        name = scene['name']
+        native = Image.open(OUT / f'{name}-first-framebuffer.png')
+        repeat = Image.open(OUT / f'{name}-repeat-framebuffer.png')
+        web = None
+        reference = frames / 'web' / f'{name}.png' if frames else None
+        if reference and reference.exists():
+            if sums.get(f'web/{name}.png') != hashlib.sha256(reference.read_bytes()).hexdigest():
+                raise RuntimeError(f'{name}: the web picture does not match SHA256SUMS')
+            web = Image.open(reference)
+            web.save(OUT / f'{name}-web.png')
+            parity.difference_picture(web, native).save(OUT / f'{name}-diff.png')
+        background = scene_packet(name, frames)['frame'].get('background')
+        found = parity.compare(web, native, limits_for(name, every), background, repeat)
+        screenshot = OUT / f'{name}-first.png'
+        if screenshot.exists():
+            found['screenshot'] = parity.orientation(Image.open(screenshot), native)
+        found['name'] = name
+        found['web_reference'] = web is not None
+        results.append(found)
+        failures += [f'{name}: {why}' for why in found['failures']]
+    (OUT / 'parity.json').write_text(json.dumps(results, indent=2))
+    save(parity=results, parity_thresholds=every, status='parity-failed' if failures else 'parity-passed')
+    if failures:
+        raise RuntimeError('Native frames do not match: ' + '; '.join(failures))
+
+
+def thumbnail(path, width=560, turn=0):
+    """A picture small enough to embed, as a data URI that needs no file beside the report."""
+    from PIL import Image
+    with Image.open(path) as image:
+        image = image.convert('RGB').rotate(turn, expand=True)
+        image.thumbnail((width, width))
+        buffer = io.BytesIO()
+        image.save(buffer, 'JPEG', quality=85)
+    return 'data:image/jpeg;base64,' + base64.b64encode(buffer.getvalue()).decode()
+
+
 def report(platform):
     state = json.loads(STATE.read_text()) if STATE.exists() else {'status': 'provisioning-failed', 'platform': platform}
     state.setdefault('gameplay', 'pending')
@@ -282,18 +428,43 @@ def report(platform):
                                       '#571 touch controls', '#572 entry flows and save/restart']
     save(**state)
     sections = ['<!doctype html><html><meta charset="utf-8"><title>Hosted mobile evidence</title>',
-                '<h1>Native renderer evidence</h1><p>Installed gameplay: PENDING. Renderer smoke does not satisfy #584 or full #569 parity.</p>',
-                '<pre>' + html.escape(json.dumps(state, indent=2)) + '</pre>']
-    for png in sorted(OUT.glob('*.png')):
-        sections.append('<h2>' + html.escape(png.name) + '</h2><img style="max-width:100%" src="data:image/png;base64,' +
-                        base64.b64encode(png.read_bytes()).decode() + '">')
+                '<style>td{vertical-align:top}img{max-width:100%}table{border-collapse:collapse}td,th{padding:4px}</style>',
+                '<h1>Native renderer evidence</h1><p>Installed gameplay: PENDING. Renderer replay does not satisfy #584.</p>']
+    try:
+        import PIL  # noqa: F401  thumbnails need Pillow; without it the report still carries every number
+        pictures = True
+    except ImportError:
+        pictures = False
+        sections.append('<p>Pillow is missing, so no pictures are embedded; the PNGs are in the artifact.</p>')
+    for found in state.get('parity', []):
+        name = found['name']
+        verdict = 'FAIL: ' + '; '.join(found['failures']) if found['failures'] else 'pass'
+        sections.append(f'<h2>{html.escape(name)}: {html.escape(verdict)}</h2>')
+        numbers = {key: found[key] for key in ('mae', 'region_max', 'region_median', 'shift', 'noise', 'native', 'screenshot') if key in found}
+        sections.append('<pre>' + html.escape(json.dumps(numbers)) + '</pre>')
+        if pictures:
+            turn = found.get('screenshot', {}).get('rotation', 0)
+            cells = [(label, OUT / file, angle) for label, file, angle in (
+                ('web', f'{name}-web.png', 0), ('native target', f'{name}-first-framebuffer.png', 0),
+                ('difference x4', f'{name}-diff.png', 0), (f'device screenshot, turned {turn}', f'{name}-first.png', turn))]
+            sections.append('<table><tr>' + ''.join(f'<th>{html.escape(label)}</th>' for label, path, _ in cells if path.exists()) + '</tr><tr>' +
+                            ''.join(f'<td><img src="{thumbnail(path, turn=angle)}"></td>' for _, path, angle in cells if path.exists()) + '</tr></table>')
+    if state.get('installed_game'):
+        sections.append('<h2>installed game</h2><pre>' + html.escape(json.dumps(state['installed_game'])) + '</pre>')
+        if pictures:
+            sections.append('<table><tr>' + ''.join(f'<td><img src="{thumbnail(OUT / file)}"></td>'
+                            for file in ('installed-game-framebuffer.png', 'installed-game.png') if (OUT / file).exists()) + '</tr></table>')
+    sections.append('<details><summary>manifest</summary><pre>' + html.escape(json.dumps(state, indent=2)) + '</pre></details>')
     for log in sorted(OUT.glob('*.log')):
         sections.append('<details><summary>' + html.escape(log.name) + '</summary><pre>' +
                         html.escape(log.read_text(errors='replace')) + '</pre></details>')
     (OUT / 'report.html').write_text('\n'.join(sections) + '</html>')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-            summary.write(f'Native renderer: **{state["status"]}**. Installed gameplay: **pending** (#584). Full parity: **pending** (#569). See evidence artifact.\n')
+            summary.write(f'Native renderer: **{state["status"]}**. Installed gameplay: **pending** (#584). See evidence artifact.\n')
+            for found in state.get('parity', []):
+                summary.write(f'- {found["name"]}: {"FAIL " + "; ".join(found["failures"]) if found["failures"] else "pass"}'
+                              f' (mae {found.get("mae", "-")}, worst region {found.get("region_max", "-")}, noise {found.get("noise", {}).get("mae", "-")})\n')
 
 
 if __name__ == '__main__':
@@ -301,7 +472,7 @@ if __name__ == '__main__':
         raise SystemExit('This runner is hosted-only; dispatch mobile-playtests.yml on GitHub.')
     action, platform = sys.argv[1:]
     try:
-        {'prepare': prepare, 'capture': capture, 'report': report}[action](platform)
+        {'prepare': prepare, 'capture': capture, 'compare': compare, 'report': report}[action](platform)
     except Exception as error:
         save(status='failed', failure_stage=action, error=str(error))
         raise

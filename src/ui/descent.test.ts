@@ -105,6 +105,9 @@ describe('and somebody who actually knows who the parents are', () => {
   });
 
   it('hands them to the face drawer', () => {
-    expect(body('src/ui/dialogue.ts')).toContain('descent(node.face)');
+    // `faceFor` draws a sitter with their parents, one layer at a time; the page's dialogue box and
+    // an installed app's conversation both draw through it
+    expect(body('src/ui/dialogue.ts')).toContain('faceFor(node.face)');
+    expect(body('src/ui/portrait.ts')).toContain('one(who.from.mother), father: one(who.from.father)');
   });
 });

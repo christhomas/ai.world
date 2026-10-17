@@ -33,6 +33,17 @@ final class WorldRendererBridge: NSObject, FlutterPlugin {
       }
       let textureId = Int64(arguments.number("textureId"))
       guard let renderer = renderers[textureId] else { throw RenderFailure("renderer is not alive") }
+      if call.method == "snapshot" {
+        renderer.snapshot { outcome in
+          switch outcome {
+          case .success(let shot):
+            result(["width": shot.width, "height": shot.height, "rgba": FlutterStandardTypedData(bytes: shot.rgba)])
+          case .failure(let error):
+            result(FlutterError(code: "renderer", message: error.localizedDescription, details: nil))
+          }
+        }
+        return
+      }
       switch call.method {
       case "resize": renderer.resize(width: arguments.int("width"), height: arguments.int("height"))
       case "putMesh":
@@ -127,6 +138,9 @@ private struct MeshStyle {
 private struct CpuMesh { let vertices: Data; let indices: Data; let style: MeshStyle }
 private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle; let center: SIMD3<Float> }
 
+/// One frame read back from the render target: RGBA8 as drawn, top row first, as Dart reads it.
+typealias RenderSnapshot = (width: Int, height: Int, rgba: Data)
+
 private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private let textures: FlutterTextureRegistry
   private let device: MTLDevice
@@ -182,6 +196,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private var fogFar: Float = 0
   private var sunCastsShadow = true
   private var disposed = false
+  /// Who is waiting for the next frame drawn to be read back.
+  private var snapshots: [(Result<RenderSnapshot, Error>) -> Void] = []
 
   init(textures: FlutterTextureRegistry, width: Int, height: Int) throws {
     guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
@@ -375,6 +391,11 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     ))
   }
   func setCutaway(enabled: Bool, x: Float, y: Float, z: Float) { cutOn = enabled ? 1 : 0; hero = SIMD3(x,y,z) }
+  /// The next frame drawn after everything already sent, copied out of the target by the GPU.
+  func snapshot(_ reply: @escaping (Result<RenderSnapshot, Error>) -> Void) {
+    guard !disposed else { reply(.failure(RenderFailure("renderer is not alive"))); return }
+    snapshots.append(reply)
+  }
 
   @objc private func frame() {
     guard !disposed, let drawable = CVMetalTextureGetTexture(colorTexture), let commands = queue.makeCommandBuffer() else { return }
@@ -421,11 +442,48 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       draw(encoder, uniforms: uniforms, shadow: false)
       encoder.endEncoding()
     }
+    if !snapshots.isEmpty { readBack(drawable, commands: commands) }
     let id = textureId
     commands.addCompletedHandler { [weak self] _ in
       DispatchQueue.main.async { self?.textures.textureFrameAvailable(id) }
     }
     commands.commit()
+  }
+
+  /// Copied in the same command buffer as the frame, so a later frame cannot overwrite it first.
+  private func readBack(_ drawable: MTLTexture, commands: MTLCommandBuffer) {
+    let waiting = snapshots
+    snapshots = []
+    let width = drawable.width, height = drawable.height, row = drawable.width * 4
+    guard let copy = device.makeBuffer(length: row * height, options: .storageModeShared),
+          let blit = commands.makeBlitCommandEncoder() else {
+      waiting.forEach { $0(.failure(RenderFailure("snapshot buffer could not be made"))) }
+      return
+    }
+    blit.copy(from: drawable, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+      sourceSize: MTLSize(width: width, height: height, depth: 1), to: copy, destinationOffset: 0,
+      destinationBytesPerRow: row, destinationBytesPerImage: row * height)
+    blit.endEncoding()
+    commands.addCompletedHandler { buffer in
+      let outcome: Result<RenderSnapshot, Error>
+      if buffer.status == .completed {
+        var rgba = Data(bytes: copy.contents(), count: row * height)
+        // the target is BGRA; alpha is kept as drawn, because Flutter composites this texture over
+        // the app and a pixel that is not opaque is the app showing through the world
+        rgba.withUnsafeMutableBytes { raw in
+          let bytes = raw.bindMemory(to: UInt8.self)
+          for at in stride(from: 0, to: bytes.count, by: 4) {
+            let blue = bytes[at]
+            bytes[at] = bytes[at + 2]
+            bytes[at + 2] = blue
+          }
+        }
+        outcome = .success((width: width, height: height, rgba: rgba))
+      } else {
+        outcome = .failure(RenderFailure("snapshot frame failed: \(String(describing: buffer.error))"))
+      }
+      DispatchQueue.main.async { waiting.forEach { $0(outcome) } }
+    }
   }
 
   private func uploadPending() {
@@ -512,6 +570,9 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   func dispose() {
     guard !disposed else { return }
     disposed = true
+    let waiting = snapshots
+    snapshots = []
+    waiting.forEach { $0(.failure(RenderFailure("renderer disposed before the frame was drawn"))) }
     displayLink?.invalidate(); displayLink = nil
     textures.unregisterTexture(textureId)
     meshes.removeAll(); pending.removeAll()

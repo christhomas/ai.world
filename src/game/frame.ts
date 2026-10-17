@@ -173,7 +173,7 @@ export interface Framing {
   hud: Pick<Hud, 'flash' | 'setBreath' | 'setLink' | 'setDebug' | 'tick'>;
   sound: Pick<Sound, 'chime' | 'update' | 'setScene' | 'setWater'>;
   online: Online;
-  autoQuality: AutoQuality;
+  autoQuality: Pick<AutoQuality, 'saw'>;
   director: Director;
   walked: Walked;
   host: FrameHost;

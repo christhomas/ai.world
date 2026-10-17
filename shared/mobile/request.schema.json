@@ -10,7 +10,7 @@
     "session": {"type": "string", "minLength": 1, "maxLength": 256},
     "sequence": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
     "id": {"type": "string", "minLength": 1, "maxLength": 256},
-    "type": {"enum": ["start", "load", "step", "action", "cancel", "resync", "lifecycle", "dispose"]},
+    "type": {"enum": ["start", "load", "step", "action", "cancel", "resync", "lifecycle", "dispose", "parcel"]},
     "payload": {"type": "object"}
   },
   "$comment": "Envelope schema only. Exact discriminated payload constraints and finite/depth checks are canonical in host-contract.ts and mirrored in Dart; JSON Schema alone cannot enforce session ordering or binary ownership."

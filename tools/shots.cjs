@@ -81,6 +81,18 @@ const OUT = process.env.OUT || 'docs/screenshots';
  * a switch flipped afterwards changes nothing until the next world.
  */
 const RIG = process.env.RIG || '';
+/*
+ * PARITY=dir keeps, for every shot taken, the frame the phones replay against it (#569).
+ *
+ * The page mounts the recorder beside WebGL (`?record-scene`), and the photographed frame is the
+ * one stepped with the recorder armed: the description the native renderers draw and the web
+ * picture they are compared with are the same frame at the same frozen render time. The picture is
+ * the canvas read back (`preserveDrawingBuffer`), so no HUD sits over it, at a phone's 20:9.
+ *
+ *   PARITY=/tmp/parity OUT=/tmp/parity-shots chore shots -- town night autumn interior dungeon sea night-sea
+ */
+const PARITY = process.env.PARITY || '';
+const PARITY_VIEW = { width: 1200, height: 540 };
 const COUNTS_OUT = process.env.FALLBACK_COUNTS || '';
 const sweep = { visits: [], defaults: [] };
 
@@ -915,6 +927,21 @@ const SHOTS = [
   },
 ];
 
+/*
+ * The sea at night, for the phones only: water is where native and web shading parted furthest
+ * (#568), and dark water under the night sky is where a broad white glint would show. The same boat
+ * as `sea`, bought and rowed out the same way, and then the clock put on to the dead of night.
+ */
+SHOTS.push({
+  name: 'night-sea', title: 'Your own boat, at night', settle: 3000, parityOnly: true, clock: NIGHT,
+  setup: async (p, verbs) => {
+    const afloat = await SHOTS.find((shot) => shot.name === 'sea').setup(p, verbs);
+    if (afloat === null) return null;
+    await verbs.time(NIGHT);
+    return `${afloat}, at night`;
+  },
+});
+
 /**
  * The world server, for the shots that are of a tool rather than of the game.
  *
@@ -1055,7 +1082,7 @@ async function untilSurveyed(page, seed, what, done) {
 /** Take one, and say what happened. */
 async function take(browser, shot) {
   console.log(`raising ${shot.name}`);
-  const page = await browser.newPage({ viewport: shot.viewport ?? VIEW });
+  const page = await browser.newPage({ viewport: PARITY ? PARITY_VIEW : shot.viewport ?? VIEW });
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
   await captureClock(page);
   if (shot.join) await page.addInitScript(() => localStorage.setItem('ai.world/name', 'Ash'));
@@ -1104,7 +1131,8 @@ async function take(browser, shot) {
      */
     if (shot.join) { await startWorld(); playing = await playerJoins(browser, seed, 1, world); }
     const joining = shot.join ? `&server=ws://localhost:${WORLD_PORT}` : '';
-    await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}${joining}`, { waitUntil: 'load' });
+    const recording = PARITY ? '&record-scene=1' : '';
+    await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}${joining}${recording}`, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE), polling: 100 });
     await advance(page, FRAME_MS);
     await page.waitForFunction(() => window.__world?.online === 'online', null,
@@ -1129,7 +1157,7 @@ async function take(browser, shot) {
   catch (e) { await done(); return { ok: false, why: e.message }; }
   if (note === null) { await done(); return { ok: false, why: 'nothing to photograph in this world today' }; }
   console.log(`${shot.name}: setup complete (${note ?? 'ready'})`);
-  if (!shot.page) await lockSceneClock(page, ['night', 'phone-night'].includes(shot.name) ? NIGHT : NOON);
+  if (!shot.page) await lockSceneClock(page, shot.clock ?? (['night', 'phone-night'].includes(shot.name) ? NIGHT : NOON));
   /*
    * Long enough for whatever was asked for to be drawn, and for the notices to clear.
    *
@@ -1185,6 +1213,10 @@ async function take(browser, shot) {
     console.log(`static ${shot.name} ${JSON.stringify(at)}`);
   }
   console.log(`${shot.name}: final frame ready`);
+  if (PARITY) {
+    const kept = await keepParityFrame(page, shot.name);
+    if (kept) { await done(); return { ok: false, why: kept }; }
+  }
   await page.evaluate(() => window.__shotClock.release());
   const file = path.join(OUT, `${shot.name}.png`);
   // Software rendering a wide mountain scene can take longer than Playwright's 30-second default
@@ -1201,10 +1233,46 @@ async function take(browser, shot) {
   return { ok: true, file, note, errs: errs.length };
 }
 
+/**
+ * One more frame, stepped with the recorder armed, kept as the description and the canvas it drew.
+ *
+ * Typed arrays go out as plain ones, which is what `tools/mobile/parity-packets.ts` reads back.
+ * Says what went wrong, or nothing.
+ */
+async function keepParityFrame(page, name) {
+  const kept = await page.evaluate(() => {
+    const recording = window.__recording;
+    if (!recording) return { why: 'no recorder on the page' };
+    recording.last = null;
+    recording.captureNext();
+    window.__shotClock.step(1);
+    if (!recording.last) return { why: 'the recorder took no frame' };
+    // the game's own canvas is the one with no id: the minimap, the maps and the title sky have one
+    const canvas = [...document.querySelectorAll('canvas')].filter((one) => !one.id)
+      .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+    if (!canvas) return { why: 'no game canvas' };
+    let lost = 0;
+    const frame = JSON.stringify(recording.last, (key, value) => {
+      if (ArrayBuffer.isView(value)) return Array.from(value);
+      if (typeof value === 'number' && !Number.isFinite(value)) lost++;
+      return value;
+    });
+    if (lost) return { why: `${lost} non-finite numbers in the frame` };
+    return { frame, png: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+  });
+  if (kept.why) return kept.why;
+  fs.mkdirSync(PARITY, { recursive: true });
+  fs.writeFileSync(path.join(PARITY, `${name}.frame.json`), kept.frame);
+  fs.writeFileSync(path.join(PARITY, `${name}-web.png`), Buffer.from(kept.png.split(',')[1], 'base64'));
+  console.log(`${name}: parity frame kept, canvas ${kept.width}x${kept.height}`);
+  return null;
+}
+
 (async () => {
-  const taking = SHOTS.filter((s) => !wanted.length || wanted.includes(s.name));
+  const taking = SHOTS.filter((s) => (!wanted.length || wanted.includes(s.name)) && (!s.parityOnly || PARITY));
   if (listing) {
-    for (const s of SHOTS) console.log(`${s.name.padEnd(12)} ${s.title}`);
+    // the documented scenes, which reference comparisons read; a phone-only shot has no reference
+    for (const s of SHOTS) if (!s.parityOnly || PARITY) console.log(`${s.name.padEnd(12)} ${s.title}`);
     return;
   }
   if (!taking.length) throw new Error(`no such shot: ${wanted.join(', ')} — try --list`);

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameLoop, type FrameClock } from './loop';
+import { browserClock } from '../platform/browser-clock';
 import { GAMEPLAY } from './config';
 
 /**
@@ -32,7 +33,7 @@ describe('the frame loop', () => {
   it('draws at the ceiling, however fast the display offers frames', () => {
     const screen = screenAt(120);
     let drawn = 0;
-    const loop = new GameLoop(() => { drawn++; });
+    const loop = new GameLoop(() => { drawn++; }, browserClock);
     loop.start();
     screen.run(1);
     loop.stop();
@@ -45,7 +46,7 @@ describe('the frame loop', () => {
   it('takes every frame when the display is slower than the ceiling', () => {
     const screen = screenAt(30);
     let drawn = 0;
-    const loop = new GameLoop(() => { drawn++; });
+    const loop = new GameLoop(() => { drawn++; }, browserClock);
     loop.start();
     screen.run(1);
     loop.stop();
@@ -55,7 +56,7 @@ describe('the frame loop', () => {
   it('hands on the time that really passed, clamped so a long pause cannot leap the world', () => {
     const screen = screenAt(120);
     const steps: number[] = [];
-    const loop = new GameLoop((dt) => steps.push(dt));
+    const loop = new GameLoop((dt) => steps.push(dt), browserClock);
     loop.start();
     screen.run(0.5);
     loop.stop();
@@ -68,7 +69,7 @@ describe('the frame loop', () => {
   it('stops when it is stopped, and does not start twice', () => {
     const screen = screenAt(60);
     let drawn = 0;
-    const loop = new GameLoop(() => { drawn++; });
+    const loop = new GameLoop(() => { drawn++; }, browserClock);
     loop.start();
     loop.start();                                 // a second start must not double the rate
     screen.run(0.5);

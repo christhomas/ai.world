@@ -1,0 +1,152 @@
+// GitHub-only proof (#563): the whole game, bundled exactly as the installed apps bundle it, played
+// in a bare JavaScript context with no browser and no Node: no window, no timers, no performance
+// clock, no structuredClone, no require. What it has is what QuickJS and JavaScriptCore have.
+import { build } from 'vite';
+import { readFile, writeFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+
+const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+await build({ configFile: false, logLevel: 'warn',
+  define: { __GAME_NAME__: JSON.stringify('AI World'), __GAME_VERSION__: JSON.stringify(pkg.version) },
+  build: { target: 'es2022', minify: false, outDir: 'mobile-frame-proof-out', emptyOutDir: false,
+    lib: { entry: 'src/mobile/game-engine.ts', name: 'AiWorldGameEngine', formats: ['iife'], fileName: () => 'game.js' } } });
+const source = await readFile('mobile-frame-proof-out/game.js', 'utf8');
+
+// the one thing both native hosts put in the engine's context before the bundle: identifiers from
+// the platform's own secure randomness (state_engine.c, StateEngineBridge.swift)
+const bare = { crypto: { randomUUID: () => randomUUID() } };
+const call = (code) => runInNewContext(code, bare, { timeout: 120000 });
+for (const name of ['window', 'document', 'setTimeout', 'performance', 'structuredClone', 'process', 'require', 'Worker', 'WebSocket']) {
+  assert.equal(runInNewContext(`typeof ${name}`, {}), 'undefined', `${name} exists in a bare context`);
+}
+const loaded = performance.now();
+call(source);
+const loadMs = performance.now() - loaded;
+
+const session = 'bare-game';
+bare.__options = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 } });
+call(`globalThis.engine = AiWorldGameEngine.create(${JSON.stringify(session)}, __options)`);
+
+let sequence = 0;
+let tick = -1;
+let time = 0;
+const stepTimes = [];
+// what the app keeps of the private world, as the replies hand it over
+const worldRecords = {};
+const ask = (type, payload, engine = 'engine', id = session) => {
+  bare.__request = JSON.stringify({ version: 1, session: id, sequence, id: `r${sequence}`, type, payload });
+  sequence++;
+  const reply = JSON.parse(call(`${engine}.request(__request)`));
+  assert.equal(reply.requestId, `r${sequence - 1}`);
+  if (reply.type !== 'result') throw new Error(`${type} failed: ${JSON.stringify(reply.payload)}`);
+  if (reply.payload.state?.models?.world) Object.assign(worldRecords, reply.payload.state.models.world);
+  return reply.payload.state;
+};
+// an app's engine runs what was promised once the request returns; here that is the event loop's turn
+const settle = () => new Promise((resume) => setImmediate(resume));
+const still = { move: [0, 0], look: [0, 0], held: { guard: false, run: false }, actions: [], owner: 'WORLD', busy: null };
+const step = async (input = {}, ms = 1000 / 30) => {
+  tick++;
+  time += ms;
+  const began = performance.now();
+  const state = ask('step', { tick, dtSeconds: ms / 1000, renderTimeMs: time, input: { ...still, ...input } });
+  stepTimes.push(performance.now() - began);
+  await settle();
+  return state;
+};
+const sceneNow = async () => {
+  ask('resync', { reason: 'scene' });
+  const state = await step();
+  assert.ok(state.models.scene, 'a scene was asked for and none came');
+  return state.models.scene;
+};
+
+// how long opening a world takes here, with a JIT, is the yardstick the phones' engines are held to
+const starting = performance.now();
+const opened = ask('start', { mode: 'local', world: 'bare' });
+const startMs = performance.now() - starting;
+assert.equal(opened.owner, 'WORLD');
+await settle();
+
+// the world in this engine answers and the ground arrives, a budget of geometry at a time
+// held as an app holds it: what arrives is kept, and what the engine says has left the scene is let go
+const geometries = new Set();
+let sent = 0;
+let released = 0;
+const hold = (scene) => {
+  for (const id of Object.keys(scene.geometries)) { geometries.add(id); sent++; }
+  for (const id of scene.released) { assert.ok(geometries.delete(id), `${id} released but never held`); released++; }
+  for (const node of scene.frame.nodes) if (node.geometryId) assert.ok(geometries.has(node.geometryId), `${node.geometryId} named but not held`);
+};
+let meshes = 0;
+let packetBytes = 0;
+const arriving = performance.now();
+for (let round = 0; round < 60 && meshes < 40; round++) {
+  for (let n = 0; n < 15; n++) await step();
+  const scene = await sceneNow();
+  hold(scene);
+  packetBytes = Math.max(packetBytes, JSON.stringify(scene).length);
+  meshes = scene.frame.nodes.filter((node) => node.kind === 'mesh').length;
+}
+const groundMs = performance.now() - arriving;
+const scene = await sceneNow();
+hold(scene);
+const kinds = new Set(scene.frame.nodes.map((node) => node.kind));
+assert.ok(meshes >= 40, `only ${meshes} meshes arrived`);
+for (const kind of ['mesh', 'directional', 'ambient']) assert.ok(kinds.has(kind), `no ${kind} in the frame`);
+
+// a thumb on the stick walks him
+let state = await step();
+const from = state.models.hero;
+for (let n = 0; n < 45; n++) state = await step({ move: [0, 1] });
+hold(await sceneNow());
+state = await step();
+const walked = Math.hypot(state.models.hero.x - from.x, state.models.hero.z - from.z);
+assert.ok(walked > 1, `the hero walked ${walked} tiles from ${JSON.stringify(from)} to ${JSON.stringify(state.models.hero)}`);
+
+// the pack opens as a book and takes the controls, and closing it gives them back
+state = ask('action', { action: 'inventory', target: null, args: null });
+assert.equal(state.owner, 'BOOK');
+state = ask('action', { action: 'close', target: null, args: null });
+assert.equal(state.owner, 'WORLD');
+
+// a save comes back to the app to keep: with the very reply that asked for it when the store writes
+// at once, or with the next reply when the write finishes after the request has returned
+const asked = ask('resync', { reason: 'save' });
+await settle();
+state = await step();
+const save = asked.models.save ?? state.models.save;
+assert.ok(save, 'the game saved nothing');
+assert.equal(save.state.playerId, state.models.hero.playerId);
+
+const left = state.models.hero;
+ask('dispose', {});
+assert.ok(Object.keys(worldRecords).length > 0, 'the private world kept nothing for the app to keep');
+
+// and the app opens it again from what it kept: the save, and the world's own records
+bare.__continued = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 },
+  saved: save, world: worldRecords });
+call(`globalThis.again = AiWorldGameEngine.create('bare-again', __continued)`);
+sequence = 0;
+tick = -1;
+time = 0;
+const resumed = ask('start', { mode: 'local', world: 'bare' }, 'again', 'bare-again');
+assert.equal(resumed.models.hero.playerId, left.playerId, 'a continued game is the same hero');
+assert.ok(Math.hypot(resumed.models.hero.x - left.x, resumed.models.hero.z - left.z) < 0.5,
+  `continued at ${JSON.stringify(resumed.models.hero)}, left at ${JSON.stringify(left)}`);
+ask('dispose', {}, 'again', 'bare-again');
+
+const sorted = [...stepTimes].sort((a, b) => a - b);
+const evidence = {
+  sourceSha: process.env.GAME_SOURCE_SHA, bundleBytes: source.length, loadMs: Math.round(loadMs),
+  startMs: Math.round(startMs), groundMs: Math.round(groundMs),
+  steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
+  stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometriesSent: sent,
+  geometriesHeld: geometries.size, geometriesReleased: released,
+  largestScenePacketBytes: packetBytes, walked: +walked.toFixed(2),
+  worldRecords: Object.keys(worldRecords).length, continuedAt: resumed.models.hero,
+};
+await writeFile('mobile-frame-proof-out/game-proof.json', JSON.stringify(evidence, null, 2) + '\n');
+console.log('The whole game ran in a bare host from the app bundle:', JSON.stringify(evidence));

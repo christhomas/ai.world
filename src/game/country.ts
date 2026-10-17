@@ -6,7 +6,9 @@ import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import type { GrownPatch } from '../world/endless';
 import type { WorldKind } from '../world/countries';
-import { growerFor } from '../world/countryworker';
+import type { ChunkJobHost } from '../world/chunkjobs';
+import type { Grower } from '../world/grower';
+import type { PatchCountry } from '../world/patchcountry';
 import type { ManifestJson } from '../world/manifest';
 import { HighCountry } from './highcountry';
 import { Skyline } from '../render/skyline';
@@ -49,6 +51,14 @@ export interface Growing {
   rig: SceneRig;
   props: PropLibrary;
   seasonTintMaterials: SeasonTintMaterials;
+  /** Who meshes chunks and grows the country in the background: the page's workers, or a host's. */
+  jobs: CountryJobs;
+}
+
+/** The background work a country needs, for a host that schedules it itself rather than in workers. */
+export interface CountryJobs {
+  chunks: ChunkJobHost;
+  grower(seed: number, country: PatchCountry): Grower;
 }
 
 /**
@@ -68,17 +78,17 @@ export type { GrownPatch };
  * saved yesterday keeps the ones it had.
  */
 export function growCountry(ctx: Growing) {
-  const { seed, world, savedManifest, home, rig, props, seasonTintMaterials } = ctx;
+  const { seed, world, savedManifest, home, rig, props, seasonTintMaterials, jobs } = ctx;
 
   // Shared production boot: the manifest, terrain and live patch view have no browser mounts.
   const state = growCountryState({ seed, world, savedManifest, home });
   const { manifest, country, endless, view, around } = state;
   const sampler = state.sampler;
   // The browser owns background growth; an installed host supplies its own scheduling separately.
-  const grower = endless ? growerFor(seed, endless) : null;
+  const grower = endless ? jobs.grower(seed, endless) : null;
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
-  const visuals = countryRenderers(rig, props, daycycle);
+  const visuals = countryRenderers(rig, props, daycycle, jobs.chunks);
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
   const chunks = visuals.chunks(
     sampler, country.store ?? undefined,

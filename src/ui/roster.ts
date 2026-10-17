@@ -1,14 +1,6 @@
 import { $ } from './dom';
-
-/** The little of a crowd this needs: whoever is standing about, and what each of them is doing. */
-interface Watching {
-  within(x: number, z: number, r: number): ReadonlyArray<{ person: string; doing: string }>;
-}
-
-/** How far the roster looks for somebody to say what they are doing. See `whatEverybodyIsDoing`. */
-const REACH = 200;
-import { ageOf, stageOf, type Person } from '../world/people';
 import type { Register } from '../world/register';
+import { ROSTER_ORDERS, doingNear, rosterView, type RosterOrder, type RosterView, type Watching } from '../game/roster-view';
 
 /**
  * Everybody in the world, and how they are getting on.
@@ -26,10 +18,8 @@ import type { Register } from '../world/register';
  * The family tree taught the shape of this: a thing you open, drag your eye down, and close.
  */
 
-/** What the columns can be sorted by. */
-export type By = 'village' | 'name' | 'age' | 'purse' | 'hunger';
-
-const HUNGRY_ENOUGH_TO_SAY = 1;
+/** What the columns can be sorted by; `game/roster-view.ts` says what each means. */
+export type By = RosterOrder;
 
 export class Roster {
   private readonly el = $('roster');
@@ -59,27 +49,6 @@ export class Roster {
     this.near = near;
   }
 
-  /**
-   * What anybody the page has a body for is presently up to, by their row on the register.
-   *
-   * Asked of the crowd here rather than handed in, because the roster is the thing that knows what
-   * it wants: everybody it can name, at whatever distance they happen to be. `REACH` is generous
-   * for that reason — this is a book rather than a view, so looking further only turns blanks into
-   * sentences, and it is bounded by what the world has actually sent rather than by the number.
-   *
-   * Empty for most of a village. A page is shown seven of a village's thirty and the other
-   * twenty-three are a row in a book with nobody standing anywhere.
-   */
-  private whatEverybodyIsDoing(): Map<string, string> {
-    const doing = new Map<string, string>();
-    const here = this.near?.();
-    if (!this.crowd || !here) return doing;
-    for (const e of this.crowd.within(here.x, here.z, REACH)) {
-      if (e.person !== '' && e.doing !== '') doing.set(e.person, e.doing);
-    }
-    return doing;
-  }
-
   get isOpen(): boolean { return this.open; }
 
   toggle(): void {
@@ -99,29 +68,23 @@ export class Roster {
   private draw(): void {
     const register = this.read?.();
     if (!register) return;
-    const day = register.today;
-    const folk = [...register.everybody()];
-    folk.sort(orderBy(this.by, day));
-
-    const villages = new Set(folk.map((p) => p.village));
-    const purse = folk.reduce((sum, p) => sum + p.purse, 0);
-    const hungry = folk.filter((p) => p.hungry >= HUNGRY_ENOUGH_TO_SAY).length;
-    // what anybody the page has a body for is presently up to. Empty where it has none, which is
-    // most of a village: seven of thirty are out and the rest are a row in a book
-    const doing = this.whatEverybodyIsDoing();
+    // the rows are the game's (`rosterView`), which an installed app's roster shows as well; what
+    // anybody the page has a body for is presently up to is blank for most of a village, because
+    // seven of thirty are out and the rest are a row in a book
+    const view = rosterView(register, this.by, this.countVillages?.() ?? 0, doingNear(this.crowd, this.near?.()));
 
     this.el.innerHTML = `
       <h2>The Roster</h2>
       <div class="j-line">
-        Day ${day} · ${folk.length} alive in ${villages.size} ${villages.size === 1 ? 'village' : 'villages'}
-        · ${purse} gold between them${hungry > 0 ? ` · <span class="ro-hungry">${hungry} going without</span>` : ''}
+        Day ${view.day} · ${view.alive} alive in ${view.villages} ${view.villages === 1 ? 'village' : 'villages'}
+        · ${view.purse} gold between them${view.hungry > 0 ? ` · <span class="ro-hungry">${view.hungry} going without</span>` : ''}
       </div>
-      ${unvisited(this.countVillages?.() ?? villages.size, villages.size)}
-      <div class="ro-sort">Sort: ${(['village', 'name', 'age', 'purse', 'hunger'] as By[])
+      ${unvisited(view.unvisited)}
+      <div class="ro-sort">Sort: ${ROSTER_ORDERS
         .map((by) => `<button data-by="${by}" class="${by === this.by ? 'on' : ''}">${by}</button>`).join('')}</div>
       <div class="ro-scroll list-scroll"><table class="ro-table">
         <thead><tr><th>Name</th><th>Village</th><th>Trade</th><th>Age</th><th>Gold</th><th>Fed</th><th>Doing</th><th>Family</th></tr></thead>
-        <tbody>${folk.map((p) => row(p, day, doing.get(p.id) ?? '')).join('')}</tbody>
+        <tbody>${view.people.map(row).join('')}</tbody>
       </table></div>
       <div class="j-hint">1 closes · everything here is the register, read live</div>`;
 
@@ -141,8 +104,7 @@ export class Roster {
  * lives there is settled the first time somebody arrives, off the land around it. Saying so beats
  * an empty row, and beats founding them here to make the table look complete.
  */
-function unvisited(known: number, settled: number): string {
-  const rest = Math.max(0, known - settled);
+function unvisited(rest: number): string {
   if (rest === 0) return '';
   return `<div class="j-line ro-family">${rest} more ${rest === 1 ? 'village has' : 'villages have'} not been visited yet — nobody is on the register until somebody goes there.</div>`;
 }
@@ -159,9 +121,7 @@ function unvisited(known: number, settled: number): string {
  * It arrives over the wire. A page cannot work it out, because a villager's tree runs on the world
  * — which is the whole of why `VillagerSnap` carries it.
  */
-function row(p: Person, day: number, doing: string): string {
-  const years = ageOf(p, day);
-  const stage = stageOf(p, day);
+function row(p: RosterView['people'][number]): string {
   /*
    * Old age said out loud, because it is the one stage a trade hides.
    *
@@ -171,40 +131,17 @@ function row(p: Person, day: number, doing: string): string {
    * and the roster is where the player would otherwise first notice that the place had stopped
    * earning what it used to. Item #245.
    */
-  const old = stage === 'elder' ? ' <span class="ro-old">old</span>' : '';
-  const parents = p.mother || p.father ? `${firstOf(p.mother)} & ${firstOf(p.father)}` : '—';
+  const old = p.old ? ' <span class="ro-old">old</span>' : '';
   const fed = p.hungry === 0 ? '<span class="ro-fed">fed</span>'
     : `<span class="ro-hungry">${p.hungry}d</span>`;
   return `<tr class="list-row">
     <td>${p.name}</td>
     <td>${p.village}</td>
-    <td>${p.trade || (stage === 'adult' ? '—' : stage)}</td>
-    <td>${years}${old}</td>
+    <td>${p.trade}</td>
+    <td>${p.age}${old}</td>
     <td>${p.purse}</td>
     <td>${fed}</td>
-    <td class="ro-doing">${doing}</td>
-    <td class="ro-family">${parents}</td>
+    <td class="ro-doing">${p.doing}</td>
+    <td class="ro-family">${p.parents}</td>
   </tr>`;
-}
-
-/** A parent, as a name people would say rather than as a record. */
-function firstOf(name: string): string {
-  return name ? name.split(' ')[0] : '—';
-}
-
-/**
- * How the list is ordered, given what is being asked about.
- *
- * Descending for the two that are questions — who has the most, who has gone longest without —
- * and ascending for the three that are labels, because a list of names you are looking somebody up
- * in wants to be in the order you would look them up.
- */
-export function orderBy(by: By, day: number): (a: Person, b: Person) => number {
-  switch (by) {
-    case 'name': return (a, b) => a.name.localeCompare(b.name);
-    case 'age': return (a, b) => ageOf(b, day) - ageOf(a, day);
-    case 'purse': return (a, b) => b.purse - a.purse;
-    case 'hunger': return (a, b) => b.hungry - a.hungry || b.purse - a.purse;
-    case 'village': return (a, b) => a.village.localeCompare(b.village) || a.name.localeCompare(b.name);
-  }
 }

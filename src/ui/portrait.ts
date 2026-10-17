@@ -154,6 +154,25 @@ export function faceOf(
   return { seed: hash(id), stage, trade, talking, ...(from ?? {}) };
 }
 
+/** Whoever is speaking, as the game names them, and whoever they came from. */
+export interface Sitter {
+  id: string;
+  trade: string;
+  stage: Stage;
+  from?: { mother?: Sitter; father?: Sitter };
+}
+
+/**
+ * The face of somebody the game names, with their descent drawn in one layer at a time, so a
+ * child looks like the parents the register says they have. The page's dialogue box and an
+ * installed app's conversation draw the same face from the same sitter.
+ */
+export function faceFor(who: Sitter): Face {
+  const one = (them?: Sitter): Face | undefined => them && faceFor(them);
+  return faceOf(who.id, who.trade, who.stage, false,
+    who.from ? { mother: one(who.from.mother), father: one(who.from.father) } : undefined);
+}
+
 /**
  * The features a person is born with rather than chooses, and the ones they are not.
  *

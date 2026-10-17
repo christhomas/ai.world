@@ -1,6 +1,21 @@
 {
   "start": {"version":1,"session":"fixture:1","sequence":0,"id":"start:0","type":"start","payload":{"mode":"local","world":"fixture-world"}},
   "step": {"version":1,"session":"fixture:1","sequence":1,"id":"step:0","type":"step","payload":{"tick":0,"dtSeconds":0.016666666666666666,"renderTimeMs":1234.5,"input":{"move":[1,0],"look":[0,0],"held":{"guard":false,"run":false},"actions":["interact"],"owner":"WORLD","busy":null}}},
+  "parcels": [
+    {"version":1,"session":"fixture:1","sequence":2,"id":"parcel:0","type":"parcel","payload":{"generation":1,"event":"open","text":null,"binary":null,"why":null}},
+    {"version":1,"session":"fixture:1","sequence":3,"id":"parcel:1","type":"parcel","payload":{"generation":1,"event":"message","text":"{\"t\":\"welcome\"}","binary":null,"why":null}},
+    {"version":1,"session":"fixture:1","sequence":4,"id":"parcel:2","type":"parcel","payload":{"generation":1,"event":"message","text":null,"binary":"AAEC/w==","why":null}},
+    {"version":1,"session":"fixture:1","sequence":5,"id":"parcel:3","type":"parcel","payload":{"generation":1,"event":"close","text":null,"binary":null,"why":"server went away"}}
+  ],
+  "badParcels": [
+    {"generation":0,"event":"open","text":null,"binary":null,"why":null},
+    {"generation":1,"event":"open","text":"hello","binary":null,"why":null},
+    {"generation":1,"event":"message","text":"a","binary":"AAEC","why":null},
+    {"generation":1,"event":"message","text":null,"binary":"not base64!","why":null},
+    {"generation":1,"event":"message","text":null,"binary":"AAE","why":null},
+    {"generation":1,"event":"close","text":null,"binary":null,"why":null},
+    {"generation":1,"event":"wave","text":null,"binary":null,"why":null}
+  ],
   "scalars": [0,-0.5,0.3333333333333333,9007199254740991,1e-200],
   "presentation": {"revision":1,"tick":0,"renderTimeMs":1234.5,"owner":"WORLD","busy":null,"models":{"hud":{"health":72,"breath":68},"context":{"id":"npc:elder","label":"Talk","action":"interact"}}}
 }

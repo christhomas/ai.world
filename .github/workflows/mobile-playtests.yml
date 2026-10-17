@@ -13,14 +13,9 @@ on:
       - '.github/workflows/mobile-playtests.yml'
       - 'docs/mobile-hosted-verification.md'
       - 'tools/playtest-record.ts'
+      - 'tools/shots.cjs'
       - 'server/flutter-packet.ts'
   workflow_dispatch:
-    inputs:
-      gate:
-        description: Renderer smoke or installed gameplay (currently blocked prerequisites)
-        type: choice
-        options: [renderer, gameplay]
-        default: renderer
 
 permissions:
   contents: read
@@ -30,12 +25,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The scenes both phones replay, recorded from the real game on this commit (#569): a village
-  # square, a shop, a dungeon floor and the sea, each as the exact packet the Flutter feed sends,
-  # with a checksum file the native jobs verify before drawing anything.
+  # The scenes both phones replay, photographed in the real game on this commit (#569): the square
+  # at noon and at night, autumn, the general store, a dungeon floor, and a boat at sea by day and
+  # by night. Each is the exact packet the Flutter feed sends and the web canvas that drew that same
+  # frame, with a checksum file the native jobs verify before drawing or comparing anything.
   frames:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -47,13 +43,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Record the parity scenes from the real game
-        run: pnpm exec tsx tools/playtest-record.ts
+      - name: Photograph the parity scenes on the web, keeping the frame each one drew
+        run: node tools/shots.cjs town night autumn interior dungeon sea night-sea
         env:
-          FRAMES: ${{ runner.temp }}/parity-frames
-          OUT: ${{ runner.temp }}/parity-frames/record-only-report.txt
-      - name: Checksum what the phones will draw
-        run: cd "$RUNNER_TEMP/parity-frames" && sha256sum *.json > SHA256SUMS && cat SHA256SUMS
+          PORT: '5186'
+          PARITY: ${{ runner.temp }}/parity-kept
+          OUT: ${{ runner.temp }}/parity-shots
+      - name: Turn the kept frames into the packets the phones replay
+        run: pnpm exec tsx tools/mobile/parity-packets.ts "$RUNNER_TEMP/parity-kept" "$RUNNER_TEMP/parity-frames"
+      - name: Checksum what the phones will draw and be compared with
+        run: cd "$RUNNER_TEMP/parity-frames" && sha256sum *.json web/* > SHA256SUMS && cat SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: parity-frames
@@ -64,7 +63,7 @@ jobs:
   android-native:
     needs: frames
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -92,6 +91,10 @@ jobs:
         run: python3 tools/mobile/hosted.py prepare android
         env:
           PARITY_FRAMES: ${{ runner.temp }}/parity-frames
+      - name: Put the Android shaders through the reference GLSL compiler
+        run: |
+          sudo apt-get install -y glslang-tools
+          python3 tools/mobile/glsl.py
       - name: Enable and require hosted KVM acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -117,7 +120,12 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           emulator-options: -no-window -accel on -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 tools/mobile/hosted.py capture android
+          # the renderer's frames, then the installed journey by touch (#584) on the same emulator; both run, and either failing fails the step
+          script: python3 tools/mobile/hosted.py capture android; capture=$?; python3 tools/mobile/journey.py android; journey=$?; [ $capture -eq 0 ] && [ $journey -eq 0 ]
+      - name: Compare each native frame with the web picture of it
+        run: python3 tools/mobile/hosted.py compare android
+        env:
+          PARITY_FRAMES: ${{ runner.temp }}/parity-frames
       - name: Self-contained report including failures and pending gameplay
         if: always()
         run: python3 tools/mobile/hosted.py report android
@@ -128,11 +136,18 @@ jobs:
           path: ${{ runner.temp }}/mobile-evidence
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-android-journey
+          path: ${{ runner.temp }}/mobile-journey
+          if-no-files-found: error
+          retention-days: 30
 
   ios-native:
     needs: frames
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
@@ -157,15 +172,22 @@ jobs:
           name: parity-frames
           path: ${{ runner.temp }}/parity-frames
       - name: Build production native replay on hosted runner
-        run: python3 tools/mobile/hosted.py prepare ios
+        run: |
+          "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/hosted.py prepare ios
         env:
           PARITY_FRAMES: ${{ runner.temp }}/parity-frames
       - name: Run dedicated Metal simulator
         run: |
           "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/hosted.py capture ios
+      - name: Compare each native frame with the web picture of it
+        run: |
+          "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/hosted.py compare ios
+        env:
+          PARITY_FRAMES: ${{ runner.temp }}/parity-frames
       - name: Self-contained report including failures and pending gameplay
         if: always()
-        run: python3 tools/mobile/hosted.py report ios
+        run: |
+          "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/hosted.py report ios
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -173,12 +195,14 @@ jobs:
           path: ${{ runner.temp }}/mobile-evidence
           if-no-files-found: error
           retention-days: 30
-
-  installed-gameplay:
-    if: github.event_name == 'workflow_dispatch' && inputs.gate == 'gameplay'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Refuse to count renderer replay as installed gameplay
+      - name: The installed journey by touch on its own simulator (#584)
+        if: always()
         run: |
-          echo '::error::Installed gameplay is pending #558 #563 #564 #571 #572. No executable offline session/touch/save journey exists. Renderer smoke cannot satisfy #584.'
-          exit 78
+          "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/journey.py ios
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-ios-journey
+          path: ${{ runner.temp }}/mobile-journey
+          if-no-files-found: error
+          retention-days: 30

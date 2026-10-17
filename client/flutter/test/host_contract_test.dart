@@ -24,6 +24,19 @@ void main() {
     final bytes = encodeHostScalars(scalars);
     expect(() => decodeHostScalars(bytes.sublist(0, bytes.length - 1)), throwsFormatException);
   });
+  test('a shared world\'s parcels cross as the TypeScript gate takes them, and nothing else does', () {
+    final gate = HostRequestGate('fixture:1');
+    gate.accept(fixture['start']);
+    gate.accept(fixture['step']);
+    for (final parcel in fixture['parcels'] as List) {
+      expect(gate.accept(parcel)['type'], 'parcel');
+    }
+    final start = Map<String, dynamic>.from(fixture['start'] as Map);
+    for (final bad in fixture['badParcels'] as List) {
+      expect(() => validateHostRequest({...start, 'type': 'parcel', 'payload': bad}), throwsFormatException, reason: '$bad');
+    }
+  });
+
   test('unknown version, stale session and invalid messages are rejected', () {
     final start = Map<String, dynamic>.from(fixture['start'] as Map);
     expect(() => validateHostRequest({...start, 'version': 25}), throwsFormatException);

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ContentError, changesFrom, fingerprint, inventory, withChanges, type ContentRecord } from '../core/content';
 import { DEFAULT_CONTENT } from '../core/contentDefaults';
@@ -151,5 +152,20 @@ describe('content a server sends to a client', () => {
     expect(KINDS.wolf.hp).toBe(wolf.hp);
     expect(installFromServer(bundledContent(), changed, deleted)).toEqual([]);
     expect(KINDS.wolf.hp).toBe(wolf.hp + 3);
+  });
+
+  /*
+   * A room and a floor each draw with a renderer of their own, built when they were entered, so
+   * rebuilding only the overworld's left a shopkeeper in his old body until the hero walked out.
+   * `createMultiplayer` wants a document, a camera and a renderer, so this reads the one handler.
+   */
+  it('draws the changed bodies again in a room or a floor that is open when the revision lands', () => {
+    const source = readFileSync(new URL('../game/multiplayer.ts', import.meta.url), 'utf8');
+    const handler = /onContent:[\s\S]*?\n {4}\},/.exec(source)?.[0] ?? '';
+    expect(handler, 'no content handler').toContain('installFromServer(');
+    for (const drawing of ['entityRenderer', 'places.underground?.renderer', 'places.indoors?.renderer']) {
+      expect(handler, `${drawing} keeps the old bodies`).toContain(drawing);
+    }
+    expect(handler).toContain('.rebuild(rebuilt)');
   });
 });

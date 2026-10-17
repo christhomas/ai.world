@@ -1,34 +1,14 @@
 import { WORLD } from '../core/config';
-import { BIOMES, type Biome } from '../world/biomes';
 import type { RoadGraph } from '../world/graph';
+import { groundColour, mapPad, type MapGround } from '../world/map-ground';
 import { parseChunkKey } from '../world/spatial';
 import { PROVINCE, provinceCorner, type ProvinceId } from '../world/provinces';
 
 /** Pixels per tile in the pre-rendered base image. Everything else scales from this. */
 export const BASE_SCALE = 1.6;
 
-/** The sea, as a css colour and as a number, because the fill wants one and the pixels the other. */
+/** The sea, as a css colour for the fill; `SEA_RGB` in `world/map-ground.ts` is the same blue. */
 const SEA = '#1b4466';
-const SEA_RGB = 0x1b4466;
-
-/**
- * What the map needs of the terrain, and nothing else.
- *
- * Narrow on purpose: the map asks what is at a point and does not want the sampler's hundred other
- * answers, so the two can be tested apart and the map cannot quietly grow a dependency on how the
- * ground is built.
- */
-export interface MapGround {
-  probe(x: number, z: number): { land: boolean; biome: Biome };
-  /**
-   * How high the rock stands at a point, in world units, or nought where there is none.
-   *
-   * Mountains are not in the heightfield of a polygon world — they are geometry standing on it —
-   * so a map drawn from the ground alone shows a range as ordinary highland. Optional, because the
-   * road-tree world has no such thing and its mountains are already in the ground it is drawn from.
-   */
-  rock?: (x: number, z: number) => number;
-}
 
 export interface MapBase {
   canvas: HTMLCanvasElement;
@@ -48,17 +28,6 @@ export interface MapBase {
 const PROBE_BLOCK = 2;
 
 /**
- * Sea left round the outside of the drawn country, in tiles.
- *
- * The map is as big as the roads it has to draw, and the last road is not the last land: the
- * ground is a band either side of one, twenty-odd tiles of it at its widest, and the coast and its
- * shallows lie beyond that. Too little and a map ends in a straight green line where the canvas
- * stopped rather than where the country did. Too much and every map is mostly empty sea, at four
- * bytes and one probe of the terrain for every pixel of it.
- */
-const MAP_MARGIN = 32;
-
-/**
  * The world drawn once into an offscreen canvas: the ground as it actually is, then the roads on
  * top of it. Both the corner minimap and the full-screen map sample from this, so they can never
  * disagree with each other.
@@ -74,15 +43,8 @@ const MAP_MARGIN = 32;
  * disagree with its own map again.
  */
 export function renderMapBase(graph: RoadGraph, sampler: MapGround): MapBase {
-  // As far out as the roads go, and no further. It used to be the world's radius plus a few tiles,
-  // which is the same number for a mainland and wrong for everything else: the islands are anchored
-  // past where the mainland reaches, so on a world whose islands stand seven hundred tiles out the
-  // map ended at four hundred and eighty and they were simply not on it. Sailing to one put the
-  // hero off the edge of his own map. A patch of an endless world has no radius to be padded out
-  // to at all, and this asks it the only question that has an answer anywhere: where is the
-  // furthest thing you are asking me to draw.
-  const reach = graph.nodes.reduce((most, n) => Math.max(most, Math.abs(n.x), Math.abs(n.z)), 0);
-  const pad = reach + MAP_MARGIN;
+  // as far out as the roads go and a margin of sea: see `mapPad`, which the app's map shares
+  const pad = mapPad(graph);
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(pad * 2 * BASE_SCALE);
   canvas.height = canvas.width;
@@ -100,13 +62,8 @@ export function renderMapBase(graph: RoadGraph, sampler: MapGround): MapBase {
   const px = img.data;
   for (let y = 0; y < canvas.height; y += PROBE_BLOCK) {
     for (let x = 0; x < canvas.width; x += PROBE_BLOCK) {
-      const wx = x / s - pad, wz = y / s - pad;
-      const here = sampler.probe(wx, wz);
-      const ground = here.land ? BIOMES[here.biome].ground : SEA_RGB;
-      // rock over the top of it, going white at the summits, so a range reads as a range at a
-      // glance rather than as a patch of highland that happens to be a different green
-      const high = sampler.rock ? sampler.rock(wx, wz) : 0;
-      const colour = high > 0 ? overRock(ground, high) : ground;
+      // the ground and the rock on it, as `groundColour` says, which the app's map asks too
+      const colour = groundColour(sampler, x / s - pad, y / s - pad);
       const r = (colour >> 16) & 255, g = (colour >> 8) & 255, b = colour & 255;
       for (let dy = 0; dy < PROBE_BLOCK && y + dy < canvas.height; dy++) {
         let i = ((y + dy) * canvas.width + x) * 4;
@@ -132,22 +89,6 @@ export function renderMapBase(graph: RoadGraph, sampler: MapGround): MapBase {
 }
 
 /** The unexplored dark, punched out chunk by chunk as the hero walks. */
-/** Rock on the map: grey at the foot, white at the top of the tallest thing a world holds. */
-function overRock(ground: number, high: number): number {
-  const up = Math.max(0, Math.min(1, high / MAP_SUMMIT));
-  const mix = (from: number, to: number, shift: number): number =>
-    Math.round(((from >> shift) & 255) + (((to >> shift) & 255) - ((from >> shift) & 255)) * up);
-  // the foot of a mountain is still the country it stands in, so the ground colour shows through
-  // where the rock is low and gives way entirely by the summit
-  const rock = up > 0.72 ? MAP_SNOW : MAP_ROCK;
-  return (mix(ground, rock, 16) << 16) | (mix(ground, rock, 8) << 8) | mix(ground, rock, 0);
-}
-
-/** The height at which rock is drawn as pale as it gets, in world units. */
-const MAP_SUMMIT = 52;
-const MAP_ROCK = 0x8d8d8d;
-const MAP_SNOW = 0xeef2f5;
-
 /**
  * The dark over the country you have not walked yet.
  *

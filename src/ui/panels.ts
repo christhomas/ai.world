@@ -5,6 +5,7 @@ import type { Places } from '../game/places';
 import type { Chat } from './chat';
 import type { DialogueBox } from './dialogue';
 import type { Hud } from './hud';
+import type { DungeonMinimap } from './dungeonmap';
 import type { Journal, JournalInput } from './journal';
 import type { KinPanel } from './kin';
 import type { PhotoMode } from './photo';
@@ -93,7 +94,7 @@ export function screenOf(p: Panels): Screen {
     toggleSeeThrough: () => {
       const on = !p.cutaway.on;
       p.cutaway.show(on);
-      rememberCutaway(on);
+      rememberCutaway(on, localStorage);
       // the switch in Options is the same switch, so it has to move too
       p.hud.setSeeThrough(on);
       return on;
@@ -102,7 +103,8 @@ export function screenOf(p: Panels): Screen {
     toggleMap: () => {
       // whichever map the hero is standing in: a dungeon has its own, and it is the one that is
       // any use while you are in it
-      p.worldMap.dungeon = p.places.underground?.map ?? null;
+      // the page's floors are mapped by its own minimap widget, so this is one of those
+      p.worldMap.dungeon = (p.places.underground?.map as DungeonMinimap | undefined) ?? null;
       p.worldMap.toggle(p.mapInput());
     },
     toggleCompany: () => p.playerList.toggle(p.companyInput()),

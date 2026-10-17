@@ -19,7 +19,20 @@ export type Request =
   | { type: 'cancel'; payload: { requestId: string } }
   | { type: 'resync'; payload: { reason: string } }
   | { type: 'lifecycle'; payload: { state: 'active' | 'inactive' | 'background'; renderTimeMs: number } }
-  | { type: 'dispose'; payload: Record<string, never> };
+  | { type: 'dispose'; payload: Record<string, never> }
+  /**
+   * What the app's socket to a shared world did (#565). `generation` names the connection the
+   * engine asked for, so a socket it has since replaced cannot speak for the new one; a binary
+   * parcel travels as base64.
+   */
+  | { type: 'parcel'; payload: ParcelEvent };
+export type ParcelEvent =
+  | { generation: number; event: 'open'; text: null; binary: null; why: null }
+  | { generation: number; event: 'message'; text: string; binary: null; why: null }
+  | { generation: number; event: 'message'; text: null; binary: string; why: null }
+  | { generation: number; event: 'close'; text: null; binary: null; why: string };
+/** The most characters a parcel may carry across the bridge: a ground parcel, base64, with room. */
+export const PARCEL_CHARS = 8 * 1024 * 1024;
 export type HostRequest = Request & { version: number; session: string; sequence: number; id: string };
 export interface Presentation {
   revision: number; tick: number; renderTimeMs: number; owner: FocusOwner; busy: Busy;
@@ -57,6 +70,8 @@ const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0 &&
 const integer = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const pair = (v: unknown): boolean => Array.isArray(v) && v.length === 2 && v.every(n => finite(n) && n >= -1 && n <= 1);
+const parcelText = (v: unknown): v is string => typeof v === 'string' && v.length <= PARCEL_CHARS;
+const base64 = (v: unknown): v is string => parcelText(v) && v.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(v);
 const json = (v: unknown, depth = 0): boolean => depth <= 32 && (v === null || typeof v === 'string' || typeof v === 'boolean' || finite(v) || (Array.isArray(v) ? v.every(x => json(x, depth + 1)) : record(v) && Object.values(v).every(x => json(x, depth + 1))));
 export function validateRequest(value: unknown): HostRequest {
   if (!record(value) || !exact(value, ['version', 'session', 'sequence', 'id', 'type', 'payload'])) throw new Error('invalid');
@@ -71,6 +86,10 @@ export function validateRequest(value: unknown): HostRequest {
     case 'cancel': valid = exact(p, ['requestId']) && id(p.requestId); break;
     case 'resync': valid = exact(p, ['reason']) && id(p.reason); break;
     case 'dispose': valid = exact(p, []); break;
+    case 'parcel': valid = exact(p, ['generation', 'event', 'text', 'binary', 'why']) && integer(p.generation) && p.generation > 0 && (
+      p.event === 'open' ? p.text === null && p.binary === null && p.why === null
+        : p.event === 'message' ? p.why === null && ((parcelText(p.text) && p.binary === null) || (p.text === null && base64(p.binary)))
+          : p.event === 'close' && p.text === null && p.binary === null && typeof p.why === 'string' && p.why.length <= 1024); break;
     case 'lifecycle': valid = exact(p, ['state', 'renderTimeMs']) && ['active', 'inactive', 'background'].includes(p.state as string) && finite(p.renderTimeMs) && p.renderTimeMs >= 0; break;
     case 'step': {
       const i = p.input;

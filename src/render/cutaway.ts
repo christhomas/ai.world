@@ -178,7 +178,7 @@ if (uCutOn > 0.5 && vCutWorld.y > uCutHero.y + uCutAbove) {
 export const CUTAWAY_KEY = 'ai.world/see-through';
 
 /** What they chose last time, or off — which is what it was before anybody asked for it back. */
-export function wantsCutaway(store: Pick<Storage, 'getItem'> = localStorage): boolean {
+export function wantsCutaway(store: Pick<Storage, 'getItem'>): boolean {
   try {
     return store.getItem(CUTAWAY_KEY) === 'on';
   } catch {
@@ -187,7 +187,7 @@ export function wantsCutaway(store: Pick<Storage, 'getItem'> = localStorage): bo
 }
 
 /** Remember the choice. A failure here is not worth interrupting a game for. */
-export function rememberCutaway(on: boolean, store: Pick<Storage, 'setItem'> = localStorage): void {
+export function rememberCutaway(on: boolean, store: Pick<Storage, 'setItem'>): void {
   try {
     store.setItem(CUTAWAY_KEY, on ? 'on' : 'off');
   } catch { /* nothing to do */ }

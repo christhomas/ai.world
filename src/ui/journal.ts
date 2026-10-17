@@ -1,30 +1,9 @@
 import { $ } from './dom';
-import { ITEMS, itemSummary } from '../game/items';
-import type { GameState } from '../game/state';
-import type { Quest } from '../game/quests';
-import type { Poi, Site, Village } from '../world/structures';
-import type { FerryLine } from '../game/ferry';
-import { formatCountdown, ferryStateAt } from '../game/ferry';
-import { SEASON_NAMES, seasonOf } from '../game/seasons';
-import { SLOTS } from '../game/items';
+import { ITEMS, SLOTS, itemSummary } from '../game/items';
+import { journalView, type JournalReading } from '../game/journal-view';
 
-export interface JournalInput {
-  state: GameState;
-  quests: Quest[];
-  villages: Village[];
-  pois: Poi[];
-  /** Caves and wrecks: named once found, like points of interest. */
-  sites: Site[];
-  ferries: FerryLine[];
-  seconds: number;
-  playerX: number;
-  playerZ: number;
-}
-
-const compass = (dx: number, dz: number): string => {
-  const dirs = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
-  return dirs[Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) & 7];
-};
+/** What the journal is drawn from; `game/journal-view.ts` says what it shows. */
+export type JournalInput = JournalReading;
 
 /** The J panel: what you carry, what you owe, what you have found, when the next boat leaves. */
 export class Journal {
@@ -50,34 +29,14 @@ export class Journal {
 
   private render(d: JournalInput): void {
     const { state } = d;
-    const dist = (x: number, z: number) => Math.round(Math.hypot(x - d.playerX, z - d.playerZ));
-    const bearing = (x: number, z: number) => compass(x - d.playerX, z - d.playerZ);
-
-    const quests = d.quests.filter((q) => state.quests.get(q.id) === 'active').map((q) => {
-      const done = q.kind === 'visit' ? state.discovered.has(q.target) : state.count(q.target) >= q.count;
-      const what = q.kind === 'visit' ? `find the ${q.target}` : `bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
-      const village = d.villages.find((v) => v.name === q.village);
-      const where = village ? ` — ${q.village}, ${dist(village.x, village.z)} tiles ${bearing(village.x, village.z)}` : '';
-      return `<li class="list-row">${done ? '✅' : '📜'} ${what}${where}</li>`;
+    const view = journalView(d);
+    const quests = view.errands.map((e) => {
+      const where = e.tiles !== null ? ` — ${e.village}, ${e.tiles} tiles ${e.bearing}` : '';
+      return `<li class="list-row">${e.done ? '✅' : '📜'} ${e.what}${where}</li>`;
     });
-
-    const found = [
-      ...d.pois.filter((p) => state.discovered.has(p.name)).map((p) => ({ name: p.name, x: p.x, z: p.z, icon: '⭐' })),
-      // what sort of place it was is read off the front of its id, which is the one thing every
-      // site carries — a wreck is the only one of the three with no prefix of its own, so it is
-      // what is left over rather than something asked for
-      ...d.sites.filter((s) => state.discovered.has(s.name)).map((s) => ({
-        name: s.name, x: s.x, z: s.z,
-        icon: s.id.startsWith('cave') ? '🕳️' : s.id.startsWith('castle') ? '🏰' : '🚢',
-      })),
-    ].sort((a, b) => Math.hypot(a.x - d.playerX, a.z - d.playerZ) - Math.hypot(b.x - d.playerX, b.z - d.playerZ))
-      .map((p) => `<li class="list-row">${p.icon} ${p.name} — ${dist(p.x, p.z)} tiles ${bearing(p.x, p.z)}</li>`);
-
-    const boats = d.ferries.map((line) => {
-      const st = ferryStateAt(line, d.seconds);
-      const where = st.docked === 'from' ? line.fromName : st.docked === 'to' ? line.toName : 'at sea';
-      return `<li class="list-row">⛵ ${line.fromName} ↔ ${line.toName} — ${where}, next arrival ${formatCountdown(Math.min(st.arrivesIn.from, st.arrivesIn.to))}</li>`;
-    });
+    const found = view.found.map((p) => `<li class="list-row">${p.icon} ${p.name} — ${p.tiles} tiles ${p.bearing}</li>`);
+    const boats = view.ferries.map((line) =>
+      `<li class="list-row">⛵ ${line.from} ↔ ${line.to} — ${line.where}, next arrival ${line.nextArrival}</li>`);
 
     const wornList = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null)
       .map((i) => `<li class="list-row">${i!.emoji} ${i!.name} — ${itemSummary(i!) || i!.desc}</li>`);
@@ -85,11 +44,10 @@ export class Journal {
       .map(([id, n]) => { const item = ITEMS[id]; return item ? `<li class="list-row">${item.emoji} ${item.name}${n > 1 ? ` ×${n}` : ''} — ${itemSummary(item) || item.desc}</li>` : ''; })
       .filter(Boolean);
 
-    const done = d.quests.filter((q) => state.quests.get(q.id) === 'done').length;
     this.el.innerHTML = `
       <h2>Journal</h2>
-      <div class="j-line">Day ${state.day}, ${SEASON_NAMES[seasonOf(state.day)]} · ${state.hp}/${state.maxHpTotal} hearts · ⚔ ${state.attack} · 🛡 ${state.defence} · 💰 ${state.inventory.gold} gold</div>
-      <div class="j-line">${state.discovered.size} places found · ${done} errands finished · ${state.explored.size} map cells walked</div>
+      <div class="j-line">Day ${view.day}, ${view.season} · ${view.hp}/${view.maxHp} hearts · ⚔ ${view.attack} · 🛡 ${view.defence} · 💰 ${view.gold} gold</div>
+      <div class="j-line">${view.placesFound} places found · ${view.errandsDone} errands finished · ${view.cellsWalked} map cells walked</div>
       ${section('Errands', quests, 'Nothing promised. Village elders stand near their wells.')}
       ${section('Worn', wornList, 'Nothing but your own clothes.')}
       ${section('Carried', carried, 'Empty-handed.')}

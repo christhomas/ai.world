@@ -10,7 +10,7 @@ import type { ChunkManager } from '../render/chunkManager';
 import type { Structures } from '../world/structures';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './archery';
 import { GUN, fire } from './gun';
-import type { Sound } from './audio';
+import type { SoundSurface } from '../platform/game-platform';
 import { BREATH, Breath, guardCovers } from './breath';
 import { clearedTheMine, whatAKillMeans } from './consequences';
 import { COMBAT, struck, swing, type SwingResult } from './combat';
@@ -64,7 +64,7 @@ export interface Fighting {
    * asks is whether the hero is in the seat, because a man in a cockpit does not have a bow.
    */
   craft: () => { flying: boolean; altitude: number };
-  sound: Sound;
+  sound: SoundSurface;
   director: Director;
   /** Is a conversation up? Nothing may be swung while somebody is being spoken to. */
   talking: () => boolean;

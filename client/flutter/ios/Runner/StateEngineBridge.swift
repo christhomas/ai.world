@@ -29,17 +29,20 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
           guard self.engines.count < 4,
                 let session = arguments["session"] as? String, !session.isEmpty, session.count <= 256,
                 let bytes = arguments["source"] as? FlutterStandardTypedData,
-                bytes.data.count <= 8 * 1024 * 1024,
+                bytes.data.count <= 32 * 1024 * 1024,
                 let digest = arguments["bundleSha256"] as? String,
                 SHA256.hash(data: bytes.data).map({ String(format: "%02x", $0) }).joined() == digest,
                 let source = String(data: bytes.data, encoding: .utf8) else {
             throw StateEngineFailure("Invalid or corrupted bundled engine")
           }
-          let savedHero = arguments["savedHero"] as? String
-          guard savedHero == nil || savedHero!.utf8.count <= 1024 * 1024 else {
-            throw StateEngineFailure("Saved hero too large")
+          // the hero engine is handed a saved hero; the game engine its options
+          let entry = arguments["entry"] as? String ?? "AiWorldStateEngine"
+          guard let replyLimit = StateEngineVM.replyLimits[entry] else { throw StateEngineFailure("Unknown bundled engine \(entry)") }
+          let options = arguments["options"] as? String ?? arguments["savedHero"] as? String
+          guard options == nil || options!.utf8.count <= 8 * 1024 * 1024 else {
+            throw StateEngineFailure("Engine options too large")
           }
-          let engine = try StateEngineVM(source: source, session: session, savedHero: savedHero)
+          let engine = try StateEngineVM(source: source, session: session, savedHero: options, entry: entry, replyLimit: replyLimit)
           let token = UUID().uuidString
           self.engines[token] = engine
           response = token
@@ -77,10 +80,15 @@ struct StateEngineFailure: Error, CustomStringConvertible {
 }
 
 final class StateEngineVM {
+  /// How big a reply each bundled engine may give: the whole game answers with the ground it streams.
+  static let replyLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024, "AiWorldGameEngine": 32 * 1024 * 1024]
   private let context: JSContext
   private let engine: JSValue
+  private let replyLimit: Int
 
-  init(source: String, session: String, savedHero: String? = nil) throws {
+  init(source: String, session: String, savedHero: String? = nil, entry: String = "AiWorldStateEngine",
+       replyLimit: Int = 1024 * 1024) throws {
+    self.replyLimit = replyLimit
     guard let context = JSContext(virtualMachine: JSVirtualMachine()) else { throw StateEngineFailure("Cannot create VM") }
     self.context = context
     // Separate VMs provide separate globals; a retired session cannot mutate its successor.
@@ -89,7 +97,7 @@ final class StateEngineVM {
     context.evaluateScript("globalThis.crypto = { randomUUID: () => __nativeUuid() };")
     context.evaluateScript(source, withSourceURL: URL(string: "ai-world-bundle://engine.js"))
     if let error = context.exception { throw StateEngineFailure(error.toString() ?? "Bundle exception") }
-    guard let module = context.objectForKeyedSubscript("AiWorldStateEngine"),
+    guard let module = context.objectForKeyedSubscript(entry),
           let engine = module.invokeMethod("create", withArguments: [session, savedHero as Any? ?? NSNull()]), !engine.isUndefined else {
       throw StateEngineFailure(context.exception?.toString() ?? "Missing bundled engine entry")
     }
@@ -100,7 +108,7 @@ final class StateEngineVM {
   func request(_ text: String) throws -> String {
     context.exception = nil
     guard let value = engine.invokeMethod("request", withArguments: [text]),
-          context.exception == nil, let response = value.toString(), response.utf8.count <= 1024 * 1024 else {
+          context.exception == nil, let response = value.toString(), response.utf8.count <= replyLimit else {
       throw StateEngineFailure(context.exception?.toString() ?? "Invalid engine response")
     }
     return response

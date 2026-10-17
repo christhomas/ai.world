@@ -56,6 +56,14 @@ class WorldSocketConfig {
   final int maxQueuedParcels, maxQueuedBytes, maxParcelBytes;
 }
 
+/// A shared world's socket as a game session uses it (#565): opened once, sent on, closed.
+abstract interface class ParcelSocket {
+  Future<void> start();
+  /// Text or `Uint8List`.
+  Future<void> send(Object parcel);
+  Future<void> close();
+}
+
 class _Write {
   _Write(this.parcel, this.bytes);
   final Object parcel;
@@ -63,7 +71,7 @@ class _Write {
   final done = Completer<void>();
 }
 
-class NativeWorldSocketLink {
+class NativeWorldSocketLink implements ParcelSocket {
   NativeWorldSocketLink({required this.config, required this.onOpen,
     required this.onMessage, required this.onClose, required this.onStatus});
 
@@ -84,6 +92,7 @@ class NativeWorldSocketLink {
   int get generation => _generation;
 
   /// Start one session. Construct a new link for a different endpoint/session.
+  @override
   Future<void> start() async {
     if (_wanted) throw StateError('The world link is already started.');
     _wanted = true;
@@ -141,6 +150,7 @@ class NativeWorldSocketLink {
 
   /// No writes are accepted while disconnected and none survive reconnection.
   /// Completion means accepted by the socket sink, not confirmed by the server.
+  @override
   Future<void> send(Object parcel) {
     if (!ready) return Future.error(StateError('The world link is not ready.'));
     final Object owned;
@@ -211,6 +221,7 @@ class NativeWorldSocketLink {
   void admitted() { _failures = 0; }
 
   /// Manual leave fences callbacks immediately and disables every pending retry.
+  @override
   Future<void> close() async {
     _wanted = false; _generation++;
     _connectingClient?.close(force: true); _connectingClient = null;

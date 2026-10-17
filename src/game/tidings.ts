@@ -7,7 +7,7 @@ import { luxuryFor, storeysFor, type Luxury } from '../world/prosperity';
 import type { Site, Structures } from '../world/structures';
 import type { Around } from '../world/around';
 import type { TerrainSampler } from '../world/terrain';
-import type { Sound } from './audio';
+import type { SoundSurface } from '../platform/game-platform';
 import type { Director } from './director';
 import { clockAt } from './jail';
 import { MINES, mineIdOf, type Mines, type Working } from './mines';
@@ -47,7 +47,7 @@ export interface Telling {
   ore: Ore;
   online: Online;
   remains: Remains;
-  sound: Sound;
+  sound: SoundSurface;
   director: Director;
   /** Which cave each village calls its mine. A pure function of the ground, so it never changes. */
   claimed: Map<string, Site>;

@@ -6,7 +6,8 @@
  * - a player already in a world is sent the published revision;
  * - the edit survives the server being stopped and started again on the same database;
  * - a stale edit and one naming a creature that does not exist are refused on the page;
- * - rolling back publishes the original again, and the player is sent that too.
+ * - rolling back publishes the original again, and the player is sent that too;
+ * - the production game page, joined to the server, draws an edited body and then the original.
  */
 const { chromium } = require('playwright');
 const { spawn } = require('node:child_process');
@@ -90,6 +91,39 @@ async function publish(page, body, note) {
   return page.locator('#status').textContent();
 }
 
+/**
+ * How much of a page's picture is pure magenta, which nothing in the game is painted.
+ *
+ * The page's debug probes exist only in development builds, so a production page is asked what it
+ * draws the way a player would: by looking at it. A blank page decodes the screenshot.
+ */
+async function magenta(game, lens) {
+  const png = (await game.screenshot()).toString('base64');
+  return lens.evaluate(async data => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const canvas = Object.assign(document.createElement('canvas'), { width: image.width, height: image.height });
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, image.width, image.height).data;
+    let count = 0;
+    for (let at = 0; at < pixels.length; at += 4) {
+      const [r, g, b] = [pixels[at], pixels[at + 1], pixels[at + 2]];
+      if (r > 110 && b > 110 && g < 0.5 * Math.min(r, b)) count++;
+    }
+    return count;
+  }, png);
+}
+
+async function eventually(check, what) {
+  for (let waited = 0; waited <= 60000; waited += 1000) {
+    if (await check()) return;
+    await new Promise(wake => setTimeout(wake, 1000));
+  }
+  throw new Error(`never saw ${what}`);
+}
+
 let browser;
 (async () => {
   start();
@@ -158,8 +192,32 @@ let browser;
   assert.equal((await openRecord(page, 'creature:wolf')).hp, wolf.hp);
   await page.screenshot({ path: `${out}/content-editor-rolled-back.png`, fullPage: true });
   bryn.socket.close();
+
+  // The production game page, joined to this server, draws the hero as the catalogue has him.
+  const game = await (await browser.newContext({ viewport: { width: 900, height: 600 } })).newPage();
+  const lens = await browser.newPage();
+  const gameErrors = [];
+  game.on('pageerror', error => gameErrors.push(error.message));
+  await game.goto(`${origin}/?seed=5&server=ws://127.0.0.1:${port}`);
+  await game.waitForFunction(() => document.querySelector('#onlineStatus')?.textContent.startsWith('online'),
+    null, { timeout: 120000 });
+  await game.waitForTimeout(5000);
+  const plain = await magenta(game, lens);
+  await game.screenshot({ path: `${out}/content-game-before.png` });
+  const hero = await openRecord(page, 'model:hero');
+  const crowned = { ...hero, parts: [...hero.parts, { box: [0.9, 0.9, 0.9], at: [0, 2.4, 0], color: '#ff00ff' }] };
+  assert.match(await publish(page, crowned, 'hosted proof: a hero you can see'), /Published revision 5/);
+  let drawn = plain;
+  await eventually(async () => (drawn = await magenta(game, lens)) > plain + 300, 'the edited hero drawn on the page');
+  await game.screenshot({ path: `${out}/content-game-edited.png` });
+  await page.locator('.content-revisions li', { hasText: '#1 seed' }).locator('button').click();
+  await page.waitForFunction(() => document.querySelector('#status')?.textContent.includes('Rolled back'));
+  await eventually(async () => (await magenta(game, lens)) < plain + 50, 'the hero drawn as he was');
+  await game.screenshot({ path: `${out}/content-game-rolled-back.png` });
+  console.log(`magenta pixels: ${plain} before, ${drawn} edited, back after the rollback`);
+  assert.deepEqual(gameErrors, []);
   assert.deepEqual(errors, []);
-  console.log('PASS: content edits published from the page reach a player, survive a restart, refuse stale and dangling edits, and roll back.');
+  console.log('PASS: content edits published from the page reach a player and a rendered game page, survive a restart, refuse stale and dangling edits, and roll back.');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   await browser?.close();
   server?.kill('SIGTERM');
