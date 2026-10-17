@@ -20,6 +20,8 @@ import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
 import { OtherBodies, type NamePlate } from '../render/other-bodies';
 import { SOUNDS, STRIDE, type SoundVoice } from '../game/sound-recipes';
+import { CAVE, MOODS, beat, noteAt, pluck } from '../game/music-score';
+import { Biome } from '../world/biomes';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
@@ -161,6 +163,9 @@ export class FrameCatch implements FramePipeline {
 }
 
 const KEPT = 40;
+
+/** How loud the music is against the game's other sounds, as the page mixes it. */
+const MUSIC = 0.5;
 const keep = <T>(list: T[], item: T): void => {
   list.push(item);
   if (list.length > KEPT) list.splice(0, list.length - KEPT);
@@ -338,6 +343,12 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   const heard: SoundVoice[][] = [];
   let hushed = false;
   let stride = 0;
+  // the soundtrack's notes, on the game's own time: the page's music, without its drone
+  let biome = Biome.Plains;
+  let night = 0;
+  let playing = 0;
+  let nextNote = 0.5;
+  let step = 0;
   const play = (name: string, voices: SoundVoice[]) => {
     cue(name);
     if (!hushed) heard.push(voices);
@@ -351,8 +362,16 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     update: (dt, walking, onRoad) => {
       stride -= dt;
       if (walking && stride <= 0) { stride = STRIDE; play('footstep', SOUNDS.footstep(onRoad)); }
+      playing += dt;
+      const mood = sound.cave ? CAVE : MOODS[biome];
+      // notes due within the next quarter second go now, each saying how far ahead it starts
+      while (nextNote < playing + 0.25) {
+        if (!hushed) heard.push([pluck(noteAt(step, mood, night), MUSIC, Math.max(0, nextNote - playing))]);
+        step++;
+        nextNote += beat(mood, night);
+      }
     },
-    setScene: () => {},
+    setScene: (where, dark) => { biome = where; night = dark; },
     setWater: () => {},
     blip: () => play('blip', SOUNDS.blip()),
     select: () => play('select', SOUNDS.select()),

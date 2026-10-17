@@ -15,7 +15,8 @@
 export type Wave = 'sine' | 'square' | 'triangle' | 'sawtooth';
 
 export type SoundVoice =
-  | { tone: number; dur: number; wave: Wave; gain: number; at: number; slide?: number }
+  /** `rise` is how long the tone takes to swell, ten milliseconds if it does not say. */
+  | { tone: number; dur: number; wave: Wave; gain: number; at: number; slide?: number; rise?: number }
   | { burst: number; dur: number; q: number; gain: number; at: number };
 
 const tone = (freq: number, dur: number, wave: Wave, gain: number, at = 0, slide?: number): SoundVoice =>

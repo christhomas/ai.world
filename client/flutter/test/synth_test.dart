@@ -56,4 +56,11 @@ void main() {
     expect(peak(late, 0, 8800), 0, reason: 'nothing before its start');
     expect(peak(late, 8820 + 441), greaterThan(0.1));
   });
+
+  test('a plucked note swells for longer before it rings', () {
+    final pluck = synth.render(const [{'tone': 262, 'dur': 1.1, 'wave': 'triangle', 'gain': 0.3, 'at': 0, 'rise': 0.04}]);
+    final strike = synth.render(const [{'tone': 262, 'dur': 1.1, 'wave': 'triangle', 'gain': 0.3, 'at': 0}]);
+    expect(peak(pluck, 0, 441), lessThan(peak(strike, 0, 441)), reason: 'quieter in its first ten milliseconds');
+    expect(peak(pluck, 1764, 2646), greaterThan(0.2), reason: 'and full by its fortieth of a second');
+  });
 }

@@ -40,17 +40,19 @@ class Synth {
   void _tone(Float64List mix, Map v) {
     final f0 = (v['tone'] as num).toDouble(), dur = (v['dur'] as num).toDouble(), gain = (v['gain'] as num).toDouble();
     final slide = (v['slide'] as num?)?.toDouble();
+    // how long it takes to swell: ten milliseconds, or a plucked note's fortieth of a second
+    final rise = (v['rise'] as num?)?.toDouble() ?? 0.01;
     final start = ((v['at'] as num).toDouble() * rate).round();
     final length = ((dur + 0.02) * rate).round();
-    final fall = math.max(dur - 0.01, 0.001);
+    final fall = math.max(dur - rise, 0.001);
     var phase = 0.0;
     for (var i = 0; i < length && start + i < mix.length; i++) {
       final t = i / rate;
       final f = slide == null ? f0 : f0 * math.pow(slide / f0, math.min(t, dur) / dur);
       phase += f / rate;
       phase -= phase.floorToDouble();
-      final g = t < 0.01 ? floor * math.pow(gain / floor, t / 0.01)
-        : t < dur ? gain * math.pow(floor / gain, (t - 0.01) / fall) : floor;
+      final g = t < rise ? floor * math.pow(gain / floor, t / rise)
+        : t < dur ? gain * math.pow(floor / gain, (t - rise) / fall) : floor;
       mix[start + i] += _wave(v['wave'], phase) * g;
     }
   }

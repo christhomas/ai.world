@@ -126,7 +126,7 @@ export class Sound {
     }
   }
 
-  private tone(freq: number, dur: number, type: OscillatorType, gain: number, when = 0, slideTo?: number): void {
+  private tone(freq: number, dur: number, type: OscillatorType, gain: number, when = 0, slideTo?: number, rise = 0.01): void {
     const ctx = this.ctx;
     if (!ctx || !this.master) return;
     const t0 = ctx.currentTime + when;
@@ -136,7 +136,7 @@ export class Sound {
     if (slideTo !== undefined) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + rise);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     osc.connect(g).connect(this.master);
     osc.start(t0);
@@ -164,7 +164,7 @@ export class Sound {
   /** A sound as `sound-recipes.ts` describes it, which an installed app plays from the same description. */
   private play(voices: SoundVoice[]): void {
     for (const v of voices) {
-      if ('tone' in v) this.tone(v.tone, v.dur, v.wave, v.gain, v.at, v.slide);
+      if ('tone' in v) this.tone(v.tone, v.dur, v.wave, v.gain, v.at, v.slide, v.rise);
       else this.burst(v.dur, v.burst, v.q, v.gain, v.at);
     }
   }
