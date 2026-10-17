@@ -27,8 +27,10 @@ class PackPage extends StatelessWidget {
       DecoratedBox(decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.rule, width: 2))),
         child: Padding(padding: const EdgeInsets.fromLTRB(12, 9, 12, 8), child: Row(children: [
           Text('RUCKSACK', style: t.face(17, t.pageInk, weight: FontWeight.w500, spacing: 3)),
-          const Spacer(),
-          Text('${pack['gold'] ?? 0} gold · $count carried · $wearing/${worn.length} worn', style: t.numbers(12, t.pageInk, spacing: 0)),
+          const SizedBox(width: 12),
+          // the sums give way before the title does on a narrow page
+          Expanded(child: Text('${pack['gold'] ?? 0} gold · $count carried · $wearing/${worn.length} worn', textAlign: TextAlign.end,
+            maxLines: 1, overflow: TextOverflow.ellipsis, style: t.numbers(12, t.pageInk, spacing: 0))),
         ]))),
       label('WORN'),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Wrap(spacing: 4, runSpacing: 4, children: [
