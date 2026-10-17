@@ -84,6 +84,8 @@ export interface Consoled {
   areaLabel: () => string;
   discover: (name: string) => void;
   flash: (message: string) => void;
+  /** Lend the hero a horse from the stable, beside him and not yet ridden; what it is, or null. */
+  lendHorse?: (breed?: string) => unknown;
 }
 
 /** How far outside a castle's gate a teleport puts you, in tiles. See the note where it is used. */
@@ -415,6 +417,7 @@ export function openConsole(ctx: Consoled) {
       }
       return null;
     },
+    borrowHorse: (breed) => ctx.lendHorse?.(breed) ?? null,
     standAtCounter: () => {
       const spot = places.indoors?.world.map.keeper;
       if (!spot) return null;

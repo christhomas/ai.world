@@ -45,6 +45,8 @@ PARTS = {
     'shop': ('integration_test/shop_test.dart',
              ['world open', 'a shop to walk into', 'in the shop', 'at the counter', 'talking to the keeper',
               'bought something', 'done talking']),
+    'horse': ('integration_test/horse_test.dart',
+              ['world open', 'a horse to ride', 'mounted', 'rode by touch', 'got off']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
 JOURNEYS = ['journey', 'continue', 'crossplay']

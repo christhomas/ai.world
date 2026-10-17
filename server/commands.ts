@@ -101,6 +101,8 @@ export const COMMANDS: Record<string, CommandSpec> = {
   'stand-at-counter': spec('stand-at-counter', 'Stand where a shopkeeper will talk to you'),
 
   // What is in the world
+  'borrow-horse': spec('borrow-horse', 'Borrow a horse from the stable to ride, without buying one: it stands beside you',
+    [text('breed', true)]),
   spawn: spec('spawn', 'Put a creature into the world near the hero', [text('kind'), num('away', true)]),
   sow: spec('sow', 'Plant the crop in hand on a tile', [num('x'), num('z')]),
   drop: spec('drop', 'Drop what the hero is carrying where they stand'),

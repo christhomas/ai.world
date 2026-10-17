@@ -50,6 +50,8 @@ export interface CommandWorld {
   enterShrine(): unknown;
   enterInn(): unknown;
   standAtCounter(): unknown;
+  /** A horse lent from the stable, standing beside the hero for him to get on. */
+  borrowHorse(breed?: string): unknown;
   spawn(kind: string, away: number): unknown;
   sow(x: number, z: number): unknown;
   drop(): unknown;
@@ -104,6 +106,7 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   bus.define('enter-shrine', () => world.enterShrine());
   bus.define('enter-inn', () => world.enterInn());
   bus.define('stand-at-counter', () => world.standAtCounter());
+  bus.define('borrow-horse', ([breed]) => world.borrowHorse(breed as string | undefined));
 
   // `away` is a distance from the hero rather than a place, which is the one thing about spawning
   // that everybody gets wrong the first time they use it
