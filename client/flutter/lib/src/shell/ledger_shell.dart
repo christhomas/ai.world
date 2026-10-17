@@ -45,7 +45,7 @@ class LedgerShell extends StatefulWidget {
   const LedgerShell({super.key, required this.world, required this.controller, required this.pages,
     this.readings = '', this.clock = '', this.bearings = '', this.place = '', this.actionCard,
     this.typingBuilder, this.surface = SessionSurface.ready, this.message = '', this.onReconnect,
-    this.onWorldComposition, this.conversation});
+    this.onWorldComposition, this.conversation, this.photo});
   final Widget world;
   final LedgerController controller;
   final Map<String, LedgerPageBuilder> pages;
@@ -58,6 +58,8 @@ class LedgerShell extends StatefulWidget {
   /// What is being said: it stays on the glass over the world, between the thumb's home and the
   /// action corner, so words and choices are never the same list (design/mobile/README.md, "A shop").
   final Widget? conversation;
+  /// The app's shutter, in place of the HUD while the native world keeps drawing.
+  final Widget? photo;
   @override
   State<LedgerShell> createState() => _LedgerShellState();
 }
@@ -137,7 +139,7 @@ class _LedgerShellState extends State<LedgerShell> with WidgetsBindingObserver {
       return Stack(fit: StackFit.expand, children: [
         ExcludeSemantics(excluding: parked, child: IgnorePointer(ignoring: parked,
           child: FocusScope(node: _worldFocus, autofocus: true, canRequestFocus: !parked, child: widget.world))),
-        SafeArea(child: Stack(fit: StackFit.expand, children: [
+        SafeArea(child: widget.surface == SessionSurface.ready && widget.photo != null ? widget.photo! : Stack(fit: StackFit.expand, children: [
           Positioned(left: 0, top: 0, child: _slab(widget.readings, t)),
           Positioned(right: 0, top: 0, child: _slab(widget.clock, t)),
           if (widget.place.isNotEmpty) Positioned(top: 16, left: 160, right: 160,

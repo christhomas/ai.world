@@ -22,6 +22,9 @@ import UIKit
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SoundBridge") {
       SoundBridge.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PhotoShareBridge") {
+      PhotoShareBridge.register(with: registrar)
+    }
   }
 }
 

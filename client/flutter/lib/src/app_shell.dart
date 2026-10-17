@@ -27,6 +27,7 @@ import 'shell/ledger_stick.dart';
 import 'shell/ledger_tokens.dart';
 import 'shell/more_controls.dart';
 import 'shell/name_plates.dart';
+import 'shell/photo_controls.dart';
 import 'shell/subject_ring.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
@@ -73,6 +74,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   final _worldKey = GlobalKey(debugLabel: 'world');
   /// The view in `_world` has started its game: one game to a view, however often it makes a renderer.
   bool _started = false;
+  bool _framing = false;
 
   @override
   void initState() {
@@ -115,7 +117,10 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
 
   /// A place the journal asked the map to open on, for as long as the map is the page open.
   Offset? _mapFocus;
-  void _forgetFocus() { if (_ledger.route != 'map') _mapFocus = null; }
+  void _forgetFocus() {
+    if (_ledger.route != 'map') _mapFocus = null;
+    if (mounted && _framing && _input.busy != 'framing') setState(() => _framing = false);
+  }
   void _showOnMap(Offset place) {
     _mapFocus = place;
     _ledger.open('map');
@@ -201,13 +206,24 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   Future<void> _leave() async {
     final session = _session;
     _ledger.close();
-    setState(() { _session = null; _phase = _Phase.title; _world = null; });
+    setState(() { _session = null; _phase = _Phase.title; _world = null; _framing = false; });
     playing.value = null;
     try {
       await session?.close();
     } catch (error) {
       if (mounted) setState(() => _trouble = 'Your game could not be saved: $error');
     }
+  }
+
+  void _photo() {
+    if (!_input.acceptsWorld) return;
+    _input.focus(InputOwner.book, busy: 'framing');
+    setState(() => _framing = true);
+  }
+
+  void _closePhoto() {
+    if (_input.busy == 'framing') _input.focus(InputOwner.world);
+    setState(() => _framing = false);
   }
 
   @override
@@ -223,6 +239,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _framing = false;
     unawaited(_session?.close());
     _invite.dispose();
     super.dispose();
@@ -251,26 +268,32 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       return LedgerShell(
         world: Stack(fit: StackFit.expand, children: [
           _world!,
-          // other players' names, where the game says they hang over their heads
-          NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
-          // and whoever is in reach, ringed where they stand
-          SubjectRing(subject: models['subject'] as Map?, tokens: t),
-          LedgerStick(input: _input, health: hp / maxHp, breath: wind,
-            onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
-          // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
-          // console is among them, and typing parks the world as it does on the page
-          Positioned(top: 40, right: 8, child: MoreControls(tokens: t, onAction: (action) {
-            if (action == 'console') {
-              _ledger.typing();
-            } else if (action == 'company') {
-              // the travellers are a page of the app's own, as the roster is
-              _ledger.open('company');
-            } else {
-              unawaited(session.act(action));
-            }
-          })),
+          if (!_framing) ...[
+            // other players' names, where the game says they hang over their heads
+            NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
+            // and whoever is in reach, ringed where they stand
+            SubjectRing(subject: models['subject'] as Map?, tokens: t),
+            LedgerStick(input: _input, health: hp / maxHp, breath: wind,
+              onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
+            // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
+            // console is among them, and typing parks the world as it does on the page
+            Positioned(top: 40, right: 8, child: MoreControls(tokens: t, onAction: (action) {
+              if (action == 'console') {
+                _ledger.typing();
+              } else if (action == 'company') {
+                // the travellers are a page of the app's own, as the roster is
+                _ledger.open('company');
+              } else if (action == 'photo') {
+                _photo();
+              } else {
+                unawaited(session.act(action));
+              }
+            })),
+          ],
         ]),
         controller: _ledger,
+        photo: _framing ? PhotoControls(tokens: t, snapshot: session.snapshot, close: _closePhoto,
+          isCurrent: () => _framing && identical(_session, session)) : null,
         typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
           say: (text) => unawaited(session.act('say', args: {'text': text})), done: _ledger.finishTyping),
         // the four tabs, in the design's order; a screen registers its page here (#573–#575)
