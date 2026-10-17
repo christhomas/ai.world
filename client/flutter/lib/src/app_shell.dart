@@ -201,10 +201,13 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   Future<void> _leave() async {
     final session = _session;
     _ledger.close();
+    // closing begins before the world view goes, so the session knows a frame it is still drawing
+    // into that view's renderer was left behind rather than failed (journey_test, 2026-10-17)
+    final closing = session?.close();
     setState(() { _session = null; _phase = _Phase.title; _world = null; });
     playing.value = null;
     try {
-      await session?.close();
+      await closing;
     } catch (error) {
       if (mounted) setState(() => _trouble = 'Your game could not be saved: $error');
     }
