@@ -118,6 +118,8 @@ export interface HeadlessGame {
   jobTimes(): JobTimes;
   /** The sounds the game has made since this was last asked, each as the voices it is made of (#578). */
   takeSounds(): SoundVoice[][];
+  /** How loud the game is, nought to one, as the page's options slider sets it. */
+  setVolume(volume: number): void;
   /** Everybody on the register as the page's roster reads them, in this order (#575). */
   roster(by: RosterOrder): RosterView;
   /**
@@ -554,6 +556,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     },
     jobTimes: () => jobTimes,
     takeSounds: () => heard.splice(0),
+    setVolume: (volume) => sound.setVolume(Math.max(0, Math.min(1, volume))),
     say(text) {
       const said = text.trim();
       if (said) chat.onSend?.(said);

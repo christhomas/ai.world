@@ -11,11 +11,14 @@ import '../shell/ledger_tokens.dart';
 /// invite link the page copies; and the theme picker is the shell's.
 class OptionsPage extends StatelessWidget {
   const OptionsPage({super.key, required this.slot, required this.tokens, required this.controller,
-    required this.leave, required this.seeThrough});
+    required this.leave, required this.seeThrough, this.volume = 0.6, this.setVolume});
   final GameSlot slot;
   final LedgerTokens tokens;
   final LedgerController controller;
   final VoidCallback leave, seeThrough;
+  /// How loud the game is, nought to one, and what changes it; no slider without the second.
+  final double volume;
+  final ValueChanged<double>? setVolume;
 
   /// The link that puts somebody else in this world, as `inviteTo` in `src/game/joining.ts` builds
   /// it: the page served beside the world server, the seed, and the server. A link that does not
@@ -40,6 +43,16 @@ class OptionsPage extends StatelessWidget {
       LedgerRow(key: const ValueKey('save-and-leave'), tokens: t, name: 'Save and return to the title', verb: 'LEAVE', onPressed: leave),
       LedgerRow(key: const ValueKey('see-through'), tokens: t, name: 'See through walls',
         consequence: 'what stands between you and the camera', verb: 'SWITCH', onPressed: seeThrough),
+      if (setVolume != null) ...[
+        label('SOUND'),
+        SizedBox(key: const ValueKey('volume'), height: 44, child: Row(children: [
+          const SizedBox(width: 12),
+          Text('Volume', style: t.face(14.5, t.pageInk)),
+          Expanded(child: Slider(value: volume.clamp(0.0, 1.0), divisions: 20, label: '${(volume * 100).round()}%',
+            activeColor: t.pageInk, onChanged: setVolume)),
+          SizedBox(width: 44, child: Text('${(volume * 100).round()}%', style: t.numbers(11, t.pageInk, spacing: 0))),
+        ])),
+      ],
       label('WORLD'),
       LedgerRow(key: const ValueKey('open-roster'), tokens: t, name: 'The roster',
         consequence: 'everybody on the register, and how they are getting on', verb: 'READ',
