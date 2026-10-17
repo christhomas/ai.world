@@ -27,8 +27,10 @@ class JournalPage extends StatelessWidget {
         child: Padding(padding: const EdgeInsets.fromLTRB(12, 9, 12, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Text('JOURNAL', style: t.face(17, t.pageInk, weight: FontWeight.w500, spacing: 3)),
-            const Spacer(),
-            Text('DAY ${journal['day'] ?? 1} · ${'${journal['season'] ?? ''}'.toUpperCase()}', style: t.numbers(12, t.pageInk, spacing: 0)),
+            const SizedBox(width: 12),
+            // the day gives way before the title does on a narrow page
+            Expanded(child: Text('DAY ${journal['day'] ?? 1} · ${'${journal['season'] ?? ''}'.toUpperCase()}', textAlign: TextAlign.end,
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: t.numbers(12, t.pageInk, spacing: 0))),
           ]),
           const SizedBox(height: 4),
           Text('${journal['hp'] ?? 0}/${journal['maxHp'] ?? 0} hearts · ⚔ ${journal['attack'] ?? 0} · 🛡 ${journal['defence'] ?? 0} · '
