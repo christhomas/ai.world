@@ -11,8 +11,7 @@ Every move is a touch on the screen; the tests read the game only to check that 
 
 | part | what it proves |
 |---|---|
-| `journey_test.dart` | a fresh install opens a new offline world; the native renderer's own target is not blank; a thumb on the walk field walks the hero more than a tile, where the game's collision lets it; the pack opens as a book and closes; Options saves and returns to the title |
-| `continue_test.dart` | a new launch of the app, after the first was stopped, continues the same hero within half a tile of where he was left |
+| `journey_test.dart` | a fresh install opens a new offline world; the native renderer's own target is not blank; a thumb on the walk field walks the hero more than a tile, where the game's collision lets it; the pack opens as a book and closes; Options saves and returns to the title; the app is taken down and started again, and Continue brings back the same hero within half a tile of where he was left |
 
 | `crossplay_test.dart` | the app follows an invite into a shared world on a real world server, where a web player is standing, sees their name over their head, and stays until the web player has seen the phone |
 
@@ -32,20 +31,19 @@ phone, and takes a picture when it does; the journey passes only when each saw t
 ## The runner
 
 ```sh
-python3 tools/mobile/journey.py android                 # on a running emulator: the three journeys
+python3 tools/mobile/journey.py android                 # on a running emulator: the journeys
 python3 tools/mobile/journey.py ios                     # makes, boots and removes its own simulator
 python3 tools/mobile/journey.py android combat doors    # only the parts named, in that order
 python3 tools/mobile/journey.py ios all                 # every part
 ```
 
 It bundles the game (`tools/mobile/build-engine.mjs`), then runs each part with `flutter test <part>
--d <device>`. Flutter installs the app over itself, so a later part is a new process on the same app
-storage, and a save that did not survive fails `continue`. Each picture is taken with the OS's own
+-d <device>`. Flutter uninstalls the app after each part, storage and all, so a save cannot be carried
+from one part to the next: the journey continues its own game, after starting the app again in the
+same part. Each picture is taken with the OS's own
 capture (`adb exec-out screencap`, `xcrun simctl io screenshot`), so the native world is in it.
 
-Every part is played and reported, so one that fails does not hide what the others found. The only
-exception is a part that continues another's game: `continue` is let go when `journey` failed, and
-naming it without `journey` before it is refused.
+Every part is played and reported, so one that fails does not hide what the others found.
 
 It writes `journey.json` and a self-contained `journey.html` to `$RUNNER_TEMP/mobile-journey`. The
 HTML has the pictures embedded, the steps, the commands and the exit codes. Exit codes:
@@ -56,7 +54,7 @@ HTML has the pictures embedded, the steps, the commands and the exit codes. Exit
 
 ## Where it runs
 
-- **`Hosted mobile evidence`** runs the three journeys after the renderer frames. On Android they run on
+- **`Hosted mobile evidence`** runs the journeys after the renderer frames. On Android they run on
   the same emulator; on iOS on a simulator of their own. The reports are kept as
   `mobile-<platform>-journey`.
 - **`Device playtest`** (`.github/workflows/device-playtest.yml`, #682) is the suite on its own: every
