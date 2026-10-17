@@ -17,12 +17,15 @@ void main() {
     passed('world open', {'openMs': await openWorld(tester)});
     String action() => '${hudOf(session)['action'] ?? ''}';
 
-    // how far a lean walks him on foot, for the horse to be measured against
+    // how fast a lean carries him, in tiles a second of the game's own clock: a busy emulator slows
+    // the game and not the measure, so on foot and in the saddle compare whatever the machine is doing
     Future<double> leaned() async {
       final from = heroOf(session)!;
-      await lean(tester, const Offset(0, -1), const Duration(milliseconds: 2500));
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      return away(heroOf(session)!, (from['x'] as num).toDouble(), (from['z'] as num).toDouble());
+      final fx = (from['x'] as num).toDouble(), fz = (from['z'] as num).toDouble();
+      await leanUntil(tester, const Offset(0, -1), () => away(heroOf(session)!, fx, fz) > 2.5, const Duration(minutes: 1));
+      final to = heroOf(session)!;
+      final seconds = (((to['time'] as num) - (from['time'] as num)) * 7200).toDouble();
+      return seconds > 0 ? away(to, fx, fz) / seconds : 0;
     }
     final walked = await leaned();
 
@@ -40,7 +43,7 @@ void main() {
     // the same lean, in the saddle, carries him further, and he is still on the horse after it
     final rode = await leaned();
     expect(action(), 'Dismount', reason: 'he came off the horse while it was being ridden');
-    expect(rode, greaterThan(walked * 1.2), reason: 'a lean rode him $rode tiles and walked him $walked');
+    expect(rode, greaterThan(walked * 1.2), reason: 'in the saddle $rode tiles a game second, on foot $walked');
     passed('rode by touch', {'walked': walked, 'rode': rode});
     await shot('horse-ridden');
 
