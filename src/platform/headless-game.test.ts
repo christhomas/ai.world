@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { composeGame } from '../game/compose';
 import { savedInMemory } from '../save/memory';
 import { systemClock } from '../../server/host-clock';
@@ -12,9 +12,17 @@ import { headlessGame } from './headless-game';
  * What runs is the same `composeGame` the page runs, on a host that keeps what the game says in a
  * presentation, grows the country and meshes its ground on its own turn, and plays against the
  * world in the same thread. If anything in the game still reached for the browser, it would throw.
+ *
+ * The suite shares a worker between files (`isolate: false`, `vite.config.ts`), and a file that
+ * stood a page in for its own tests may have left it about, which once made this file fail in
+ * company and pass alone. So it takes any page away for as long as it runs, rather than trusting
+ * that nobody left one.
  */
 const frame = 1000 / 30;
 const breathe = () => new Promise<void>((resume) => setTimeout(resume, 4));
+
+beforeAll(() => { vi.stubGlobal('window', undefined); vi.stubGlobal('document', undefined); });
+afterAll(() => { vi.unstubAllGlobals(); });
 
 describe('the game on a host with no page', () => {
   it('opens a world, streams its ground, draws it and walks the hero through it', async () => {
