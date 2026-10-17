@@ -111,6 +111,12 @@ const origin = `http://localhost:${PORT}`;
 const VIEW = { width: 1440, height: 900 };
 /** Hide transient capture clutter without changing the running page or the rest of its HUD. */
 const CLEAN_FRAME = '#areaName, #toast, #debug, #buildLine { visibility: hidden !important; }';
+/**
+ * The news line alone, for a picture the world's own news can fall across at a moment that depends
+ * on how fast the machine is: four days on, somebody at Crossroads Town is killed and the line says
+ * so for a few seconds, which one capture of the wheat caught and the next missed (2026-10-17).
+ */
+const NO_NEWS = '#toast { visibility: hidden !important; }';
 /** A phone held upright, for the one shot that is about the touch controls. */
 /*
  * A phone, at the size the design is drawn at.
@@ -553,7 +559,7 @@ const SHOTS = [
     },
   },
   {
-    name: 'farming', title: 'A field of wheat, four days on', settle: 3000,
+    name: 'farming', title: 'A field of wheat, four days on', settle: 3000, noNews: true,
     setup: async (p, { village, day, time, zoom, ask, stand, face }) => {
       await time(NOON);
       const v = await village();
@@ -1223,7 +1229,7 @@ async function take(browser, shot) {
   // on the small host used to retake references. Keep the same frame; only allow it to finish.
   try {
     await page.screenshot({ path: file, animations: 'disabled',
-      style: shot.cleanFrame ? CLEAN_FRAME : undefined,
+      style: shot.cleanFrame ? CLEAN_FRAME : shot.noNews ? NO_NEWS : undefined,
       timeout: Math.max(120_000, PATIENCE) });
   } catch (error) {
     await done();
