@@ -27,9 +27,16 @@ class AiWorldClient extends StatelessWidget {
   const AiWorldClient({super.key});
   static const sceneFeed = String.fromEnvironment('SCENE_FEED_URL');
 
+  /// The player's own text size, as far as a phone held sideways has room for it (#578): smaller
+  /// as asked, and larger by up to a third, which is what the HUD and the books are laid out to take.
+  static const maxTextScale = 1.3;
+  static Widget readable(BuildContext context, Widget? child) =>
+    MediaQuery.withClampedTextScaling(maxScaleFactor: maxTextScale, child: child ?? const SizedBox.shrink());
+
   @override
   Widget build(BuildContext context) => const MaterialApp(
     debugShowCheckedModeBanner: false,
+    builder: readable,
     home: Scaffold(body: sceneFeed == '' ? AppShell() : _WorldFeed()),
   );
 }
