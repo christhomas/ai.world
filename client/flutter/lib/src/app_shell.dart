@@ -7,12 +7,15 @@ import 'package:flutter/services.dart';
 
 import 'game_session.dart';
 import 'invite.dart';
+import 'kept_games.dart';
+import 'screens/company_page.dart';
 import 'screens/console_page.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
 import 'screens/map_page.dart';
 import 'screens/options_page.dart';
 import 'screens/roster_page.dart';
+import 'screens/saved_games.dart';
 import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
@@ -50,12 +53,22 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   _Phase _phase = _Phase.title;
   Directory? _root;
   CheckpointStore? _settings;
-  GameSlot? _last;
+  /// The games kept on this phone, most recently played first; Continue opens the first.
+  KeptGames? _games;
+  /// The title is showing the saved games rather than its buttons.
+  bool _browsing = false;
   GameSession? _session;
   String? _trouble;
   late final InputOwnerController _input = InputOwnerController((value) => _session?.hold(value));
-  late final LedgerController _ledger = LedgerController(_input)..addListener(_keepTheme);
+  late final LedgerController _ledger = LedgerController(_input)..addListener(_keepTheme)..addListener(_forgetFocus);
   Widget? _world;
+  /// The world view moves from the opening screen into the shell once the game is playing. A plain
+  /// key cannot carry it between parents: the view, its renderer and the native texture were thrown
+  /// away at that moment and a second view made, which opened the game a second time while the first
+  /// went on drawing into a renderer that was gone. A global key moves it whole.
+  final _worldKey = GlobalKey(debugLabel: 'world');
+  /// The view in `_world` has started its game: one game to a view, however often it makes a renderer.
+  bool _started = false;
 
   @override
   void initState() {
@@ -69,20 +82,15 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       final root = widget.storageRoot ?? Directory(await StateEngine.storageRoot());
       final settings = await CheckpointStore.open(root,
         const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
-      final last = await settings.load('last') as Map?;
+      final games = KeptGames(settings, root);
+      await games.load();
       final theme = await settings.load('theme');
       final volume = await settings.load('volume');
-      GameSlot? slot;
-      if (last != null) {
-        slot = GameSlot(slot: last['slot'] as String, seed: last['seed'] as int, kind: last['kind'] as String,
-          name: last['name'] as String? ?? 'Traveller', server: last['server'] as String?);
-        if (!await GameSession.kept(slot, root: root)) slot = null;
-      }
       if (!mounted) return;
       setState(() {
         _root = root;
         _settings = settings;
-        _last = slot;
+        _games = games;
         final chosen = LedgerTheme.values.where((t) => t.name == theme).firstOrNull;
         _keptTheme = chosen ?? _ledger.theme;
         if (volume is num) _volume = volume.toDouble();
@@ -99,6 +107,14 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     _volume = level;
     unawaited(_session?.act('volume', args: {'level': level}));
     unawaited(_settings?.commit('volume', level).catchError((Object _) {}));
+  }
+
+  /// A place the journal asked the map to open on, for as long as the map is the page open.
+  Offset? _mapFocus;
+  void _forgetFocus() { if (_ledger.route != 'map') _mapFocus = null; }
+  void _showOnMap(Offset place) {
+    _mapFocus = place;
+    _ledger.open('map');
   }
 
   LedgerTheme? _keptTheme;
@@ -127,16 +143,27 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     setState(() {
       _phase = _Phase.opening;
       _trouble = null;
-      _last = slot;
+      _browsing = false;
       // one world view for the whole game, kept across every route and theme
-      _world = NativeWorldView(key: const ValueKey('world'), onCreated: (renderer) => _start(slot, renderer));
+      _started = false;
+      _world = NativeWorldView(key: _worldKey, onCreated: (renderer) => _start(slot, renderer));
     });
-    unawaited(_settings?.commit('last', {'slot': slot.slot, 'seed': slot.seed, 'kind': slot.kind, 'name': slot.name,
-        'server': ?slot.server})
-      .catchError((Object _) {}));
+    unawaited(_games?.played(slot).catchError((Object _) {}));
+  }
+
+  /// Delete a kept game; the saved games list has asked the player first.
+  Future<void> _delete(GameSlot slot) async {
+    try {
+      await _games?.delete(slot);
+    } catch (error) {
+      if (mounted) setState(() => _trouble = 'Could not delete that game: $error');
+    }
+    if (mounted) setState(() => _browsing = _browsing && (_games?.games.isNotEmpty ?? false));
   }
 
   Future<void> _start(GameSlot slot, NativeWorldRenderer renderer) async {
+    if (_started) return;
+    _started = true;
     try {
       final size = MediaQuery.sizeOf(context);
       final session = await GameSession.open(slot, root: _root!, viewport: size,
@@ -214,8 +241,16 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
             onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
           // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
           // console is among them, and typing parks the world as it does on the page
-          Positioned(top: 40, right: 8, child: MoreControls(tokens: t,
-            onAction: (action) => action == 'console' ? _ledger.typing() : unawaited(session.act(action)))),
+          Positioned(top: 40, right: 8, child: MoreControls(tokens: t, onAction: (action) {
+            if (action == 'console') {
+              _ledger.typing();
+            } else if (action == 'company') {
+              // the travellers are a page of the app's own, as the roster is
+              _ledger.open('company');
+            } else {
+              unawaited(session.act(action));
+            }
+          })),
         ]),
         controller: _ledger,
         typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
@@ -224,15 +259,18 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         pages: {
           'pack': (context, tokens) => PackPage(pack: Map<String, dynamic>.from(models['pack'] as Map? ?? const {}), tokens: tokens,
             take: (id) => unawaited(session.act('take', target: id)), stow: (slot) => unawaited(session.act('stow', target: slot))),
-          'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens),
+          'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens, show: _showOnMap),
           'map': (context, tokens) => MapPage(picture: session.mapPicture, map: session.map, walked: session.walked,
-            charted: session.charted, hero: hero, tokens: tokens, floor: session.floor),
+            charted: session.charted, hero: hero, tokens: tokens, floor: session.floor, focus: _mapFocus),
           'options': (context, tokens) => OptionsPage(slot: session.slot, tokens: tokens, controller: _ledger,
             leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough')),
             volume: ((hud['volume'] as num?) ?? 0.6).toDouble(), setVolume: _setVolume),
           // past the four tabs: reached from Options
           'roster': (context, tokens) => RosterPage(roster: session.roster, tokens: tokens,
             read: (by) => unawaited(session.act('read', target: by == null ? null : 'roster:$by'))),
+          // and from the more controls
+          'company': (context, tokens) => CompanyPage(company: session.company, tokens: tokens,
+            read: (what) => unawaited(session.act('read', target: what))),
         },
         place: '${hud['area'] ?? ''}',
         readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',
@@ -257,12 +295,22 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     return '$hh:$mm · DAY ${hero['day'] ?? 1} · ${'${hero['season'] ?? ''}'.toUpperCase()}';
   }
 
-  Widget _title(LedgerTokens t) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
+  Widget _title(LedgerTokens t) {
+    final games = _games?.games ?? const [];
+    if (_browsing) {
+      return ColoredBox(color: t.surface, child: SafeArea(child: Center(child: SavedGames(games: games, tokens: t,
+        play: _open, delete: (slot) => unawaited(_delete(slot)), back: () => setState(() => _browsing = false)))));
+    }
+    return _titleButtons(t, games.firstOrNull?.slot, games.length);
+  }
+
+  Widget _titleButtons(LedgerTokens t, GameSlot? last, int kept) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
     mainAxisSize: MainAxisSize.min, children: [
       Text('AI WORLD', style: t.face(27, t.ink, weight: FontWeight.w500, spacing: 10)),
       const SizedBox(height: 24),
-      if (_last != null) _titleButton('Continue', t, () => _open(_last!), const ValueKey('continue')),
+      if (last != null) _titleButton('Continue', t, () => _open(last), const ValueKey('continue')),
       _titleButton('New game', t, _root == null ? null : _newGame, const ValueKey('new-game')),
+      if (kept > 0) _titleButton('Saved games', t, () => setState(() => _browsing = true), const ValueKey('saved-games')),
       if (!_joining) _titleButton('Join a world', t, _root == null ? null : () => setState(() => _joining = true), const ValueKey('join'))
       else ...[
         SizedBox(width: 240, child: TextField(key: const ValueKey('invite'), controller: _invite, autocorrect: false,

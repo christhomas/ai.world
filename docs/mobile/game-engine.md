@@ -18,7 +18,7 @@ The app then sends:
 | `start` `remote` | opens it against the shared world the `server` option names (#565) |
 | `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), the camera turning (`look[0]`: −1 left, 1 right), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster while a page shows it (`roster:village`, `name`, `age`, `purse` or `hunger`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster or the travellers while a page shows them (`roster:village`, `name`, `age`, `purse` or `hunger`, or `company`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
@@ -33,7 +33,7 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - the conversation (speaker, words shown, choices, the lit row, an expiring menu's count, and the
   keys of the speaker's and the hero's faces);
 - any faces the app has not been sent (`portraits`), each once;
-- the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries),
+- the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries; a row that knows where it is carries `at`, which the app's map opens on),
   only when it has changed since the last reply;
 - underground, the floor (`floor`, `dungeon/floor-picture.ts`: the seen cells as runs of colour
   with the entrance and the seen chests), when what has been seen of it changes, and `null` once
@@ -43,6 +43,7 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
   and the country, each as runs, total and longest, at most every two seconds;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
+- everybody else in this world (`company`), nearest first, read by `src/game/company-view.ts` as the page's travellers list is, only while the app has asked to read it and only when it has changed;
 - the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture
@@ -143,6 +144,10 @@ the app to keep. The hero's save comes back the same way.
   checkpoint is recovered.
 - `save()` waits until both are on disk, and `close()` saves before letting the engine go.
 
-Each slot is its own pair of namespaces, so nothing of one game reaches another. The bare-host
+Each slot is its own pair of namespaces, so nothing of one game reaches another. A new game takes a
+slot of its own; the app's settings list the slots kept, most recently played first
+(`client/flutter/lib/src/kept_games.dart`). The title's saved games play any of them or delete one,
+which erases both of its namespaces once the player has confirmed it, and a slot that was opened and
+never saved is let go of the next time the list is read. The bare-host
 proof reopens the engine from the save and the records it handed back, and finds the same hero
 where he was left.

@@ -36,8 +36,9 @@ describe('the journal, wherever it is read', () => {
 
     expect(view().errands.map((e) => e.id), 'only what was promised and not yet finished').toEqual(['q-visit', 'q-fetch']);
     expect(view().errandsDone).toBe(1);
-    expect(view().errands[0]).toEqual({ id: 'q-visit', done: false, what: 'find the Old Mill', village: 'Ashford', tiles: 12, bearing: 'S' });
-    expect(view().errands[1]).toMatchObject({ what: `bring 2× ${ITEMS[bread].name}`, tiles: null, bearing: null });
+    expect(view().errands[0]).toEqual({ id: 'q-visit', done: false, what: 'find the Old Mill', village: 'Ashford', tiles: 12, bearing: 'S',
+      at: { x: 0, z: 12 } });
+    expect(view().errands[1]).toMatchObject({ what: `bring 2× ${ITEMS[bread].name}`, tiles: null, bearing: null, at: null });
     state.discovered.add('Old Mill');
     expect(view().errands[0].done).toBe(true);
   });
@@ -51,6 +52,7 @@ describe('the journal, wherever it is read', () => {
     expect(view.found.map((p) => `${p.icon} ${p.name} ${p.tiles} ${p.bearing}`)).toEqual([
       '🕳️ Bat Hollow 5 N', '🚢 The Mary 28 SE', '⭐ Standing Stones 30 E', '🏰 Grey Keep 50 W',
     ]);
+    expect(view.found[0].at, 'where it is, for an app to open its map on').toEqual({ x: 0, z: -5 });
     expect(view.placesFound).toBe(4);
   });
 

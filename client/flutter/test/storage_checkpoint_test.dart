@@ -137,6 +137,22 @@ void main() {
     }
   });
 
+  test('erasing a scope deletes it alone, and erasing what is gone is nothing', () async {
+    final doomed = await CheckpointStore.open(root, scope);
+    await doomed.commit('slot-a', save);
+    const neighbour = StorageScope(domain: 'world', world: 'Crossroads Town', seed: 3, player: 'hero-a');
+    await (await CheckpointStore.open(root, neighbour)).commit('slot-a', save);
+    final outside = File('${root.path}/outside')..writeAsStringSync('keep me');
+    await Link('${doomed.directory.path}/escape').create(outside.path);
+    await CheckpointStore.erase(root, scope);
+    expect(await doomed.directory.exists(), isFalse);
+    expect(await outside.readAsString(), 'keep me', reason: 'a link inside is deleted, not followed');
+    expect(await (await CheckpointStore.open(root, neighbour)).load('slot-a'), isNotNull);
+    expect(await (await CheckpointStore.open(root, scope)).load('slot-a'), null);
+    await CheckpointStore.erase(root, const StorageScope(domain: 'player', world: 'Never Played', seed: 1, player: 'hero-a'));
+    await CheckpointStore.erase(Directory('${root.path}/no-such-root'), scope);
+  });
+
   test('future schema is rejected without falling back or overwriting', () async {
     final store = await CheckpointStore.open(root, scope);
     await store.commit('slot-a', save);

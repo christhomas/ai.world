@@ -23,6 +23,7 @@ import { SOUNDS, STRIDE, type SoundVoice } from '../game/sound-recipes';
 import { CAVE, MOODS, beat, noteAt, pluck } from '../game/music-score';
 import { Biome } from '../world/biomes';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
+import { companyView, type CompanyView } from '../game/company-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
 import { mountainAt } from '../world/ranges';
@@ -124,6 +125,8 @@ export interface HeadlessGame {
   setVolume(volume: number): void;
   /** Everybody on the register as the page's roster reads them, in this order (#575). */
   roster(by: RosterOrder): RosterView;
+  /** Everybody else in this world, nearest first, as the page's travellers list reads them (#576). */
+  company(): CompanyView;
   /**
    * A line typed into the console, as the page's console takes it (#576): `?` asks the game, `/` is
    * a gesture or a command, and anything else is said out loud to whoever is in the world.
@@ -404,6 +407,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let reading: ScreenParts['journalInput'] | null = null;
   let registered: Parameters<ScreenParts['roster']['reads']> | null = null;
   let charting: ScreenParts['mapInput'] | null = null;
+  let travelling: ScreenParts['companyInput'] | null = null;
   let mapped: { graph: RoadGraph; ground: MapGround; picture?: MapPicture } | null = null;
   let below: { sight: FloorSight; opened: (i: number) => boolean; unlocked: boolean } | null = null;
 
@@ -490,6 +494,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       // what the journal is drawn from, which the engine reads when the app's journal page asks
       reading = parts.journalInput;
       charting = parts.mapInput;
+      travelling = parts.companyInput;
       return {
         busy: () => (talk.isOpen ? 'talking' : shown.panel ? 'reading' : null),
         say,
@@ -584,6 +589,10 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       if (!registered) throw new Error('the game has not been assembled on this host yet');
       const [register, villages, crowd, near] = registered;
       return rosterView(register(), by, villages(), doingNear(crowd, near?.()));
+    },
+    company() {
+      if (!travelling) throw new Error('the game has not been assembled on this host yet');
+      return companyView(travelling()());
     },
     journal() {
       if (!reading) throw new Error('the game has not been assembled on this host yet');

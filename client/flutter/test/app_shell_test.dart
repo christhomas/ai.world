@@ -21,7 +21,9 @@ void main() {
     // game button is live once they have been
     bool ready() => tester.widget<TextButton>(find.descendant(
       of: find.byKey(const ValueKey('new-game')), matching: find.byType(TextButton))).onPressed != null;
-    for (var n = 0; n < 100 && !ready(); n++) {
+    // every step of the file work waits for a turn of the real event loop, and the saved games
+    // add a few dozen of them, so the title is given a good while
+    for (var n = 0; n < 400 && !ready(); n++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pump();
     }
@@ -47,6 +49,32 @@ void main() {
     });
     await title(tester, root);
     expect(find.text('CONTINUE'), findsOneWidget);
+  });
+
+  testWidgets('a kept game is deleted from the title only once the player says so', (tester) async {
+    final root = await storage(tester);
+    const slot = GameSlot(slot: 'local-1', seed: 9, name: 'Rowan');
+    await tester.runAsync(() async {
+      final settings = await CheckpointStore.open(root,
+        const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
+      await settings.commit('last', slot.json);
+      await (await CheckpointStore.open(root, slot.scope('player'))).commit('save', {'state': {'playerId': 'hero'}});
+    });
+    await title(tester, root);
+    await tester.tap(find.byKey(const ValueKey('saved-games')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('delete-local-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('delete-sure')));
+    await tester.pumpAndSettle();
+    // the deletion is real work on real files; the title comes back with nothing to continue
+    for (var n = 0; n < 400 && find.byKey(const ValueKey('new-game')).evaluate().isEmpty; n++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    expect(find.byKey(const ValueKey('continue')), findsNothing);
+    expect(find.byKey(const ValueKey('saved-games')), findsNothing);
+    expect(await tester.runAsync(() => GameSession.kept(slot, root: root)), isFalse);
   });
 
   testWidgets('a slot remembered but no longer kept is not offered', (tester) async {
