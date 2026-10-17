@@ -67,6 +67,16 @@ class JourneyRunner(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn('saw the web player', record['why'])
 
+    def test_a_part_that_fails_keeps_what_the_device_said(self):
+        with mock.patch.object(journey, 'device', return_value=('emulator-5554', None)), \
+             mock.patch.object(journey, 'run_part', return_value=1), \
+             mock.patch.object(journey.subprocess, 'run') as ran:
+            code = journey.main('android')
+        record = json.loads((self.out / 'journey.json').read_text())
+        self.assertEqual(code, 1)
+        self.assertEqual(record['result'], 'failed')
+        self.assertIn(['adb', '-s', 'emulator-5554', 'logcat', '-d', '-t', '5000'], [call.args[0] for call in ran.call_args_list])
+
     def test_a_missing_device_is_not_a_game_failure(self):
         with mock.patch.object(journey, 'device', side_effect=journey.Provisioning('no Android emulator is attached')):
             code = journey.main('android')

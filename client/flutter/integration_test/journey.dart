@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:ai_world_flutter/src/app_shell.dart';
 import 'package:ai_world_flutter/src/game_session.dart';
 import 'package:ai_world_flutter/src/state_engine.dart';
+import 'package:flutter/material.dart' show ButtonStyleButton, InkWell;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -34,7 +35,11 @@ Future<T> until<T extends Object>(WidgetTester tester, T? Function() check, Stri
     await tester.pump(const Duration(milliseconds: 100));
     await Future<void>.delayed(const Duration(milliseconds: 250));
   }
-  throw TestFailure('$what did not happen within $within');
+  // what the screen said when the wait gave up, and a picture of it, so the report says why
+  final said = find.byType(Text).evaluate().map((element) => (element.widget as Text).data).whereType<String>()
+    .where((text) => text.trim().isNotEmpty).take(24).join(' | ');
+  await shot('gave-up');
+  throw TestFailure('$what did not happen within $within; the screen said: $said');
 }
 
 /// The hero, as the game last said where he is.
@@ -72,9 +77,22 @@ Future<void> remember(Map<String, Object?> left) async =>
 
 Future<Map<String, dynamic>> recall() async => jsonDecode(await (await notes()).readAsString()) as Map<String, dynamic>;
 
-/// Tap what a finger would tap, and give the app a moment to answer.
+/// Whether what is under `key` answers a finger. A button the app has not turned on yet, such as
+/// the title's while it is still reading storage, takes a tap and does nothing with it.
+bool answers(Key key) {
+  final at = find.byKey(key);
+  if (at.evaluate().isEmpty) return false;
+  final controls = find.descendant(of: at, matchRoot: true,
+    matching: find.byWidgetPredicate((widget) => widget is ButtonStyleButton || widget is InkWell)).evaluate();
+  return controls.every((element) {
+    final widget = element.widget;
+    return widget is ButtonStyleButton ? widget.enabled : (widget as InkWell).onTap != null;
+  });
+}
+
+/// Tap what a finger would tap, once it answers, and give the app a moment to answer.
 Future<void> press(WidgetTester tester, Key key) async {
-  await until(tester, () => find.byKey(key).evaluate().isNotEmpty, 'something to press called $key', within: const Duration(minutes: 2));
+  await until(tester, () => answers(key), 'something to press called $key', within: const Duration(minutes: 2));
   await tester.tap(find.byKey(key));
   await tester.pump(const Duration(milliseconds: 300));
 }

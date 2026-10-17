@@ -89,6 +89,20 @@ def run_part(platform, serial, part, record, defines=()):
     return code
 
 
+def device_log(platform, serial):
+    """What the device said while the journey ran, kept beside the report when a part fails."""
+    if platform == 'android':
+        args = ['adb', '-s', serial, 'logcat', '-d', '-t', '5000']
+    else:
+        args = ['xcrun', 'simctl', 'spawn', serial, 'log', 'show', '--last', '20m', '--style', 'compact',
+                '--predicate', 'process == "Runner"']
+    try:
+        with (OUT / 'device.log').open('w') as file:
+            subprocess.run(args, stdout=file, stderr=subprocess.STDOUT, timeout=300, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def crossplay(platform, serial, record):
     """The phone meets a web player in one shared world on a real world server on this machine."""
     # the emulator reaches the machine it runs on as 10.0.2.2; the simulator shares its network
@@ -169,6 +183,7 @@ def main(platform):
         subprocess.run(['node', 'tools/mobile/build-engine.mjs'], cwd=ROOT, check=True, timeout=600)
         for part in PARTS:
             if run_part(platform, serial, part, record) != 0:
+                device_log(platform, serial)
                 record['result'] = 'failed'
                 record['why'] = f'{part} failed; its log and the last screens say where.'
                 return 1
