@@ -46,7 +46,9 @@ describe('the pack, wherever it is drawn', () => {
 
   it('refuses what is not carried, a slot that is not one, and a thing that does not exist', () => {
     const state = GameState.fresh();
-    const elsewhere = Object.values(ITEMS).find((item) => isEquippable(item) && !state.inventory.items.has(item.id))!;
+    // neither carried nor already worn: a new hero starts with a stick in hand, which is not in the pack
+    const elsewhere = Object.values(ITEMS).find((item) => isEquippable(item) && !state.inventory.items.has(item.id)
+      && state.worn(item.slot!)?.id !== item.id)!;
     expect(takeFromPack(state, elsewhere.id)).toBeNull();
     expect(state.worn(elsewhere.slot!)?.id).not.toBe(elsewhere.id);
     expect(takeFromPack(state, 'no-such-thing')).toBeNull();
