@@ -252,7 +252,8 @@ private class GLWorldRenderer(
         sceneRenderTimeSeconds = renderTimeMs?.takeIf { it.isFinite() && it >= 0.0 }
             ?.let { (it / 1000.0).toFloat() }?.takeIf { it.isFinite() }
         target = floatArrayOf(world[12] - world[8] * 30f, world[13] - world[9] * 30f, world[14] - world[10] * 30f)
-        // Dart has already decoded each light to linear and applied its intensity (colour.dart)
+        // src/render/graphmount.ts prefers linearColour/linearGroundColour to hexes. Dart mirrors
+        // that and applies intensity once (colour.dart); these channels stay linear and unclamped.
         fun colour(node: Map<String, Any>?, key: String = "linear"): FloatArray =
             (node?.get(key) as? List<*>)?.linear() ?: FloatArray(3)
         fun visible(kind: String) = lights.filter { it["kind"] == kind && it["visible"] != false }
@@ -361,6 +362,8 @@ private class GLWorldRenderer(
         eglSurface = EGL14.eglCreateWindowSurface(display, configs[0], surface, intArrayOf(EGL14.EGL_NONE), 0)
         check(eglSurface != EGL14.EGL_NO_SURFACE) { "Could not create EGL window surface" }
         check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) { "Could not bind GLES surface" }
+        // src/render/scene.ts leaves WebGLRenderer at sRGB output and NoToneMapping. This plain
+        // target takes the shader's sRGB values; blending happens after that encode, as on the web.
         program = link(VERTEX_SHADER, FRAGMENT_SHADER)
         shadowProgram = link(SHADOW_VERTEX_SHADER, SHADOW_FRAGMENT_SHADER)
         createShadowTarget()
@@ -699,11 +702,25 @@ uniform vec3 uEmissive;
 uniform sampler2D uCoast; uniform vec4 uCoastArea;
 out vec4 color;
 const float RECIPROCAL_PI=0.3183098861837907;
-// three.js's sRGBTransferOETF: lit in linear, written out encoded (client/flutter/lib/src/colour.dart)
+// src/render/scene.ts keeps three.js's NoToneMapping and sRGB output: encode once after lighting.
 vec3 encodeSrgb(vec3 c){return mix(pow(c,vec3(0.41666))*1.055-vec3(0.055),c*12.92,lessThanEqual(c,vec3(0.0031308)));}
+#define saturate(a) clamp(a,0.0,1.0)
+float pow2(float x){return x*x;}
+float pow4(float x){float x2=x*x;return x2*x2;}
 // three.js r185's getDistanceAttenuation (lights_pars_begin): d^-decay, windowed to nothing at the
-// cutoff when there is one
-float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0.0){float x=d/cutoff;x*=x;x*=x;float w=clamp(1.0-x,0.0,1.0);f*=w*w;}return f;}
+// cutoff when there is one. src/render/interior.ts sets intensity 14 and decay 1.4, with no legacy pi.
+float attenuation(float d,float cutoff,float decay){
+  float f=1.0/max(pow(d,decay),0.01);
+  if(cutoff>0.0){f*=pow2(saturate(1.0-pow4(d/cutoff)));}
+  return f;
+}
+vec3 BRDF_Lambert(vec3 diffuseColor){return RECIPROCAL_PI*diffuseColor;}
+// RE_Direct_Lambert: attenuation/shadow first, then clamped cosine, then albedo/pi for each light.
+vec3 lambertDirect(vec3 lightColour,vec3 lightDirection,vec3 normal,vec3 diffuseColor){
+  float dotNL=saturate(dot(normal,lightDirection));
+  vec3 irradiance=dotNL*lightColour;
+  return irradiance*BRDF_Lambert(diffuseColor);
+}
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
 // Kept formula-for-formula with src/render/water.ts by android-water.test.ts.
 const float PI2 = 6.283185307179586;
@@ -765,9 +782,13 @@ if(vMaterial>1.5&&vMaterial<2.5){
 vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
 float shade=mix(1.0,shadow(),uReceiveShadow);
-for(int i=0;i<4;i++){vec4 d=uSunDirections[i];vec4 s=uSunColours[i];if(all(equal(s.rgb,vec3(0.0))))continue;lit+=s.rgb*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
-for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;lit+=q.rgb*max(0.0,dot(n,normalize(l)))*attenuation(length(l),p.w,q.w);}
-vec3 c=albedo*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;
+// lights_fragment_begin visits point lights before directional lights; meshlambert adds indirect
+// and emissive afterwards. Keep that order instead of multiplying one sum of all light by albedo/pi.
+vec3 directDiffuse=vec3(0.0);
+for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;vec3 lightColour=q.rgb*attenuation(length(l),p.w,q.w);directDiffuse+=lambertDirect(lightColour,normalize(l),n,albedo);}
+for(int i=0;i<4;i++){vec4 d=uSunDirections[i];vec4 s=uSunColours[i];if(all(equal(s.rgb,vec3(0.0))))continue;vec3 lightColour=s.rgb*(s.w>.5?shade:1.0);directDiffuse+=lambertDirect(lightColour,d.xyz,n,albedo);}
+vec3 indirectDiffuse=lit*BRDF_Lambert(albedo);
+vec3 c=vMaterial>2.5?albedo:directDiffuse+indirectDiffuse+uEmissive;
 c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,opacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es

@@ -65,7 +65,7 @@ describe('Android executes the production web water formulas', () => {
     expect(native).toContain('n = normalize(mix(gWave, n, vFlow)) * (gl_FrontFacing ? 1.0 : -1.0);');
     expect(android).toContain('color=vec4(c,opacity)');
     expect(android.indexOf('float white = mix(foam,')).toBeLessThan(android.indexOf('vec3 lit=uAmbient'));
-    expect(android).toContain('vec3 c=albedo*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive');
+    expect(android).toContain('vec3 c=vMaterial>2.5?albedo:directDiffuse+indirectDiffuse+uEmissive');
   });
 
   it('uploads the complete coast area and keeps current range/defaults explicit', () => {

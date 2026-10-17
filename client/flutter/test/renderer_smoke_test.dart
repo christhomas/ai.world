@@ -154,9 +154,9 @@ void main() {
       final source = File(path).readAsStringSync();
       expect(source, contains('"decay"'), reason: path);
       expect(
-        source,
-        contains('float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);'
-            'if(cutoff>0'),
+        source.replaceAll(RegExp(r'\s+'), ''),
+        contains('floatattenuation(floatd,floatcutoff,floatdecay){floatf=1.0/max(pow(d,decay),0.01);'
+            'if(cutoff>0.0){f*=pow2(saturate(1.0-pow4(d/cutoff)));}returnf;}'),
         reason: path,
       );
       expect(source, contains('*attenuation(length('), reason: path);
@@ -228,9 +228,9 @@ void main() {
       final source = File(path).readAsStringSync();
       final foam = RegExp(r'albedo=mix\(albedo,(vec3|float3)\(\.95,\.98,1\.0\),').firstMatch(source);
       expect(foam, isNotNull, reason: path);
-      final lighting = source.indexOf('c=albedo*(');
+      final lighting = source.indexOf('indirectDiffuse=lit*BRDF_Lambert(albedo)');
       expect(lighting, greaterThan(foam!.start), reason: path);
-      expect(source, contains('lit*RECIPROCAL_PI)+'), reason: path);
+      expect(source, contains('albedo:directDiffuse+indirectDiffuse+'), reason: path);
       // fog still mixes into the encoded colour afterwards; foam no longer does
       expect(source, isNot(matches(RegExp(r'c=mix\(c,(vec3|float3)\(\.95'))), reason: path);
     }
