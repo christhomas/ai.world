@@ -36,6 +36,10 @@ PARTS = {
     'continue': ('integration_test/continue_test.dart', ['continued']),
     'crossplay': (CROSSPLAY, ['joined a shared world', 'saw the web player', 'stayed for the web player',
                               'the web player saw the phone']),
+    # the device playtest's parts (#681), each opening the game the last one left, or a new one
+    'combat': ('integration_test/combat_test.dart',
+               ['world open', 'stick bearings measured', 'a creature to fight', 'walked up to it', 'a blow landed',
+                'guard held and let go']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
 JOURNEYS = ['journey', 'continue', 'crossplay']
