@@ -21,6 +21,7 @@ import 'shell/ledger_action_card.dart';
 import 'shell/ledger_shell.dart';
 import 'shell/ledger_stick.dart';
 import 'shell/ledger_tokens.dart';
+import 'shell/name_plates.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
 
@@ -194,6 +195,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       return LedgerShell(
         world: Stack(fit: StackFit.expand, children: [
           _world!,
+          // other players' names, where the game says they hang over their heads
+          NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
           LedgerStick(input: _input, health: hp / maxHp, breath: wind,
             onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
           // the console, under the clock: typing parks the world, as it does on the page

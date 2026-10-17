@@ -1,125 +1,72 @@
-import * as THREE from 'three';
-import { nativeCamera, type IsoCamera } from './camera';
-import { KINDS } from '../entities/animals';
-import { Entity, Herd } from '../entities/entity';
+import type { IsoCamera } from './camera';
 import type { EntityRenderer } from './entities';
-import { mulberry32 } from '../core/rng';
-import { hashString } from '../core/rng';
 import type { Presence } from '../game/online';
+import { OtherBodies } from './other-bodies';
 
 /**
- * Other players, drawn as heroes through the same instanced pool as everything else, with a name
- * floating over each one. They are ordinary entities that nothing in the world reacts to: they
- * are not spawned by the manager, so no wolf hunts them and no shopkeeper talks to them.
+ * The other players on the page: their bodies (`OtherBodies`, which an installed app draws the
+ * same way) and their names as DOM labels over their heads.
  */
-/** How long a gesture stays over somebody's head, in seconds. */
-const EMOTE_LIFE = 4;
-
 export class OtherPlayers {
-  private readonly bodies = new Map<string, Entity>();
+  private readonly people: OtherBodies;
   private readonly labels = new Map<string, HTMLDivElement>();
-  /** Gestures being shown, by player id, with the time left on each. */
-  private readonly gestures = new Map<string, { emoji: string; left: number }>();
   private readonly holder: HTMLDivElement;
 
-  constructor(private readonly renderer: EntityRenderer) {
+  constructor(renderer: EntityRenderer) {
+    this.people = new OtherBodies(renderer);
     this.holder = document.createElement('div');
     this.holder.id = 'nameplates';
     document.body.appendChild(this.holder);
   }
 
-  /** Match the drawn people to the people the server says are here. */
+  /** Match the drawn people to the people the server says are here, and their name plates with them. */
   sync(players: Iterable<Presence>, myPlace: string): void {
-    const seen = new Set<string>();
-    for (const p of players) {
-      seen.add(p.id);
-      let body = this.bodies.get(p.id);
-      if (!body) {
-        const kind = KINDS.hero;
-        const herd = new Herd(kind, p.x, p.z, p.x, p.z, 0);
-        body = new Entity(kind, p.x, p.z, herd, 'online', mulberry32(hashString(p.id)));
-        this.renderer.add(body);
-        this.bodies.set(p.id, body);
+    this.people.sync(players, myPlace);
+    const shown = this.people.shown();
+    for (const [id, { text, here }] of shown) {
+      let el = this.labels.get(id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'nameplate';
+        this.holder.appendChild(el);
+        this.labels.set(id, el);
       }
-      // only draw people standing in the same world as you
-      const here = p.place === myPlace;
-      body.indoors = !here;
-      body.x = p.x;
-      body.z = p.z;
-      body.yaw = p.yaw;
-      body.walk = p.walk;
-      body.phase += p.walk * 0.35;
-      this.label(p, here);
+      if (el.textContent !== text) el.textContent = text;
+      el.style.display = here ? 'block' : 'none';
     }
-    for (const [id, body] of this.bodies) {
-      if (seen.has(id)) continue;
-      this.renderer.remove(body);
-      this.bodies.delete(id);
-      this.labels.get(id)?.remove();
+    for (const [id, el] of this.labels) {
+      if (shown.has(id)) continue;
+      el.remove();
       this.labels.delete(id);
     }
   }
 
   /** Show a gesture over somebody's head for a few seconds. */
-  emote(id: string, emoji: string): void {
-    this.gestures.set(id, { emoji, left: EMOTE_LIFE });
-  }
+  emote(id: string, emoji: string): void { this.people.emote(id, emoji); }
 
   /** Let gestures fade in their own time. */
-  age(dt: number): void {
-    for (const [id, gesture] of this.gestures) {
-      gesture.left -= dt;
-      if (gesture.left <= 0) this.gestures.delete(id);
-    }
-  }
+  age(dt: number): void { this.people.age(dt); }
 
   /** Ground height under each remote hero, so they stand on the land rather than in it. */
-  settle(heightAt: (x: number, z: number) => number | null): void {
-    for (const body of this.bodies.values()) {
-      const y = heightAt(body.x, body.z);
-      if (y !== null) body.y = y;
-    }
-  }
-
-  private label(p: Presence, visible: boolean): void {
-    let el = this.labels.get(p.id);
-    if (!el) {
-      el = document.createElement('div');
-      el.className = 'nameplate';
-      this.holder.appendChild(el);
-      this.labels.set(p.id, el);
-    }
-    const gesture = this.gestures.get(p.id);
-    const text = gesture ? `${p.name} ${gesture.emoji}` : p.name;
-    if (el.textContent !== text) el.textContent = text;
-    el.style.display = visible ? 'block' : 'none';
-  }
+  settle(heightAt: (x: number, z: number) => number | null): void { this.people.settle(heightAt); }
 
   /** Put the name plates where their owners are on screen. */
   project(camera: IsoCamera, width: number, height: number): void {
-    const point = new THREE.Vector3();
-    for (const [id, body] of this.bodies) {
-      const el = this.labels.get(id);
-      if (!el || el.style.display === 'none') continue;
-      point.set(body.x, body.y + 2.1, body.z).project(nativeCamera(camera));
-      if (point.z > 1) { el.style.display = 'none'; continue; }
-      el.style.left = `${(point.x * 0.5 + 0.5) * width}px`;
-      el.style.top = `${(-point.y * 0.5 + 0.5) * height}px`;
+    const placed = new Set<string>();
+    for (const plate of this.people.plates(camera, width, height)) {
+      const el = this.labels.get(plate.id);
+      if (!el) continue;
+      placed.add(plate.id);
+      el.style.display = 'block';
+      el.style.left = `${plate.x}px`;
+      el.style.top = `${plate.y}px`;
     }
-  }
-
-  /** Move every drawn person into a different scene, following the local hero. */
-  attachTo(renderer: EntityRenderer): void {
-    for (const [id, body] of this.bodies) {
-      this.renderer.remove(body);
-      renderer.add(body);
-      void id;
-    }
+    // somebody behind the camera, or elsewhere, has no plate on the screen
+    for (const [id, el] of this.labels) if (!placed.has(id)) el.style.display = 'none';
   }
 
   clear(): void {
-    for (const [, body] of this.bodies) this.renderer.remove(body);
-    this.bodies.clear();
+    this.people.clear();
     for (const el of this.labels.values()) el.remove();
     this.labels.clear();
   }

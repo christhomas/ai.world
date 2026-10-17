@@ -33,6 +33,7 @@ limits in `tools/mobile/parity-thresholds.json`.
 | trees, rocks, props | prop batches | `town`, `autumn`, `cattle` |
 | villagers, animals, monsters, gear, animation | rig frames at the shared render time | `town`, `cattle`, `dungeon` |
 | mounts | rig frames | `horse` |
+| other players in a shared world | rig frames, with their names hung over their heads in the app as on the page (`render/other-bodies.ts`) | none yet: a shared world's capture needs a server |
 | boats and ferries | meshes | `sea`, `night-sea` |
 | crops | meshes | `farming` |
 | buildings, the hero's estate | meshes | `town`, `estate` |
@@ -49,9 +50,6 @@ limits in `tools/mobile/parity-thresholds.json`.
 
 These are tracked rather than left out:
 
-- **Other players' names over their heads.** The page draws them as DOM labels projected from the
-  camera (`render/others.ts`). The headless host's `others.project` does nothing, so in a shared
-  world the phone shows the bodies but not the names. Tracked by #576.
 - **The subject in reach, ringed in the world.** The handoff (`design/mobile/README.md`, "In reach")
   rings the subject at their feet. The game has no such node yet; the action card names the
   subject instead. Tracked by #571.

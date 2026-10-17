@@ -18,6 +18,7 @@ import { Conversation } from '../ui/conversation';
 import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
+import { OtherBodies, type NamePlate } from '../render/other-bodies';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
@@ -91,6 +92,8 @@ export interface Presentation {
   /** The panel the screen has open, if any; a conversation is `conversation`. */
   panel: string | null;
   hero: Speaker | null;
+  /** Other players' names, where they hang over their heads in the viewport (#576). */
+  plates: NamePlate[];
 }
 
 export interface HeadlessGame {
@@ -271,7 +274,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   const shown: Presentation = {
     toasts: [], loading: null, area: '', action: null, quests: 0, link: false,
     breath: { wind: 1, warded: 0, arm: 1, guarding: false }, hurts: 0, chat: [], status: '', fight: null,
-    sounds: [], fishing: 'idle', volume: 0.6, panel: null, hero: null,
+    sounds: [], fishing: 'idle', volume: 0.6, panel: null, hero: null, plates: [],
   };
   const say = (line: string) => keep(shown.toasts, line);
   const cue = (name: string) => keep(shown.sounds, name);
@@ -369,8 +372,19 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let below: { sight: FloorSight; opened: (i: number) => boolean; unlocked: boolean } | null = null;
 
   const company: CompanySurfaces = {
-    // a shared world's other players arrive with its socket (#565); a private world has none
-    others: () => ({ sync() {}, settle() {}, project() {}, age() {}, emote() {}, clear() {} }),
+    // a shared world's other players, arriving with its socket (#565): drawn by the same entity
+    // renderer as everybody, with their names kept for the app to hang over their heads
+    others: (renderer) => {
+      const people = new OtherBodies(renderer);
+      return {
+        sync: (players, place) => people.sync(players, place),
+        settle: (heightAt) => people.settle(heightAt),
+        project: (camera, width, height) => { shown.plates = people.plates(camera, width, height); },
+        age: (dt) => people.age(dt),
+        emote: (id, emoji) => people.emote(id, emoji),
+        clear: () => { people.clear(); shown.plates = []; },
+      };
+    },
     playerList: () => ({ refresh() {} }),
     status: (text) => { shown.status = text; },
     fight: (readout) => { shown.fight = readout; },
