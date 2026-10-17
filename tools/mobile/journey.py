@@ -49,6 +49,8 @@ PARTS = {
               ['world open', 'a horse to ride', 'mounted', 'rode by touch', 'got off']),
     'map': ('integration_test/map_test.dart',
             ['world open', 'a place found', 'in the journal', 'on the map', 'map moved, hero still', 'closed']),
+    'dungeon': ('integration_test/dungeon_test.dart',
+                ['world open', 'in the shrine', 'the floor on the map', 'a floor down', 'back on the surface']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
 JOURNEYS = ['journey', 'continue', 'crossplay']
