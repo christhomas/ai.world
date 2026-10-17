@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -14,7 +15,7 @@ import journey
 
 STEPS = ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left', 'continued']
 MET = ['joined a shared world', 'saw the web player', 'stayed for the web player', 'the web player saw the phone']
-JOURNEY, CONTINUE = journey.PARTS['journey'][0], journey.PARTS['continue'][0]
+JOURNEY = journey.PARTS['journey'][0]
 
 
 @unittest.skipIf(Image is None, 'Pillow is not installed')
@@ -52,19 +53,19 @@ class JourneyRunner(unittest.TestCase):
         return code, json.loads((self.out / 'journey.json').read_text()), (self.out / 'journey.html').read_text()
 
     def test_a_journey_that_said_every_step_passes_and_reports_its_screens(self):
-        code, record, page = self.run_with({JOURNEY: STEPS[:-1], CONTINUE: STEPS[-1:], 'crossplay': MET})
+        code, record, page = self.run_with({JOURNEY: STEPS, 'crossplay': MET})
         self.assertEqual(code, 0)
         self.assertEqual(record['result'], 'passed')
         self.assertIn('data:image/jpeg;base64,', page, 'the screens are in the page, not beside it')
 
     def test_a_journey_that_passed_without_saying_so_fails(self):
-        code, record, _ = self.run_with({JOURNEY: STEPS[:2], CONTINUE: [], 'crossplay': MET})
+        code, record, _ = self.run_with({JOURNEY: STEPS[:2], 'crossplay': MET})
         self.assertEqual(code, 1)
         self.assertEqual(record['result'], 'failed')
         self.assertIn('walked by touch', record['why'])
 
     def test_players_who_never_met_fail_the_journey(self):
-        code, record, _ = self.run_with({JOURNEY: STEPS[:-1], CONTINUE: STEPS[-1:], 'crossplay': MET[:1]})
+        code, record, _ = self.run_with({JOURNEY: STEPS, 'crossplay': MET[:1]})
         self.assertEqual(code, 1)
         self.assertIn('saw the web player', record['why'])
 
@@ -94,7 +95,7 @@ class JourneyRunner(unittest.TestCase):
             with self.assertRaises(journey.Provisioning):
                 journey.device('android')
 
-    def test_a_failed_part_does_not_hide_the_others_but_what_continues_it_is_let_go(self):
+    def test_a_failed_part_does_not_hide_the_others(self):
         played = []
         def part(platform, serial, name, record):
             played.append(Path(name).stem)
@@ -106,8 +107,7 @@ class JourneyRunner(unittest.TestCase):
             code = journey.main('android')
         record = json.loads((self.out / 'journey.json').read_text())
         self.assertEqual(code, 1)
-        self.assertEqual(played, ['journey_test', 'crossplay'], 'continue needs the journey; crossplay does not')
-        self.assertIn({'part': 'continue', 'skipped': 'journey failed'}, record['parts'])
+        self.assertEqual(played, ['journey_test', 'crossplay'])
         self.assertIn('journey', record['why'])
 
     def test_the_parts_asked_for_are_played_in_the_order_asked(self):
@@ -117,14 +117,36 @@ class JourneyRunner(unittest.TestCase):
         parts, why = journey.chosen(['combat-of-the-gods'])
         self.assertIsNone(parts)
         self.assertIn('combat-of-the-gods', why)
-        self.assertIn('continue', journey.chosen(['continue'])[1])
-        self.assertIn('continue', journey.chosen(['continue', 'journey'])[1])
 
     def test_a_part_nobody_has_heard_of_runs_nothing(self):
         with mock.patch.object(journey, 'device') as found:
             code = journey.main('android', ['nonsense'])
         self.assertEqual(code, 2)
         found.assert_not_called()
+
+    def test_a_part_that_goes_quiet_is_stopped_rather_than_waited_on(self):
+        stop = threading.Event()
+        class Quiet:
+            def __init__(self):
+                self.killed = False
+                self.stdout = self.lines()
+            def lines(self):
+                yield 'JOURNEY_STEP {"step": "new game"}\n'
+                stop.wait(5)
+            def kill(self):
+                self.killed = True
+                stop.set()
+            def wait(self, timeout=None):
+                return -9
+        quiet = Quiet()
+        record = {'commands': [], 'steps': [], 'shots': [], 'parts': []}
+        with mock.patch.object(journey, 'SILENT_MINUTES', 0.005), \
+             mock.patch.object(journey.subprocess, 'Popen', return_value=quiet):
+            code = journey.run_part('android', 'emulator-5554', 'integration_test/journey_test.dart', record)
+        self.assertEqual(code, 1)
+        self.assertTrue(quiet.killed, 'the part was waited on rather than stopped')
+        self.assertEqual(record['steps'][0]['step'], 'new game', 'what it said before going quiet is kept')
+        self.assertIn('said nothing', record['parts'][0]['stopped'])
 
     def test_a_missing_device_is_not_a_game_failure(self):
         with mock.patch.object(journey, 'device', side_effect=journey.Provisioning('no Android emulator is attached')):

@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       parts:
-        description: 'parts to play, in order (journey continue crossplay combat doors shop horse map dungeon), or all'
+        description: 'parts to play, in order (journey crossplay combat doors shop horse map dungeon), or all'
         required: false
         default: all
   schedule:
