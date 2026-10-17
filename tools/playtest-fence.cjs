@@ -134,10 +134,11 @@ async function playFence(page, say, go, face, observedWalk) {
     } catch (error) { later.push(error); }
     try {
       await go(home.x, home.z, 0);
-      // The rail can be four hundred tiles from home (Elderford, once), and the country there has to
-      // stream in again before he is placed; ten seconds was not always enough for that.
+      // The rail can be four hundred tiles from home (Elderford, once; Marshwell, three runs in four
+      // on 2026-10-17), and the country there has to stream in again before he is placed. Ten seconds
+      // was not always enough for that, and on a busy hosted runner neither was a minute.
       await page.waitForFunction(({ x, z }) => window.__player.placed &&
-        Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 60000, polling: 100 });
+        Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 180000, polling: 100 });
     } catch (error) { later.push(error); }
     if (stuckKey || failure) {
       for (const error of later) console.error('the fence trial could not also tidy up after itself:', error);
