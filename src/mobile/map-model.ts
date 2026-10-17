@@ -14,7 +14,7 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  * null once he is back above ground. `map` is the country: what has newly been walked or charted,
  * every time, and the markers and title when they change, at most once a second, because a
  * ferry's marker moves every step. Walked and charted only ever grow, so the same size is nothing
- * new. A game opened is a new one of these, so nothing of another world is ever sent on.
+ * new. An engine makes one of these and opens one game, so nothing of another world is ever sent on.
  *
  * Both are read from what the page's map reads: the floor from `dungeon/floor-picture.ts`, the
  * markers and title from the readouts' `mapInput`, and the dark from `GameState.explored` and

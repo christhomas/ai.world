@@ -21,8 +21,17 @@ import { MapModels } from './map-model';
  * sends, gathered the way `GameSession` gathers it and read the way `map_page.dart` reads it.
  *
  * Then the hero walks: out across the country, down a shrine, down to its second floor, back up,
- * a province bought, a save and a rejoin, and another world opened after. At each stop the two
- * have to agree on the dark, the marks, the title and the floor, cell for cell.
+ * a province bought, a place found, a save and a rejoin, and another world opened after. At each
+ * stop the two have to agree on the dark, the marks, the title and the floor, cell for cell.
+ *
+ * Not all of that agreement is worth the same. The dark is the one honest comparison: the app's is
+ * what `MapModels` makes of `GameState` and the page's is what the frame loop told its fog, two
+ * roads to the same squares. The title and the marks are not: both sides read the one `mapInput`
+ * the readouts made, so they only show it survives the journey to the app. The floor is the same:
+ * two `FloorSight`s told the same things, so it shows the runs decode back to the cells and that
+ * the host keeps the floor the hero is on through a descent and a climb out. What the marks and titles
+ * should actually be is asked of the app's side alone, against fixed answers: the floor in the
+ * title, the shrine marked once found, a cave or a wreck missing until it is found.
  */
 const frame = 1000 / 30;
 const breathe = () => new Promise<void>((resume) => setTimeout(resume, 4));
@@ -224,11 +233,17 @@ describe('the app\'s map and the page\'s map along one walk (#575)', () => {
       same(first, 'a map bought');
       expect(first.phone.charted.size).toBe(1);
       province = first.phone.known().find((square) => square.endsWith(`,${PROVINCE}`))!;
-      // a place nobody has found is on neither map
-      const hidden = structures.caves.find((c) => !state.discovered.has(c.name));
-      if (hidden) {
-        expect((first.phone.map.markers as Array<{ label?: string }>).map((m) => m.label)).not.toContain(hidden.name);
-      }
+      // a place nobody has found is not on the app's map, and is once it has been found. Asked of
+      // the app's markers on their own, since the page's are the same readout and would go wrong with them
+      const hidden = [...structures.caves, ...structures.wrecks].find((s) => !state.discovered.has(s.name));
+      expect(hidden, 'a world with a cave or a wreck nobody has found').toBeDefined();
+      const marked = () => (first.phone.map.markers as Array<{ x: number; z: number; label?: string }>)
+        .some((m) => m.label === hidden!.name && m.x === hidden!.x && m.z === hidden!.z);
+      expect(marked(), `${hidden!.name}, not found yet`).toBe(false);
+      first.game.handles().commandWorld.discover(hidden!.name);
+      first.phone.take(first.game, first.now += 1000);
+      expect(marked(), `${hidden!.name}, once found`).toBe(true);
+      same(first, 'a place found');
 
       await first.handle.save();
       saved = JSON.parse(first.store.read('discovery')!) as SessionSave;
