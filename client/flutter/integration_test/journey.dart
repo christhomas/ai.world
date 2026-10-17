@@ -255,12 +255,11 @@ Future<({String outside, String inside, Offset inward})> walkIn(WidgetTester tes
   await Future<void>.delayed(const Duration(seconds: 4));
   final outside = '${hudOf(session)['area']}';
   final inward = leanFor(bearings, Offset(door.inside.x - door.step.x, door.inside.z - door.step.z));
-  for (var tries = 0; tries < 40; tries++) {
-    await lean(tester, inward, const Duration(milliseconds: 500));
-    final area = '${hudOf(session)['area']}';
-    if (area != outside && area.contains(' in ')) return (outside: outside, inside: area, inward: inward);
+  String area() => '${hudOf(session)['area']}';
+  if (await leanUntil(tester, inward, () => area() != outside && area().contains(' in '), const Duration(minutes: 3))) {
+    return (outside: outside, inside: area(), inward: inward);
   }
-  throw TestFailure('leaning into ${door.line} never took him inside; the HUD said ${hudOf(session)['area']}');
+  throw TestFailure('leaning into ${door.line} never took him inside; the HUD said ${area()}');
 }
 
 /// What is being said, as the game last sent it, or null when nobody is talking.
