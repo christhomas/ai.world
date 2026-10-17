@@ -7,14 +7,14 @@ import 'package:integration_test/integration_test.dart';
 
 import 'journey.dart';
 
-/// The first installed journey, part one (#584): a fresh install opens a new offline world, shows it,
-/// walks the hero by touch, opens and closes the pack, and saves and leaves. Part two
-/// (`continue_test.dart`) is a new launch of the app, which must continue from here.
+/// The first installed journey (#584): a fresh install opens a new offline world, shows it, walks the
+/// hero by touch, opens and closes the pack, saves and leaves, and a new start of the app continues
+/// the same hero where he was left.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('a new offline world: see it, walk it by touch, open the pack, save and leave', (tester) async {
+  testWidgets('a new offline world: see it, walk it by touch, open the pack, save, leave and continue', (tester) async {
     await app.main();
     await press(tester, const ValueKey('new-game'));
     passed('new game');
@@ -67,13 +67,25 @@ void main() {
     await until(tester, () => find.text('RUCKSACK').evaluate().isEmpty, 'the pack closing');
     passed('pack closed');
 
-    // where he stands is written down, then the game is saved and left from Options
+    // where he stands, then the game is saved and left from Options
     final left = heroOf(session)!;
-    await remember({'x': left['x'], 'z': left['z'], 'playerId': left['playerId']});
     await press(tester, const ValueKey('ledger-options'));
     await press(tester, const ValueKey('save-and-leave'));
     await until(tester, () => find.byKey(const ValueKey('continue')).evaluate().isNotEmpty, 'the title with a game to continue');
     passed('saved and left', {'x': left['x'], 'z': left['z']});
     await shot('title');
+
+    // and the app is taken down and started again, so all it has is what it kept in storage. This
+    // is in the same part because `flutter test` uninstalls the app after each one, storage and all
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+    await app.main();
+    await press(tester, const ValueKey('continue'));
+    final hero = await until(tester, () => heroOf(session), 'the game continuing');
+    expect(hero['playerId'], left['playerId'], reason: 'the same hero, not a new one');
+    final apart = math.sqrt(math.pow((hero['x'] as num) - (left['x'] as num), 2) + math.pow((hero['z'] as num) - (left['z'] as num), 2));
+    expect(apart, lessThan(0.5), reason: 'continued at $hero, left at $left');
+    passed('continued', {'apart': apart});
+    await shot('continued');
   }, timeout: const Timeout(Duration(minutes: 30)));
 }
