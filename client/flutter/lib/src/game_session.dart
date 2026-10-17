@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'audio/beds.dart';
 import 'audio/synth.dart';
 import 'invite.dart';
+import 'native_world_renderer.dart';
 import 'network/world_socket_link.dart';
 import 'scene_frame.dart';
 import 'state_engine.dart';
@@ -89,6 +90,8 @@ class GameSession {
   /// What draws the frames, for the installed-app journeys to read back and refuse a blank one.
   @visibleForTesting
   FlutterFramePipeline? get pipeline => _pipeline;
+  /// The next frame the native renderer draws, if this game still has a renderer to ask.
+  Future<RenderSnapshot?> snapshot() async => _closing || _closed ? null : _pipeline?.renderer.snapshot();
   /// The shared world's socket the game asked for, and which of its connections that was.
   ParcelSocket? _socket;
   int _connection = 0;

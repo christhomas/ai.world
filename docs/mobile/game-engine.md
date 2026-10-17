@@ -53,7 +53,13 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture
   (`mapPicture`, `world/map-ground.ts`: the page map's own ground colours and roads at a cell to
-  two tiles, sent as runs of colour) goes once, with the first step;
+  two tiles, sent as runs of colour) goes once, with the first step. Both map models are built by
+  `src/mobile/map-model.ts` from what the page's maps read: the dark is the squares `knownSquares`
+  (`world/map-ground.ts`) gives the page's fog, and an underground title names the floor past the
+  first as the HUD does. `src/mobile/map-discovery.test.ts` walks a hero across the country, down
+  two floors of a shrine, back up, through a bought province, a save and rejoin and into another
+  world, and checks at each stop that the app's map and the page's agree on the dark, the marks,
+  the title and the floor, cell for cell;
 - where the hero is and which way he faces (`yaw`);
 - the owner (WORLD or BOOK) and busy mode;
 - for a shared world, `link` (`connect` an address, with the connection's generation, or `close`

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:ai_world_flutter/src/game_session.dart';
 import 'package:ai_world_flutter/src/invite.dart';
+import 'package:ai_world_flutter/src/native_world_renderer.dart';
+import 'package:ai_world_flutter/src/scene_frame.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -152,5 +154,28 @@ void main() {
       assets: GameAssets(), describe: describe), throwsA(isA<WorldRefused>()));
     expect(engine.opened, hasLength(1), reason: 'refused before an engine was opened');
   });
-}
 
+  test('a game that is closing gives no photo, and does not ask its renderer for one (#578)', () async {
+    final root = await Directory.systemTemp.createTemp('game-session-photo');
+    addTearDown(() => root.delete(recursive: true));
+    const rendererChannel = MethodChannel('world.ai/game-session-renderer');
+    var snapshots = 0;
+    messenger.setMockMethodCallHandler(rendererChannel, (call) async {
+      if (call.method == 'create') return 7;
+      if (call.method != 'snapshot') return null;
+      snapshots++;
+      return {'width': 1, 'height': 1, 'rgba': Uint8List.fromList([20, 40, 60, 255])};
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(rendererChannel, null));
+    messenger.setMockMethodCallHandler(channel, StandInEngine().answer);
+    final renderer = await NativeWorldRenderer.create(width: 1, height: 1, channel: rendererChannel);
+    final session = await GameSession.open(const GameSlot(slot: 'photo', seed: 3), root: root,
+      viewport: const Size(844, 390), pipeline: FlutterFramePipeline(renderer), channel: channel, assets: GameAssets());
+    expect((await session.snapshot())?.rgba, [20, 40, 60, 255]);
+    final closing = session.close();
+    expect(await session.snapshot(), isNull, reason: 'the renderer may already be on its way out');
+    await closing;
+    expect(await session.snapshot(), isNull);
+    expect(snapshots, 1);
+  });
+}

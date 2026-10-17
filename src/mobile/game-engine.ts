@@ -14,8 +14,7 @@ import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
 import { Portraits } from './portraits';
 import { ParcelLink } from './parcel-link';
-import { WORLD } from '../core/config';
-import { PROVINCE, provinceCorner } from '../world/provinces';
+import { MapModels } from './map-model';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
 import { ROSTER_ORDERS, type RosterOrder } from '../game/roster-view';
@@ -165,11 +164,7 @@ export function create(session: string, optionsText: string): { request(text: st
   let lastCompany = '';
   let lastKin = 0;
   let mapDrawn = false;
-  let lastFloor: string | null = null;
-  let lastMap = '';
-  let lastMapAt = -Infinity;
-  const knownChunks = new Set<string>();
-  const knownProvinces = new Set<string>();
+  const mapModels = new MapModels();
 
   const presentation = (scene: Json | null) => {
     const shown = host!.presentation;
@@ -219,29 +214,8 @@ export function create(session: string, optionsText: string): { request(text: st
       const perf = JSON.stringify({ jobs: host!.jobTimes() });
       if (perf !== lastPerf) { lastPerf = perf; lastPerfAt = renderTimeMs; models.perf = JSON.parse(perf) as Json; }
     }
-    // underground, the map is the floor: sent when what has been seen of it changes, and null once
-    // the hero is back above ground
-    const floor = host!.floor();
-    if ((floor?.changed ?? null) !== lastFloor) {
-      lastFloor = floor?.changed ?? null;
-      models.floor = floor ? json(floor.picture()) : null;
-    }
-    // the map over its picture: what has newly been walked or charted, every time; the markers
-    // and title when they change, at most once a second, because a ferry's marker moves every step
-    // both only ever grow, so the same size is nothing new
-    const walked = state.explored.size === knownChunks.size ? [] : [...state.explored].filter((key) => !knownChunks.has(key));
-    const charted = state.charted.size === knownProvinces.size ? [] : [...state.charted].filter((id) => !knownProvinces.has(id));
-    const reading = JSON.stringify(host!.mapReading());
-    if (walked.length > 0 || charted.length > 0 || (reading !== lastMap && renderTimeMs - lastMapAt >= 1000)) {
-      for (const key of walked) knownChunks.add(key);
-      for (const id of charted) knownProvinces.add(id);
-      lastMap = reading;
-      lastMapAt = renderTimeMs;
-      // a chunk by its key and a province by its corner, with the size of each, so the app can
-      // take the dark off them without knowing how either is named
-      models.map = json({ ...JSON.parse(reading) as object, chunk: WORLD.CHUNK_SIZE, province: PROVINCE, walked,
-        charted: charted.map((id) => { const at = provinceCorner(id); return `${at.x},${at.z}`; }) });
-    }
+    // the map: the floor underground, and the country's markers and what has been found of it
+    Object.assign(models, mapModels.take(host!, state, renderTimeMs));
     // a save the game has written since the last reply, for the app to keep where it keeps things
     const saved = store.read(options.slot);
     if (saved !== undefined && saved !== lastSave) { lastSave = saved; models.save = JSON.parse(saved) as Json; }
