@@ -54,7 +54,11 @@ void main() {
     expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
     expect(tester.getSize(button).width, tester.getSize(find.byKey(const ValueKey('play-local-1'))).width);
     final semantics = tester.ensureSemantics();
-    expect(find.bySemanticsLabel("Export Rowan's game to a file"), findsOneWidget);
+    expect(find.bySemanticsLabel("Export Rowan's game (your own world, played 3 Oct) to a file"), findsOneWidget);
+    expect(find.bySemanticsLabel("Export Rowan's game (shared, world.example, played 1 Sep) to a file"), findsOneWidget,
+      reason: 'a screen reader tells two games of the same name apart');
+    expect(find.bySemanticsLabel("Play Rowan's game (your own world, played 3 Oct)"), findsOneWidget);
+    expect(find.bySemanticsLabel("Delete Rowan's game (shared, world.example, played 1 Sep)"), findsOneWidget);
     semantics.dispose();
     await tester.tap(button);
     await tester.pumpAndSettle();

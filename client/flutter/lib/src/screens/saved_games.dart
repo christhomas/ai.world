@@ -33,6 +33,9 @@ class SavedGames extends StatelessWidget {
     return '$where · played ${at.day} ${_months[at.month - 1]}';
   }
 
+  /// The game as a screen reader says it on each of its buttons: the name alone cannot tell two Rowans apart.
+  static String _spoken(KeptGame game) => "${game.slot.name}'s game (${describe(game).replaceAll(' · ', ', ')})";
+
   @override
   Widget build(BuildContext context) {
     final t = tokens;
@@ -47,14 +50,14 @@ class SavedGames extends StatelessWidget {
                 Text(game.slot.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.face(14.5, t.ink)),
                 Text(describe(game), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.numbers(10, t.dim, spacing: 0)),
               ])),
-              _button('PLAY', "Play ${game.slot.name}'s game", ValueKey('play-${game.slot.slot}'), () => play(game.slot)),
+              _button('PLAY', "Play ${_spoken(game)}", ValueKey('play-${game.slot.slot}'), () => play(game.slot)),
               const SizedBox(width: 4),
               if (exportGame case final send?) ...[
-                Builder(builder: (context) => _button('EXPORT', "Export ${game.slot.name}'s game to a file",
+                Builder(builder: (context) => _button('EXPORT', "Export ${_spoken(game)} to a file",
                   ValueKey('export-${game.slot.slot}'), () => send(game.slot, _place(context)))),
                 const SizedBox(width: 4),
               ],
-              _button('DELETE', "Delete ${game.slot.name}'s game", ValueKey('delete-${game.slot.slot}'), () => _confirm(context, game.slot)),
+              _button('DELETE', "Delete ${_spoken(game)}", ValueKey('delete-${game.slot.slot}'), () => _confirm(context, game.slot)),
             ])),
         ])),
       if (note case final note?) Padding(padding: const EdgeInsets.only(top: 8),
