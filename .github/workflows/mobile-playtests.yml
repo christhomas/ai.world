@@ -117,6 +117,11 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          # every core and enough memory the runner has: the installed journey opens a world in the
+          # app's own JavaScript engine while software GL draws the screen, and on two cores and the
+          # default memory its opening took minutes longer than the capture's, and processes were killed
+          cores: 4
+          ram-size: 4096M
           avd-name: hosted-native-evidence
           force-avd-creation: true
           disable-animations: true

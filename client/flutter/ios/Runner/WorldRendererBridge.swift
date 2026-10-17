@@ -522,7 +522,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
           mesh.style.blend == "alpha" ? alphaPipeline : pipeline)
         encoder.setDepthStencilState(depthState(write: mesh.style.depthWrite, test: mesh.style.depthTest))
         var painted = uniforms
-        painted.renderFlags = SIMD4(mesh.style.opacity, mesh.style.receiveShadow && sunCastsShadow ? 1 : 0, 0, 0)
+        // z: double-sided, so the shader lights a back face as one, as three.js does
+        painted.renderFlags = SIMD4(mesh.style.opacity, mesh.style.receiveShadow && sunCastsShadow ? 1 : 0, mesh.style.doubleSided ? 1 : 0, 0)
         painted.emissive = SIMD4(mesh.style.emissive, 0)
         encoder.setFragmentBytes([painted], length: MemoryLayout<Uniforms>.stride, index: 1)
       }
@@ -721,7 +722,8 @@ WaterSurface waterSurface(float3 world, float3 geometryNormal, float3 albedo, fl
   return result;
 }
 fragment float4 worldFragment(VOut in [[stage_in]],bool frontFacing [[front_facing]],constant Uniforms& u [[buffer(1)]],constant float4* pointPositions [[buffer(2)]],constant float4* pointColours [[buffer(3)]],constant float4* sunDirections [[buffer(4)]],constant float4* sunColours [[buffer(5)]],depth2d<float> shadowMap [[texture(0)]],texture2d<float> coastMap [[texture(1)]]){if(u.heroAndCut.w>.5&&in.material>.5&&in.material<1.5&&in.world.y>u.heroAndCut.y+1){float3 d=in.world-u.heroAndCut.xyz;float along=dot(d,u.lookAndTime.xyz);float across=length(d-along*u.lookAndTime.xyz);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(in.position.xy))discard_fragment();}}
-float3 n=normalize(in.normal);float3 albedo=in.color;float opacity=u.renderFlags.x;
+// three.js r185's normal_fragment_begin: a double-sided material's back face is lit with its normal turned round (faceDirection)
+float3 n=normalize(in.normal);if(u.renderFlags.z>.5&&!frontFacing)n=-n;float3 albedo=in.color;float opacity=u.renderFlags.x;
 // foam whitens the water's own colour before any light reaches it, as the web's water does at color_fragment (src/render/water.ts)
 if(in.material>1.5&&in.material<2.5){WaterSurface water=waterSurface(in.world,in.normal,albedo,in.flow,in.sea,u.lookAndTime.w,frontFacing?1.0:-1.0,u.coastArea,coastMap);albedo=water.albedo;n=water.normal;opacity=water.opacity;}
 // three.js r185's lights_fragment_begin: ambient and hemisphere are the indirect term and take no shadow

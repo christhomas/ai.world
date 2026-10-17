@@ -23,3 +23,6 @@ ai-world-interface.html
 # every bench and tool writes its account of a run here, and none of them is tracked: a generated
 # file in git conflicts on every rebase, goes stale, and is then believed. See src/core/reports.ts
 docs/reports/
+
+# Python bytecode from running tools/
+__pycache__/
