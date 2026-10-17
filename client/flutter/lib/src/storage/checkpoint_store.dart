@@ -56,14 +56,40 @@ class CheckpointStore {
         throw const StorageFailure(StorageError.invalid, 'App-private root must not be a symlink');
       }
       await root.create(recursive: true);
-      final canonical = await root.resolveSymbolicLinks();
-      final encoded = base64Url.encode(utf8.encode(jsonEncode([scope.world, scope.seed, scope.player, scope.kind]))).replaceAll('=', '');
-      final directory = Directory('$canonical/${scope.domain}-$encoded');
+      final directory = await _namespace(root, scope);
       if (await FileSystemEntity.type(directory.path, followLinks: false) == FileSystemEntityType.link) {
         throw const StorageFailure(StorageError.invalid, 'Namespace must not be a symlink');
       }
       await directory.create();
       return CheckpointStore._(directory, scope, failure);
+    } on FileSystemException catch (error) {
+      throw _io(error);
+    }
+  }
+
+  static Future<Directory> _namespace(Directory root, StorageScope scope) async {
+    final canonical = await root.resolveSymbolicLinks();
+    final encoded = base64Url.encode(utf8.encode(jsonEncode([scope.world, scope.seed, scope.player, scope.kind]))).replaceAll('=', '');
+    return Directory('$canonical/${scope.domain}-$encoded');
+  }
+
+  /// Delete everything kept under a scope, as deleting a saved game does (#572, #577). The caller has
+  /// asked the player first: nothing here can be undone. A namespace that is not there is already gone.
+  static Future<void> erase(Directory root, StorageScope scope) async {
+    scope.validate();
+    try {
+      final rootType = await FileSystemEntity.type(root.path, followLinks: false);
+      if (rootType == FileSystemEntityType.notFound) return;
+      if (rootType == FileSystemEntityType.link) {
+        throw const StorageFailure(StorageError.invalid, 'App-private root must not be a symlink');
+      }
+      final directory = await _namespace(root, scope);
+      final type = await FileSystemEntity.type(directory.path, followLinks: false);
+      if (type == FileSystemEntityType.notFound) return;
+      if (type != FileSystemEntityType.directory) {
+        throw const StorageFailure(StorageError.invalid, 'Namespace must be a directory');
+      }
+      await directory.delete(recursive: true);
     } on FileSystemException catch (error) {
       throw _io(error);
     }

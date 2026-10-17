@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'game_session.dart';
 import 'invite.dart';
+import 'kept_games.dart';
 import 'screens/company_page.dart';
 import 'screens/console_page.dart';
 import 'screens/conversation_band.dart';
@@ -14,6 +15,7 @@ import 'screens/journal_page.dart';
 import 'screens/map_page.dart';
 import 'screens/options_page.dart';
 import 'screens/roster_page.dart';
+import 'screens/saved_games.dart';
 import 'screens/pack_page.dart';
 import 'native_world_renderer.dart';
 import 'scene_frame.dart';
@@ -51,7 +53,10 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   _Phase _phase = _Phase.title;
   Directory? _root;
   CheckpointStore? _settings;
-  GameSlot? _last;
+  /// The games kept on this phone, most recently played first; Continue opens the first.
+  KeptGames? _games;
+  /// The title is showing the saved games rather than its buttons.
+  bool _browsing = false;
   GameSession? _session;
   String? _trouble;
   late final InputOwnerController _input = InputOwnerController((value) => _session?.hold(value));
@@ -70,20 +75,15 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       final root = widget.storageRoot ?? Directory(await StateEngine.storageRoot());
       final settings = await CheckpointStore.open(root,
         const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
-      final last = await settings.load('last') as Map?;
+      final games = KeptGames(settings, root);
+      await games.load();
       final theme = await settings.load('theme');
       final volume = await settings.load('volume');
-      GameSlot? slot;
-      if (last != null) {
-        slot = GameSlot(slot: last['slot'] as String, seed: last['seed'] as int, kind: last['kind'] as String,
-          name: last['name'] as String? ?? 'Traveller', server: last['server'] as String?);
-        if (!await GameSession.kept(slot, root: root)) slot = null;
-      }
       if (!mounted) return;
       setState(() {
         _root = root;
         _settings = settings;
-        _last = slot;
+        _games = games;
         final chosen = LedgerTheme.values.where((t) => t.name == theme).firstOrNull;
         _keptTheme = chosen ?? _ledger.theme;
         if (volume is num) _volume = volume.toDouble();
@@ -128,13 +128,21 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     setState(() {
       _phase = _Phase.opening;
       _trouble = null;
-      _last = slot;
+      _browsing = false;
       // one world view for the whole game, kept across every route and theme
       _world = NativeWorldView(key: const ValueKey('world'), onCreated: (renderer) => _start(slot, renderer));
     });
-    unawaited(_settings?.commit('last', {'slot': slot.slot, 'seed': slot.seed, 'kind': slot.kind, 'name': slot.name,
-        'server': ?slot.server})
-      .catchError((Object _) {}));
+    unawaited(_games?.played(slot).catchError((Object _) {}));
+  }
+
+  /// Delete a kept game; the saved games list has asked the player first.
+  Future<void> _delete(GameSlot slot) async {
+    try {
+      await _games?.delete(slot);
+    } catch (error) {
+      if (mounted) setState(() => _trouble = 'Could not delete that game: $error');
+    }
+    if (mounted) setState(() => _browsing = _browsing && (_games?.games.isNotEmpty ?? false));
   }
 
   Future<void> _start(GameSlot slot, NativeWorldRenderer renderer) async {
@@ -269,12 +277,22 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     return '$hh:$mm · DAY ${hero['day'] ?? 1} · ${'${hero['season'] ?? ''}'.toUpperCase()}';
   }
 
-  Widget _title(LedgerTokens t) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
+  Widget _title(LedgerTokens t) {
+    final games = _games?.games ?? const [];
+    if (_browsing) {
+      return ColoredBox(color: t.surface, child: SafeArea(child: Center(child: SavedGames(games: games, tokens: t,
+        play: _open, delete: (slot) => unawaited(_delete(slot)), back: () => setState(() => _browsing = false)))));
+    }
+    return _titleButtons(t, games.firstOrNull?.slot, games.length);
+  }
+
+  Widget _titleButtons(LedgerTokens t, GameSlot? last, int kept) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
     mainAxisSize: MainAxisSize.min, children: [
       Text('AI WORLD', style: t.face(27, t.ink, weight: FontWeight.w500, spacing: 10)),
       const SizedBox(height: 24),
-      if (_last != null) _titleButton('Continue', t, () => _open(_last!), const ValueKey('continue')),
+      if (last != null) _titleButton('Continue', t, () => _open(last), const ValueKey('continue')),
       _titleButton('New game', t, _root == null ? null : _newGame, const ValueKey('new-game')),
+      if (kept > 0) _titleButton('Saved games', t, () => setState(() => _browsing = true), const ValueKey('saved-games')),
       if (!_joining) _titleButton('Join a world', t, _root == null ? null : () => setState(() => _joining = true), const ValueKey('join'))
       else ...[
         SizedBox(width: 240, child: TextField(key: const ValueKey('invite'), controller: _invite, autocorrect: false,

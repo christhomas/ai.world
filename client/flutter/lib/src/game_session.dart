@@ -26,6 +26,18 @@ class GameSlot {
   final String? server;
 
   StorageScope scope(String domain) => StorageScope(domain: domain, world: slot, seed: seed, player: 'local-hero', kind: kind);
+
+  /// As the app's settings keep it.
+  Map<String, Object> get json => {'slot': slot, 'seed': seed, 'kind': kind, 'name': name, 'server': ?server};
+
+  /// A slot as the settings kept it, or null if what was kept is not one.
+  static GameSlot? fromJson(Object? json) {
+    if (json is! Map || json['slot'] is! String || json['seed'] is! int || json['kind'] is! String) return null;
+    final name = json['name'], server = json['server'];
+    if ((name != null && name is! String) || (server != null && server is! String)) return null;
+    return GameSlot(slot: json['slot'] as String, seed: json['seed'] as int, kind: json['kind'] as String,
+      name: name as String? ?? 'Traveller', server: server as String?);
+  }
 }
 
 /// Opens a shared world's socket for a session; the app's own is `NativeWorldSocketLink`.
@@ -135,6 +147,12 @@ class GameSession {
   /// Whether the slot holds a game to continue.
   static Future<bool> kept(GameSlot slot, {required Directory root}) async =>
     await (await CheckpointStore.open(root, slot.scope('player'))).load('save') != null;
+
+  /// Erase a game's hero and its world, for good. The player has been asked.
+  static Future<void> forget(GameSlot slot, {required Directory root}) async {
+    await CheckpointStore.erase(root, slot.scope('player'));
+    await CheckpointStore.erase(root, slot.scope('world'));
+  }
 
   /// Step at the display's pace from now on.
   void run(TickerProvider vsync) {

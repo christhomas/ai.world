@@ -144,6 +144,10 @@ the app to keep. The hero's save comes back the same way.
   checkpoint is recovered.
 - `save()` waits until both are on disk, and `close()` saves before letting the engine go.
 
-Each slot is its own pair of namespaces, so nothing of one game reaches another. The bare-host
+Each slot is its own pair of namespaces, so nothing of one game reaches another. A new game takes a
+slot of its own; the app's settings list the slots kept, most recently played first
+(`client/flutter/lib/src/kept_games.dart`). The title's saved games play any of them or delete one,
+which erases both of its namespaces once the player has confirmed it, and a slot that was opened and
+never saved is let go of the next time the list is read. The bare-host
 proof reopens the engine from the save and the records it handed back, and finds the same hero
 where he was left.
