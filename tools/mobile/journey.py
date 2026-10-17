@@ -47,6 +47,8 @@ PARTS = {
               'bought something', 'done talking']),
     'horse': ('integration_test/horse_test.dart',
               ['world open', 'a horse to ride', 'mounted', 'rode by touch', 'got off']),
+    'map': ('integration_test/map_test.dart',
+            ['world open', 'a place found', 'in the journal', 'on the map', 'map moved, hero still', 'closed']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
 JOURNEYS = ['journey', 'continue', 'crossplay']
