@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.105.0 — 2026-10-17
+
+The whole game in the installed apps by touch, and ground that comes back after a long jump
+
 ## v0.104.1 — 2026-10-16
 
 Ridden horses climb terraces again and stop at paddock rails

@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.105.0 — 2026-10-17
+
+The whole game in the installed apps by touch, and ground that comes back after a long jump
+
 ### v0.104.1 — 2026-10-16
 
 Ridden horses climb terraces again and stop at paddock rails
@@ -626,10 +630,6 @@ The Domesday shot waits for every toured village to settle
 ### v0.103.7 — 2026-09-30
 
 A move never carries the hero, nests need a real ledge, record-only needs no WebGL, and the message log keeps its newest line
-
-### v0.103.6 — 2026-09-30
-
-The GPU-free frame path lands, prayers stay saved, and a release tests nothing on the machine that cuts it
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
