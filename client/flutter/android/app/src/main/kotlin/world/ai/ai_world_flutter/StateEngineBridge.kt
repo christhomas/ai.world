@@ -28,8 +28,10 @@ private val LIMITS = mapOf(
     "AiWorldStateEngine" to EngineLimits(64, 5_000, 1),
     // a runaway guard, not a performance target: QuickJS interprets the whole game without a JIT and
     // took more than a minute to open a world on the hosted emulator, so the proof reports what it
-    // measured instead of an interrupt (#559, #563)
-    "AiWorldGameEngine" to EngineLimits(768, 300_000, 32),
+    // measured instead of an interrupt (#559, #563). Five minutes was not enough for the installed
+    // journey's new game on 2026-10-17, opened on the same emulator straight after the capture and
+    // short of memory; ten is as long as the native side allows a request
+    "AiWorldGameEngine" to EngineLimits(768, 600_000, 32),
 )
 
 /** One engine and the one thread it lives and dies on, which is never another engine's (#559). */
