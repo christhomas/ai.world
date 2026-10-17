@@ -303,6 +303,8 @@ def capture(platform):
         text = wait_for(f'HOSTED_GAME_READY platform={platform}', 1200, 'the installed game session')
         line = re.search(rf'HOSTED_GAME_READY platform={platform} [^\n]*', text).group(0)
         stats = dict(pair.split('=', 1) for pair in line.split()[1:] if '=' in pair)
+        # the app's memory with the whole game loaded, while the replay holds it open (#559)
+        stats['memoryKb'] = app_memory_kb(platform, adb if platform == 'android' else None)
         width, height = (int(n) for n in stats['framebuffer'].split('x'))
         pixels = pull('game-first.rgba')
         if len(pixels) != width * height * 4:
@@ -337,6 +339,21 @@ def capture(platform):
             command([*sim, 'delete', device], check=False)
         elif device:
             command(['adb', '-s', device, 'shell', 'am', 'force-stop', 'world.ai.ai_world_flutter'], check=False)
+
+
+def app_memory_kb(platform, adb):
+    """The app's resident memory in KiB, or None where it could not be read: Android's total PSS,
+    and the simulator app's resident size, which is a macOS process on the runner."""
+    try:
+        if platform == 'android':
+            info = output([*adb, 'shell', 'dumpsys', 'meminfo', 'world.ai.ai_world_flutter'])
+            found = re.search(r'TOTAL PSS:\s+(\d+)', info) or re.search(r'^\s*TOTAL\s+(\d+)', info, re.M)
+            return int(found.group(1)) if found else None
+        lines = output(['ps', '-axo', 'rss=,command=']).splitlines()
+        sizes = [int(line.split()[0]) for line in lines if 'Runner.app/Runner' in line]
+        return max(sizes) if sizes else None
+    except (subprocess.SubprocessError, ValueError):
+        return None
 
 
 def scene_packet(name, frames):

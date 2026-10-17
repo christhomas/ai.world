@@ -158,6 +158,8 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
     if (saved == null || (saved['state'] as Map?)?['playerId'] != to['playerId']) throw StateError('The game saved nothing of the hero');
     debugPrint('HOSTED_GAME_READY platform=${Platform.operatingSystem} openMs=$opened ${timings()} '
         'meshes=$meshes packets=$packets walked=${walked.toStringAsFixed(2)} framebuffer=${shot.width}x${shot.height}');
+    // the game is held open a while so the runner can measure the app's memory with it loaded (#559)
+    await Future<void>.delayed(const Duration(seconds: 15));
   } finally {
     await engine.dispose();
   }
