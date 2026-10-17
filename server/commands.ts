@@ -89,6 +89,7 @@ export const COMMANDS: Record<string, CommandSpec> = {
     [rest('like', true)], true),
   places: spec('places', 'List everything with a name on it: a word narrows it to a name, a kind, or a country',
     [rest('like', true)], true),
+  doors: spec('doors', 'List the doors nearest first: where to stand outside each, and the building it opens', [], true),
   carts: spec('carts', 'Show any loaded cart and where it is now', [], true),
   'rob-cart': spec('rob-cart', 'Rob the cart when you are within four tiles of it'),
   'escort-cart': spec('escort-cart', 'Guard a nearby cart; stay with it to prevent robbery'),

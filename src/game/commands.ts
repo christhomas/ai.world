@@ -40,6 +40,8 @@ export interface CommandWorld {
   towns(like?: string): unknown;
   /** What can be named, for when somebody has forgotten the word. */
   places(like?: string): unknown;
+  /** The doors nearest the hero: where to stand outside each, and the building it opens. */
+  doors(): unknown;
   carts(): unknown;
   robCart(): unknown;
   escortCart(): unknown;
@@ -93,6 +95,7 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   });
   bus.define('towns', ([like]) => world.towns(like as string | undefined));
   bus.define('places', ([like]) => world.places(like as string | undefined));
+  bus.define('doors', () => world.doors());
   bus.define('carts', () => world.carts());
   bus.define('rob-cart', () => world.robCart());
   bus.define('escort-cart', () => world.escortCart());
