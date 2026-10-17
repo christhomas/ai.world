@@ -129,6 +129,56 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(metalRenderTimeSeconds(renderTimeMs: .nan, fallbackSeconds: 123), 123)
   }
 
+  func testProductionMetalLinearSunPointDecayLambertAndSrgbNumerically() throws {
+    let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+    let source = metalSource + """
+    \n kernel void testColour(device float4* output [[buffer(0)]], uint i [[thread_position_in_grid]]) {
+      const float distances[] = {0.01,1,3,9,12,3,3};
+      float falloff = attenuation(distances[i],i == 5 ? 0.0 : 9.0,i == 6 ? 0.0 : 1.4);
+      float3 normal = float3(0,i == 2 ? -1.0 : 1.0,0);
+      float3 direct = lambertDirect(float3(1.04,0.8,0.35)*2.6*falloff,
+        float3(0,1,0),normal,float3(0.2,0.4,0.6));
+      output[i*2] = float4(direct,falloff);
+      output[i*2+1] = float4(encodeSrgb(direct+float3(0.02,0.003,0.001)),1);
+    }
+    """
+    let library = try device.makeLibrary(source: source, options: nil)
+    let function = try XCTUnwrap(library.makeFunction(name: "testColour"))
+    let pipeline = try device.makeComputePipelineState(function: function)
+    let buffer = try XCTUnwrap(device.makeBuffer(length: MemoryLayout<SIMD4<Float>>.stride * 14, options: .storageModeShared))
+    let queue = try XCTUnwrap(device.makeCommandQueue())
+    let command = try XCTUnwrap(queue.makeCommandBuffer())
+    let encoder = try XCTUnwrap(command.makeComputeCommandEncoder())
+    encoder.setComputePipelineState(pipeline)
+    encoder.setBuffer(buffer, offset: 0, index: 0)
+    encoder.dispatchThreads(MTLSize(width: 7, height: 1, depth: 1), threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+    encoder.endEncoding()
+    command.commit()
+    command.waitUntilCompleted()
+    XCTAssertEqual(command.status, .completed, "\(String(describing: command.error))")
+    let values = buffer.contents().bindMemory(to: SIMD4<Float>.self, capacity: 14)
+    // three.js r185: the unclamped linear autumn sun, an interior lamp's decay, then Lambert and
+    // sRGBTransferOETF. Near-light cap, cutoff, unlimited range, a back-facing normal and both OETF
+    // branches are exercised by the real production Metal functions, without a screenshot tolerance.
+    let distances: [Double] = [0.01,1,3,9,12,3,3]
+    let sun: [Double] = [1.04,0.8,0.35], albedo: [Double] = [0.2,0.4,0.6]
+    let emissive: [Double] = [0.02,0.003,0.001]
+    for i in 0..<7 {
+      var falloff = 1 / max(pow(distances[i],i == 6 ? 0 : 1.4),0.01)
+      if i != 5 { falloff *= pow(max(0,1 - pow(distances[i]/9,4)),2) }
+      XCTAssertEqual(values[i*2].w,Float(falloff),accuracy: 0.0001)
+      for channel in 0..<3 {
+        let direct = i == 2 ? 0 : sun[channel] * 2.6 * falloff * (albedo[channel] / Double.pi)
+        XCTAssertEqual(values[i*2][channel],Float(direct),accuracy: 0.0001)
+        let linear = direct + emissive[channel]
+        let encoded = linear <= 0.0031308 ? linear * 12.92 : pow(linear,0.41666) * 1.055 - 0.055
+        XCTAssertEqual(values[i*2+1][channel],Float(encoded),accuracy: 0.0001)
+      }
+    }
+    XCTAssertGreaterThan(values[0].x,1) // the linear red was not clamped before lighting
+    XCTAssertGreaterThan(values[1].x,1) // nor was the encoded result clamped by the shader
+  }
+
   func testProductionMetalWaterShoreRiverWaterfallAndOffFieldNumerically() throws {
     let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
     let source = metalSource + """
