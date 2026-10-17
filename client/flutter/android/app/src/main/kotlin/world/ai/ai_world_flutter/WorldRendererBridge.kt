@@ -341,7 +341,9 @@ private class GLWorldRenderer(
         }
     }
 
-    private fun post(block: () -> Unit) { if (running) handler.post(block) }
+    /** Whether anything has been sent since the last frame: a scene, a mesh, a camera, a size, a picture asked for. */
+    private var changed = true
+    private fun post(block: () -> Unit) { if (running) handler.post { changed = true; block() } }
 
     private fun initialize() {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
@@ -408,6 +410,17 @@ private class GLWorldRenderer(
     private fun drawLoop() {
         if (!running) return
         upload()
+        /*
+         * An empty scene nothing has changed is not drawn again sixty times a second.
+         *
+         * While a world opens there is nothing to draw, and drawing nothing at the display's rate
+         * is a phone's battery and, on an emulator's software GL, the very core the game's own engine
+         * needed to open the world: on the hosted emulator its opening took four minutes where the
+         * capture's took seventy seconds. Anything sent wakes it; a scene with anything in it is drawn
+         * every frame as before, because water and the clock move without being sent.
+         */
+        if (gpu.isEmpty() && armed.isEmpty() && !changed) { handler.postDelayed(::drawLoop, 100); return }
+        changed = false
         val now = sceneRenderTimeSeconds ?: (System.nanoTime() / 1_000_000_000.0).toFloat()
         val matrices = matrices()
         if (sunCastsShadow) drawShadow(matrices.second, now)

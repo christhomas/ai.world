@@ -41,7 +41,15 @@ void main() {
     final thumb = await tester.startGesture(Offset(size.width * 0.45, size.height * 0.6));
     await thumb.moveBy(const Offset(0, -20));
     await thumb.moveBy(const Offset(0, -34));
-    await Future<void>.delayed(const Duration(seconds: 4));
+    // held until he has walked, as long as a slow phone takes: each step of the game is a tenth of a
+    // second at most, and on the hosted emulator a step can take seconds, and the hero first has to
+    // be stood on ground that has arrived
+    final holding = Stopwatch()..start();
+    while (holding.elapsed < const Duration(seconds: 90)) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      final now = heroOf(session)!;
+      if (math.sqrt(math.pow((now['x'] as num) - (from['x'] as num), 2) + math.pow((now['z'] as num) - (from['z'] as num), 2)) > 1.5) break;
+    }
     await thumb.up();
     await tester.pump(const Duration(milliseconds: 500));
     final to = heroOf(session)!;
