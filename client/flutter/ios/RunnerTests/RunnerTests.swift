@@ -22,10 +22,12 @@ class RunnerTests: XCTestCase {
       XCTAssertEqual(try Data(contentsOf: share.file), png)
       XCTAssertEqual(share.file.pathExtension, "png")
       XCTAssertTrue(share.controller.excludedActivityTypes?.contains(.saveToCameraRoll) == true)
-      if let popover = share.controller.popoverPresentationController {
-        XCTAssertTrue(popover.sourceView === presenter.view)
-        XCTAssertTrue(presenter.view.bounds.contains(popover.sourceRect))
-      }
+      // An iPhone simulator presents the sheet without a popover, so ask for the iPad's presentation.
+      share.controller.modalPresentationStyle = .popover
+      share.anchor(to: presenter)
+      let popover = try XCTUnwrap(share.controller.popoverPresentationController)
+      XCTAssertTrue(popover.sourceView === presenter.view)
+      XCTAssertTrue(presenter.view.bounds.contains(popover.sourceRect))
       share.controller.completionWithItemsHandler?(nil, completed, nil, error)
       XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
       XCTAssertEqual(replies.count, 1)
@@ -37,6 +39,21 @@ class RunnerTests: XCTestCase {
       share.controller.completionWithItemsHandler?(nil, completed, nil, error)
       XCTAssertEqual(replies.count, 1, "a repeated completion must not reply on the channel twice")
     }
+  }
+
+  func testPhotoShareThatNeverAppearedRepliesOnceAndLetsTheFileGo() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var replies: [Any?] = []
+    let share = try PhotoShare(png: Data([137, 80, 78, 71, 13, 10, 26, 10]), directory: directory,
+      presenter: UIViewController()) { replies.append($0) }
+    share.abandonUnlessPresented()
+    XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
+    XCTAssertEqual(replies.count, 1)
+    XCTAssertEqual((replies[0] as? FlutterError)?.code, "share-unavailable")
+    share.abandonUnlessPresented()
+    share.controller.completionWithItemsHandler?(nil, false, nil, nil)
+    XCTAssertEqual(replies.count, 1, "a sheet given up on must not reply on the channel again")
   }
 
   func testPhotoShareRefusesBadBytesAndAnUnwritableCache() throws {

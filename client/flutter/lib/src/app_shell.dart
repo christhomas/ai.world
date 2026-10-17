@@ -239,7 +239,6 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _framing = false;
     unawaited(_session?.close());
     _invite.dispose();
     super.dispose();

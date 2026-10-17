@@ -40,7 +40,12 @@ final class PhotoShareBridge: NSObject, FlutterPlugin {
         result(outcome)
       }
       active = share
-      presenter.present(share.controller, animated: true)
+      // UIKit can drop a presentation without a word, when a transition is under way or another
+      // sheet got there first, and then the sheet never reports back. Look when UIKit says it has
+      // presented and again a second later, rather than leave the shutter waiting and every later
+      // photo busy.
+      presenter.present(share.controller, animated: true) { share.abandonUnlessPresented() }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { share.abandonUnlessPresented() }
     } catch {
       result(FlutterError(code: "share-failed", message: "\(error)", details: nil))
     }
@@ -66,14 +71,26 @@ final class PhotoShare {
     controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
     // The app shares a file and never asks for access to the photo library.
     controller.excludedActivityTypes = [.saveToCameraRoll]
-    if let popover = controller.popoverPresentationController {
-      popover.sourceView = presenter.view
-      popover.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.maxY - 1, width: 1, height: 1)
-      popover.permittedArrowDirections = []
-    }
+    anchor(to: presenter)
     controller.completionWithItemsHandler = { [weak self] _, completed, _, error in
       self?.finish(completed: completed, error: error)
     }
+  }
+
+  /// On an iPad the sheet is a popover, and a popover needs somewhere to point.
+  func anchor(to presenter: UIViewController) {
+    guard let popover = controller.popoverPresentationController else { return }
+    popover.sourceView = presenter.view
+    popover.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.maxY - 1, width: 1, height: 1)
+    popover.permittedArrowDirections = []
+  }
+
+  /// The sheet never appeared: let the file go and tell Dart the game could not share, once.
+  func abandonUnlessPresented() {
+    guard controller.presentingViewController == nil, let reply = completion else { return }
+    completion = nil
+    try? FileManager.default.removeItem(at: file)
+    reply(FlutterError(code: "share-unavailable", message: "The share sheet did not open", details: nil))
   }
 
   private func finish(completed: Bool, error: Error?) {
