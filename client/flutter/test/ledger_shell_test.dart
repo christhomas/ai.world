@@ -8,8 +8,45 @@ import 'package:ai_world_flutter/src/shell/input_owner.dart';
 import 'package:ai_world_flutter/src/shell/ledger_shell.dart';
 import 'package:ai_world_flutter/src/shell/ledger_tokens.dart';
 import 'package:ai_world_flutter/src/shell/ledger_action_card.dart';
+import 'package:ai_world_flutter/src/shell/photo_controls.dart';
 
 void main() {
+  testWidgets('framing hides the HUD, releases held input and keeps the same live world', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(667, 320));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final sent = <Map<String, Object?>>[];
+    final input = InputOwnerController(sent.add);
+    final controller = LedgerController(input);
+    final worldKey = GlobalKey<_PersistentWorldState>();
+    final world = _PersistentWorld(key: worldKey);
+    var closed = false;
+    Future<void> show(bool framing) => tester.pumpWidget(MaterialApp(home: Scaffold(body: LedgerShell(
+      world: world, controller: controller, readings: 'HEALTH', pages: {'pack': (_, _) => const Text('Pack')},
+      photo: framing ? PhotoControls(tokens: LedgerTokens.all[LedgerTheme.stone]!, snapshot: () async => null,
+        close: () { input.focus(InputOwner.world); closed = true; }) : null))));
+    await show(false);
+    final original = worldKey.currentState;
+    expect(original, isNotNull);
+    input.hold('thumb', move: [1, 0], guard: true);
+    expect(sent.last['move'], [1, 0]);
+    input.focus(InputOwner.book, busy: 'framing');
+    await show(true);
+    expect(find.text('HEALTH'), findsNothing);
+    expect(find.byKey(const ValueKey('ledger-pack')), findsNothing);
+    expect(worldKey.currentState, same(original));
+    expect(input.acceptsWorld, isFalse);
+    expect(sent.last['move'], [0, 0]);
+    expect(sent.last['held'], {'guard': false, 'run': false});
+    await tester.tap(find.byKey(const ValueKey('photo-exit')));
+    expect(closed, isTrue);
+    await show(false);
+    expect(worldKey.currentState, same(original));
+    expect(find.text('HEALTH'), findsOneWidget);
+    expect(input.acceptsWorld, isTrue);
+    expect(sent.last['move'], [0, 0], reason: 'the old thumb does not come back');
+    expect(tester.takeException(), isNull);
+  });
+
   test('theme text pairs meet contrast 4.5 on their actual opaque surfaces', () {
     for (final t in LedgerTokens.all.values) {
       for (final pair in [[t.ink, t.surface], [t.dim, t.surface], [t.accent, t.surface],

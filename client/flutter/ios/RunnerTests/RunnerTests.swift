@@ -7,6 +7,78 @@ import simd
 
 class RunnerTests: XCTestCase {
 
+  func testPhotoShareKeepsThePNGUntilCompletionAndReportsEachOutcomeOnce() throws {
+    let png = try XCTUnwrap(Data(base64Encoded:
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jqN8AAAAASUVORK5CYII="))
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let presenter = UIViewController()
+    presenter.view.frame = CGRect(x: 0, y: 0, width: 844, height: 390)
+    let denied = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)
+    let outcomes: [(Bool, Error?, String)] = [(true, nil, "shared"), (false, nil, "cancelled"), (false, denied, "share-failed")]
+    for (completed, error, expected) in outcomes {
+      var replies: [Any?] = []
+      let share = try PhotoShare(png: png, directory: directory, presenter: presenter) { replies.append($0) }
+      XCTAssertEqual(try Data(contentsOf: share.file), png)
+      XCTAssertEqual(share.file.pathExtension, "png")
+      XCTAssertTrue(share.controller.excludedActivityTypes?.contains(.saveToCameraRoll) == true)
+      // An iPhone simulator presents the sheet without a popover, so ask for the iPad's presentation.
+      share.controller.modalPresentationStyle = .popover
+      share.anchor(to: presenter)
+      let popover = try XCTUnwrap(share.controller.popoverPresentationController)
+      XCTAssertTrue(popover.sourceView === presenter.view)
+      XCTAssertTrue(presenter.view.bounds.contains(popover.sourceRect))
+      share.controller.completionWithItemsHandler?(nil, completed, nil, error)
+      XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
+      XCTAssertEqual(replies.count, 1)
+      if expected == "share-failed" {
+        XCTAssertEqual((replies[0] as? FlutterError)?.code, expected)
+      } else {
+        XCTAssertEqual(replies[0] as? String, expected)
+      }
+      share.controller.completionWithItemsHandler?(nil, completed, nil, error)
+      XCTAssertEqual(replies.count, 1, "a repeated completion must not reply on the channel twice")
+    }
+  }
+
+  func testPhotoShareThatNeverAppearedRepliesOnceAndLetsTheFileGo() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var replies: [Any?] = []
+    let share = try PhotoShare(png: Data([137, 80, 78, 71, 13, 10, 26, 10]), directory: directory,
+      presenter: UIViewController()) { replies.append($0) }
+    share.abandonUnlessPresented()
+    XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
+    XCTAssertEqual(replies.count, 1)
+    XCTAssertEqual((replies[0] as? FlutterError)?.code, "share-unavailable")
+    share.abandonUnlessPresented()
+    share.controller.completionWithItemsHandler?(nil, false, nil, nil)
+    XCTAssertEqual(replies.count, 1, "a sheet given up on must not reply on the channel again")
+  }
+
+  func testPhotoShareRefusesBadBytesAndAnUnwritableCache() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let presenter = UIViewController()
+    XCTAssertThrowsError(try PhotoShare(png: Data([1, 2, 3]), directory: directory, presenter: presenter) { _ in })
+    XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    // A file where the directory should be gives a real write failure without changing permissions.
+    try Data([0]).write(to: directory)
+    let png = Data([137, 80, 78, 71, 13, 10, 26, 10])
+    XCTAssertThrowsError(try PhotoShare(png: png, directory: directory, presenter: presenter) { _ in })
+  }
+
+  func testPhotoShareWithoutAnAttachedViewReturnsAnError() {
+    let bridge = PhotoShareBridge(presenting: { nil })
+    let call = FlutterMethodCall(methodName: "share", arguments: ["png": FlutterStandardTypedData(bytes: Data([137, 80, 78, 71, 13, 10, 26, 10]))])
+    var replied = false
+    bridge.handle(call) { outcome in
+      replied = true
+      XCTAssertEqual((outcome as? FlutterError)?.code, "share-unavailable")
+    }
+    XCTAssertTrue(replied)
+  }
+
   func testStateEngineContextsIsolateGlobalsAndRecoverAfterAnException() throws {
     let source = """
     var AiWorldStateEngine = { create: function(session) {

@@ -26,3 +26,26 @@ bindings; its import guard and GitHub bundle proof exercise keyboard and semanti
 through the same callback, including retirement fencing. Validation runs on GitHub only. Complete
 session composition, installed runtime, native widgets and touch-driven installed acceptance
 remain unfinished; these ports do not prove an installable playable app.
+
+## Photographs in the installed app (#578)
+
+More → Photo puts away the HUD and parks held input while the same game and native renderer keep
+running. Take and share photo reads `session.pipeline.renderer.snapshot()`, the GLES/Metal target
+already used by the installed journeys, and encodes its top-first RGBA pixels as PNG in Dart.
+Exit photo, system Back or Escape restores the controls without changing the camera or reopening the game.
+Exiting during readback or encoding prevents a late share sheet.
+
+The PNG goes to iOS's `UIActivityViewController` or Android's `ACTION_SEND` chooser. Android grants
+read access to one FileProvider URI under `cache/shared-photos/`; files older than a day are removed
+on the next share so a receiver can finish reading. iOS removes its temporary file when the activity
+finishes and excludes Save to Camera Roll. The app never requests photo-library or storage access.
+Cancellation, a denied share, an unavailable renderer or a write failure produces a short message
+and leaves the game and shutter available. Android says “Share sheet closed”, because its activity
+result cannot prove delivery or distinguish every cancellation; iOS reports the activity's result.
+
+`photo_capture_test.dart` checks the PNG's dimensions, pixel order and colours through mocked native
+channels, plus cancellation, denial/failure, retry and retired captures. `photo_controls_test.dart`
+and `ledger_shell_test.dart` cover feedback, duplicate taps, exit and persistent-world/input
+ownership. RunnerTests covers the iOS file, popover anchor, completion/error cleanup and missing
+presenter. These checks run in CI; real sharing targets and physical interruptions still need
+device evidence (#582).
