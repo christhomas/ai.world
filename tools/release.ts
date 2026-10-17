@@ -336,12 +336,13 @@ export function howTheChecksStand(
  * So what it waits on is *movement*. While any check changes — queued to running, running to
  * done, a new one appearing — the checks are working and the release waits. `quiet` is how long
  * nothing may change before it says so: longer than the slowest job's own `timeout-minutes`
- * (`reference-capture`, fifty), so one long job running is never mistaken for a stuck one, and
- * short enough that a runner that never picks the work up is reported within the hour rather than
- * never. `atMost` is the ceiling over all of it, so a run that keeps twitching without finishing
- * still ends. Either way nothing is tagged, and running the release again picks up where it was.
+ * (the installed apps' `android-native` and `ios-native`, two hours since their journeys were added
+ * to the capture), so one long job running is never mistaken for a stuck one, and short enough that
+ * a runner that never picks the work up is still reported. `atMost` is the ceiling over all of it,
+ * so a run that keeps twitching without finishing still ends. Either way nothing is tagged, and
+ * running the release again picks up where it was.
  */
-export const WAIT_FOR_CI = { quiet: 60 * 60 * 1000, atMost: 3 * 60 * 60 * 1000 } as const;
+export const WAIT_FOR_CI = { quiet: 125 * 60 * 1000, atMost: 4 * 60 * 60 * 1000 } as const;
 
 type CheckRun = { name: string; status: string; conclusion: string | null };
 

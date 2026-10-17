@@ -86,8 +86,9 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
         return
       }
       on(owned.queue, result) {
-        // a parcel of ground from a world engine can be large; the contract bounds it at 8 MiB
-        guard let request = arguments["request"] as? String, request.utf8.count <= 16 * 1024 * 1024 else {
+        // a parcel of ground for the whole game can be large; the contract bounds it at 8 MiB. The hero
+        // alone is never sent anything that size, and is held to the megabyte Android holds it to
+        guard let request = arguments["request"] as? String, request.utf8.count <= owned.vm.requestLimit else {
           throw StateEngineFailure("Request too large")
         }
         return try owned.vm.request(request)
@@ -122,6 +123,9 @@ struct StateEngineFailure: Error, CustomStringConvertible {
 final class StateEngineVM {
   /// How big a reply each bundled engine may give: the whole game answers with the ground it streams.
   static let replyLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024, "AiWorldGameEngine": 32 * 1024 * 1024]
+  /// And how big a request each may be sent, past which the transport refuses it and the owner retires.
+  static let requestLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024, "AiWorldGameEngine": 16 * 1024 * 1024]
+  let requestLimit: Int
   private let context: JSContext
   private let engine: JSValue
   private let replyLimit: Int
@@ -129,6 +133,7 @@ final class StateEngineVM {
   init(source: String, session: String, savedHero: String? = nil, entry: String = "AiWorldStateEngine",
        replyLimit: Int = 1024 * 1024) throws {
     self.replyLimit = replyLimit
+    self.requestLimit = Self.requestLimits[entry] ?? 1024 * 1024
     guard let context = JSContext(virtualMachine: JSVirtualMachine()) else { throw StateEngineFailure("Cannot create VM") }
     self.context = context
     // Separate VMs provide separate globals; a retired session cannot mutate its successor.

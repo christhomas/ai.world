@@ -23,8 +23,8 @@ chore release minor "..."      # or major, or patch
    rather than running the suite again on whatever it happens to be run from. It refuses, too, a
    local `main` that is not the one on GitHub. The hosted checks take twenty to seventy minutes
    once runners are queued for, so the wait is not a flat clock: it keeps waiting while any check
-   is still changing (queued, started, finished), gives up after an hour in which nothing about them
-   has changed, and after three hours whatever they are doing. Giving up tags nothing; run the
+   is still changing (queued, started, finished), gives up after two hours and five minutes in which nothing about them
+   has changed, and after four hours whatever they are doing. Giving up tags nothing; run the
    release again once they are unstuck. The same wait covers the release pull request's checks in
    step 5.
 3. **Moves all three version numbers together** — the chart's `version`, its `appVersion`, and the
