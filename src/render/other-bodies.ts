@@ -110,10 +110,14 @@ export class OtherBodies {
     const point = new THREE.Vector3();
     const shown = this.shown();
     const out: NamePlate[] = [];
+    // the page's renderer brings the lens's matrices up to date as it draws; a host that draws the
+    // frame somewhere else never has, and would project every name from where the lens was made
+    const lens = nativeCamera(camera);
+    lens.updateMatrixWorld();
     for (const [id, body] of this.bodies) {
       const plate = shown.get(id);
       if (!plate?.here) continue;
-      point.set(body.x, body.y + 2.1, body.z).project(nativeCamera(camera));
+      point.set(body.x, body.y + 2.1, body.z).project(lens);
       if (point.z > 1) continue;
       out.push({ id, text: plate.text, x: (point.x * 0.5 + 0.5) * width, y: (-point.y * 0.5 + 0.5) * height });
     }
