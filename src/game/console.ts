@@ -20,6 +20,7 @@ import type { Online } from './online';
 import type { Places } from './places';
 import type { Remains } from './remains';
 import type { GameState } from './state';
+import { doorsNear } from './doors-near';
 
 /**
  * The console, and everything the game can be told to do through it.
@@ -364,6 +365,7 @@ export function openConsole(ctx: Consoled) {
       return { name: found.name, x: Math.round(landed.x), z: Math.round(landed.z), kind: found.kind };
     },
     places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),
+    doors: () => doorsNear(structures.doors, player.x, player.z),
     // The villages, in the order somebody standing here cares about them. Distance and heading
     // rather than coordinates, because "Silverholm, 240 paces north-west" is an answer and
     // "Silverholm, 280, -110" is a lookup.

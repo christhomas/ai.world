@@ -40,6 +40,8 @@ PARTS = {
     'combat': ('integration_test/combat_test.dart',
                ['world open', 'stick bearings measured', 'a creature to fight', 'walked up to it', 'a blow landed',
                 'guard held and let go']),
+    'doors': ('integration_test/doors_test.dart',
+              ['world open', 'a door to walk into', 'on the doorstep', 'walked in', 'walked out']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
 JOURNEYS = ['journey', 'continue', 'crossplay']

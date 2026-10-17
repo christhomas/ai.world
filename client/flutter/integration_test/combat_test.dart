@@ -22,7 +22,7 @@ void main() {
     passed('stick bearings measured', {'up': '${bearings.up}', 'right': '${bearings.right}'});
 
     // a goat, through the console as a player types it, a step and a half in front of him
-    final said = await typed(tester, '/spawn goat 1.6');
+    final said = (await typed(tester, '/spawn goat 1.6')).join(' ');
     final x = RegExp(r'\bx (-?[\d.]+)').firstMatch(said), z = RegExp(r'\bz (-?[\d.]+)').firstMatch(said);
     expect(x != null && z != null, isTrue, reason: 'the console did not say where the goat is: $said');
     final goat = (x: double.parse(x!.group(1)!), z: double.parse(z!.group(1)!));
