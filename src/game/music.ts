@@ -1,5 +1,6 @@
 import { Biome } from '../world/biomes';
 import { CAVE, MOODS, beat, noteAt, type Mood } from './music-score';
+import { BEDS } from './sound-recipes';
 
 /**
  * Procedural soundtrack: a slow arpeggio over a drone, both synthesised. Each biome picks a mode
@@ -37,8 +38,8 @@ export class Music {
       return osc;
     };
     const gain = ctx.createGain();
-    gain.gain.value = 0.05;
-    const osc = mk(-6), osc2 = mk(7);
+    gain.gain.value = BEDS.DRONE_GAIN;
+    const osc = mk(BEDS.DRONE_CENTS[0]), osc2 = mk(BEDS.DRONE_CENTS[1]);
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.value = 500;

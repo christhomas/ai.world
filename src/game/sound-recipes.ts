@@ -1,3 +1,5 @@
+import { Biome } from '../world/biomes';
+
 /**
  * Every short sound the game makes, as what it is made of rather than as Web Audio calls (#578).
  *
@@ -66,3 +68,55 @@ export const SOUNDS = {
 
 /** How long after a footstep the next one falls, in seconds, while walking. */
 export const STRIDE = 0.27;
+
+/**
+ * The creatures a place is heard to have, one call at a time over its wind (#578): a drip
+ * underground, an owl at night, a frog in a swamp, birds in fields and woods, an eagle in the
+ * mountains, and nothing at all in a desert. `next` is how long until the next one.
+ */
+export function wildlifeCall(biome: Biome, night: number, cave: boolean, random: () => number = Math.random): { voices: SoundVoice[]; next: number } {
+  if (cave) return { voices: [tone(1800 + random() * 1200, 0.08, 'sine', 0.05, 0, 900)], next: 1 + random() * 4 };
+  let next = 2 + random() * 7;
+  if (night > 0.6) return { voices: random() < 0.35 ? [tone(420, 0.25, 'sine', 0.06), tone(350, 0.35, 'sine', 0.06, 0.3)] : [], next };
+  if (biome === Biome.Swamp) return { voices: [tone(130, 0.12, 'sawtooth', 0.05), tone(120, 0.14, 'sawtooth', 0.05, 0.16)], next };
+  if (biome === Biome.Plains || biome === Biome.Forest) {
+    const f = 1800 + random() * 900;
+    if (biome === Biome.Forest) next *= 0.6;
+    return { voices: [0, 1, 2].map((i) => tone(f, 0.07, 'sine', 0.05, i * 0.1, f * 1.25)), next };
+  }
+  if (biome === Biome.Mountain && random() < 0.3) return { voices: [tone(2400, 0.5, 'sine', 0.04, 0, 1800)], next };
+  return { voices: [], next };
+}
+
+/**
+ * The height of fall, in world units, that water makes as much noise as it ever will at. Anything
+ * taller is the same roar — which is the only reason this is a number and not simply the drop:
+ * without a ceiling a hundred-foot fall would drown the game out from across the valley.
+ */
+export const FULL_ROAR = 12;
+
+/**
+ * The beds under every other sound (#578), each a voice that never stops and is only turned up and
+ * down: wind, which is noise through a low-pass whose corner wanders ±180 Hz about 400 at 0.13 Hz;
+ * water, noise through a band-pass; and the soundtrack's drone, two sines a few cents either side
+ * of half the mood's root. The page holds them as Web Audio nodes and an installed app renders them.
+ */
+export const BEDS = { WIND_CUTOFF: 400, WIND_SWAY: 180, WIND_SWAY_HZ: 0.13, WIND_Q: 0.7, DRONE_GAIN: 0.05, DRONE_CENTS: [-6, 7] } as const;
+
+/** How loud the wind is here: higher in open, high or bare country, quieter at night, a breath underground. */
+export function windLevel(biome: Biome, night: number, cave: boolean): number {
+  if (cave) return 0.012;
+  const windy = biome === Biome.Desert || biome === Biome.Snow || biome === Biome.Mountain;
+  return (windy ? 0.07 : 0.025) * (1 - night * 0.4);
+}
+
+/**
+ * Water within earshot. `nearness` is nought out of earshot and one standing in it; `drop` is the
+ * height of the biggest fall in earshot, which decides whether this is a brook or something you
+ * have to raise your voice over: a fall is louder, broader and lower than a brook.
+ */
+export function waterBed(nearness: number, drop: number, cave: boolean): { gain: number; centre: number; q: number } {
+  const wet = Math.max(0, Math.min(1, nearness));
+  const loud = Math.min(1, drop / FULL_ROAR);
+  return { gain: wet * (0.035 + loud * 0.16) * (cave ? 0.6 : 1), centre: 1500 - loud * 950, q: 0.5 + loud * 0.9 };
+}

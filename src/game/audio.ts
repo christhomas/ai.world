@@ -1,6 +1,6 @@
 import { Biome } from '../world/biomes';
 import { Music } from './music';
-import { SOUNDS, STRIDE, type SoundVoice } from './sound-recipes';
+import { BEDS, SOUNDS, STRIDE, waterBed, wildlifeCall, windLevel, type SoundVoice } from './sound-recipes';
 
 /**
  * All sound is synthesised with Web Audio: no sample files, in keeping with the no-textures rule.
@@ -11,13 +11,6 @@ import { SOUNDS, STRIDE, type SoundVoice } from './sound-recipes';
  * purpose: `this.tone(420, 0.25, 'sine', 0.06)` beside a comment saying `owl` is a description of
  * a sound, and putting a name in front of the 420 would only be a longer way of writing it.
  */
-/**
- * The height of fall, in world units, that water makes as much noise as it ever will at. Anything
- * taller is the same roar — which is the only reason this is a number and not simply the drop:
- * without a ceiling a hundred-foot fall would drown the game out from across the valley.
- */
-const FULL_ROAR = 12;
-
 export class Sound {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -93,15 +86,15 @@ export class Sound {
       const src = ctx.createBufferSource();
       src.buffer = buf; src.loop = true;
       const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass'; filter.frequency.value = 400; filter.Q.value = 0.7;
+      filter.type = 'lowpass'; filter.frequency.value = BEDS.WIND_CUTOFF; filter.Q.value = BEDS.WIND_Q;
       const gain = ctx.createGain();
       gain.gain.value = 0;
       src.connect(filter).connect(gain).connect(this.master);
       src.start();
       const lfo = ctx.createOscillator();
-      lfo.frequency.value = 0.13;
+      lfo.frequency.value = BEDS.WIND_SWAY_HZ;
       const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 180;
+      lfoGain.gain.value = BEDS.WIND_SWAY;
       lfo.connect(lfoGain).connect(filter.frequency);
       lfo.start();
       this.wind = { gain, filter };
@@ -183,11 +176,11 @@ export class Sound {
     this.wetness = Math.max(0, Math.min(1, nearness));
     const w = this.water;
     if (!w || !this.ctx) return;
-    const loud = Math.min(1, drop / FULL_ROAR);
-    w.gain.gain.value = this.wetness * (0.035 + loud * 0.16) * (this.cave ? 0.6 : 1);
     // a fall is broader and lower than a brook, which is most of what tells them apart
-    w.filter.frequency.value = 1500 - loud * 950;
-    w.filter.Q.value = 0.5 + loud * 0.9;
+    const bed = waterBed(this.wetness, drop, this.cave);
+    w.gain.gain.value = bed.gain;
+    w.filter.frequency.value = bed.centre;
+    w.filter.Q.value = bed.q;
   }
 
   /** A blow landing: meat, bone or plate. See `SOUNDS.hit`. */
@@ -223,27 +216,14 @@ export class Sound {
     this.music.update();
     this.stepTimer -= dt;
     if (walking && this.stepTimer <= 0) { this.stepTimer = STRIDE; this.footstep(onRoad); }
-    const windy = this.biome === Biome.Desert || this.biome === Biome.Snow || this.biome === Biome.Mountain;
-    const target = this.cave ? 0.012 : (windy ? 0.07 : 0.025) * (1 - this.night * 0.4);
+    const target = windLevel(this.biome, this.night, this.cave);
     this.wind.gain.gain.value += (target - this.wind.gain.gain.value) * Math.min(1, dt * 0.5);
 
     this.chirpTimer -= dt;
     if (this.chirpTimer <= 0) {
-      this.chirpTimer = 2 + Math.random() * 7;
-      if (this.cave) {
-        this.chirpTimer = 1 + Math.random() * 4;
-        this.tone(1800 + Math.random() * 1200, 0.08, 'sine', 0.05, 0, 900); // drip
-      } else if (this.night > 0.6) {
-        if (Math.random() < 0.35) { this.tone(420, 0.25, 'sine', 0.06); this.tone(350, 0.35, 'sine', 0.06, 0.3); } // owl
-      } else if (this.biome === Biome.Swamp) {
-        this.tone(130, 0.12, 'sawtooth', 0.05); this.tone(120, 0.14, 'sawtooth', 0.05, 0.16); // frog
-      } else if (this.biome === Biome.Plains || this.biome === Biome.Forest) {
-        const f = 1800 + Math.random() * 900;
-        for (let i = 0; i < 3; i++) this.tone(f, 0.07, 'sine', 0.05, i * 0.1, f * 1.25); // bird
-        if (this.biome === Biome.Forest) this.chirpTimer *= 0.6;
-      } else if (this.biome === Biome.Mountain && Math.random() < 0.3) {
-        this.tone(2400, 0.5, 'sine', 0.04, 0, 1800); // eagle cry
-      }
+      const call = wildlifeCall(this.biome, this.night, this.cave);
+      this.chirpTimer = call.next;
+      this.play(call.voices);
     }
   }
 }

@@ -63,6 +63,12 @@ export type WorkerRequest =
 /** Worker → main thread. */
 export type WorkerResponse =
   | { type: 'ready' }
+  /**
+   * Asked to paint from a square it no longer holds, which it says rather than keeping quiet: a
+   * worker that answered nothing was a worker the main thread waited on for ever, and three of them
+   * was every square of ground the game ever drew again. A world's bytes come back with it.
+   */
+  | { type: 'lost'; id: number; cx: number; cz: number; patch: string; chunk?: ArrayBuffer }
   | { type: 'chunk'; id: number; cx: number; cz: number; empty: true; grown?: boolean }
   | {
       type: 'chunk'; id: number; cx: number; cz: number; empty: false;

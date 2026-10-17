@@ -53,6 +53,22 @@ describe('owned host chunk jobs', () => {
     } finally { test.cleanup(); }
   });
 
+  it('asks again when a worker says it no longer holds the square a chunk is painted from', () => {
+    const test = mounted();
+    try {
+      test.drain(); test.chunks.update(0, 0); test.time(201); test.chunks.update(0, 0);
+      const request = test.posts.find(message => message.type === 'gen');
+      if (!request || request.type !== 'gen') throw new Error('Expected queued terrain work');
+      // the worker had let go of the square: it says so, rather than leaving the only worker busy for ever
+      test.posts.length = 0;
+      test.callbacks[0]({ type: 'lost', id: request.id, cx: request.cx, cz: request.cz, patch: '0,0' });
+      expect(test.posts.some(message => message.type === 'gen' && message.cx === request.cx && message.cz === request.cz)).toBe(true);
+      test.drain();
+      expect(test.chunks.captureProgress().loaded).toBeGreaterThan(0);
+      expect(test.chunks.grownDetails().idle).toBe(1);
+    } finally { test.cleanup(); }
+  });
+
   it('retired job callbacks cannot refill the pool or mount terrain after disposal', () => {
     const test = mounted();
     test.drain(); test.chunks.update(0, 0); test.time(201); test.chunks.update(0, 0);

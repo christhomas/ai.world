@@ -228,9 +228,9 @@ describe('how long the checks are waited for', () => {
   it('outlasts the slowest run the checks have actually taken', () => {
     // 69 minutes was the slowest successful pull request run when this was written
     expect(WAIT_FOR_CI.atMost).toBeGreaterThan(69 * minute);
-    // and the quiet limit outlasts the longest job's own timeout-minutes (reference-capture, 50),
-    // so one long job running on its own is never read as a stuck one
-    expect(WAIT_FOR_CI.quiet).toBeGreaterThan(50 * minute);
+    // and the quiet limit outlasts the longest job's own timeout-minutes (the installed apps' native
+    // jobs, 120), so one long job running on its own is never read as a stuck one
+    expect(WAIT_FOR_CI.quiet).toBeGreaterThan(120 * minute);
   });
 
   it('keeps waiting past the old twenty minutes while the checks are still moving', () => {

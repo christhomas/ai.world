@@ -77,6 +77,43 @@ describe('asking for a square of country', () => {
   });
 });
 
+describe('asking for the country a hero has been moved to', () => {
+  it('grows the square nearest him first, whatever order they were asked in', () => {
+    const { sent, grower } = harness();
+    // wanted on the way out, two paddocks and a rail away, before the jump home
+    grower.want('5,5');
+    grower.want('4,5');
+    grower.want('3,4');
+    grower.want('0,0');
+    grower.near(PATCH / 2, PATCH / 2);
+    grower.took(reply('5,5'));
+    const grown = sent.map((m) => (m.type === 'grow' ? m.patch : m.type));
+    expect(grown, 'the square under him waited behind ones he had left').toEqual(['5,5', '0,0']);
+  });
+
+  it('stops asking for squares he has gone far from, and asks again if he goes back', () => {
+    const { sent, grower } = harness();
+    grower.want('0,0');
+    grower.want('9,9');
+    grower.want('8,9');
+    grower.near(PATCH / 2, PATCH / 2);
+    expect(grower.waiting).toEqual(['0,0']);
+    grower.took(reply('0,0'));
+    expect(sent.map((m) => (m.type === 'grow' ? m.patch : m.type))).toEqual(['0,0']);
+    grower.near(9 * PATCH, 9 * PATCH);
+    grower.want('9,9');
+    expect(sent.at(-1)).toMatchObject({ patch: '9,9' });
+  });
+
+  it('keeps asking in the order asked while nobody has said where he is', () => {
+    const { sent, grower } = harness();
+    grower.want('5,5');
+    grower.want('0,0');
+    grower.took(reply('5,5'));
+    expect(sent.map((m) => (m.type === 'grow' ? m.patch : m.type))).toEqual(['5,5', '0,0']);
+  });
+});
+
 describe('a square coming back', () => {
   it('is put with the rest, and is then in hand', () => {
     const { patches, grower } = harness();

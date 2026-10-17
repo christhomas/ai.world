@@ -39,11 +39,16 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   with the entrance and the seen chests), when what has been seen of it changes, and `null` once
   the hero is back above ground;
 - the sounds the game made since the last reply (`sounds`), each as the voices `game/sound-recipes.ts`
-  makes it of, for the app to synthesise and play at the HUD's volume;
+  makes it of, for the app to synthesise and play at the HUD's volume, the creatures of the place
+  among them; and in the HUD, how loud the beds under them are now (`hud.beds`: the wind, the water
+  in earshot and the soundtrack's drone), which the app renders a second at a time
+  (`client/flutter/lib/src/audio/beds.dart`);
 - where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
   and the country, each as runs, total and longest, at most every two seconds;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - everybody else in this world (`company`), nearest first, read by `src/game/company-view.ts` as the page's travellers list is, only while the app has asked to read it and only when it has changed;
+- whoever the action key would talk to (`subject`), with their feet and head in screen pixels (`src/render/in-reach.ts`), every reply, for the app to ring them and hang their name over them as the design marks somebody in reach;
+- a village's descent (`kin`), once each time a town hall's clerk is paid to unroll it, laid out by `src/game/kin-view.ts` as the page's lineage panel draws it, with `unrolled` counting the times so a book looked at again opens again;
 - the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture
@@ -66,9 +71,12 @@ through `ParcelLink`: the app's socket (`NativeWorldSocketLink`) carries the sam
 parcels a page's socket does, and the engine and the app hand them across in replies and `parcel`
 requests. Every connection has a generation; a socket the game has replaced or closed is fenced on
 both sides, so its late news never reaches the connection after it. The app follows the page's
-invite links (`?seed=…&server=wss://…`); a release build reaches only `wss` addresses. Named-world
-invites, which also carry authored terrain, are refused with a message until the engine takes that
-terrain.
+invite links (`?seed=…&server=wss://…`); a release build reaches only `wss` addresses. A named
+world's invite (`?world=<name>&server=wss://…`) has no seed: the app asks the server what it is
+(`GET /world?name=`, as `boot.ts` does) each time the game is opened, and hands the answer to the
+engine as the `invite` option. The engine joins it to the save with `joinNamed`
+(`src/mobile/named-world.ts`): the server's seed, country, layers, terrain and sites, and the page's
+refusal when that ground would bury the hero's own places.
 
 **Faces.** `portraits.ts` paints a face with the page's own `paint`, so a portrait in the app is
 the same rectangles the dialogue box's canvas is filled with: five numbers a rectangle (x, y,

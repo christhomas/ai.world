@@ -270,6 +270,13 @@ export class Tellings<Painter> {
     return true;
   }
 
+  /** It said it does not hold this patch after all, so the next chunk painted from it tells it again. */
+  forget(who: Painter, patch: string): void {
+    const known = this.told.get(who);
+    const at = known ? known.indexOf(patch) : -1;
+    if (at >= 0) known!.splice(at, 1);
+  }
+
   /** What this painter is holding, oldest first. For a test, and for a debug readout. */
   holding(who: Painter): string[] {
     return [...(this.told.get(who) ?? [])];

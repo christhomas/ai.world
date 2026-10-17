@@ -75,7 +75,16 @@ final class SoundBridge: NSObject, FlutterPlugin {
     let player = AVAudioPlayerNode()
     engine.attach(player)
     engine.connect(player, to: engine.mainMixerNode, format: format)
-    if !engine.isRunning { try engine.start() }
+    if !engine.isRunning {
+      do {
+        try engine.start()
+      } catch {
+        // a call, Siri or another app's audio stops the engine, and can leave the session inactive
+        // when it is over: woken again, the game is heard again rather than silent until relaunched
+        try AVAudioSession.sharedInstance().setActive(true)
+        try engine.start()
+      }
+    }
     player.scheduleBuffer(buffer) { [weak self] in
       DispatchQueue.main.async { self?.engine.detach(player) }
     }

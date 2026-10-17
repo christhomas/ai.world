@@ -38,6 +38,8 @@ export class ChunkMesher {
        * it was grown as, which is the exact failure `twohalves.test.ts` exists to catch between the
        * page and the world, happening quietly inside the page instead.
        */
+      // told again, it is the newest: a Map set a key it already holds would leave it where it was
+      this.patches.delete(msg.patch);
       this.patches.set(msg.patch, rebuildPatch(msg.seed, msg.within, {
         graph: msg.graph, hydro: msg.hydro, structures: msg.structures, ranges: msg.ranges,
         layers: msg.layers, terrain: msg.terrain,
@@ -51,8 +53,20 @@ export class ChunkMesher {
       return;
     }
     const sampler = msg.patch !== undefined ? this.patches.get(msg.patch) ?? null : this.whole;
-    if (!sampler) return;
     const { cx, cz, id } = msg;
+    if (!sampler) {
+      if (msg.patch === undefined) return;
+      const chunk = msg.type === 'mesh' ? msg.chunk : undefined;
+      this.post({ type: 'lost', id, cx, cz, patch: msg.patch, ...(chunk ? { chunk } : {}) }, chunk ? [chunk] : []);
+      return;
+    }
+    /*
+     * Painted from, it is the newest, which is what the main thread's `Tellings` says of it: the two
+     * ends drop the same square only while they agree on which was used last. This end dropped the
+     * oldest *told* and that end the oldest *used*, so a square painted from again was the one this
+     * worker let go of and the main thread still thought it held (#584, 2026-10-17).
+     */
+    if (msg.patch !== undefined) { this.patches.delete(msg.patch); this.patches.set(msg.patch, sampler); }
     /*
      * The ground either came from the world or is grown here.
      *

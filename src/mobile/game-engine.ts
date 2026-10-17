@@ -6,7 +6,9 @@ import { composeGame, type GameHandle } from '../game/compose';
 import { PLAYER_ACTION_KEYS, type PlayerAction } from '../game/player-actions';
 import { headlessGame, type HeadlessGame } from '../platform/headless-game';
 import { savedInMemory } from '../save/memory';
-import type { SessionSave } from '../save/store';
+import { kindOf, type SessionSave } from '../save/store';
+import { joinNamed } from './named-world';
+import type { WorldInvite } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
@@ -32,6 +34,11 @@ export interface EngineOptions {
   world?: Record<string, string>;
   /** A shared world's address to join instead of the private one (#565); `start` then says `remote`. */
   server?: string;
+  /**
+   * A named shared world, as its server described it when the app asked for it by name: the seed,
+   * the country and what it was authored with, which the save is joined to as the page joins it.
+   */
+  invite?: WorldInvite;
 }
 
 function optionsFrom(text: string): EngineOptions {
@@ -42,7 +49,11 @@ function optionsFrom(text: string): EngineOptions {
     || (value.name !== undefined && typeof value.name !== 'string')
     || (value.server !== undefined && (typeof value.server !== 'string' || !/^wss?:\/\/[^\s]+$/.test(value.server)))
     || (value.world !== undefined && (typeof value.world !== 'object' || value.world === null
-      || Object.values(value.world).some((text) => typeof text !== 'string')))) {
+      || Object.values(value.world).some((text) => typeof text !== 'string')))
+    // a named world is somebody's server's, and is the seed and the country that server said it is
+    || (value.invite !== undefined && (typeof value.invite !== 'object' || value.invite === null || value.server === undefined
+      || typeof value.invite.name !== 'string' || !value.invite.name || value.invite.seed !== value.seed
+      || kindOf(value.invite.kind) !== value.kind))) {
     throw new Error('Invalid game options');
   }
   return value as EngineOptions;
@@ -147,6 +158,7 @@ export function create(session: string, optionsText: string): { request(text: st
   let readingCompany = false;
   let lastRoster = '';
   let lastCompany = '';
+  let lastKin = 0;
   let mapDrawn = false;
   let lastFloor: string | null = null;
   let lastMap = '';
@@ -171,6 +183,8 @@ export function create(session: string, optionsText: string): { request(text: st
       pack: json(packView(state)),
       hero: json({ x: player.x, z: player.z, yaw: player.entity.yaw, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
+      // whoever is in reach, where they stand on the screen, for the app to ring (#571)
+      subject: json(host!.subject()),
     };
     if (scene) models.scene = scene;
     // the sounds the game made since the last reply, as the voices each is made of (#578)
@@ -191,6 +205,9 @@ export function create(session: string, optionsText: string): { request(text: st
       const company = JSON.stringify(host!.company());
       if (company !== lastCompany) { lastCompany = company; models.company = JSON.parse(company) as Json; }
     }
+    // a descent the clerk has just unrolled, once each time he does: the app opens its kin page on it
+    const kin = host!.kin();
+    if (kin && kin.unrolled !== lastKin) { lastKin = kin.unrolled; models.kin = json({ unrolled: kin.unrolled, ...kin.view }); }
     // where the time went on this phone's engine (#559): each kind of job's runs, total and longest,
     // at most every two seconds and only when it has changed
     if (renderTimeMs - lastPerfAt >= 2000) {
@@ -271,8 +288,9 @@ export function create(session: string, optionsText: string): { request(text: st
           host = headlessGame({ viewport: options.viewport, clock: engineClock, now: () => engineClock.now(),
             random: Math.random, name: options.name, vault: world,
             server: options.server ? { url: options.server, link: parcels.connect } : undefined });
-          game = composeGame({ store, slotKey: options.slot, saved: options.saved, seed: options.seed,
-            worldName: undefined, world: options.kind }, host.platform);
+          game = composeGame({ store, slotKey: options.slot, seed: options.seed, world: options.kind,
+            saved: options.invite ? joinNamed(options.invite, options.saved) : options.saved,
+            worldName: options.invite?.name }, host.platform);
           return reply({ full: true, state: presentation(null) });
         }
         if (request.type === 'dispose') {

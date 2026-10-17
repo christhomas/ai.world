@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import 'audio/beds.dart';
 import 'audio/synth.dart';
+import 'invite.dart';
 import 'network/world_socket_link.dart';
 import 'scene_frame.dart';
 import 'state_engine.dart';
@@ -15,7 +17,7 @@ import 'storage/checkpoint_store.dart';
 /// Which game: the world it is played in and the slot it is kept in.
 @immutable
 class GameSlot {
-  const GameSlot({required this.slot, required this.seed, this.kind = 'road', this.name = 'Traveller', this.server});
+  const GameSlot({required this.slot, required this.seed, this.kind = 'road', this.name = 'Traveller', this.server, this.world});
   /// Printable ASCII, at most 48 characters: it names the slot's files.
   final String slot;
   final int seed;
@@ -24,19 +26,24 @@ class GameSlot {
   final String name;
   /// A shared world's address (`wss://…`) to join instead of a private world (#565).
   final String? server;
+  /// A named shared world's name: the server is asked what it is each time it is opened, as the
+  /// page asks on every visit, because it may have been authored since.
+  final String? world;
 
   StorageScope scope(String domain) => StorageScope(domain: domain, world: slot, seed: seed, player: 'local-hero', kind: kind);
 
   /// As the app's settings keep it.
-  Map<String, Object> get json => {'slot': slot, 'seed': seed, 'kind': kind, 'name': name, 'server': ?server};
+  Map<String, Object> get json => {'slot': slot, 'seed': seed, 'kind': kind, 'name': name, 'server': ?server, 'world': ?world};
 
   /// A slot as the settings kept it, or null if what was kept is not one.
   static GameSlot? fromJson(Object? json) {
     if (json is! Map || json['slot'] is! String || json['seed'] is! int || json['kind'] is! String) return null;
-    final name = json['name'], server = json['server'];
-    if ((name != null && name is! String) || (server != null && server is! String)) return null;
+    final name = json['name'], server = json['server'], world = json['world'];
+    if ((name != null && name is! String) || (server != null && server is! String) || (world != null && (world is! String || server == null))) {
+      return null;
+    }
     return GameSlot(slot: json['slot'] as String, seed: json['seed'] as int, kind: json['kind'] as String,
-      name: name as String? ?? 'Traveller', server: server as String?);
+      name: name as String? ?? 'Traveller', server: server as String?, world: world as String?);
   }
 }
 
@@ -76,6 +83,9 @@ class GameSession {
   /// Where the game's sounds are played, and what makes them (#578).
   final SoundOutput _sound;
   final Synth _synth = Synth();
+  final Beds _beds = Beds();
+  /// When the beds' next stretch is due, in the game's render time.
+  double _bedsDue = 0;
   /// What draws the frames, for the installed-app journeys to read back and refuse a blank one.
   @visibleForTesting
   FlutterFramePipeline? get pipeline => _pipeline;
@@ -95,6 +105,8 @@ class GameSession {
   Map<String, dynamic> roster = const {};
   /// Everybody else in this world as the game last sent them, while the travellers page asks.
   Map<String, dynamic> company = const {};
+  /// The descent a clerk last unrolled (#575): sent once each time he does, which opens its page.
+  final ValueNotifier<Map<String, dynamic>?> kin = ValueNotifier(null);
   /// The floor the hero is on while he is underground; null above ground.
   Map<String, dynamic>? floor;
   /// The map's ground and roads, sent once (`src/world/map-ground.ts`).
@@ -120,7 +132,18 @@ class GameSession {
   /// Open the slot's game: continue it if it was kept, start it if not.
   static Future<GameSession> open(GameSlot slot, {required Directory root, required Size viewport,
       FlutterFramePipeline? pipeline, MethodChannel? channel, AssetBundle? assets,
-      ParcelSocketFactory sockets = nativeParcelSocket, SoundOutput? sound}) async {
+      ParcelSocketFactory sockets = nativeParcelSocket, SoundOutput? sound, DescribeWorld? describe}) async {
+    // a named world is asked about every time, as the page asks on every visit: it may have been
+    // authored since, and what it was authored with is what the ground is grown from
+    Map<String, dynamic>? invite;
+    final named = slot.world, server = slot.server;
+    if (named != null && server != null) {
+      invite = await (describe ?? describeWorld)(WorldInvite.endpoint(server, named));
+      final now = WorldInvite(server: server, seed: null, name: named).described(invite);
+      if (now.seed != slot.seed || now.kind != slot.kind) {
+        throw WorldRefused('“$named” on that server is not the world you played any more. Join it again from its invite.');
+      }
+    }
     final saves = await CheckpointStore.open(root, slot.scope('player'));
     final world = await CheckpointStore.open(root, slot.scope('world'));
     final saved = await saves.load('save');
@@ -133,6 +156,7 @@ class GameSession {
       'saved': ?saved,
       'world': records,
       'server': ?slot.server,
+      'invite': ?invite,
     }, channel: channel, assets: assets);
     final session = GameSession._(slot, engine, saves, world, records, pipeline, sockets, sound ?? NativeSound());
     try {
@@ -228,6 +252,8 @@ class GameSession {
     if (register is Map) roster = Map<String, dynamic>.from(register);
     final others = models['company'];
     if (others is Map) company = Map<String, dynamic>.from(others);
+    final descent = models['kin'];
+    if (descent is Map) kin.value = Map<String, dynamic>.from(descent);
     if (models.containsKey('floor')) {
       final below = models['floor'];
       floor = below is Map ? Map<String, dynamic>.from(below) : null;
@@ -242,12 +268,19 @@ class GameSession {
     }
     _relay(models);
     // the sounds the game made since the last reply, made here and played at the game's volume
+    final volume = (((models['hud'] as Map?)?['volume'] as num?) ?? 0.6).toDouble().clamp(0.0, 1.0);
     final sounds = models['sounds'];
     if (sounds is List && !_closing) {
-      final volume = (((models['hud'] as Map?)?['volume'] as num?) ?? 0.6).toDouble().clamp(0.0, 1.0);
       for (final voices in sounds.cast<List>()) {
         unawaited(_sound.play(_synth.render(voices.cast<Map>(), volume: volume), _synth.rate));
       }
+    }
+    // and the wind, the water and the drone under them, a second at a time on the game's own clock
+    final beds = (models['hud'] as Map?)?['beds'];
+    if (beds is Map && !_closing && _time >= _bedsDue) {
+      _bedsDue = _time + Beds.every * 1000;
+      final stretch = _beds.render(beds, volume: volume);
+      if (stretch != null) unawaited(_sound.play(stretch, _beds.rate));
     }
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {

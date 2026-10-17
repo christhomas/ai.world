@@ -58,4 +58,33 @@ void main() {
     expect(heard.played.skip(2).every((samples) => samples.every((s) => s == 0)), isTrue, reason: 'turned all the way down');
     await session.close();
   });
+
+  test('the wind and the drone under everything are handed over a second at a time, and not when silent', () async {
+    final root = await Directory.systemTemp.createTemp('game-beds');
+    addTearDown(() => root.delete(recursive: true));
+    var wind = 0.07;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'create') return 'owner';
+      if (call.method == 'dispose') return null;
+      final request = jsonDecode((call.arguments as Map)['request'] as String) as Map;
+      final models = <String, Object?>{'hero': {'x': 0, 'z': 0}, 'hud': {'volume': 0.6, 'beds': {
+        'wind': wind, 'water': {'gain': 0, 'centre': 1500, 'q': 0.5}, 'drone': {'freq': 110, 'gain': wind > 0 ? 0.025 : 0}}}};
+      return jsonEncode({'version': 1, 'session': request['session'], 'sequence': request['sequence'],
+        'requestId': request['id'], 'type': 'result',
+        'payload': {'state': {'revision': 1, 'tick': 0, 'renderTimeMs': 0, 'owner': 'WORLD', 'busy': null, 'models': models}}});
+    });
+    final heard = Heard();
+    final session = await GameSession.open(const GameSlot(slot: 'beds', seed: 3), root: root,
+      viewport: const Size(844, 390), channel: channel, assets: GameAssets(), sound: heard);
+    expect(heard.played, hasLength(1), reason: 'a stretch as soon as the game says what to play');
+    for (var i = 0; i < 40; i++) { await session.step(1 / 30); }
+    expect(heard.played, hasLength(2), reason: 'and the next a second later, not a frame later');
+    expect(heard.played.last.length, greaterThan(44100), reason: 'each runs on under the next');
+    wind = 0;
+    final quiet = heard.played.length;
+    for (var i = 0; i < 40; i++) { await session.step(1 / 30); }
+    expect(heard.played.length, quiet, reason: 'nothing to hear is nothing handed over');
+    await session.close();
+  });
 }
+

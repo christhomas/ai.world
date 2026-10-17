@@ -43,6 +43,7 @@ import { type Luxury } from '../world/prosperity';
 import { Hires } from './hire';
 import { stableAt } from './stables';
 import { lineageDrawing } from './lineage';
+import { whereLineageIsDrawn } from './enquiry';
 import { openConsole } from './console';
 import { createDoorsteps, gatesOf } from './doorways';
 import { createBlows } from './blows';
@@ -587,12 +588,16 @@ export function composeGame(start: GameStart, platform: GamePlatform): GameHandl
     partySize: () => party.size,
   });
 
+  // where a clerk's family tree appears: `enquiry.ts` sells the book and knows nothing about
+  // screens, so it holds a hook and this fills it in. Every build, not only one with probes: it was
+  // filled in beside them, which a production build strips, so a player who paid the clerk for the
+  // descent was told he unrolled it and was shown nothing (#575)
+  const drawLineage = (village: string): void => kinPanel.show(...lineageDrawing(register, village, state.day));
+  whereLineageIsDrawn(drawLineage);
+
   // the handles a headless browser drives this by, for a host that installs them. Hung on at the
   // end because they reach into everything, and everything now exists.
   if (platform.probes) {
-    // where a clerk's family tree appears: `enquiry.ts` sells the book and knows nothing about
-    // screens, so it holds a hook and the host that has a kin panel fills it in
-    const drawLineage = (village: string): void => kinPanel.show(...lineageDrawing(register, village, state.day));
     platform.probes({ endless, grower,
       seed, manifest, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,

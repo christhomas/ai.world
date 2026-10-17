@@ -243,12 +243,22 @@ def capture(platform):
                 root.mkdir(parents=True, exist_ok=True)
                 (root / name).touch()
 
-        def pull(file):
-            # what the app read back from its own render target, beside the advance cue
-            if platform == 'android':
-                return subprocess.run([*adb, 'exec-out', 'run-as', 'world.ai.ai_world_flutter', 'cat', f'files/ai-world/{file}'],
-                                      stdout=subprocess.PIPE, check=True, timeout=180).stdout
-            return (app_files() / file).read_bytes()
+        def pull(file, size):
+            # what the app read back from its own render target, beside the advance cue. The app has
+            # flushed the file before it says so, so a short read is adb's link to the emulator dropping
+            # mid-transfer: 194048 of 10368000 bytes on 2026-10-17, with the emulator short of memory
+            # and the device gone from adb a moment later. Wait for it to come back and read again.
+            for attempt in range(3):
+                if platform != 'android':
+                    return (app_files() / file).read_bytes()
+                if attempt:
+                    print(f'{file}: {len(pixels)} of {size} bytes read back; waiting for the device to read it again')
+                    subprocess.run([*adb, 'wait-for-device'], check=True, timeout=180)
+                pixels = subprocess.run([*adb, 'exec-out', 'run-as', 'world.ai.ai_world_flutter', 'cat', f'files/ai-world/{file}'],
+                                        stdout=subprocess.PIPE, check=True, timeout=180).stdout
+                if len(pixels) == size:
+                    break
+            return pixels
 
         for index, scene in enumerate(json.loads(STATE.read_text())['scenes']):
             name = scene['name']
@@ -260,7 +270,7 @@ def capture(platform):
                 raise RuntimeError(f'{name}: the app did not say what size it read its target back at')
             width, height = int(size.group(1)), int(size.group(2))
             for pass_name in ['first', 'repeat']:
-                pixels = pull(f'parity-{index}-{pass_name}.rgba')
+                pixels = pull(f'parity-{index}-{pass_name}.rgba', width * height * 4)
                 if len(pixels) != width * height * 4:
                     raise RuntimeError(f'{name} {pass_name}: {len(pixels)} bytes read back for {width}x{height}')
                 # alpha kept: the comparison fails a world that is not opaque over the app
@@ -306,7 +316,7 @@ def capture(platform):
         # the app's memory with the whole game loaded, while the replay holds it open (#559)
         stats['memoryKb'] = app_memory_kb(platform, adb if platform == 'android' else None)
         width, height = (int(n) for n in stats['framebuffer'].split('x'))
-        pixels = pull('game-first.rgba')
+        pixels = pull('game-first.rgba', width * height * 4)
         if len(pixels) != width * height * 4:
             raise RuntimeError(f'installed game: {len(pixels)} bytes read back for {width}x{height}')
         drawn = Image.frombytes('RGBA', (width, height), pixels)

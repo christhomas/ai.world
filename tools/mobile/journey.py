@@ -40,11 +40,17 @@ def output(args, timeout=120):
 
 def device(platform):
     if platform == 'android':
-        lines = [line.split() for line in output(['adb', 'devices']).splitlines()[1:]]
-        ready = [parts[0] for parts in lines if len(parts) == 2 and parts[1] == 'device']
-        if not ready:
-            raise Provisioning('no Android emulator is attached')
-        return ready[0], None
+        # An emulator short of memory can drop off adb for a moment and come back: it did straight
+        # after the capture on 2026-10-17, and the journey that followed found nothing and gave up.
+        deadline = time.monotonic() + 120
+        while True:
+            lines = [line.split() for line in output(['adb', 'devices']).splitlines()[1:]]
+            ready = [parts[0] for parts in lines if len(parts) == 2 and parts[1] == 'device']
+            if ready:
+                return ready[0], None
+            if time.monotonic() > deadline:
+                raise Provisioning('no Android emulator is attached')
+            time.sleep(5)
     runtimes = json.loads(output(['xcrun', 'simctl', 'list', 'runtimes', '-j']))['runtimes']
     ios = [r for r in runtimes if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS')]
     if not ios:
@@ -87,6 +93,20 @@ def run_part(platform, serial, part, record, defines=()):
     log.close()
     record['parts'].append({'part': part, 'exit': code, 'seconds': round(time.monotonic() - started, 1)})
     return code
+
+
+def device_log(platform, serial):
+    """What the device said while the journey ran, kept beside the report when a part fails."""
+    if platform == 'android':
+        args = ['adb', '-s', serial, 'logcat', '-d', '-t', '5000']
+    else:
+        args = ['xcrun', 'simctl', 'spawn', serial, 'log', 'show', '--last', '20m', '--style', 'compact',
+                '--predicate', 'process == "Runner"']
+    try:
+        with (OUT / 'device.log').open('w') as file:
+            subprocess.run(args, stdout=file, stderr=subprocess.STDOUT, timeout=300, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def crossplay(platform, serial, record):
@@ -169,6 +189,7 @@ def main(platform):
         subprocess.run(['node', 'tools/mobile/build-engine.mjs'], cwd=ROOT, check=True, timeout=600)
         for part in PARTS:
             if run_part(platform, serial, part, record) != 0:
+                device_log(platform, serial)
                 record['result'] = 'failed'
                 record['why'] = f'{part} failed; its log and the last screens say where.'
                 return 1

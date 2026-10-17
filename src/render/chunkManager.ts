@@ -487,10 +487,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
     }
     this.idle.push(w);
     const k = chunkKey(msg.cx, msg.cz);
+    if (msg.type === 'lost') this.told.forget(w, msg.patch);
     if (this.pending.get(k) !== msg.id) { this.pump(); return; } // stale
     this.pending.delete(k);
     const far = Math.max(Math.abs(msg.cx - this.focusCx), Math.abs(msg.cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) { this.pump(); return; }
+    // painted from a square the worker had let go of: told it again and asked again, first in line
+    if (msg.type === 'lost') { if (msg.chunk) this.sent.set(k, msg.chunk); this.queue.unshift({ cx: msg.cx, cz: msg.cz, since: 0 }); this.pump(); return; }
 
     // Ground drawn over must leave the scene as well as the loaded map. Keeping its group behind
     // draws two coplanar terrains with different z-buffer wins on each capture and leaks draw calls.
