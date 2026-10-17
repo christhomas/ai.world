@@ -185,12 +185,20 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     try {
       final at = DateTime.now();
       final file = await exportGame(slot, root: root, at: at);
-      await (widget.shareFile ?? shareGameFile)(gameFileName(slot, at), utf8.encode(file.encode()), origin);
-      if (mounted) setState(() => _exported = "Exported ${slot.name}'s game to a file.");
+      final status = await (widget.shareFile ?? shareGameFile)(gameFileName(slot, at), utf8.encode(file.encode()), origin);
+      if (mounted) {
+        setState(() => _exported = switch (status) {
+          ShareResultStatus.success => "Exported ${slot.name}'s game to a file.",
+          ShareResultStatus.dismissed => "${slot.name}'s game was not exported.",
+          ShareResultStatus.unavailable => 'The share sheet closed. This phone cannot say whether the game was exported.',
+        });
+      }
     } on GameFileRefused catch (refused) {
       if (mounted) setState(() => _exported = refused.message);
-    } catch (error) {
-      if (mounted) setState(() => _exported = 'Could not export that game: $error');
+    } on StorageFailure catch (error) {
+      if (mounted) setState(() => _exported = 'Could not export that game. ${_storageReason(error)}');
+    } catch (_) {
+      if (mounted) setState(() => _exported = 'Could not export that game. Please try again.');
     } finally {
       _porting = false;
     }
@@ -203,17 +211,27 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     _porting = true;
     try {
       final bytes = await (widget.pickFile ?? pickGameFile)();
-      if (bytes == null) return;
+      if (bytes == null) {
+        if (mounted) setState(() => _trouble = null);
+        return;
+      }
       final slot = await importGame(bytes, games);
-      if (mounted) setState(() => _trouble = "Imported ${slot.name}'s game. Continue plays it.");
+      final where = slot.server == null ? '' : ' on ${Uri.parse(slot.server!).host}';
+      if (mounted) setState(() => _trouble = "Imported ${slot.name}'s game$where. Continue plays it.");
     } on GameFileRefused catch (refused) {
       if (mounted) setState(() => _trouble = refused.message);
-    } catch (error) {
-      if (mounted) setState(() => _trouble = 'Could not import that game: $error');
+    } on StorageFailure catch (error) {
+      if (mounted) setState(() => _trouble = 'Could not import that game. ${_storageReason(error)}');
+    } catch (_) {
+      if (mounted) setState(() => _trouble = 'Could not import that game. Please try again.');
     } finally {
       _porting = false;
     }
   }
+
+  String _storageReason(StorageFailure error) => error.code == StorageError.quota
+    ? 'There is not enough space on this phone.'
+    : 'The game storage could not be read or written. Please try again.';
 
   /// Delete a kept game; the saved games list has asked the player first.
   Future<void> _delete(GameSlot slot) async {

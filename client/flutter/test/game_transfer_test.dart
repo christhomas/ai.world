@@ -66,6 +66,13 @@ void main() {
     expect((await held(slot, 'world'))?.value, const <String, String>{});
   });
 
+  test('a shared game can use its seed without a named world', () async {
+    const shared = GameSlot(slot: 'shared-4-world.example', seed: 4, server: 'ws://world.example/play');
+    await keep(shared, hero, records);
+    final slot = await importGame(await exported(shared), games, at: at);
+    expect((slot.server, slot.world), ('ws://world.example/play', null));
+  });
+
   test('an import never touches a kept game, even its own original', () async {
     await keep(rowan, hero, records);
     final file = await exported(rowan);
@@ -119,6 +126,7 @@ void main() {
   test('a file whose slot this app cannot keep is refused, and leaves nothing behind', () async {
     await keep(rowan, hero, records);
     final before = await everything();
+    final directories = root.listSync().map((entry) => entry.path).toSet();
     String sealed(Map<String, Object?> slot) {
       final body = jsonEncode({'slot': slot, 'hero': hero, 'world': records, 'exported': 1});
       return jsonEncode({'format': 'ai-world-game', 'version': 1, 'checksum': gameFileChecksum(body), 'body': body});
@@ -126,12 +134,64 @@ void main() {
     for (final slot in [
       {'slot': 'x', 'seed': -1, 'kind': 'road'},
       {'slot': 'x', 'seed': 1, 'kind': 'ocean'},
+      {'slot': 'x', 'seed': 1, 'kind': 'mesh'},
+      {'slot': 'x', 'seed': 0x100000000, 'kind': 'road'},
       {'slot': 'x', 'seed': 1},
       {'slot': 'x', 'seed': 1, 'kind': 'road', 'world': 'Harbour'},
+      for (final server in ['https://world.example', 'wss://', 'ws:///play', 'not a server', '', 'wss://world.example/a b'])
+        {'slot': 'x', 'seed': 1, 'kind': 'road', 'server': server},
+      {'slot': 'x', 'seed': 1, 'kind': 'road', 'server': 'wss://world.example', 'world': '  '},
     ]) {
-      await expectLater(importGame(utf8.encode(sealed(slot)), games, at: at), throwsA(isA<GameFileRefused>()), reason: '$slot');
+      await expectLater(importGame(utf8.encode(sealed(slot)), games, at: at),
+        throwsA(isA<GameFileRefused>().having((e) => e.message, 'message', contains('damaged or incomplete'))), reason: '$slot');
     }
     expect(await everything(), before);
+    expect(root.listSync().map((entry) => entry.path).toSet(), directories);
+  });
+
+  test('a hero too deep for the store is refused before any slot files are made', () async {
+    await keep(rowan, hero, records);
+    final before = await everything();
+    final directories = root.listSync().map((entry) => entry.path).toSet();
+    Object nested = 'end';
+    for (var n = 0; n < 32; n++) { nested = {'next': nested}; }
+    final file = GameFile(slot: rowan.json, hero: {'state': nested}, world: records, exported: at);
+    await expectLater(importGame(utf8.encode(file.encode()), games, at: at), throwsA(isA<GameFileRefused>()));
+    expect(await everything(), before);
+    expect(root.listSync().map((entry) => entry.path).toSet(), directories);
+    expect(games.games.map((g) => g.slot.slot), [rowan.slot]);
+  });
+
+  test('a failure to list an import removes its hero and world and restores the list', () async {
+    await keep(rowan, hero, records);
+    final file = await exported(rowan);
+    final before = await everything();
+    final failing = await CheckpointStore.open(root, _settings, failure: (stage) {
+      if (stage == WriteStage.beforeStage) throw const StorageFailure(StorageError.quota, 'No space');
+    });
+    final blocked = KeptGames(failing, root);
+    await blocked.load();
+    await expectLater(importGame(file, blocked, at: at), throwsA(isA<StorageFailure>().having((e) => e.code, 'code', StorageError.quota)));
+    expect(await everything(), before);
+    expect(blocked.games.map((g) => g.slot.slot), [rowan.slot]);
+    expect(root.listSync().where((entry) => !entry.path.contains('settings-')), hasLength(2), reason: 'only the original game remains');
+  });
+
+  test('imported hero names lose controls and bidi marks and are capped at 40 characters', () async {
+    for (final (name, expected) in [
+      (' \u0000Ro\nwan\u007f\u0085\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069 ', 'Rowan'),
+      ('\u0000\n\u202e  ', 'Traveller'),
+      ('R' * 41, 'R' * 40),
+      ('🧭' * 41, '🧭' * 40),
+    ]) {
+      final file = GameFile(slot: {...rowan.json, 'name': name}, hero: hero, world: records, exported: at);
+      final slot = await importGame(utf8.encode(file.encode()), games, at: at);
+      expect(slot.name, expected);
+      expect(games.games.first.slot.name, expected);
+    }
+    final again = KeptGames(games.settings, root);
+    await again.load();
+    expect(again.games.map((g) => g.slot.name), games.games.map((g) => g.slot.name));
   });
 
   test('a game with nothing saved has nothing to export', () async {

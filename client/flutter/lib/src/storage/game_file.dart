@@ -8,7 +8,7 @@ const gameFileVersion = 1;
 
 /// The largest file read as a game. A long-played world is a few megabytes of records; anything
 /// far past that is not a game, and reading it whole could take the phone's memory with it.
-const gameFileLimit = 64 * 1024 * 1024;
+const gameFileLimit = 16 * 1024 * 1024;
 
 /// A game file the app will not import, and what to tell the player about it.
 class GameFileRefused implements Exception {
@@ -82,12 +82,29 @@ class GameFile {
     }
     if (game is! Map || game.length != 4) throw _damaged;
     final slot = game['slot'], hero = game['hero'], world = game['world'], exported = game['exported'];
-    if (slot is! Map || hero == null || world is! Map || exported is! int ||
+    if (slot is! Map || hero is! Map || hero['state'] is! Map || world is! Map || exported is! int ||
+        exported < -8640000000000000 || exported > 8640000000000000 ||
         slot.keys.any((key) => key is! String) || world.entries.any((e) => e.key is! String || e.value is! String)) {
       throw _damaged;
     }
-    return GameFile(slot: Map<String, Object?>.from(slot), hero: hero as Object, world: Map<String, String>.from(world),
+    // Match `_json` in checkpoint_store.dart; each hero/world record starts at depth zero.
+    _storeJson(slot);
+    _storeJson(hero);
+    _storeJson(world);
+    return GameFile(slot: Map<String, Object?>.from(slot), hero: hero, world: Map<String, String>.from(world),
       exported: DateTime.fromMillisecondsSinceEpoch(exported));
+  }
+}
+
+void _storeJson(Object? value, [int depth = 0]) {
+  if (depth > 32) throw _damaged;
+  if (value == null || value is String || value is bool || value is num && value.isFinite) return;
+  if (value is Map) {
+    for (final item in value.values) { _storeJson(item, depth + 1); }
+  } else if (value is List) {
+    for (final item in value) { _storeJson(item, depth + 1); }
+  } else {
+    throw _damaged;
   }
 }
 

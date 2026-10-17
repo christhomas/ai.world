@@ -10,14 +10,23 @@ Each row of the saved games list has **EXPORT** beside PLAY and DELETE, a 44 px 
 It reads the slot's hero and world out of app-private storage, writes them as one file, and hands
 the file to the OS share sheet (`share_plus`: `ACTION_SEND` on Android, `UIActivityViewController`
 on iOS, pointed at the button on an iPad). The player chooses where it goes; until then it is only in
-the app's temporary directory. The list then says it was exported, or why not.
+the app's temporary directory. Only a successful share says it was exported. Dismissing the sheet
+says it was not exported; if the OS cannot report the result, the list says so.
 
 **Import a game** on the title opens the OS document picker (`file_picker`: the Storage Access
-Framework on Android, the Files picker on iOS). Neither needs a permission, and any file may be
-picked, because a file passed through a messenger or a cloud drive may come back with any name; the
-contents are what is judged. A good file becomes a new kept game at the top of the list, where
+Framework on Android, the Files picker on iOS). Picking a document needs no permission, and any file
+may be picked, because a file passed through a messenger or a cloud drive may come back with any
+name; the contents are what is judged. A good file becomes a new kept game at the top of the list, where
 Continue finds it. A bad one is refused on the title with the reason, and nothing on the phone
-changes.
+changes. Cancelling the picker clears any earlier note. A shared game's confirmation names its
+server's host, so the player knows where Continue will connect.
+
+The locked `file_picker` 13.1.0 uses `file_picker_darwin` 2.3.2 on iOS. The
+[published source](https://pub.dev/api/archives/file_picker_darwin-2.3.2.tar.gz)'s SwiftPM target includes
+the iOS handler's `PhotosUI` import and `PHPickerConfiguration(photoLibrary: .shared())`, even
+though `FileType.any` uses `UIDocumentPicker`. `Info.plist` therefore includes an
+`NSPhotoLibraryUsageDescription` explaining that game import uses Files and does not browse photos.
+The locked iOS source has no `MediaPlayer` reference.
 
 ## The file
 
@@ -55,25 +64,32 @@ The exported file is named `ai-world-<hero>-<yyyy>-<mm>-<dd>.json`.
 `GameFile.decode` (`client/flutter/lib/src/storage/game_file.dart`) refuses, with a message the title
 shows:
 
-- an empty file, or one over 64 MiB;
+- an empty file, or one over 16 MiB;
 - bytes that are not UTF-8 JSON, which is how a file cut short reads ("damaged or incomplete");
 - JSON without the right `format`;
 - a `version` that is not a positive whole number;
 - a newer `version`;
 - an envelope with fields missing or extra, or a `body` that does not match its `checksum`;
-- a `body` of the wrong shape: fields missing or extra, no hero, a record that is not text;
-- a slot the app cannot keep (`GameSlot.fromJson` or the storage scope refuses it), and a hero or
-  world deeper than the host contract allows.
+- a `body` of the wrong shape: fields missing or extra, a hero without a `state` map, a record that
+  is not text, or an export date outside DateTime's range;
+- a slot the app cannot keep: only `road` and `endless` are supported; a server must be a `ws` or
+  `wss` URL with a host, and a named world needs a server;
+- a hero or world deeper than the store's 32-level limit, with each record's root at zero.
+
+Imported hero names lose control and bidirectional formatting characters and keep at most 40
+Unicode characters. An empty name becomes "Traveller".
 
 ## Never over a kept game
 
 `importGame` (`client/flutter/lib/src/game_transfer.dart`) always commits into a new slot, named
 `imported-<milliseconds>`, with `-1`, `-2`… added while that name is listed, holds a hero, or holds
-world records. It writes the world first and the hero last. The hero is what makes a slot a kept
-game (`GameSession.kept`), so an import cut off half way is never listed. Both writes go through
+world records. Both records are encoded before either is written. It writes the world first and
+the hero last. The hero is what makes a slot a kept game (`GameSession.kept`), so an import cut off
+half way is never listed. Both writes go through
 `CheckpointStore.importData`, which refuses to replace a record it finds. A failed import erases what
 it wrote, except when somebody else wrote there first. Then the slot is theirs and left alone. Only
-then is the slot added to `KeptGames`.
+then is the slot added to `KeptGames`. If that last write fails, the imported hero and world are
+erased and the in-memory list goes back to what it was.
 
 The format and the transfer are plain Dart with no plugins; the share sheet and the picker are
 `lib/src/game_file_ports.dart`, and `AppShell` takes replacements for both, which the widget tests
@@ -82,11 +98,16 @@ use.
 ## Tests
 
 - `test/game_file_test.dart`: a round trip, the envelope's fields, and every refusal, including a
-  truncated, changed, wrongly versioned and newer file.
+  truncated, changed, wrongly versioned and newer file; hero shape, export date boundaries and the
+  exact depth limit.
 - `test/game_transfer_test.dart`: a round trip through real files into a new slot at the top of the
   list; a shared world's slot; a file imported twice is two games, and no file of the original
-  changes; a slot holding anything is passed over; a refused file changes no file on the phone.
+  changes; a slot holding anything is passed over; a refused file changes no file on the phone;
+  a failed list write cleans up; imported names are safe to display.
+- `test/game_file_ports_test.dart`: the native share result reaches the caller for success,
+  dismissal and unavailable results, with the file and iPad anchor intact.
 - `test/saved_games_test.dart` and `test/app_shell_test.dart`: EXPORT and Import a game are 44 px;
   the export is handed to the share sheet as a file that decodes to the kept game; an import
   confirms and is offered to Continue; a damaged or newer file is refused on the title with its
-  reason; a cancelled picker changes nothing.
+  reason; cancelling a picker clears the note; share results and storage errors use truthful words;
+  a shared game's import confirmation names its host.

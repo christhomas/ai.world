@@ -6,9 +6,11 @@ import 'package:share_plus/share_plus.dart';
 
 import 'storage/game_file.dart';
 
+export 'package:share_plus/share_plus.dart' show ShareResultStatus;
+
 /// Hand a game file to the OS share sheet, to save it or send it; `origin` is where on the screen
-/// the sheet points from, which an iPad needs.
-typedef ShareGameFile = Future<void> Function(String name, Uint8List bytes, Rect? origin);
+/// the sheet points from, which an iPad needs. Return what the sheet said happened to it.
+typedef ShareGameFile = Future<ShareResultStatus> Function(String name, Uint8List bytes, Rect? origin);
 
 /// Open the OS document picker for a game file and read it, or null when the player cancels.
 typedef PickGameFile = Future<Uint8List?> Function();
@@ -16,13 +18,14 @@ typedef PickGameFile = Future<Uint8List?> Function();
 /// The phone's own share sheet (`share_plus`). The plugin writes the bytes into the app's temporary
 /// directory under this name and shares them from there, so the file is never in shared storage
 /// until the player chooses where it goes.
-Future<void> shareGameFile(String name, Uint8List bytes, Rect? origin) async {
-  await SharePlus.instance.share(ShareParams(
+Future<ShareResultStatus> shareGameFile(String name, Uint8List bytes, Rect? origin) async {
+  final result = await SharePlus.instance.share(ShareParams(
     files: [XFile.fromData(bytes, mimeType: 'application/json', name: name)],
     fileNameOverrides: [name],
     subject: 'AI World game',
     sharePositionOrigin: origin,
   ));
+  return result.status;
 }
 
 /// The phone's own document picker (`file_picker`): the Storage Access Framework on Android and the

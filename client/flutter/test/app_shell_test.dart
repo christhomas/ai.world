@@ -128,14 +128,43 @@ void main() {
     final text = rowanFile.encode();
     final newer = jsonEncode((jsonDecode(text) as Map)..['version'] = 2);
     final files = [text.substring(0, text.length ~/ 2), newer];
-    await title(tester, root, pick: () async => Uint8List.fromList(utf8.encode(files.removeAt(0))));
+    await title(tester, root, pick: () async => files.isEmpty ? null : Uint8List.fromList(utf8.encode(files.removeAt(0))));
     await tester.tap(find.byKey(const ValueKey('import-game')));
     await until(tester, () => find.textContaining('damaged or incomplete').evaluate().isNotEmpty);
     await tester.tap(find.byKey(const ValueKey('import-game')));
     await until(tester, () => find.textContaining('newer AI World').evaluate().isNotEmpty);
     expect(find.byKey(const ValueKey('continue')), findsNothing, reason: 'nothing was kept');
     expect(find.byKey(const ValueKey('saved-games')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.byKey(const ValueKey('title-note')).evaluate().isEmpty);
   });
+
+  for (final world in [null, 'Harbour']) {
+    testWidgets('an imported shared game names its server on the title (world: $world)', (tester) async {
+      final root = await storage(tester);
+      final file = GameFile(slot: {...rowanFile.slot, 'server': 'wss://world.example/play', if (world != null) 'world': world},
+        hero: rowanFile.hero, world: rowanFile.world, exported: rowanFile.exported);
+      await title(tester, root, pick: () async => Uint8List.fromList(utf8.encode(file.encode())));
+      await tester.tap(find.byKey(const ValueKey('import-game')));
+      await until(tester, () => find.text("Imported Rowan's game on world.example. Continue plays it.").evaluate().isNotEmpty);
+      expect(find.byKey(const ValueKey('continue')), findsOneWidget);
+    });
+  }
+
+  for (final (code, note) in [
+    (StorageError.quota, 'Could not import that game. There is not enough space on this phone.'),
+    (StorageError.io, 'Could not import that game. The game storage could not be read or written. Please try again.'),
+  ]) {
+    testWidgets('import storage errors use plain words without a private path ($code)', (tester) async {
+      final root = await storage(tester);
+      await title(tester, root, pick: () async { throw StorageFailure(code, '${root.path}/private/save.json'); });
+      await tester.tap(find.byKey(const ValueKey('import-game')));
+      await until(tester, () => find.text(note).evaluate().isNotEmpty);
+      expect(find.textContaining('StorageFailure'), findsNothing);
+      expect(find.textContaining(root.path), findsNothing);
+      expect(find.byKey(const ValueKey('continue')), findsNothing);
+    });
+  }
 
   testWidgets('a player who cancels the picker is told nothing and keeps the title as it was', (tester) async {
     final root = await storage(tester);
@@ -158,7 +187,11 @@ void main() {
       await (await CheckpointStore.open(root, slot.scope('world'))).commit('records', {'worlds/1/clock': '42'});
     });
     final shared = <(String, Uint8List, Rect?)>[];
-    await title(tester, root, share: (name, bytes, origin) async => shared.add((name, bytes, origin)));
+    var status = ShareResultStatus.success;
+    await title(tester, root, share: (name, bytes, origin) async {
+      shared.add((name, bytes, origin));
+      return status;
+    });
     await tester.tap(find.byKey(const ValueKey('saved-games')));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('export-local-1')));
@@ -170,5 +203,15 @@ void main() {
     expect(file.slot, slot.json);
     expect(file.hero, {'state': {'playerId': 'hero'}});
     expect(file.world, {'worlds/1/clock': '42'});
+    // A later cancelled export must replace the previous success note with what happened this time.
+    for (final (next, note) in [
+      (ShareResultStatus.dismissed, "Rowan's game was not exported."),
+      (ShareResultStatus.unavailable, 'The share sheet closed. This phone cannot say whether the game was exported.'),
+    ]) {
+      status = next;
+      await tester.tap(find.byKey(const ValueKey('export-local-1')));
+      await until(tester, () => find.text(note).evaluate().isNotEmpty);
+      expect(find.text("Exported Rowan's game to a file."), findsNothing);
+    }
   });
 }

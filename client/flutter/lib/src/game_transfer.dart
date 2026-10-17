@@ -35,7 +35,21 @@ String gameFileName(GameSlot slot, DateTime at) {
 Future<GameSlot> importGame(List<int> bytes, KeptGames games, {DateTime? at}) async {
   final file = GameFile.decode(bytes);
   final kept = GameSlot.fromJson(file.slot);
-  if (kept == null) throw const GameFileRefused('This file is damaged or incomplete, so the game in it cannot be imported.');
+  if (kept == null || !['road', 'endless'].contains(kept.kind) || kept.seed < 0 || kept.seed > 0xffffffff) {
+    throw const GameFileRefused('This file is damaged or incomplete, so the game in it cannot be imported.');
+  }
+  final server = kept.server;
+  if (server != null) {
+    final address = Uri.tryParse(server);
+    if (address == null || (address.scheme != 'ws' && address.scheme != 'wss') || address.host.isEmpty || RegExp(r'\s').hasMatch(server)) {
+      throw const GameFileRefused('This file is damaged or incomplete, so the game in it cannot be imported.');
+    }
+  }
+  if (kept.world != null && kept.world!.trim().isEmpty) {
+    throw const GameFileRefused('This file is damaged or incomplete, so the game in it cannot be imported.');
+  }
+  // Finish both encodings before opening a slot or writing either record.
+  final worldText = jsonEncode(file.world), heroText = jsonEncode(file.hero);
   final when = at ?? DateTime.now();
   final root = games.root;
   final GameSlot slot;
@@ -48,8 +62,8 @@ Future<GameSlot> importGame(List<int> bytes, KeptGames games, {DateTime? at}) as
   try {
     // the world first: the hero is what makes a slot a kept game (`GameSession.kept`), so a game
     // cut off half way is never listed as one. `importData` refuses to replace a record it finds.
-    await (await CheckpointStore.open(root, slot.scope('world'))).importData('records', jsonEncode(file.world));
-    await (await CheckpointStore.open(root, slot.scope('player'))).importData('save', jsonEncode(file.hero));
+    await (await CheckpointStore.open(root, slot.scope('world'))).importData('records', worldText);
+    await (await CheckpointStore.open(root, slot.scope('player'))).importData('save', heroText);
   } on StorageFailure catch (error) {
     // the slot was empty before this began, so what was written of it is this import's alone, except
     // when somebody else wrote there first: then it is theirs, and left alone
@@ -57,7 +71,14 @@ Future<GameSlot> importGame(List<int> bytes, KeptGames games, {DateTime? at}) as
     if (error.code == StorageError.invalid) throw const GameFileRefused('This file holds a game this app cannot keep.');
     rethrow;
   }
-  await games.played(slot, at: when);
+  final previous = games.games;
+  try {
+    await games.played(slot, at: when);
+  } catch (_) {
+    games.games = previous;
+    await GameSession.forget(slot, root: root).catchError((Object _) {});
+    rethrow;
+  }
   return slot;
 }
 
@@ -65,10 +86,16 @@ Future<GameSlot> importGame(List<int> bytes, KeptGames games, {DateTime? at}) as
 Future<GameSlot> _freshSlot(GameSlot kept, KeptGames games, DateTime at) async {
   for (var n = 0; ; n++) {
     final name = 'imported-${at.millisecondsSinceEpoch}${n == 0 ? '' : '-$n'}';
-    final slot = GameSlot(slot: name, seed: kept.seed, kind: kept.kind, name: kept.name, server: kept.server, world: kept.world);
+    final slot = GameSlot(slot: name, seed: kept.seed, kind: kept.kind, name: _heroName(kept.name), server: kept.server, world: kept.world);
     if (games.games.any((g) => g.slot.slot == name)) continue;
     if (await GameSession.kept(slot, root: games.root)) continue;
     if (await (await CheckpointStore.open(games.root, slot.scope('world'))).inspect('records') != null) continue;
     return slot;
   }
+}
+
+String _heroName(String name) {
+  // Keep names readable in the title and saved games, including when a file came from elsewhere.
+  final clean = name.replaceAll(RegExp(r'[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]'), '').trim();
+  return clean.isEmpty ? 'Traveller' : String.fromCharCodes(clean.runes.take(40));
 }

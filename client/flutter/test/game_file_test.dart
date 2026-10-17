@@ -12,6 +12,11 @@ void main() {
   );
   List<int> bytes(String text) => utf8.encode(text);
   Map<String, dynamic> envelope() => jsonDecode(game.encode()) as Map<String, dynamic>;
+  String sealed(Object body) {
+    final text = jsonEncode(body);
+    return jsonEncode({'format': 'ai-world-game', 'version': 1, 'checksum': gameFileChecksum(text), 'body': text});
+  }
+  Map<String, Object?> whole() => {'slot': game.slot, 'hero': game.hero, 'world': game.world, 'exported': 1};
 
   Matcher refused(String containing) =>
     throwsA(isA<GameFileRefused>().having((r) => r.message, 'message', contains(containing)));
@@ -70,28 +75,54 @@ void main() {
   });
 
   test('a file of the right checksum but the wrong shape is refused', () {
-    String sealed(Object body) {
-      final text = jsonEncode(body);
-      return jsonEncode({'format': 'ai-world-game', 'version': 1, 'checksum': gameFileChecksum(text), 'body': text});
-    }
-    final whole = {'slot': game.slot, 'hero': game.hero, 'world': game.world, 'exported': 1};
+    final complete = whole();
     for (final broken in <Object>[
-      {...whole}..remove('world'),
-      {...whole, 'hero': null},
-      {...whole, 'world': {'worlds/1': 3}},
-      {...whole, 'slot': 'local-1'},
-      {...whole, 'exported': 'yesterday'},
-      {...whole, 'extra': true},
+      {...complete}..remove('world'),
+      {...complete, 'hero': null},
+      {...complete, 'world': {'worlds/1': 3}},
+      {...complete, 'slot': 'local-1'},
+      {...complete, 'exported': 'yesterday'},
+      {...complete, 'extra': true},
       'just a string',
     ]) {
       expect(() => GameFile.decode(bytes(sealed(broken))), refused('damaged or incomplete'), reason: '$broken');
     }
-    expect(GameFile.decode(bytes(sealed(whole))).world, game.world, reason: 'the whole one is read');
+    expect(GameFile.decode(bytes(sealed(complete))).world, game.world, reason: 'the whole one is read');
     final extra = envelope()..['note'] = 'hi';
     expect(() => GameFile.decode(bytes(jsonEncode(extra))), refused('damaged or incomplete'));
   });
 
+  test('a hero must hold a saved state map, not just a non-null value', () {
+    for (final hero in <Object>[true, 7, 'hero', [], {}, {'state': null}, {'state': []}, {'state': 'hero'}]) {
+      expect(() => GameFile.decode(bytes(sealed({...whole(), 'hero': hero}))), refused('damaged or incomplete'), reason: '$hero');
+    }
+    expect(GameFile.decode(bytes(sealed({...whole(), 'hero': {'state': {}}}))).hero, {'state': {}});
+  });
+
+  test('export dates outside the DateTime range are refused as damaged', () {
+    for (final exported in [-8640000000000001, 8640000000000001]) {
+      expect(() => GameFile.decode(bytes(sealed({...whole(), 'exported': exported}))), refused('damaged or incomplete'));
+    }
+    for (final exported in [-8640000000000000, 8640000000000000]) {
+      expect(GameFile.decode(bytes(sealed({...whole(), 'exported': exported}))).exported.millisecondsSinceEpoch, exported);
+    }
+  });
+
+  test('hero maps and lists obey the store depth limit, with the root at zero', () {
+    for (final lists in [false, true]) {
+      Map<String, Object?> heroAt(int depth) {
+        Object value = 'end';
+        for (var n = 0; n < depth - 2; n++) { value = lists ? [value] : {'next': value}; }
+        return {'state': {'nested': value}};
+      }
+      final allowed = heroAt(32);
+      expect(GameFile.decode(bytes(sealed({...whole(), 'hero': allowed}))).hero, allowed);
+      expect(() => GameFile.decode(bytes(sealed({...whole(), 'hero': heroAt(33)}))), refused('damaged or incomplete'));
+    }
+  });
+
   test('a file far larger than any game is refused before it is read', () {
+    expect(gameFileLimit, 16 * 1024 * 1024);
     expect(() => GameFile.decode(utf8.encode(' ' * (gameFileLimit + 1))), refused('too large'));
   });
 }
