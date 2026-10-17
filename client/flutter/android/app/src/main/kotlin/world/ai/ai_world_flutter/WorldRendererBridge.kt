@@ -522,6 +522,7 @@ private class GLWorldRenderer(
                 GLES30.glUniform3fv(GLES30.glGetUniformLocation(activeProgram, "uEmissive"), 1, mesh.emissive, 0)
                 GLES30.glUniform1f(GLES30.glGetUniformLocation(activeProgram, "uReceiveShadow"),
                     if (mesh.receiveShadow && sunCastsShadow) 1f else 0f)
+                GLES30.glUniform1f(GLES30.glGetUniformLocation(activeProgram, "uDoubleSided"), if (mesh.doubleSided) 1f else 0f)
             }
             GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, mesh.vertex)
             GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.index)
@@ -678,7 +679,7 @@ void main(){ vec3 p=animate(aPosition,aJoint,aPivot,uTime); vWorld=p; vNormal=aN
 private const val FRAGMENT_SHADER = """#version 300 es
 precision highp float;
 in vec3 vWorld; in vec3 vNormal; in vec3 vColor; in vec4 vShadow; in float vMaterial; in float vFlow; in float vSea;
-uniform highp sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow;
+uniform highp sampler2DShadow uShadow; uniform vec3 uHero; uniform vec3 uLook; uniform float uCutOn; uniform float uTime; uniform float uOpacity; uniform float uReceiveShadow; uniform float uDoubleSided;
 uniform vec3 uAmbient; uniform vec3 uSky; uniform vec3 uGround; uniform vec4 uSunDirections[4]; uniform vec4 uSunColours[4]; uniform vec4 uPointPositions[16]; uniform vec4 uPointColours[16];
 uniform vec3 uCameraPos; uniform vec3 uFogColour; uniform vec2 uFogRange;
 uniform vec3 uEmissive;
@@ -718,7 +719,8 @@ float waveAt(vec2 w, float d, float t) {
 }
 float shadow(){vec3 q=vShadow.xyz/vShadow.w*.5+.5;if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.0;float s=0.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)s+=texture(uShadow,vec3(q.xy+vec2(x,y)/1024.0,q.z-.002));return s/9.0;}
 void main(){if(uCutOn>.5&&vMaterial>.5&&vMaterial<1.5&&vWorld.y>uHero.y+1.0){vec3 d=vWorld-uHero;float along=dot(d,uLook);float across=length(d-along*uLook);float front=clamp((-along-1.2)/4.0,0.0,1.0);if(front>0.0){float hole=5.5*front;float edge=smoothstep(hole-2.5,hole,across);if(edge<hash(gl_FragCoord.xy))discard;}}
-vec3 n=normalize(vNormal);vec3 albedo=vColor;float opacity=uOpacity;
+// three.js r185's normal_fragment_begin: a double-sided material's back face is lit with its normal turned round (faceDirection)
+vec3 n=normalize(vNormal);if(uDoubleSided>0.5&&!gl_FrontFacing)n=-n;vec3 albedo=vColor;float opacity=uOpacity;
 // foam whitens the water's own colour before any light reaches it, as the web's water does at color_fragment (src/render/water.ts)
 if(vMaterial>1.5&&vMaterial<2.5){
   float t = uTime;
