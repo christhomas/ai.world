@@ -19,6 +19,7 @@ import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
 import { OtherBodies, type NamePlate } from '../render/other-bodies';
+import { SOUNDS, STRIDE, type SoundVoice } from '../game/sound-recipes';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
@@ -115,6 +116,8 @@ export interface HeadlessGame {
   journal(): JournalView;
   /** Real time spent so far on the world, the ground and the country, each its own kind of job. */
   jobTimes(): JobTimes;
+  /** The sounds the game has made since this was last asked, each as the voices it is made of (#578). */
+  takeSounds(): SoundVoice[][];
   /** Everybody on the register as the page's roster reads them, in this order (#575). */
   roster(by: RosterOrder): RosterView;
   /**
@@ -328,26 +331,38 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     setLink: (reaching) => { shown.link = reaching; },
   };
 
+  // what the game sounded, as the voices `sound-recipes.ts` makes each of, for the app to play (#578);
+  // footsteps fall on the page's stride while the hero walks, and nothing sounds while it is quiet
+  const heard: SoundVoice[][] = [];
+  let hushed = false;
+  let stride = 0;
+  const play = (name: string, voices: SoundVoice[]) => {
+    cue(name);
+    if (!hushed) heard.push(voices);
+  };
   const sound: SoundSurface = {
     volume: shown.volume,
     cave: false,
-    setVolume: (volume) => { sound.volume = volume; },
-    quiet: () => {},
-    dispose: () => {},
-    update: () => {},
+    setVolume: (volume) => { sound.volume = volume; shown.volume = volume; },
+    quiet: (on) => { hushed = on; },
+    dispose: () => { heard.length = 0; },
+    update: (dt, walking, onRoad) => {
+      stride -= dt;
+      if (walking && stride <= 0) { stride = STRIDE; play('footstep', SOUNDS.footstep(onRoad)); }
+    },
     setScene: () => {},
     setWater: () => {},
-    blip: () => cue('blip'),
-    select: () => cue('select'),
-    chime: () => cue('chime'),
-    jingle: () => cue('jingle'),
-    fanfare: () => cue('fanfare'),
-    hit: (on) => cue(`hit:${on}`),
-    miss: () => cue('miss'),
-    thud: () => cue('thud'),
-    voice: (weight, dying = false) => cue(dying ? 'voice:dying' : `voice:${weight}`),
-    splash: () => cue('splash'),
-    whalesong: () => cue('whalesong'),
+    blip: () => play('blip', SOUNDS.blip()),
+    select: () => play('select', SOUNDS.select()),
+    chime: () => play('chime', SOUNDS.chime()),
+    jingle: () => play('jingle', SOUNDS.jingle()),
+    fanfare: () => play('fanfare', SOUNDS.fanfare()),
+    hit: (on) => play(`hit:${on}`, SOUNDS.hit(on)),
+    miss: () => play('miss', SOUNDS.miss()),
+    thud: () => play('thud', SOUNDS.thud()),
+    voice: (weight, dying = false) => play(dying ? 'voice:dying' : `voice:${weight}`, SOUNDS.voice(weight, dying)),
+    splash: () => play('splash', SOUNDS.splash()),
+    whalesong: () => play('whalesong', SOUNDS.whalesong()),
   };
 
   const chat: ChatSurface = {
@@ -538,6 +553,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       return pack;
     },
     jobTimes: () => jobTimes,
+    takeSounds: () => heard.splice(0),
     say(text) {
       const said = text.trim();
       if (said) chat.onSend?.(said);

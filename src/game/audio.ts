@@ -1,5 +1,6 @@
 import { Biome } from '../world/biomes';
 import { Music } from './music';
+import { SOUNDS, STRIDE, type SoundVoice } from './sound-recipes';
 
 /**
  * All sound is synthesised with Web Audio: no sample files, in keeping with the no-textures rule.
@@ -160,7 +161,15 @@ export class Sound {
     src.start(t0, Math.random() * 1.5, dur + 0.05);
   }
 
-  footstep(hard: boolean): void { this.burst(0.07, hard ? 1500 : 700, 1.2, hard ? 0.12 : 0.18); }
+  /** A sound as `sound-recipes.ts` describes it, which an installed app plays from the same description. */
+  private play(voices: SoundVoice[]): void {
+    for (const v of voices) {
+      if ('tone' in v) this.tone(v.tone, v.dur, v.wave, v.gain, v.at, v.slide);
+      else this.burst(v.dur, v.burst, v.q, v.gain, v.at);
+    }
+  }
+
+  footstep(hard: boolean): void { this.play(SOUNDS.footstep(hard)); }
 
   /**
    * How much water is audible from here, and how far it is falling.
@@ -181,50 +190,26 @@ export class Sound {
     w.filter.Q.value = 0.5 + loud * 0.9;
   }
 
-  /**
-   * A blow landing. What it hits decides what it sounds like: meat is a dull slap, bone is a
-   * sharper crack, and a shell or plate rings. Missing is just the air moving, which is quieter
-   * and higher and is the whole reason a swing that connects feels different from one that does not.
-   */
-  hit(on: 'flesh' | 'bone' | 'plate'): void {
-    if (on === 'plate') { this.tone(1100, 0.09, 'square', 0.07, 0, 700); this.burst(0.09, 2600, 3, 0.1); return; }
-    if (on === 'bone') { this.burst(0.07, 1800, 3.5, 0.16); this.tone(260, 0.1, 'triangle', 0.1, 0, 150); return; }
-    this.burst(0.11, 420, 0.9, 0.2);
-    this.tone(120, 0.14, 'sine', 0.16, 0, 70);
-  }
+  /** A blow landing: meat, bone or plate. See `SOUNDS.hit`. */
+  hit(on: 'flesh' | 'bone' | 'plate'): void { this.play(SOUNDS.hit(on)); }
 
   /** A swing through empty air. */
-  miss(): void { this.burst(0.13, 1150, 0.7, 0.055); }
+  miss(): void { this.play(SOUNDS.miss()); }
 
-  /**
-   * A creature's voice, pitched to its size: `weight` is roughly how big it is against a person,
-   * so a bat squeaks and a troll bellows off the same two lines.
-   */
-  voice(weight: number, dying = false): void {
-    const base = 620 / Math.max(0.35, weight);
-    const dur = dying ? 0.5 : 0.26;
-    this.tone(base, dur, 'sawtooth', 0.09, 0, dying ? base * 0.45 : base * 0.8);
-    this.burst(dur * 0.7, base * 1.6, 1.4, dying ? 0.09 : 0.06, 0.02);
-  }
-  blip(): void { this.tone(880 + Math.random() * 80, 0.035, 'square', 0.04); }
-  chime(): void { this.tone(660, 0.12, 'sine', 0.12); this.tone(990, 0.16, 'sine', 0.12, 0.11); }
-  jingle(): void { [523, 659, 784].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.14, i * 0.13)); }
-  fanfare(): void { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, i === 3 ? 0.4 : 0.14, 'triangle', 0.14, i * 0.12)); }
-  thud(): void { this.tone(140, 0.22, 'sine', 0.3, 0, 55); this.burst(0.12, 300, 0.8, 0.2); }
-  select(): void { this.tone(1200, 0.03, 'square', 0.03); }
+  /** A creature's voice, pitched to its size. See `SOUNDS.voice`. */
+  voice(weight: number, dying = false): void { this.play(SOUNDS.voice(weight, dying)); }
+  blip(): void { this.play(SOUNDS.blip()); }
+  chime(): void { this.play(SOUNDS.chime()); }
+  jingle(): void { this.play(SOUNDS.jingle()); }
+  fanfare(): void { this.play(SOUNDS.fanfare()); }
+  thud(): void { this.play(SOUNDS.thud()); }
+  select(): void { this.play(SOUNDS.select()); }
 
-  /** Something heavy meeting water: a low thump under a long hiss of spray. */
-  splash(): void {
-    this.tone(90, 0.3, 'sine', 0.22, 0, 40);
-    this.burst(0.5, 900, 0.6, 0.16);
-    this.burst(0.35, 2600, 0.4, 0.1, 0.06);
-  }
+  /** Something heavy meeting water. */
+  splash(): void { this.play(SOUNDS.splash()); }
 
-  /** A whale calling: two long notes, the second bending up under the first. */
-  whalesong(): void {
-    this.tone(196, 1.5, 'sine', 0.1);
-    this.tone(147, 1.9, 'sine', 0.09, 0.35, 220);
-  }
+  /** A whale calling. */
+  whalesong(): void { this.play(SOUNDS.whalesong()); }
 
   setScene(biome: Biome, night: number): void {
     this.biome = biome;
@@ -237,7 +222,7 @@ export class Sound {
     if (!this.ctx || !this.wind) return;
     this.music.update();
     this.stepTimer -= dt;
-    if (walking && this.stepTimer <= 0) { this.stepTimer = 0.27; this.footstep(onRoad); }
+    if (walking && this.stepTimer <= 0) { this.stepTimer = STRIDE; this.footstep(onRoad); }
     const windy = this.biome === Biome.Desert || this.biome === Biome.Snow || this.biome === Biome.Mountain;
     const target = this.cave ? 0.012 : (windy ? 0.07 : 0.025) * (1 - this.night * 0.4);
     this.wind.gain.gain.value += (target - this.wind.gain.gain.value) * Math.min(1, dt * 0.5);

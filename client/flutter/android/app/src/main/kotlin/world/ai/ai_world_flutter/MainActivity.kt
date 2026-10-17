@@ -6,14 +6,18 @@ import io.flutter.embedding.engine.FlutterEngine
 class MainActivity : FlutterActivity() {
     private var rendererBridge: WorldRendererBridge? = null
     private var stateEngineBridge: StateEngineBridge? = null
+    private var soundBridge: SoundBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         rendererBridge = WorldRendererBridge(flutterEngine.renderer, flutterEngine.dartExecutor.binaryMessenger)
         stateEngineBridge = StateEngineBridge(flutterEngine.dartExecutor.binaryMessenger, applicationContext)
+        soundBridge = SoundBridge(flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        soundBridge?.dispose()
+        soundBridge = null
         stateEngineBridge?.dispose()
         stateEngineBridge = null
         rendererBridge?.dispose()

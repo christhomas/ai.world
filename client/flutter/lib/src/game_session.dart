@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import 'audio/synth.dart';
 import 'network/world_socket_link.dart';
 import 'scene_frame.dart';
 import 'state_engine.dart';
@@ -51,7 +52,7 @@ const stillInput = <String, Object?>{
 /// game left is a game continued and nothing of one slot reaches another. Nothing is fetched and
 /// nothing runs anywhere but on the phone.
 class GameSession {
-  GameSession._(this.slot, this.engine, this.saves, this.world, this._records, this._pipeline, this._sockets);
+  GameSession._(this.slot, this.engine, this.saves, this.world, this._records, this._pipeline, this._sockets, this._sound);
 
   final GameSlot slot;
   final StateEngine engine;
@@ -60,6 +61,9 @@ class GameSession {
   final Map<String, String> _records;
   final FlutterFramePipeline? _pipeline;
   final ParcelSocketFactory _sockets;
+  /// Where the game's sounds are played, and what makes them (#578).
+  final SoundOutput _sound;
+  final Synth _synth = Synth();
   /// What draws the frames, for the installed-app journeys to read back and refuse a blank one.
   @visibleForTesting
   FlutterFramePipeline? get pipeline => _pipeline;
@@ -102,7 +106,7 @@ class GameSession {
   /// Open the slot's game: continue it if it was kept, start it if not.
   static Future<GameSession> open(GameSlot slot, {required Directory root, required Size viewport,
       FlutterFramePipeline? pipeline, MethodChannel? channel, AssetBundle? assets,
-      ParcelSocketFactory sockets = nativeParcelSocket}) async {
+      ParcelSocketFactory sockets = nativeParcelSocket, SoundOutput? sound}) async {
     final saves = await CheckpointStore.open(root, slot.scope('player'));
     final world = await CheckpointStore.open(root, slot.scope('world'));
     final saved = await saves.load('save');
@@ -116,7 +120,7 @@ class GameSession {
       'world': records,
       'server': ?slot.server,
     }, channel: channel, assets: assets);
-    final session = GameSession._(slot, engine, saves, world, records, pipeline, sockets);
+    final session = GameSession._(slot, engine, saves, world, records, pipeline, sockets, sound ?? NativeSound());
     try {
       session._take(await engine.request('start', {'mode': slot.server == null ? 'local' : 'remote', 'world': slot.slot}));
       return session;
@@ -215,6 +219,14 @@ class GameSession {
       charted.addAll(((mapped['charted'] as List?) ?? const []).map((id) => '$id'));
     }
     _relay(models);
+    // the sounds the game made since the last reply, made here and played at the game's volume
+    final sounds = models['sounds'];
+    if (sounds is List && !_closing) {
+      final volume = (((models['hud'] as Map?)?['volume'] as num?) ?? 0.6).toDouble().clamp(0.0, 1.0);
+      for (final voices in sounds.cast<List>()) {
+        unawaited(_sound.play(_synth.render(voices.cast<Map>(), volume: volume), _synth.rate));
+      }
+    }
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {
       unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry)));
