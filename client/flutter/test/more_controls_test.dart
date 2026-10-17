@@ -22,7 +22,7 @@ void main() {
     expect(find.byKey(const ValueKey('more-ward')), findsNothing);
   });
 
-  test('every control is one of the game\\'s own actions, or the console', () {
+  test("every control is one of the game's own actions, or the console", () {
     const actions = {'interact', 'jump', 'attack', 'shoot', 'ward', 'blight', 'light', 'draught', 'inventory', 'journal',
       'roster', 'map', 'options', 'company', 'chat', 'party', 'hire', 'give', 'rally', 'photo', 'cameraMode', 'seeThrough',
       'leave', 'close'};
