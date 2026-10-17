@@ -206,3 +206,66 @@ Future<double> walkTo(WidgetTester tester, ({Offset up, Offset right}) bearings,
   }
   return left;
 }
+
+/// A door as the console lists it (`doors`): where to stand outside it, and the middle of the building.
+typedef Door = ({String line, ({double x, double z}) step, ({double x, double z}) inside});
+
+/// The first door in what the console said, or null if it listed none.
+Door? doorIn(List<String> said) {
+  int? field(String line, String name) => int.tryParse(RegExp('(?:^|, )$name (-?\\d+)').firstMatch(line)?.group(1) ?? '');
+  for (final line in said) {
+    final x = field(line, 'x'), z = field(line, 'z'), bx = field(line, 'bx'), bz = field(line, 'bz');
+    if (x != null && z != null && bx != null && bz != null) {
+      return (line: line, step: (x: x + 0.5, z: z + 0.5), inside: (x: bx + 0.5, z: bz + 0.5));
+    }
+  }
+  return null;
+}
+
+/// On a door's doorstep through the console, then into it with the stick until the HUD names the
+/// building. Returns where the HUD said he was outside, and inside.
+Future<({String outside, String inside, Offset inward})> walkIn(WidgetTester tester, ({Offset up, Offset right}) bearings,
+    Door door) async {
+  await typed(tester, '/teleport ${door.step.x} ${door.step.z}');
+  await until(tester, () => away(heroOf(session)!, door.step.x, door.step.z) < 1.5 ? true : null, 'the hero on the doorstep',
+    within: const Duration(minutes: 3));
+  // a moment for the doorstep to know he is on it, which is what arms the door
+  await Future<void>.delayed(const Duration(seconds: 4));
+  final outside = '${hudOf(session)['area']}';
+  final inward = leanFor(bearings, Offset(door.inside.x - door.step.x, door.inside.z - door.step.z));
+  for (var tries = 0; tries < 40; tries++) {
+    await lean(tester, inward, const Duration(milliseconds: 500));
+    final area = '${hudOf(session)['area']}';
+    if (area != outside && area.contains(' in ')) return (outside: outside, inside: area, inward: inward);
+  }
+  throw TestFailure('leaning into ${door.line} never took him inside; the HUD said ${hudOf(session)['area']}');
+}
+
+/// What is being said, as the game last sent it, or null when nobody is talking.
+Map<String, dynamic>? talkOf(GameSession? session) {
+  final models = session?.presentation.value['models'] as Map?;
+  final talk = models?['conversation'];
+  return talk is Map ? Map<String, dynamic>.from(talk) : null;
+}
+
+/// Tap through what is being said until there is something to choose, and return the choices.
+Future<List<String>> toChoices(WidgetTester tester) async {
+  for (var taps = 0; taps < 40; taps++) {
+    final talk = await until(tester, () => talkOf(session), 'somebody talking', within: const Duration(minutes: 1));
+    final choices = [for (final choice in talk['choices'] as List? ?? const []) '${(choice as Map)['label']}'];
+    if (talk['atChoices'] == true && choices.isNotEmpty) return choices;
+    await press(tester, const ValueKey('talk-on'));
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+  }
+  throw TestFailure('forty taps and nothing to choose: ${talkOf(session)}');
+}
+
+/// Choose the first row whose words match, by touch.
+Future<String> choose(WidgetTester tester, bool Function(String label) which) async {
+  final choices = await toChoices(tester);
+  final row = choices.indexWhere(which);
+  if (row < 0) throw TestFailure('nothing to choose that fits among $choices');
+  await press(tester, ValueKey('choice-$row'));
+  await Future<void>.delayed(const Duration(milliseconds: 600));
+  return choices[row];
+}
