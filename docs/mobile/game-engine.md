@@ -18,7 +18,7 @@ The app then sends:
 | `start` `remote` | opens it against the shared world the `server` option names (#565) |
 | `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), the camera turning (`look[0]`: −1 left, 1 right), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster while a page shows it (`roster:village`, `name`, `age`, `purse` or `hunger`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster while a page shows it (`roster:village`, `name`, `age`, `purse` or `hunger`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
@@ -38,6 +38,8 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - underground, the floor (`floor`, `dungeon/floor-picture.ts`: the seen cells as runs of colour
   with the entrance and the seen chests), when what has been seen of it changes, and `null` once
   the hero is back above ground;
+- the sounds the game made since the last reply (`sounds`), each as the voices `game/sound-recipes.ts`
+  makes it of, for the app to synthesise and play at the HUD's volume;
 - where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
   and the country, each as runs, total and longest, at most every two seconds;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;

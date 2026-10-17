@@ -42,4 +42,17 @@ void main() {
     await tester.pump();
     expect(copied, [OptionsPage.inviteFor(shared)]);
   });
+
+  testWidgets('sets how loud the game is, and says so', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(328, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final set = <double>[];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: OptionsPage(slot: shared,
+      tokens: LedgerTokens.all[LedgerTheme.stone]!, controller: LedgerController(InputOwnerController((_) {})),
+      leave: () {}, seeThrough: () {}, volume: 0.6, setVolume: set.add))));
+    expect(find.text('60%'), findsOneWidget);
+    await tester.drag(find.byType(Slider), const Offset(-400, 0));
+    expect(set, isNotEmpty);
+    expect(set.last, 0, reason: 'all the way down is silence');
+  });
 }

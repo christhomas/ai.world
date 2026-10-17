@@ -60,11 +60,16 @@ describe('the game on a host with no page', () => {
 
       // and the hero walks when held to, as a thumb on a stick would hold him
       const from = { x: player.x, z: player.z };
+      game.takeSounds();
       game.input.hold('w');
       for (let step = 0; step < 45; step++) { game.frame(frame); await breathe(); }
       game.input.release('w');
       const walked = Math.hypot(player.x - from.x, player.z - from.z);
       expect(walked, `from ${JSON.stringify(from)} to ${player.x},${player.z}`).toBeGreaterThan(1);
+      // and his footsteps were heard, as the voices an app plays them from (#578)
+      const steps = game.takeSounds().filter((voices) => voices.length === 1 && 'burst' in voices[0]
+        && (voices[0].burst === 1500 || voices[0].burst === 700));
+      expect(steps.length, 'a walk is footsteps').toBeGreaterThan(0);
 
       // a line typed into the console is the page's console's: a question mark asks the game
       const before = game.presentation.chat.at(-1);

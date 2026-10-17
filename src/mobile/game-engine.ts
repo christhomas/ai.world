@@ -168,6 +168,9 @@ export function create(session: string, optionsText: string): { request(text: st
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
     };
     if (scene) models.scene = scene;
+    // the sounds the game made since the last reply, as the voices each is made of (#578)
+    const sounds = host!.takeSounds();
+    if (sounds.length > 0) models.sounds = json(sounds);
     // a shared world's socket: what the app is asked to open or close, and the parcels to send on it
     Object.assign(models, parcels.take());
     const faces = portraits.take();
@@ -303,6 +306,11 @@ export function create(session: string, optionsText: string): { request(text: st
                 throw new Error('Nothing to change');
               }
               host.conversation.nudgeAt(row, dir);
+            } else if (action === 'volume') {
+              // how loud the game is, nought to one, as the page's options slider sets it
+              const level = (request.payload.args as { level?: unknown } | null)?.level;
+              if (typeof level !== 'number' || !Number.isFinite(level)) throw new Error('volume needs a level');
+              host.setVolume(level);
             } else if (action === 'zoom') {
               // a pinch, as the wheel a page's pinch turns into: positive is out, as a wheel scrolled down
               const by = (request.payload.args as { by?: unknown } | null)?.by;

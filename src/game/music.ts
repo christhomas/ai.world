@@ -1,44 +1,11 @@
 import { Biome } from '../world/biomes';
+import { CAVE, MOODS, beat, noteAt, type Mood } from './music-score';
 
 /**
  * Procedural soundtrack: a slow arpeggio over a drone, both synthesised. Each biome picks a mode
- * and a root; night drops the octave and slows the tempo. No loops, no files.
+ * and a root; night drops the octave and slows the tempo. No loops, no files. The notes are
+ * `music-score.ts`'s, which an installed app plays as well; the drone under them is the page's.
  */
-const SCALES = {
-  // semitone offsets from the root
-  major: [0, 2, 4, 7, 9],
-  minor: [0, 3, 5, 7, 10],
-  lydian: [0, 2, 4, 6, 9],
-  dorian: [0, 2, 3, 7, 9],
-} as const satisfies Record<string, readonly number[]>;
-
-interface Mood { root: number; scale: readonly number[]; tempo: number; wave: OscillatorType }
-
-const MOODS: Record<Biome, Mood> = {
-  [Biome.Plains]: { root: 261.63, scale: SCALES.major, tempo: 0.55, wave: 'triangle' },
-  [Biome.Forest]: { root: 220.0, scale: SCALES.dorian, tempo: 0.65, wave: 'sine' },
-  [Biome.Desert]: { root: 196.0, scale: SCALES.lydian, tempo: 0.85, wave: 'triangle' },
-  [Biome.Swamp]: { root: 174.61, scale: SCALES.minor, tempo: 0.95, wave: 'sine' },
-  [Biome.Mountain]: { root: 246.94, scale: SCALES.minor, tempo: 0.75, wave: 'triangle' },
-  [Biome.Snow]: { root: 293.66, scale: SCALES.major, tempo: 0.9, wave: 'sine' },
-};
-
-const CAVE: Mood = { root: 130.81, scale: SCALES.minor, tempo: 1.4, wave: 'sine' };
-
-/**
- * What the dark does to the music. Not a mood of its own — the same tune, played the way somebody
- * would play it with the lamp low: slower, quieter, and dropped an octave once it is properly
- * night. Nought is noon and one is midnight, so each of these is what full dark is worth.
- */
-const NIGHT = {
-  /** How much longer a beat lasts at midnight than at noon. */
-  SLOWER: 0.5,
-  /** How much of a note's loudness the dark takes off. */
-  QUIETER: 0.35,
-  /** Dark enough to put the arpeggio down an octave, which is the only thing that reads as night. */
-  DEEP: 0.5,
-} as const;
-
 /**
  * How far ahead notes are queued, in seconds. Web Audio plays what it has been given whatever the
  * frame rate is doing, so a frame that takes too long drops a frame and not a note.
@@ -114,26 +81,20 @@ export class Music {
   update(): void {
     const ctx = this.ctx;
     if (!ctx || !this.out) return;
-    const beat = this.mood.tempo * (1 + this.night * NIGHT.SLOWER);
+    const every = beat(this.mood, this.night);
     while (this.nextNote < ctx.currentTime + LOOKAHEAD) {
       this.playNote(this.nextNote);
-      this.nextNote += beat;
+      this.nextNote += every;
     }
   }
 
   private playNote(at: number): void {
     const ctx = this.ctx!;
-    const { root, scale, wave } = this.mood;
-    // a wandering arpeggio: mostly steps, occasional leaps, octave down at night
-    const pattern = [0, 2, 1, 3, 2, 4, 3, 1];
-    const degree = scale[pattern[this.step % pattern.length] % scale.length];
-    const octave = this.night > NIGHT.DEEP ? 0.5 : this.step % 16 < 8 ? 1 : 2;
-    const freq = root * octave * Math.pow(2, degree / 12);
+    const { freq, wave, peak } = noteAt(this.step, this.mood, this.night);
     const osc = ctx.createOscillator();
     osc.type = wave;
     osc.frequency.value = freq;
     const g = ctx.createGain();
-    const peak = 0.06 * (1 - this.night * NIGHT.QUIETER);
     // a plucked note: up in a fortieth of a second, ringing away over the next, and the oscillator
     // let go a little after the fade so it never ends on a click
     g.gain.setValueAtTime(0.0001, at);

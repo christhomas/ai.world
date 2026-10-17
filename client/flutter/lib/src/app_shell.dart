@@ -21,6 +21,7 @@ import 'shell/ledger_action_card.dart';
 import 'shell/ledger_shell.dart';
 import 'shell/ledger_stick.dart';
 import 'shell/ledger_tokens.dart';
+import 'shell/more_controls.dart';
 import 'shell/name_plates.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
@@ -70,6 +71,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
       final last = await settings.load('last') as Map?;
       final theme = await settings.load('theme');
+      final volume = await settings.load('volume');
       GameSlot? slot;
       if (last != null) {
         slot = GameSlot(slot: last['slot'] as String, seed: last['seed'] as int, kind: last['kind'] as String,
@@ -83,11 +85,20 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         _last = slot;
         final chosen = LedgerTheme.values.where((t) => t.name == theme).firstOrNull;
         _keptTheme = chosen ?? _ledger.theme;
+        if (volume is num) _volume = volume.toDouble();
         if (chosen != null) _ledger.selectTheme(chosen);
       });
     } catch (error) {
       if (mounted) setState(() => _trouble = 'Storage is unavailable: $error');
     }
+  }
+
+  /// How loud the game is: the game's own volume, remembered by the app and given to each game it opens.
+  double? _volume;
+  void _setVolume(double level) {
+    _volume = level;
+    unawaited(_session?.act('volume', args: {'level': level}));
+    unawaited(_settings?.commit('volume', level).catchError((Object _) {}));
   }
 
   LedgerTheme? _keptTheme;
@@ -135,6 +146,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       // a conversation parks the world's controls, as the game does on the page
       session.presentation.addListener(() => _ledger.talking(session.presentation.value['busy'] == 'talking'));
       session.run(this);
+      // the volume the player chose last time, which a new game would otherwise not know
+      if (_volume case final volume?) unawaited(session.act('volume', args: {'level': volume}));
       setState(() { _session = session; _phase = _Phase.playing; });
       playing.value = session;
     } catch (error) {
@@ -199,11 +212,10 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
           LedgerStick(input: _input, health: hp / maxHp, breath: wind,
             onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
-          // the console, under the clock: typing parks the world, as it does on the page
-          Positioned(top: 40, right: 8, child: Semantics(button: true, label: 'Console', excludeSemantics: true,
-            onTap: _ledger.typing, child: SizedBox(width: 44, height: 44, child: Material(color: t.surface,
-              child: InkWell(key: const ValueKey('console'), onTap: _ledger.typing,
-                child: Center(child: Text('›_', style: t.numbers(13, t.ink, spacing: 0)))))))),
+          // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
+          // console is among them, and typing parks the world as it does on the page
+          Positioned(top: 40, right: 8, child: MoreControls(tokens: t,
+            onAction: (action) => action == 'console' ? _ledger.typing() : unawaited(session.act(action)))),
         ]),
         controller: _ledger,
         typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
@@ -216,7 +228,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           'map': (context, tokens) => MapPage(picture: session.mapPicture, map: session.map, walked: session.walked,
             charted: session.charted, hero: hero, tokens: tokens, floor: session.floor),
           'options': (context, tokens) => OptionsPage(slot: session.slot, tokens: tokens, controller: _ledger,
-            leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough'))),
+            leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough')),
+            volume: ((hud['volume'] as num?) ?? 0.6).toDouble(), setVolume: _setVolume),
           // past the four tabs: reached from Options
           'roster': (context, tokens) => RosterPage(roster: session.roster, tokens: tokens,
             read: (by) => unawaited(session.act('read', target: by == null ? null : 'roster:$by'))),
