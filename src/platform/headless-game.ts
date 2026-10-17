@@ -66,6 +66,8 @@ export interface HeadlessOptions {
    * stands still while a job runs. `Date.now` by default, which every engine has.
    */
   realNow?(): number;
+  /** An installed app transports these to its second engine, instead of running them on this clock. */
+  jobs?: { chunks: ChunkJobHost; country(): CountryGrowthJob; times: JobTimes };
   /** The game has asked to leave for the title. */
   leave?(): void;
   /** A prayer has asked for the game to begin again. */
@@ -576,9 +578,9 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       restart: () => options.restart?.(),
     }),
     jobs: {
-      chunks: chunksInProcess(timedClock(clock, 'chunks', jobTimes, real), now),
+      chunks: options.jobs?.chunks ?? chunksInProcess(timedClock(clock, 'chunks', jobTimes, real), now),
       grower: (seed, country) => createCountryGrower(seed, country.store,
-        countryInProcess(timedClock(clock, 'country', jobTimes, real), now)),
+        options.jobs?.country() ?? countryInProcess(timedClock(clock, 'country', jobTimes, real), now)),
     },
     chunkKeep: keptInMemory,
     settings: {
@@ -620,7 +622,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       if (!pack) throw new Error('the game has not been assembled on this host yet');
       return pack;
     },
-    jobTimes: () => jobTimes,
+    jobTimes: () => ({ ...jobTimes, ...options.jobs?.times }),
     takeSounds: () => heard.splice(0),
     setVolume: (volume) => sound.setVolume(Math.max(0, Math.min(1, volume))),
     say(text) {

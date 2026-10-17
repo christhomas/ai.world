@@ -53,7 +53,13 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture
   (`mapPicture`, `world/map-ground.ts`: the page map's own ground colours and roads at a cell to
-  two tiles, sent as runs of colour) goes once, with the first step;
+  two tiles, sent as runs of colour) goes once, with the first step. Both map models are built by
+  `src/mobile/map-model.ts` from what the page's maps read: the dark is the squares `knownSquares`
+  (`world/map-ground.ts`) gives the page's fog, and an underground title names the floor past the
+  first as the HUD does. `src/mobile/map-discovery.test.ts` walks a hero across the country, down
+  two floors of a shrine, back up, through a bought province, a save and rejoin and into another
+  world, and checks at each stop that the app's map and the page's agree on the dark, the marks,
+  the title and the floor, cell for cell;
 - where the hero is and which way he faces (`yaw`);
 - the owner (WORLD or BOOK) and busy mode;
 - for a shared world, `link` (`connect` an address, with the connection's generation, or `close`
@@ -97,6 +103,9 @@ plays it in a bare JavaScript context: no window, timers, performance clock, str
 require or worker. It opens a world, waits for the ground to arrive, walks the hero with the stick,
 opens and closes the pack as a book, saves, and records bundle size, load time and step timings.
 It runs in the "Portable mobile frame" workflow.
+The proof runs the jobs bundle in a second bare context on an actual host worker thread and
+records `requestsWhileMeshing`, requiring game requests to finish while a mesh is still pending.
+Both contexts lack browser and Node globals; only their host transports the wire strings.
 
 ## In the installed apps
 
@@ -104,6 +113,12 @@ It runs in the "Portable mobile frame" workflow.
 hero engine, from the same commit, into the app's assets; nothing is fetched at run time.
 `StateEngine.openGame` loads it through the same checked channel as the hero engine, naming the
 global `AiWorldGameEngine` and handing it the options.
+
+It also opens the bundled `jobs.js` and its `jobs-manifest.json` (scope `jobs`), requiring the same
+source commit as the game. This second engine owns ground meshing and background country growth
+on a separate native thread (`chunk-jobs.md`, `country-jobs.md`). The game queues requests and Dart
+returns replies asynchronously before a later game request; its game requests never await that
+queue. Bare hosts may omit the `jobs: 'host'` option to keep using the in-process step-clock jobs.
 
 The native hosts give the whole game more than the hero:
 

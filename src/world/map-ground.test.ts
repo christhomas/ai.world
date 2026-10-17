@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BIOMES, Biome } from './biomes';
 import type { RoadGraph } from './graph';
-import { SEA_RGB, groundColour, mapPad, mapPicture, type MapGround } from './map-ground';
+import { SEA_RGB, groundColour, knownSquares, mapPad, mapPicture, type MapGround } from './map-ground';
 
 const meadow = Biome.Plains;
 /** Land east of the middle, sea west of it, and a peak standing at (20, 0). */
@@ -49,5 +49,14 @@ describe('the map, wherever it is drawn', () => {
     }
     expect(picture.runs.length / 2, 'mostly sea, so far fewer runs than cells').toBeLessThan(all.length / 4);
     expect(picture.roads).toEqual([-10, 0, 10, 4, 3]);
+  });
+
+  it('takes the dark off a walked chunk and a bought province, either side of nought', () => {
+    // a chunk is sixteen tiles and a province five hundred and twelve (core/config, world/provinces)
+    expect(knownSquares(['-1,2'], ['-1:2'])).toEqual([
+      { x: -16, z: 32, side: 16 },
+      { x: -512, z: 1024, side: 512 },
+    ]);
+    expect(knownSquares([]), 'nothing walked, nothing known').toEqual([]);
   });
 });
