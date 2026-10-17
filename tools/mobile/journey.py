@@ -7,8 +7,8 @@
     python3 tools/mobile/journey.py ios all                 # every part
 
 Each part is a Flutter integration test in client/flutter/integration_test/ that drives the production
-app by touch. `flutter test` installs the app over itself, so a later part is a new launch of the same
-app with its storage intact: a save that did not survive fails `continue`. While a part runs, every
+app by touch. `flutter test` uninstalls the app after each part, storage and all, so a part that needs
+a new launch of the app (the journey's continue) starts it again itself. While a part runs, every
 `JOURNEY_SHOT <name>` it prints is photographed with the OS's own capture, so the native world is in
 the picture, and every `JOURNEY_STEP {...}` is recorded. A part passes only when it said every step it
 owes. The report embeds the pictures, the steps, the commands and their output, and says whether a
@@ -34,15 +34,13 @@ CROSSPLAY = 'integration_test/crossplay_test.dart'
 # without saying all of them has not shown it did anything, and fails.
 PARTS = {
     'journey': ('integration_test/journey_test.dart',
-                ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left']),
-    'continue': ('integration_test/continue_test.dart', ['continued']),
+                ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left',
+                 'continued']),
     'crossplay': (CROSSPLAY, ['joined a shared world', 'saw the web player', 'stayed for the web player',
                               'the web player saw the phone']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
-JOURNEYS = ['journey', 'continue', 'crossplay']
-# a part that can only follow another in the same run: continuing needs the game the journey left
-NEEDS = {'continue': 'journey'}
+JOURNEYS = ['journey', 'crossplay']
 STEPS = {step for _, steps in PARTS.values() for step in steps}
 
 
@@ -54,9 +52,6 @@ def chosen(names):
     unknown = [name for name in parts if name not in PARTS]
     if unknown:
         return None, f'no part called {", ".join(unknown)}; the parts are {", ".join(PARTS)}'
-    for part, before in NEEDS.items():
-        if part in parts and (before not in parts or parts.index(before) > parts.index(part)):
-            return None, f'{part} continues the game {before} leaves, so {before} has to run first'
     return parts, None
 
 
@@ -253,14 +248,9 @@ def main(platform, names=()):
     try:
         serial, made = device(platform)
         subprocess.run(['node', 'tools/mobile/build-engine.mjs'], cwd=ROOT, check=True, timeout=600)
-        # every part is played and reported, so one that fails does not hide what the others found;
-        # only a part that continues another's game is let go when that one failed
+        # every part is played and reported, so one that fails does not hide what the others found
         failed = []
         for part in parts:
-            if NEEDS.get(part) in failed:
-                record['parts'].append({'part': part, 'skipped': f'{NEEDS[part]} failed'})
-                failed.append(part)
-                continue
             test, _ = PARTS[part]
             code = crossplay(platform, serial, record) if test == CROSSPLAY else run_part(platform, serial, test, record)
             said = {step['step'] for step in record['steps']}
