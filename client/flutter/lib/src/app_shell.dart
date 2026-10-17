@@ -62,6 +62,13 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   late final InputOwnerController _input = InputOwnerController((value) => _session?.hold(value));
   late final LedgerController _ledger = LedgerController(_input)..addListener(_keepTheme)..addListener(_forgetFocus);
   Widget? _world;
+  /// The world view moves from the opening screen into the shell once the game is playing. A plain
+  /// key cannot carry it between parents: the view, its renderer and the native texture were thrown
+  /// away at that moment and a second view made, which opened the game a second time while the first
+  /// went on drawing into a renderer that was gone. A global key moves it whole.
+  final _worldKey = GlobalKey(debugLabel: 'world');
+  /// The view in `_world` has started its game: one game to a view, however often it makes a renderer.
+  bool _started = false;
 
   @override
   void initState() {
@@ -138,7 +145,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       _trouble = null;
       _browsing = false;
       // one world view for the whole game, kept across every route and theme
-      _world = NativeWorldView(key: const ValueKey('world'), onCreated: (renderer) => _start(slot, renderer));
+      _started = false;
+      _world = NativeWorldView(key: _worldKey, onCreated: (renderer) => _start(slot, renderer));
     });
     unawaited(_games?.played(slot).catchError((Object _) {}));
   }
@@ -154,6 +162,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   }
 
   Future<void> _start(GameSlot slot, NativeWorldRenderer renderer) async {
+    if (_started) return;
+    _started = true;
     try {
       final size = MediaQuery.sizeOf(context);
       final session = await GameSession.open(slot, root: _root!, viewport: size,
