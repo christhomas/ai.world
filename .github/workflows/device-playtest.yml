@@ -1,0 +1,125 @@
+name: Device playtest
+
+# The game played by touch on a hosted Android emulator and iPhone simulator (#681, #682;
+# docs/mobile/installed-journey.md). Each part is an integration test in client/flutter/integration_test/
+# that drives the installed app as a player does, and `tools/mobile/journey.py` photographs and reports
+# every step. It is its own workflow so the renderer capture in "Hosted mobile evidence" and the
+# playtest do not share one job's time.
+#
+# Run on demand (`chore device-playtest [parts…]`, or the Actions tab) and every night on main. It is
+# not on pull requests yet: the release tool waits on every check of the release pull request, and
+# this joins them once every part passes on both phones.
+on:
+  workflow_dispatch:
+    inputs:
+      parts:
+        description: 'parts to play, in order (journey continue crossplay combat doors shop horse map dungeon), or all'
+        required: false
+        default: all
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: device-playtest-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PARTS: ${{ github.event.inputs.parts || 'all' }}
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+      - run: python3 -m pip install Pillow==11.3.0
+      # the web player the crossplay part meets in a shared world
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Enable and require hosted KVM acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          if [ ! -c /dev/kvm ]; then
+            echo '::error::Hosted runner has no /dev/kvm device; accelerated Android provisioning cannot continue.'
+            exit 1
+          fi
+          sudo chmod 0666 /dev/kvm
+      - name: Play the parts on an emulator
+        # inside the job's limit, so a part that runs long fails here and the report below is still uploaded
+        timeout-minutes: 140
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          avd-name: device-playtest
+          force-avd-creation: true
+          disable-animations: true
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -accel on -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 tools/mobile/journey.py android $PARTS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-playtest-android
+          path: ${{ runner.temp }}/mobile-journey
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 150
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+      - run: python3 -m venv "$RUNNER_TEMP/mobile-python"
+      - run: |
+          "$RUNNER_TEMP/mobile-python/bin/pip" install Pillow==11.3.0
+      - run: pnpm exec playwright install chromium
+      - name: Play the parts on a simulator
+        # inside the job's limit, so a part that runs long fails here and the report below is still uploaded
+        timeout-minutes: 140
+        run: |
+          "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/journey.py ios $PARTS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-playtest-ios
+          path: ${{ runner.temp }}/mobile-journey
+          if-no-files-found: error
+          retention-days: 30
