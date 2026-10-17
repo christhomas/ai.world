@@ -1,5 +1,8 @@
+import { WORLD } from '../core/config';
 import { BIOMES, type Biome } from './biomes';
 import type { RoadGraph } from './graph';
+import { PROVINCE, provinceCorner, type ProvinceId } from './provinces';
+import { parseChunkKey } from './spatial';
 
 /**
  * What the map needs of the terrain, and nothing else.
@@ -18,6 +21,32 @@ export interface MapGround {
    * road-tree world has no such thing and its mountains are already in the ground it is drawn from.
    */
   rock?: (x: number, z: number) => number;
+}
+
+/** A square of the world the map takes the dark off, in tiles: its corner and how long a side it has. */
+export interface KnownSquare { x: number; z: number; side: number }
+
+/**
+ * The country the map shows clear of the dark: every chunk walked and every province charted, as
+ * the squares of ground they cover (#575).
+ *
+ * The page's fog punches these out of its mask, and an installed app is sent the same chunks and
+ * provinces to take the dark off, so the two maps cannot disagree about what has been found. A
+ * chunk and a province are different sorts of knowing (`GameState.charted`), and the map is the
+ * one place that difference stops mattering, so they come back as one list.
+ */
+export function knownSquares(explored: Iterable<string>, charted: Iterable<ProvinceId> = []): KnownSquare[] {
+  const CS = WORLD.CHUNK_SIZE;
+  const squares: KnownSquare[] = [];
+  for (const key of explored) {
+    const [cx, cz] = parseChunkKey(key);
+    squares.push({ x: cx * CS, z: cz * CS, side: CS });
+  }
+  for (const id of charted) {
+    const corner = provinceCorner(id);
+    squares.push({ x: corner.x, z: corner.z, side: PROVINCE });
+  }
+  return squares;
 }
 
 /** The sea, as the map draws it. */

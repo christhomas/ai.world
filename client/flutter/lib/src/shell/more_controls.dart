@@ -11,7 +11,7 @@ typedef MoreControl = ({String action, String glyph, String label});
 /// (`src/ui/touch.ts`, `MORE_BUTTONS`): none of these is wanted mid-stride, so none earns a
 /// permanent square of a phone screen. Loosing an arrow and jumping are here too, because the
 /// handoff's action card holds only the reflex pair. `console` opens the console and `company` the
-/// travellers page, rather than acting. Photo mode is not here until the phone can take a picture.
+/// travellers page, rather than acting. `photo` opens the app's own shutter and share controls.
 const moreControls = <MoreControl>[
   (action: 'shoot', glyph: '🏹', label: 'Loose an arrow'),
   (action: 'jump', glyph: '⤒', label: 'Jump'),
@@ -25,6 +25,7 @@ const moreControls = <MoreControl>[
   (action: 'company', glyph: '👥', label: 'Travellers'),
   (action: 'rally', glyph: '📍', label: 'Rally point'),
   (action: 'cameraMode', glyph: '🎥', label: 'Free camera'),
+  (action: 'photo', glyph: '📷', label: 'Photo'),
   (action: 'console', glyph: '›_', label: 'Console'),
 ];
 

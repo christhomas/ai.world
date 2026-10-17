@@ -14,11 +14,11 @@ import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
 import { Portraits } from './portraits';
 import { ParcelLink } from './parcel-link';
-import { WORLD } from '../core/config';
-import { PROVINCE, provinceCorner } from '../world/provinces';
+import { MapModels } from './map-model';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
 import { ROSTER_ORDERS, type RosterOrder } from '../game/roster-view';
+import { EngineJobs } from './engine-jobs';
 
 /** What an app asks for when it opens a game: which world, which save, and how big the picture is. */
 export interface EngineOptions {
@@ -39,6 +39,8 @@ export interface EngineOptions {
    * the country and what it was authored with, which the save is joined to as the page joins it.
    */
   invite?: WorldInvite;
+  /** Installed apps own a second native context; bare hosts may still run jobs on the step clock. */
+  jobs?: 'host';
 }
 
 function optionsFrom(text: string): EngineOptions {
@@ -47,6 +49,7 @@ function optionsFrom(text: string): EngineOptions {
   if (!value || typeof value !== 'object' || !Number.isSafeInteger(value.seed) || (value.kind !== 'road' && value.kind !== 'endless')
     || typeof value.slot !== 'string' || !value.slot || !value.viewport || !positive(value.viewport.width) || !positive(value.viewport.height)
     || (value.name !== undefined && typeof value.name !== 'string')
+    || (value.jobs !== undefined && value.jobs !== 'host')
     || (value.server !== undefined && (typeof value.server !== 'string' || !/^wss?:\/\/[^\s]+$/.test(value.server)))
     || (value.world !== undefined && (typeof value.world !== 'object' || value.world === null
       || Object.values(value.world).some((text) => typeof text !== 'string')))
@@ -132,7 +135,7 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  *   everything it was sent;
  * - `dispose` saves nothing more and lets everything go.
  */
-export function create(session: string, optionsText: string): { request(text: string): string } {
+export function create(session: string, optionsText: string): { request(text: string): string; deliverJobs(text: string): void } {
   const options = optionsFrom(optionsText);
   const gate = new RequestGate(session);
   const store = savedInMemory();
@@ -140,6 +143,7 @@ export function create(session: string, optionsText: string): { request(text: st
   const portraits = new Portraits();
   const parcels = new ParcelLink();
   const world = new KeptWorld(options.world);
+  const jobs = options.jobs === 'host' ? new EngineJobs(() => engineClock.now()) : null;
   let host: HeadlessGame | null = null;
   let game: GameHandle | null = null;
   let revision = 0;
@@ -160,11 +164,7 @@ export function create(session: string, optionsText: string): { request(text: st
   let lastCompany = '';
   let lastKin = 0;
   let mapDrawn = false;
-  let lastFloor: string | null = null;
-  let lastMap = '';
-  let lastMapAt = -Infinity;
-  const knownChunks = new Set<string>();
-  const knownProvinces = new Set<string>();
+  const mapModels = new MapModels();
 
   const presentation = (scene: Json | null) => {
     const shown = host!.presentation;
@@ -214,29 +214,8 @@ export function create(session: string, optionsText: string): { request(text: st
       const perf = JSON.stringify({ jobs: host!.jobTimes() });
       if (perf !== lastPerf) { lastPerf = perf; lastPerfAt = renderTimeMs; models.perf = JSON.parse(perf) as Json; }
     }
-    // underground, the map is the floor: sent when what has been seen of it changes, and null once
-    // the hero is back above ground
-    const floor = host!.floor();
-    if ((floor?.changed ?? null) !== lastFloor) {
-      lastFloor = floor?.changed ?? null;
-      models.floor = floor ? json(floor.picture()) : null;
-    }
-    // the map over its picture: what has newly been walked or charted, every time; the markers
-    // and title when they change, at most once a second, because a ferry's marker moves every step
-    // both only ever grow, so the same size is nothing new
-    const walked = state.explored.size === knownChunks.size ? [] : [...state.explored].filter((key) => !knownChunks.has(key));
-    const charted = state.charted.size === knownProvinces.size ? [] : [...state.charted].filter((id) => !knownProvinces.has(id));
-    const reading = JSON.stringify(host!.mapReading());
-    if (walked.length > 0 || charted.length > 0 || (reading !== lastMap && renderTimeMs - lastMapAt >= 1000)) {
-      for (const key of walked) knownChunks.add(key);
-      for (const id of charted) knownProvinces.add(id);
-      lastMap = reading;
-      lastMapAt = renderTimeMs;
-      // a chunk by its key and a province by its corner, with the size of each, so the app can
-      // take the dark off them without knowing how either is named
-      models.map = json({ ...JSON.parse(reading) as object, chunk: WORLD.CHUNK_SIZE, province: PROVINCE, walked,
-        charted: charted.map((id) => { const at = provinceCorner(id); return `${at.x},${at.z}`; }) });
-    }
+    // the map: the floor underground, and the country's markers and what has been found of it
+    Object.assign(models, mapModels.take(host!, state, renderTimeMs));
     // a save the game has written since the last reply, for the app to keep where it keeps things
     const saved = store.read(options.slot);
     if (saved !== undefined && saved !== lastSave) { lastSave = saved; models.save = JSON.parse(saved) as Json; }
@@ -274,11 +253,13 @@ export function create(session: string, optionsText: string): { request(text: st
   };
 
   return {
+    deliverJobs(text) { jobs?.deliver(text); },
     request(text) {
       const request = gate.accept(JSON.parse(text));
       const base = { version: HOST_CONTRACT_VERSION, session, sequence: request.sequence, requestId: request.id };
       const reply = (payload: HostResult['payload'], type: 'result' | 'error' = 'result') =>
-        JSON.stringify({ ...base, type, payload } satisfies HostResult, plainArrays);
+        JSON.stringify({ ...({ ...base, type, payload } satisfies HostResult),
+          ...(jobs ? { jobs: jobs.take() } : {}) }, plainArrays);
       try {
         if (request.type === 'start') {
           // a private world, or the shared one the options named: the app says which it expects
@@ -287,6 +268,7 @@ export function create(session: string, optionsText: string): { request(text: st
           }
           host = headlessGame({ viewport: options.viewport, clock: engineClock, now: () => engineClock.now(),
             random: Math.random, name: options.name, vault: world,
+            jobs: jobs ?? undefined,
             server: options.server ? { url: options.server, link: parcels.connect } : undefined });
           game = composeGame({ store, slotKey: options.slot, seed: options.seed, world: options.kind,
             saved: options.invite ? joinNamed(options.invite, options.saved) : options.saved,
@@ -295,6 +277,7 @@ export function create(session: string, optionsText: string): { request(text: st
         }
         if (request.type === 'dispose') {
           game?.dispose();
+          jobs?.dispose();
           game = null;
           host = null;
           return reply({});

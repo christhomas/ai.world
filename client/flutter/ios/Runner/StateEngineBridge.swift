@@ -81,17 +81,23 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
         return token
       }
     case "request":
-      guard let owned = owned(arguments["token"] as? String) else {
+      let token = arguments["token"] as? String
+      guard let owned = owned(token) else {
         result(FlutterError(code: "state-engine", message: "Engine retired", details: nil))
         return
       }
       on(owned.queue, result) {
+        guard self.owned(token) === owned else { throw StateEngineFailure("Engine retired") }
         // a parcel of ground for the whole game can be large; the contract bounds it at 8 MiB. The hero
         // alone is never sent anything that size, and is held to the megabyte Android holds it to
         guard let request = arguments["request"] as? String, request.utf8.count <= owned.vm.requestLimit else {
           throw StateEngineFailure("Request too large")
         }
-        return try owned.vm.request(request)
+        let jobs = arguments["jobs"] as? String
+        guard jobs == nil || jobs!.utf8.count <= owned.vm.requestLimit else {
+          throw StateEngineFailure("Job replies too large")
+        }
+        return try owned.vm.request(request, jobs: jobs)
       }
     case "dispose":
       let token = arguments["token"] as? String
@@ -122,9 +128,11 @@ struct StateEngineFailure: Error, CustomStringConvertible {
 
 final class StateEngineVM {
   /// How big a reply each bundled engine may give: the whole game answers with the ground it streams.
-  static let replyLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024, "AiWorldGameEngine": 32 * 1024 * 1024]
+  static let replyLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024,
+    "AiWorldGameEngine": 32 * 1024 * 1024, "AiWorldJobEngine": 32 * 1024 * 1024]
   /// And how big a request each may be sent, past which the transport refuses it and the owner retires.
-  static let requestLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024, "AiWorldGameEngine": 16 * 1024 * 1024]
+  static let requestLimits: [String: Int] = ["AiWorldStateEngine": 1024 * 1024,
+    "AiWorldGameEngine": 16 * 1024 * 1024, "AiWorldJobEngine": 16 * 1024 * 1024]
   let requestLimit: Int
   private let context: JSContext
   private let engine: JSValue
@@ -150,8 +158,12 @@ final class StateEngineVM {
     self.engine = engine
   }
 
-  func request(_ text: String) throws -> String {
+  func request(_ text: String, jobs: String? = nil) throws -> String {
     context.exception = nil
+    if let jobs {
+      engine.invokeMethod("deliverJobs", withArguments: [jobs])
+      if let error = context.exception { throw StateEngineFailure(error.toString() ?? "Job delivery exception") }
+    }
     guard let value = engine.invokeMethod("request", withArguments: [text]),
           context.exception == nil, let response = value.toString(), response.utf8.count <= replyLimit else {
       throw StateEngineFailure(context.exception?.toString() ?? "Invalid engine response")
