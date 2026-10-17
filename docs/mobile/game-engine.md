@@ -39,7 +39,10 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   with the entrance and the seen chests), when what has been seen of it changes, and `null` once
   the hero is back above ground;
 - the sounds the game made since the last reply (`sounds`), each as the voices `game/sound-recipes.ts`
-  makes it of, for the app to synthesise and play at the HUD's volume;
+  makes it of, for the app to synthesise and play at the HUD's volume, the creatures of the place
+  among them; and in the HUD, how loud the beds under them are now (`hud.beds`: the wind, the water
+  in earshot and the soundtrack's drone), which the app renders a second at a time
+  (`client/flutter/lib/src/audio/beds.dart`);
 - where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
   and the country, each as runs, total and longest, at most every two seconds;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;

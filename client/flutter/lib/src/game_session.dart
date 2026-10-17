@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import 'audio/beds.dart';
 import 'audio/synth.dart';
 import 'network/world_socket_link.dart';
 import 'scene_frame.dart';
@@ -76,6 +77,9 @@ class GameSession {
   /// Where the game's sounds are played, and what makes them (#578).
   final SoundOutput _sound;
   final Synth _synth = Synth();
+  final Beds _beds = Beds();
+  /// When the beds' next stretch is due, in the game's render time.
+  double _bedsDue = 0;
   /// What draws the frames, for the installed-app journeys to read back and refuse a blank one.
   @visibleForTesting
   FlutterFramePipeline? get pipeline => _pipeline;
@@ -246,12 +250,19 @@ class GameSession {
     }
     _relay(models);
     // the sounds the game made since the last reply, made here and played at the game's volume
+    final volume = (((models['hud'] as Map?)?['volume'] as num?) ?? 0.6).toDouble().clamp(0.0, 1.0);
     final sounds = models['sounds'];
     if (sounds is List && !_closing) {
-      final volume = (((models['hud'] as Map?)?['volume'] as num?) ?? 0.6).toDouble().clamp(0.0, 1.0);
       for (final voices in sounds.cast<List>()) {
         unawaited(_sound.play(_synth.render(voices.cast<Map>(), volume: volume), _synth.rate));
       }
+    }
+    // and the wind, the water and the drone under them, a second at a time on the game's own clock
+    final beds = (models['hud'] as Map?)?['beds'];
+    if (beds is Map && !_closing && _time >= _bedsDue) {
+      _bedsDue = _time + Beds.every * 1000;
+      final stretch = _beds.render(beds, volume: volume);
+      if (stretch != null) unawaited(_sound.play(stretch, _beds.rate));
     }
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {

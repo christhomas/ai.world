@@ -71,6 +71,10 @@ describe('the game on a host with no page', () => {
       const steps = game.takeSounds().filter((voices) => voices.length === 1 && 'burst' in voices[0]
         && (voices[0].burst === 1500 || voices[0].burst === 700));
       expect(steps.length, 'a walk is footsteps').toBeGreaterThan(0);
+      // and under them the wind has risen and the drone is playing, for the app to render (#578)
+      expect(game.presentation.beds.wind).toBeGreaterThan(0);
+      expect(game.presentation.beds.drone.gain).toBeGreaterThan(0);
+      expect(game.presentation.beds.drone.freq).toBeGreaterThan(20);
 
       // a line typed into the console is the page's console's: a question mark asks the game
       const before = game.presentation.chat.at(-1);

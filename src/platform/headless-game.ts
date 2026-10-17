@@ -19,7 +19,7 @@ import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
 import { OtherBodies, type NamePlate } from '../render/other-bodies';
-import { SOUNDS, STRIDE, type SoundVoice } from '../game/sound-recipes';
+import { BEDS, SOUNDS, STRIDE, waterBed, wildlifeCall, windLevel, type SoundVoice } from '../game/sound-recipes';
 import { CAVE, MOODS, beat, noteAt, pluck } from '../game/music-score';
 import { Biome } from '../world/biomes';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
@@ -94,6 +94,12 @@ export interface Presentation {
   sounds: string[];
   fishing: string;
   volume: number;
+  /**
+   * The beds under every other sound, as loud as they are now (#578): the wind, the water in
+   * earshot and the soundtrack's drone, each a voice that never stops and is only turned up and down.
+   * Nought while the game is quiet. See `BEDS` in `sound-recipes.ts`.
+   */
+  beds: { wind: number; water: { gain: number; centre: number; q: number }; drone: { freq: number; gain: number } };
   /** The panel the screen has open, if any; a conversation is `conversation`. */
   panel: string | null;
   hero: Speaker | null;
@@ -294,6 +300,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     toasts: [], loading: null, area: '', action: null, quests: 0, link: false,
     breath: { wind: 1, warded: 0, arm: 1, guarding: false }, hurts: 0, chat: [], status: '', fight: null,
     sounds: [], fishing: 'idle', volume: 0.6, panel: null, hero: null, plates: [],
+    beds: { wind: 0, water: waterBed(0, 0, false), drone: { freq: MOODS[Biome.Plains].root / 2, gain: 0 } },
   };
   const say = (line: string) => keep(shown.toasts, line);
   const cue = (name: string) => keep(shown.sounds, name);
@@ -358,6 +365,10 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let playing = 0;
   let nextNote = 0.5;
   let step = 0;
+  // the beds' wind, eased toward the place's as the page's is, the water last heard, and the next call
+  let wind = 0;
+  let water = { nearness: 0, drop: 0 };
+  let nextCall = 2;
   const play = (name: string, voices: SoundVoice[]) => {
     cue(name);
     if (!hushed) heard.push(voices);
@@ -366,8 +377,9 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
     volume: shown.volume,
     cave: false,
     setVolume: (volume) => { sound.volume = volume; shown.volume = volume; },
-    quiet: (on) => { hushed = on; },
-    dispose: () => { heard.length = 0; },
+    // quiet, the beds fall silent at once rather than on the next frame, which a paused game has not got
+    quiet: (on) => { hushed = on; if (on) shown.beds = { ...shown.beds, wind: 0, water: waterBed(0, 0, false), drone: { ...shown.beds.drone, gain: 0 } }; },
+    dispose: () => { heard.length = 0; sound.quiet(true); },
     update: (dt, walking, onRoad) => {
       stride -= dt;
       if (walking && stride <= 0) { stride = STRIDE; play('footstep', SOUNDS.footstep(onRoad)); }
@@ -379,9 +391,24 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
         step++;
         nextNote += beat(mood, night);
       }
+      // the creatures of the place, one call at a time, and the beds under everything
+      nextCall -= dt;
+      if (nextCall <= 0) {
+        const call = wildlifeCall(biome, night, sound.cave);
+        nextCall = call.next;
+        if (!hushed && call.voices.length > 0) play('wildlife', call.voices);
+      }
+      wind += (windLevel(biome, night, sound.cave) - wind) * Math.min(1, dt * 0.5);
+      const drone = shown.beds.drone.freq;
+      shown.beds = {
+        wind: hushed ? 0 : wind,
+        water: waterBed(hushed ? 0 : water.nearness, water.drop, sound.cave),
+        // the drone glides to a new mood's root over a second and a half, as the page's does
+        drone: { freq: drone + (mood.root / 2 - drone) * Math.min(1, dt / 1.5), gain: hushed ? 0 : BEDS.DRONE_GAIN * MUSIC },
+      };
     },
     setScene: (where, dark) => { biome = where; night = dark; },
-    setWater: () => {},
+    setWater: (nearness, drop) => { water = { nearness, drop }; },
     blip: () => play('blip', SOUNDS.blip()),
     select: () => play('select', SOUNDS.select()),
     chime: () => play('chime', SOUNDS.chime()),
