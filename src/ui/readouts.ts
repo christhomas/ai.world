@@ -167,8 +167,9 @@ export function createReadouts(ctx: ReadoutContext) {
     playerX: player.x,
     playerZ: player.z,
     fog: !state.can('map'),
+    // the floor as the HUD names it, so a map read on the second floor does not pass for the first
     title: places.underground
-      ? `${places.underground.poi.name} Depths`
+      ? `${places.underground.poi.name} Depths${places.underground.floor > 1 ? ` · floor ${places.underground.floor}` : ''}`
       : `${areaLabel} · ${state.clock()} · ${SEASON_NAMES[seasonOf(state.day)]}`,
   });
 
