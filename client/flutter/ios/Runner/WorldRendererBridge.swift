@@ -239,6 +239,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     descriptor.vertexFunction = vertex
     descriptor.fragmentFunction = fragment
     descriptor.vertexDescriptor = Self.vertexDescriptor()
+    // src/render/scene.ts leaves WebGLRenderer at sRGB output and NoToneMapping. This plain
+    // target takes the shader's sRGB values; blending happens after that encode, as on the web.
     descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
     descriptor.depthAttachmentPixelFormat = .depth32Float
     pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
@@ -298,7 +300,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     sceneRenderTimeMs = renderTimeMs
     target = SIMD3(world.columns.3.x, world.columns.3.y, world.columns.3.z) -
       SIMD3(world.columns.2.x, world.columns.2.y, world.columns.2.z) * 30
-    // Dart has already decoded each light to linear and applied its intensity (colour.dart)
+    // src/render/graphmount.ts prefers linearColour/linearGroundColour to hexes. Dart mirrors
+    // that and applies intensity once (colour.dart); these channels stay linear and unclamped.
     func colour(_ node: [String: Any]?, key: String = "linear") -> SIMD3<Float> {
       linear(node?[key]) ?? .zero
     }
@@ -659,11 +662,24 @@ float3 animate(float3 p,float joint,float3 pivot,float time){if(joint<.5)return 
 vertex VOut worldVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){VOut o;o.world=animate(in.position,in.joint,in.pivot,u.lookAndTime.w);o.position=u.mvp*float4(o.world,1);o.normal=in.normal;o.color=in.color;o.material=in.material;o.flow=in.flow;o.sea=in.sea;o.shadow=u.lightMvp*float4(o.world,1);return o;}
 vertex float4 shadowVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){return u.lightMvp*float4(animate(in.position,in.joint,in.pivot,u.lookAndTime.w),1);}
 constant float RECIPROCAL_PI=0.3183098861837907;
-// three.js's sRGBTransferOETF: lit in linear, written out encoded to the plain bgra8Unorm target
+// src/render/scene.ts keeps three.js's NoToneMapping and sRGB output: encode once after lighting.
 float3 encodeSrgb(float3 c){return select(pow(c,float3(0.41666))*1.055-0.055,c*12.92,c<=0.0031308);}
+float pow2(float x){return x*x;}
+float pow4(float x){float x2=x*x;return x2*x2;}
 // three.js r185's getDistanceAttenuation (lights_pars_begin): d^-decay, windowed to nothing at the
-// cutoff when there is one
-float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0){float x=d/cutoff;x*=x;x*=x;float w=saturate(1.0-x);f*=w*w;}return f;}
+// cutoff when there is one. src/render/interior.ts sets intensity 14 and decay 1.4, with no legacy pi.
+float attenuation(float d,float cutoff,float decay){
+  float f=1.0/max(pow(d,decay),0.01);
+  if(cutoff>0.0){f*=pow2(saturate(1.0-pow4(d/cutoff)));}
+  return f;
+}
+float3 BRDF_Lambert(float3 diffuseColor){return RECIPROCAL_PI*diffuseColor;}
+// RE_Direct_Lambert: attenuation/shadow first, then clamped cosine, then albedo/pi for each light.
+float3 lambertDirect(float3 lightColour,float3 lightDirection,float3 normal,float3 diffuseColor){
+  float dotNL=saturate(dot(normal,lightDirection));
+  float3 irradiance=dotNL*lightColour;
+  return irradiance*BRDF_Lambert(diffuseColor);
+}
 float hash(float2 p){return fract(sin(dot(floor(p),float2(12.9898,78.233)))*43758.5453);}
 // Light depth is already Metal depth; viewport/texture Y starts at the top.
 float3 shadowCoordinates(float4 clip){float3 ndc=clip.xyz/clip.w;return float3(ndc.x*.5+.5,.5-ndc.y*.5,ndc.z);}
@@ -730,8 +746,12 @@ if(in.material>1.5&&in.material<2.5){WaterSurface water=waterSurface(in.world,in
 float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
 float3 q=shadowCoordinates(in.shadow);constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}
-for(int i=0;i<4;i++){float4 d=sunDirections[i];float4 s=sunColours[i];if(all(s.xyz==0.0))continue;lit+=s.xyz*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
-for(int i=0;i<16;i++){float4 p=pointPositions[i];float4 q=pointColours[i];if(all(q.xyz==0.0))continue;float3 toPoint=p.xyz-in.world;lit+=q.xyz*max(0.0,dot(n,normalize(toPoint)))*attenuation(length(toPoint),p.w,q.w);}
-float3 c=albedo*(in.material>2.5?float3(1):lit*RECIPROCAL_PI)+u.emissive.xyz;
+// lights_fragment_begin visits point lights before directional lights; meshlambert adds indirect
+// and emissive afterwards. Keep that order instead of multiplying one sum of all light by albedo/pi.
+float3 directDiffuse=float3(0.0);
+for(int i=0;i<16;i++){float4 p=pointPositions[i];float4 q=pointColours[i];if(all(q.rgb==0.0))continue;float3 l=p.xyz-in.world;float3 lightColour=q.rgb*attenuation(length(l),p.w,q.w);directDiffuse+=lambertDirect(lightColour,normalize(l),n,albedo);}
+for(int i=0;i<4;i++){float4 d=sunDirections[i];float4 s=sunColours[i];if(all(s.rgb==0.0))continue;float3 lightColour=s.rgb*(s.w>.5?shade:1.0);directDiffuse+=lambertDirect(lightColour,d.xyz,n,albedo);}
+float3 indirectDiffuse=lit*BRDF_Lambert(albedo);
+float3 c=in.material>2.5?albedo:directDiffuse+indirectDiffuse+u.emissive.xyz;
 c=encodeSrgb(c);if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,smoothstep(u.fogRange.x,u.fogRange.y,dot(in.world-u.cameraPosition.xyz,u.lookAndTime.xyz)));return float4(c,opacity);}
 """

@@ -10,7 +10,7 @@
 #include <time.h>
 #include "quickjs.h"
 
-typedef struct { JSRuntime *runtime; JSContext *context; JSValue engine; double deadline; double budget; size_t reply_limit; } Engine;
+typedef struct { JSRuntime *runtime; JSContext *context; JSValue engine; double deadline; double budget; size_t reply_limit; size_t request_limit; } Engine;
 static double now_ms(void) {
   struct timespec value; clock_gettime(CLOCK_MONOTONIC, &value);
   return value.tv_sec * 1000.0 + value.tv_nsec / 1e6;
@@ -95,7 +95,7 @@ static jbyteArray exception_reply(JNIEnv *env, Engine *engine) {
  */
 JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_create(
   JNIEnv *env, jobject self, jbyteArray source, jbyteArray entry, jbyteArray session, jbyteArray options,
-  jint memory_mb, jint budget_ms, jint reply_mb) {
+  jint memory_mb, jint budget_ms, jint reply_mb, jint request_mb) {
   (void)self;
   size_t source_length = 0, entry_length = 0, session_length = 0, saved_length = 0;
   char *code = copy_bytes(env, source, 32 * 1024 * 1024, &source_length);
@@ -104,10 +104,11 @@ JNIEXPORT jlong JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_creat
   char *saved = options ? copy_bytes(env, options, 8 * 1024 * 1024, &saved_length) : NULL;
   Engine *engine = calloc(1, sizeof *engine);
   if (!code || !named || !identity || !engine || (options && !saved)) goto failed;
-  if (memory_mb < 16 || memory_mb > 1024 || budget_ms < 100 || budget_ms > 600000 || reply_mb < 1 || reply_mb > 64) goto failed;
+  if (memory_mb < 16 || memory_mb > 1024 || budget_ms < 100 || budget_ms > 600000 || reply_mb < 1 || reply_mb > 64 || request_mb < 1 || request_mb > 16) goto failed;
   engine->engine = JS_UNDEFINED;
   engine->budget = budget_ms;
   engine->reply_limit = (size_t)reply_mb * 1024 * 1024;
+  engine->request_limit = (size_t)request_mb * 1024 * 1024;
   engine->runtime = JS_NewRuntime(); if (!engine->runtime) goto failed;
   JS_SetMemoryLimit(engine->runtime, (size_t)memory_mb * 1024 * 1024);
   JS_SetMaxStackSize(engine->runtime, 4 * 1024 * 1024);
@@ -142,13 +143,24 @@ failed:
   free(code); free(named); free(identity); free(saved); release(engine); return 0;
 }
 JNIEXPORT jbyteArray JNICALL Java_world_ai_ai_1world_1flutter_NativeStateEngine_request(
-  JNIEnv *env, jobject self, jlong handle, jbyteArray input) {
+  JNIEnv *env, jobject self, jlong handle, jbyteArray input, jbyteArray jobs) {
   (void)self;
   Engine *engine = (Engine *)(intptr_t)handle;
   if (!engine) return reply(env, 1, "Engine retired", 14);
-  size_t length = 0; char *text = copy_bytes(env, input, 1024 * 1024, &length);
+  size_t length = 0; char *text = copy_bytes(env, input, engine->request_limit, &length);
   if (!text) return reply(env, 1, "Invalid request bytes", 21);
   engine->deadline = now_ms() + engine->budget;
+  if (jobs) {
+    size_t jobs_length = 0;
+    char *replies = copy_bytes(env, jobs, engine->request_limit, &jobs_length);
+    if (!replies) { free(text); return reply(env, 1, "Invalid job reply bytes", 23); }
+    JSValue deliver = JS_GetPropertyStr(engine->context, engine->engine, "deliverJobs");
+    JSValue argument = JS_NewStringLen(engine->context, replies, jobs_length); free(replies);
+    JSValue delivered = JS_Call(engine->context, deliver, engine->engine, 1, &argument);
+    JS_FreeValue(engine->context, deliver); JS_FreeValue(engine->context, argument);
+    int failed = JS_IsException(delivered); JS_FreeValue(engine->context, delivered);
+    if (failed) { free(text); return exception_reply(env, engine); }
+  }
   JSValue function = JS_GetPropertyStr(engine->context, engine->engine, "request");
   JSValue argument = JS_NewStringLen(engine->context, text, length); free(text);
   JSValue value = JS_Call(engine->context, function, engine->engine, 1, &argument);
