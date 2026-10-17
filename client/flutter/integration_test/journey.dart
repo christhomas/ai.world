@@ -172,7 +172,7 @@ Future<({Offset up, Offset right})> stickBearings(WidgetTester tester) async {
     await lean(tester, towards, const Duration(milliseconds: 900));
     await Future<void>.delayed(const Duration(milliseconds: 400));
     final to = heroOf(session)!;
-    return Offset((to['x'] as num) - (from['x'] as num), (to['z'] as num) - (from['z'] as num));
+    return Offset(((to['x'] as num) - (from['x'] as num)).toDouble(), ((to['z'] as num) - (from['z'] as num)).toDouble());
   }
   var up = await moved(const Offset(0, -1));
   if (up.distance < 0.3) up = -(await moved(const Offset(0, 1)));
