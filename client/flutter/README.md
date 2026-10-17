@@ -1,7 +1,10 @@
 # AI World on the phone
 
 `flutter run` builds the installed game. It opens on a title that starts a new local game,
-continues the last one, or lists every game kept on the phone to play or delete (`KeptGames`). The game itself is the shared TypeScript game, bundled into the app as
+continues the last one, or lists every game kept on the phone to play, export or delete (`KeptGames`). A game exported
+to a file through the share sheet can be imported back from the title's "Import a game", into a slot
+of its own, so it survives a reinstall or moves to another phone; the file format is in
+[`docs/mobile/game-file.md`](../../docs/mobile/game-file.md). The game itself is the shared TypeScript game, bundled into the app as
 `assets/engine/game.js` by `node tools/mobile/build-engine.mjs` from the repository root. It runs
 in the phone's own JavaScript engine (QuickJS on Android, JavaScriptCore on iOS), behind the Ledger
 II shell (`docs/flutter-ledger-shell.md`), and is drawn by the native GLES and Metal renderers.

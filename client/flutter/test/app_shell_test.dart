@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:ai_world_flutter/src/app_shell.dart';
 import 'package:ai_world_flutter/src/game_session.dart';
+import 'package:ai_world_flutter/src/game_file_ports.dart';
 import 'package:ai_world_flutter/src/storage/checkpoint_store.dart';
+import 'package:ai_world_flutter/src/storage/game_file.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,10 +48,12 @@ void main() {
     return root;
   }
 
-  Future<void> title(WidgetTester tester, Directory root, {MethodChannel? engine, AssetBundle? assets}) async {
+  Future<void> title(WidgetTester tester, Directory root,
+      {MethodChannel? engine, AssetBundle? assets, ShareGameFile? share, PickGameFile? pick}) async {
     await tester.binding.setSurfaceSize(const Size(844, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AppShell(storageRoot: root, engineChannel: engine, assets: assets))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AppShell(storageRoot: root, engineChannel: engine,
+      assets: assets, shareFile: share, pickFile: pick))));
     // the settings and the kept game are read from app-private storage, on real files; the new
     // game button is live once they have been
     bool ready() => tester.widget<TextButton>(find.descendant(
@@ -189,5 +194,128 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await until(() => engine.disposed, 'the game was never closed');
     expect(tester.takeException(), isNull);
+  });
+
+  /// Turns of the real event loop until `done`, for work on real files the test cannot pump through.
+  Future<void> until(WidgetTester tester, bool Function() done) async {
+    for (var n = 0; n < 400 && !done(); n++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    expect(done(), isTrue, reason: 'the file work never finished');
+  }
+
+  final rowanFile = GameFile(slot: const {'slot': 'local-1', 'seed': 9, 'kind': 'road', 'name': 'Rowan'},
+    hero: const {'state': {'playerId': 'hero'}}, world: const {'worlds/1/clock': '42'}, exported: DateTime(2026, 10, 1));
+
+  testWidgets('a game file picked from the title is imported and offered to continue', (tester) async {
+    final root = await storage(tester);
+    var picked = 0;
+    await title(tester, root, pick: () async { picked++; return Uint8List.fromList(utf8.encode(rowanFile.encode())); });
+    final button = find.byKey(const ValueKey('import-game'));
+    expect(find.text('IMPORT A GAME'), findsOneWidget);
+    expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
+    expect(find.byKey(const ValueKey('continue')), findsNothing);
+    await tester.tap(button);
+    await until(tester, () => find.text("Imported Rowan's game. Continue plays it.").evaluate().isNotEmpty);
+    expect(picked, 1);
+    expect(find.byKey(const ValueKey('continue')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('saved-games')));
+    await tester.pump();
+    expect(find.textContaining('Rowan'), findsWidgets);
+    final saved = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('saved-imported-'));
+    expect(saved, findsOneWidget, reason: 'in a slot of its own');
+  });
+
+  testWidgets('a damaged or newer game file is refused on the title with a reason', (tester) async {
+    final root = await storage(tester);
+    final text = rowanFile.encode();
+    final newer = jsonEncode((jsonDecode(text) as Map)..['version'] = 2);
+    final files = [text.substring(0, text.length ~/ 2), newer];
+    await title(tester, root, pick: () async => files.isEmpty ? null : Uint8List.fromList(utf8.encode(files.removeAt(0))));
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.textContaining('damaged or incomplete').evaluate().isNotEmpty);
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.textContaining('newer AI World').evaluate().isNotEmpty);
+    expect(find.byKey(const ValueKey('continue')), findsNothing, reason: 'nothing was kept');
+    expect(find.byKey(const ValueKey('saved-games')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.byKey(const ValueKey('title-note')).evaluate().isEmpty);
+  });
+
+  for (final world in [null, 'Harbour']) {
+    testWidgets('an imported shared game names its server on the title (world: $world)', (tester) async {
+      final root = await storage(tester);
+      final file = GameFile(slot: {...rowanFile.slot, 'server': 'wss://world.example/play', if (world != null) 'world': world},
+        hero: rowanFile.hero, world: rowanFile.world, exported: rowanFile.exported);
+      await title(tester, root, pick: () async => Uint8List.fromList(utf8.encode(file.encode())));
+      await tester.tap(find.byKey(const ValueKey('import-game')));
+      await until(tester, () => find.text("Imported Rowan's game on world.example. Continue plays it.").evaluate().isNotEmpty);
+      expect(find.byKey(const ValueKey('continue')), findsOneWidget);
+    });
+  }
+
+  for (final (code, note) in [
+    (StorageError.quota, 'Could not import that game. There is not enough space on this phone.'),
+    (StorageError.io, 'Could not import that game. The game storage could not be read or written. Please try again.'),
+  ]) {
+    testWidgets('import storage errors use plain words without a private path ($code)', (tester) async {
+      final root = await storage(tester);
+      await title(tester, root, pick: () async { throw StorageFailure(code, '${root.path}/private/save.json'); });
+      await tester.tap(find.byKey(const ValueKey('import-game')));
+      await until(tester, () => find.text(note).evaluate().isNotEmpty);
+      expect(find.textContaining('StorageFailure'), findsNothing);
+      expect(find.textContaining(root.path), findsNothing);
+      expect(find.byKey(const ValueKey('continue')), findsNothing);
+    });
+  }
+
+  testWidgets('a player who cancels the picker is told nothing and keeps the title as it was', (tester) async {
+    final root = await storage(tester);
+    var picked = false;
+    await title(tester, root, pick: () async { picked = true; return null; });
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => picked);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('title-note')), findsNothing);
+  });
+
+  testWidgets('a kept game is exported from the saved games to the share sheet as one file', (tester) async {
+    final root = await storage(tester);
+    const slot = GameSlot(slot: 'local-1', seed: 9, name: 'Rowan');
+    await tester.runAsync(() async {
+      final settings = await CheckpointStore.open(root,
+        const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
+      await settings.commit('last', slot.json);
+      await (await CheckpointStore.open(root, slot.scope('player'))).commit('save', {'state': {'playerId': 'hero'}});
+      await (await CheckpointStore.open(root, slot.scope('world'))).commit('records', {'worlds/1/clock': '42'});
+    });
+    final shared = <(String, Uint8List, Rect?)>[];
+    var status = ShareResultStatus.success;
+    await title(tester, root, share: (name, bytes, origin) async {
+      shared.add((name, bytes, origin));
+      return status;
+    });
+    await tester.tap(find.byKey(const ValueKey('saved-games')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('export-local-1')));
+    await until(tester, () => find.text("Exported Rowan's game to a file.").evaluate().isNotEmpty);
+    final (name, bytes, origin) = shared.single;
+    expect(name, startsWith('ai-world-rowan-'));
+    expect(origin, isNotNull);
+    final file = GameFile.decode(bytes);
+    expect(file.slot, slot.json);
+    expect(file.hero, {'state': {'playerId': 'hero'}});
+    expect(file.world, {'worlds/1/clock': '42'});
+    // A later cancelled export must replace the previous success note with what happened this time.
+    for (final (next, note) in [
+      (ShareResultStatus.dismissed, "Rowan's game was not exported."),
+      (ShareResultStatus.unavailable, 'The share sheet closed. This phone cannot say whether the game was exported.'),
+    ]) {
+      status = next;
+      await tester.tap(find.byKey(const ValueKey('export-local-1')));
+      await until(tester, () => find.text(note).evaluate().isNotEmpty);
+      expect(find.text("Exported Rowan's game to a file."), findsNothing);
+    }
   });
 }
