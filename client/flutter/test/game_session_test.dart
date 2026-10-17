@@ -37,12 +37,11 @@ class StandInEngine {
     final request = jsonDecode(args['request'] as String) as Map;
     requests.add(request['type'] as String);
     final payload = request['payload'] as Map;
+    // a step moves the hero first, and the reply says where he got to, as the engine's does
+    if (request['type'] == 'step' && ((payload['input'] as Map)['move'] as List)[1] == 1) x += 1;
     final models = <String, Object?>{'hero': {'x': x, 'z': 0, 'playerId': 'hero-1'}};
     if (request['type'] == 'resync' && payload['reason'] == 'save') saveAsked = true;
-    if (request['type'] == 'step') {
-      if (((payload['input'] as Map)['move'] as List)[1] == 1) x += 1;
-      models['world'] = {'world:clock': 'day ${request['sequence']}'};
-    }
+    if (request['type'] == 'step') models['world'] = {'world:clock': 'day ${request['sequence']}'};
     if (saveAsked && (saveAtOnce || request['type'] == 'step')) {
       saveAsked = false;
       models['save'] = {'state': {'playerId': 'hero-1'}, 'at': x};
