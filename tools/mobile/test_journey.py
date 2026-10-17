@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -125,6 +126,30 @@ class JourneyRunner(unittest.TestCase):
             code = journey.main('android', ['nonsense'])
         self.assertEqual(code, 2)
         found.assert_not_called()
+
+    def test_a_part_that_goes_quiet_is_stopped_rather_than_waited_on(self):
+        stop = threading.Event()
+        class Quiet:
+            def __init__(self):
+                self.killed = False
+                self.stdout = self.lines()
+            def lines(self):
+                yield 'JOURNEY_STEP {"step": "new game"}\n'
+                stop.wait(5)
+            def kill(self):
+                self.killed = True
+                stop.set()
+            def wait(self, timeout=None):
+                return -9
+        quiet = Quiet()
+        record = {'commands': [], 'steps': [], 'shots': [], 'parts': []}
+        with mock.patch.object(journey, 'SILENT_MINUTES', 0.005), \
+             mock.patch.object(journey.subprocess, 'Popen', return_value=quiet):
+            code = journey.run_part('android', 'emulator-5554', 'integration_test/journey_test.dart', record)
+        self.assertEqual(code, 1)
+        self.assertTrue(quiet.killed, 'the part was waited on rather than stopped')
+        self.assertEqual(record['steps'][0]['step'], 'new game', 'what it said before going quiet is kept')
+        self.assertIn('said nothing', record['parts'][0]['stopped'])
 
     def test_a_missing_device_is_not_a_game_failure(self):
         with mock.patch.object(journey, 'device', side_effect=journey.Provisioning('no Android emulator is attached')):

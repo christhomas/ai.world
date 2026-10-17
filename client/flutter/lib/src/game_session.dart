@@ -150,6 +150,9 @@ class GameSession {
     final records = <String, String>{
       for (final entry in ((await world.load('records') as Map?) ?? const {}).entries) '${entry.key}': '${entry.value}',
     };
+    // how long the engine took to come up and the world to open, in the device's log: on a slow
+    // emulator the two have been minutes apart from one run to the next, and which it was matters
+    final opening = Stopwatch()..start();
     final engine = await StateEngine.openGame('game:${slot.slot}', {
       'seed': slot.seed, 'kind': slot.kind, 'slot': slot.slot, 'name': slot.name,
       'viewport': {'width': viewport.width, 'height': viewport.height},
@@ -159,8 +162,11 @@ class GameSession {
       'invite': ?invite,
     }, channel: channel, assets: assets);
     final session = GameSession._(slot, engine, saves, world, records, pipeline, sockets, sound ?? NativeSound());
+    final created = opening.elapsedMilliseconds;
+    debugPrint('GAME_OPENING engine=${created}ms');
     try {
       session._take(await engine.request('start', {'mode': slot.server == null ? 'local' : 'remote', 'world': slot.slot}));
+      debugPrint('GAME_OPENED engine=${created}ms start=${opening.elapsedMilliseconds - created}ms');
       return session;
     } catch (_) {
       await engine.dispose();
