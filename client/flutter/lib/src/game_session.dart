@@ -81,6 +81,8 @@ class GameSession {
   Map<String, dynamic> journal = const {};
   /// The roster as the game last sent it, while the roster page asks for it.
   Map<String, dynamic> roster = const {};
+  /// Everybody else in this world as the game last sent them, while the travellers page asks.
+  Map<String, dynamic> company = const {};
   /// The floor the hero is on while he is underground; null above ground.
   Map<String, dynamic>? floor;
   /// The map's ground and roads, sent once (`src/world/map-ground.ts`).
@@ -206,6 +208,8 @@ class GameSession {
     if (read is Map) journal = Map<String, dynamic>.from(read);
     final register = models['roster'];
     if (register is Map) roster = Map<String, dynamic>.from(register);
+    final others = models['company'];
+    if (others is Map) company = Map<String, dynamic>.from(others);
     if (models.containsKey('floor')) {
       final below = models['floor'];
       floor = below is Map ? Map<String, dynamic>.from(below) : null;

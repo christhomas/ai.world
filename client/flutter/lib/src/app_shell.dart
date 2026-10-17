@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'game_session.dart';
 import 'invite.dart';
+import 'screens/company_page.dart';
 import 'screens/console_page.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
@@ -214,8 +215,16 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
             onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
           // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
           // console is among them, and typing parks the world as it does on the page
-          Positioned(top: 40, right: 8, child: MoreControls(tokens: t,
-            onAction: (action) => action == 'console' ? _ledger.typing() : unawaited(session.act(action)))),
+          Positioned(top: 40, right: 8, child: MoreControls(tokens: t, onAction: (action) {
+            if (action == 'console') {
+              _ledger.typing();
+            } else if (action == 'company') {
+              // the travellers are a page of the app's own, as the roster is
+              _ledger.open('company');
+            } else {
+              unawaited(session.act(action));
+            }
+          })),
         ]),
         controller: _ledger,
         typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
@@ -233,6 +242,9 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           // past the four tabs: reached from Options
           'roster': (context, tokens) => RosterPage(roster: session.roster, tokens: tokens,
             read: (by) => unawaited(session.act('read', target: by == null ? null : 'roster:$by'))),
+          // and from the more controls
+          'company': (context, tokens) => CompanyPage(company: session.company, tokens: tokens,
+            read: (what) => unawaited(session.act('read', target: what))),
         },
         place: '${hud['area'] ?? ''}',
         readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',

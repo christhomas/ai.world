@@ -112,8 +112,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  *   buttons and any one-shot actions;
  * - `action` is a player action by name (`interact`, `attack`, `inventory`…), `choose` a row of the
  *   conversation by index, `zoom` the camera by a pinch's wheel distance (`args.by`), `nudge` a row's
- *   number (`row:1` or `row:-1`), `read` the roster while a
- *   page shows it (`roster:<order>`, or nothing to stop), `say` a line typed into the
+ *   number (`row:1` or `row:-1`), `read` the roster or the
+ *   travellers while a page shows them (`roster:<order>` or `company`, or nothing to stop), `say` a line typed into the
  *   console (`args.text`), `take` a carried thing out of the pack by id or `stow` what a slot wears;
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
  * - `parcel` is what the app's socket to a shared world did: opened, a message, or closed (#565);
@@ -139,9 +139,14 @@ export function create(session: string, optionsText: string): { request(text: st
   let lastJournal = '';
   let lastPerf = '';
   let lastPerfAt = -Infinity;
-  /** The roster is long, so it is sent only while the app's roster page is open, in its order. */
+  /**
+   * The roster and the travellers are long, so each is sent only while the app's page for it is
+   * open: the roster in its order.
+   */
   let rosterOrder: RosterOrder | null = null;
+  let readingCompany = false;
   let lastRoster = '';
+  let lastCompany = '';
   let mapDrawn = false;
   let lastFloor: string | null = null;
   let lastMap = '';
@@ -181,6 +186,10 @@ export function create(session: string, optionsText: string): { request(text: st
     if (rosterOrder) {
       const roster = JSON.stringify(host!.roster(rosterOrder));
       if (roster !== lastRoster) { lastRoster = roster; models.roster = JSON.parse(roster) as Json; }
+    }
+    if (readingCompany) {
+      const company = JSON.stringify(host!.company());
+      if (company !== lastCompany) { lastCompany = company; models.company = JSON.parse(company) as Json; }
     }
     // where the time went on this phone's engine (#559): each kind of job's runs, total and longest,
     // at most every two seconds and only when it has changed
@@ -317,13 +326,15 @@ export function create(session: string, optionsText: string): { request(text: st
               if (typeof by !== 'number' || !Number.isFinite(by) || Math.abs(by) > 5000) throw new Error('zoom needs a wheel distance');
               host.input.wheelDelta += by;
             } else if (action === 'read') {
-              // `roster:<order>` while the app's roster page is open; nothing when it closes
-              const asked = target === null ? null : target.replace(/^roster:/, '');
-              if (asked !== null && (!target!.startsWith('roster:') || !(ROSTER_ORDERS as readonly string[]).includes(asked))) {
+              // `roster:<order>` or `company` while the app's page for it is open; nothing when it closes
+              const order = target?.startsWith('roster:') ? target.slice('roster:'.length) : null;
+              if (target !== null && target !== 'company' && !(ROSTER_ORDERS as readonly string[]).includes(order ?? '')) {
                 throw new Error(`Nothing to read called ${target}`);
               }
-              rosterOrder = asked as RosterOrder | null;
+              rosterOrder = order as RosterOrder | null;
+              readingCompany = target === 'company';
               lastRoster = '';
+              lastCompany = '';
             } else if (action === 'say') {
               // a line typed into the console: the text is the action's argument
               const text = (request.payload.args as { text?: unknown } | null)?.text;

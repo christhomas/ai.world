@@ -10,7 +10,8 @@ typedef MoreControl = ({String action, String glyph, String label});
 /// The rest of the keyboard, one tap away (#571), as the page's touch controls keep it
 /// (`src/ui/touch.ts`, `MORE_BUTTONS`): none of these is wanted mid-stride, so none earns a
 /// permanent square of a phone screen. Loosing an arrow and jumping are here too, because the
-/// handoff's action card holds only the reflex pair. `console` opens the console rather than acting.
+/// handoff's action card holds only the reflex pair. `console` opens the console and `company` the
+/// travellers page, rather than acting. Photo mode is not here until the phone can take a picture.
 const moreControls = <MoreControl>[
   (action: 'shoot', glyph: '🏹', label: 'Loose an arrow'),
   (action: 'jump', glyph: '⤒', label: 'Jump'),
@@ -23,7 +24,6 @@ const moreControls = <MoreControl>[
   (action: 'party', glyph: '🧭', label: 'Party'),
   (action: 'company', glyph: '👥', label: 'Travellers'),
   (action: 'rally', glyph: '📍', label: 'Rally point'),
-  (action: 'photo', glyph: '📷', label: 'Photo mode'),
   (action: 'cameraMode', glyph: '🎥', label: 'Free camera'),
   (action: 'console', glyph: '›_', label: 'Console'),
 ];
