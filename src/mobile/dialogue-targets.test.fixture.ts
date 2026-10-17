@@ -6,6 +6,7 @@ import type { ShopType, Structures, Village } from '../world/structures';
 import { Biome } from '../world/biomes';
 import { Register } from '../world/register';
 import { booksKeptIn } from '../game/enquiry';
+import { AWAY, buy, holds } from '../world/deeds';
 import type { GameState } from '../game/state';
 import type { TalkCtx } from '../game/talk';
 import { generateQuests, type Quest } from '../game/quests';
@@ -66,6 +67,7 @@ export function records(state: GameState, room: string): NonNullable<TalkCtx['en
   }
   return {
     books, purse: () => state.inventory.gold, paid: new Set(),
-    pay: (fee) => { state.inventory.gold -= fee; },
+    // to nobody, as the game pays a fee that leaves the world (world/deeds)
+    pay: (fee) => { buy(holds(state.inventory), AWAY, fee); },
   };
 }

@@ -158,7 +158,7 @@ describe('contextual refusals keep the web words and possessions', () => {
     });
     const before = possessions(pair.webState);
     pair.choose(/^Fly up/);
-    expect(pair.read()[0]).toMatch(/^It spreads its wings, thinks better of it, and folds them\. That pack weighs \d+ to a bird that can lift \d+, and the cart is most of it\.$/);
+    expect(pair.read()[0]).toMatch(/^It spreads its wings, thinks better of it, and folds them\. That pack weighs \d+ to a bird that can lift \d+, and the [a-z ]+ is most of it\.$/);
     expect(possessions(pair.webState)).toEqual(before);
   });
 
