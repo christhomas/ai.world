@@ -1,8 +1,6 @@
-import { WORLD } from '../core/config';
 import type { RoadGraph } from '../world/graph';
-import { groundColour, mapPad, type MapGround } from '../world/map-ground';
-import { parseChunkKey } from '../world/spatial';
-import { PROVINCE, provinceCorner, type ProvinceId } from '../world/provinces';
+import { groundColour, knownSquares, mapPad, type MapGround } from '../world/map-ground';
+import type { ProvinceId } from '../world/provinces';
 
 /** Pixels per tile in the pre-rendered base image. Everything else scales from this. */
 export const BASE_SCALE = 1.6;
@@ -151,25 +149,17 @@ export class Fog {
    */
   reveal(chunkKeys: Iterable<string>, charted: Iterable<ProvinceId> = []): void {
     const m = this.mask.getContext('2d')!;
-    const CS = WORLD.CHUNK_SIZE, s = BASE_SCALE, o = this.base.pad * BASE_SCALE;
+    const s = BASE_SCALE, o = this.base.pad * BASE_SCALE;
     m.fillStyle = '#fff';
-    let seen = 0;
-    for (const key of chunkKeys) {
-      const [cx, cz] = parseChunkKey(key);
-      m.fillRect(o + cx * CS * s, o + cz * CS * s, CS * s, CS * s);
-      seen++;
-    }
     // a bought province comes out in one square, and its edge is feathered with everything else's,
-    // so where a map runs out looks like the edge of what somebody knows rather than a cut sheet
-    for (const id of charted) {
-      const corner = provinceCorner(id);
-      m.fillRect(o + corner.x * s, o + corner.z * s, PROVINCE * s, PROVINCE * s);
-      seen++;
-    }
+    // so where a map runs out looks like the edge of what somebody knows rather than a cut sheet.
+    // The squares are `knownSquares`, which is what an app's map is sent too
+    const squares = knownSquares(chunkKeys, charted);
+    for (const square of squares) m.fillRect(o + square.x * s, o + square.z * s, square.side * s, square.side * s);
     // the mask only grows, so a call that adds nothing is a call that need not repaint the fog —
     // and this runs from the frame loop every time a chunk boundary is crossed
-    if (seen === this.known) return;
-    this.known = seen;
+    if (squares.length === this.known) return;
+    this.known = squares.length;
     this.repaint();
   }
 

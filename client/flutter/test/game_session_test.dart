@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:ai_world_flutter/src/game_session.dart';
 import 'package:ai_world_flutter/src/invite.dart';
+import 'package:ai_world_flutter/src/native_world_renderer.dart';
+import 'package:ai_world_flutter/src/scene_frame.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,8 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 class GameAssets extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
-    final text = key.endsWith('game-manifest.json') ? jsonEncode({'contractVersion': 1,
-      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': 'game'}) : 'bundled game';
+    final text = key.endsWith('manifest.json') ? jsonEncode({'contractVersion': 1,
+      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': key.contains('jobs') ? 'jobs' : 'game'}) : 'bundled game';
     return ByteData.sublistView(Uint8List.fromList(utf8.encode(text)));
   }
 }
@@ -30,6 +32,7 @@ class StandInEngine {
   Future<Object?> answer(MethodCall call) async {
     final args = call.arguments as Map;
     if (call.method == 'create') {
+      if (args['entry'] == 'AiWorldJobEngine') return 'jobs-owner';
       expect(args['entry'], 'AiWorldGameEngine');
       opened.add(jsonDecode(args['options'] as String) as Map<String, dynamic>);
       return 'owner-${opened.length}';
@@ -151,5 +154,28 @@ void main() {
       assets: GameAssets(), describe: describe), throwsA(isA<WorldRefused>()));
     expect(engine.opened, hasLength(1), reason: 'refused before an engine was opened');
   });
-}
 
+  test('a game that is closing gives no photo, and does not ask its renderer for one (#578)', () async {
+    final root = await Directory.systemTemp.createTemp('game-session-photo');
+    addTearDown(() => root.delete(recursive: true));
+    const rendererChannel = MethodChannel('world.ai/game-session-renderer');
+    var snapshots = 0;
+    messenger.setMockMethodCallHandler(rendererChannel, (call) async {
+      if (call.method == 'create') return 7;
+      if (call.method != 'snapshot') return null;
+      snapshots++;
+      return {'width': 1, 'height': 1, 'rgba': Uint8List.fromList([20, 40, 60, 255])};
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(rendererChannel, null));
+    messenger.setMockMethodCallHandler(channel, StandInEngine().answer);
+    final renderer = await NativeWorldRenderer.create(width: 1, height: 1, channel: rendererChannel);
+    final session = await GameSession.open(const GameSlot(slot: 'photo', seed: 3), root: root,
+      viewport: const Size(844, 390), pipeline: FlutterFramePipeline(renderer), channel: channel, assets: GameAssets());
+    expect((await session.snapshot())?.rgba, [20, 40, 60, 255]);
+    final closing = session.close();
+    expect(await session.snapshot(), isNull, reason: 'the renderer may already be on its way out');
+    await closing;
+    expect(await session.snapshot(), isNull);
+    expect(snapshots, 1);
+  });
+}
