@@ -40,11 +40,17 @@ def output(args, timeout=120):
 
 def device(platform):
     if platform == 'android':
-        lines = [line.split() for line in output(['adb', 'devices']).splitlines()[1:]]
-        ready = [parts[0] for parts in lines if len(parts) == 2 and parts[1] == 'device']
-        if not ready:
-            raise Provisioning('no Android emulator is attached')
-        return ready[0], None
+        # An emulator short of memory can drop off adb for a moment and come back: it did straight
+        # after the capture on 2026-10-17, and the journey that followed found nothing and gave up.
+        deadline = time.monotonic() + 120
+        while True:
+            lines = [line.split() for line in output(['adb', 'devices']).splitlines()[1:]]
+            ready = [parts[0] for parts in lines if len(parts) == 2 and parts[1] == 'device']
+            if ready:
+                return ready[0], None
+            if time.monotonic() > deadline:
+                raise Provisioning('no Android emulator is attached')
+            time.sleep(5)
     runtimes = json.loads(output(['xcrun', 'simctl', 'list', 'runtimes', '-j']))['runtimes']
     ios = [r for r in runtimes if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS')]
     if not ios:

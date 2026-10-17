@@ -77,6 +77,21 @@ class JourneyRunner(unittest.TestCase):
         self.assertEqual(record['result'], 'failed')
         self.assertIn(['adb', '-s', 'emulator-5554', 'logcat', '-d', '-t', '5000'], [call.args[0] for call in ran.call_args_list])
 
+    def test_an_emulator_that_drops_off_adb_for_a_moment_is_waited_for(self):
+        said = iter(['List of devices attached', 'List of devices attached\nemulator-5554\toffline',
+                     'List of devices attached\nemulator-5554\tdevice'])
+        with mock.patch.object(journey, 'output', side_effect=lambda args: next(said)), \
+             mock.patch.object(journey.time, 'sleep'):
+            self.assertEqual(journey.device('android'), ('emulator-5554', None))
+
+    def test_an_emulator_that_never_comes_back_is_not_waited_for_forever(self):
+        clock = iter(range(0, 1000, 30))
+        with mock.patch.object(journey, 'output', return_value='List of devices attached'), \
+             mock.patch.object(journey.time, 'monotonic', side_effect=lambda: next(clock)), \
+             mock.patch.object(journey.time, 'sleep'):
+            with self.assertRaises(journey.Provisioning):
+                journey.device('android')
+
     def test_a_missing_device_is_not_a_game_failure(self):
         with mock.patch.object(journey, 'device', side_effect=journey.Provisioning('no Android emulator is attached')):
             code = journey.main('android')

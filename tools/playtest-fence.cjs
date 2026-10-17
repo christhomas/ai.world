@@ -133,12 +133,30 @@ async function playFence(page, say, go, face, observedWalk) {
         JSON.stringify(restored));
     } catch (error) { later.push(error); }
     try {
+      // The rail can be four hundred tiles from home (Elderford once, Marshwell three times on 2026-10-17),
+      // and the country there has to stream in again before he is placed. Ten seconds was not always
+      // enough for that; on 2026-10-17 three minutes were not either, which is no longer slowness.
+      // So a jump that has not put him home in a minute is said, with where he is and what the
+      // country is still waiting for, and made once more; one that still has not is the failure.
+      const placedHome = (timeout) => page.waitForFunction(({ x, z }) => window.__player.placed &&
+        Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout, polling: 100 })
+        .then(() => true, () => false);
+      const where = () => page.evaluate(({ x, z }) => {
+        const p = window.__player;
+        let ground = null;
+        try { ground = p.ground.heightAt(x, z); } catch (error) { ground = String(error); }
+        return { hero: { x: p.x, z: p.z, placed: p.placed }, away: Math.hypot(p.x - x, p.z - z),
+          place: window.__place(), ground, solid: window.__solid(x, z), stream: window.__stream, mount: window.__mount() };
+      }, home);
       await go(home.x, home.z, 0);
-      // The rail can be four hundred tiles from home (Elderford, once; Marshwell, three runs in four
-      // on 2026-10-17), and the country there has to stream in again before he is placed. Ten seconds
-      // was not always enough for that, and on a busy hosted runner neither was a minute.
-      await page.waitForFunction(({ x, z }) => window.__player.placed &&
-        Math.hypot(window.__player.x - x, window.__player.z - z) < 1, home, { timeout: 180000, polling: 100 });
+      if (!await placedHome(60000)) {
+        console.error('the fence trial jumped home and was not placed there in a minute; jumping again:',
+          JSON.stringify(await where()));
+        await go(home.x, home.z, 0);
+        if (!await placedHome(120000)) {
+          throw new Error(`the hero was not placed back home at ${home.x}, ${home.z} after two jumps: ${JSON.stringify(await where())}`);
+        }
+      }
     } catch (error) { later.push(error); }
     if (stuckKey || failure) {
       for (const error of later) console.error('the fence trial could not also tidy up after itself:', error);
