@@ -33,7 +33,7 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
 - the conversation (speaker, words shown, choices, the lit row, an expiring menu's count, and the
   keys of the speaker's and the hero's faces);
 - any faces the app has not been sent (`portraits`), each once;
-- the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries),
+- the journal (`journal`: the hero in a line, errands with where they lead, places found, ferries; a row that knows where it is carries `at`, which the app's map opens on),
   only when it has changed since the last reply;
 - underground, the floor (`floor`, `dungeon/floor-picture.ts`: the seen cells as runs of colour
   with the entrance and the seen chests), when what has been seen of it changes, and `null` once

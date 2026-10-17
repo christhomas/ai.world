@@ -31,8 +31,10 @@ export interface JournalView {
   placesFound: number;
   errandsDone: number;
   cellsWalked: number;
-  errands: Array<{ id: string; done: boolean; what: string; village: string; tiles: number | null; bearing: string | null }>;
-  found: Array<{ name: string; icon: string; tiles: number; bearing: string }>;
+  /** `at` is where the village that asked stands, for an app's map to be opened on; null if it is not known. */
+  errands: Array<{ id: string; done: boolean; what: string; village: string; tiles: number | null; bearing: string | null;
+    at: { x: number; z: number } | null }>;
+  found: Array<{ name: string; icon: string; tiles: number; bearing: string; at: { x: number; z: number } }>;
   ferries: Array<{ from: string; to: string; where: string; nextArrival: string }>;
 }
 
@@ -65,6 +67,7 @@ export function journalView(d: JournalReading): JournalView {
         village: q.village,
         tiles: village ? dist(village.x, village.z) : null,
         bearing: village ? bearing(village.x, village.z) : null,
+        at: village ? { x: village.x, z: village.z } : null,
       };
     }),
     found: [
@@ -77,7 +80,7 @@ export function journalView(d: JournalReading): JournalView {
         icon: s.id.startsWith('cave') ? '🕳️' : s.id.startsWith('castle') ? '🏰' : '🚢',
       })),
     ].sort((a, b) => Math.hypot(a.x - d.playerX, a.z - d.playerZ) - Math.hypot(b.x - d.playerX, b.z - d.playerZ))
-      .map((p) => ({ name: p.name, icon: p.icon, tiles: dist(p.x, p.z), bearing: bearing(p.x, p.z) })),
+      .map((p) => ({ name: p.name, icon: p.icon, tiles: dist(p.x, p.z), bearing: bearing(p.x, p.z), at: { x: p.x, z: p.z } })),
     ferries: d.ferries.map((line) => {
       const st = ferryStateAt(line, d.seconds);
       return {

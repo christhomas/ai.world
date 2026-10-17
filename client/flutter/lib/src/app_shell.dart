@@ -60,7 +60,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   GameSession? _session;
   String? _trouble;
   late final InputOwnerController _input = InputOwnerController((value) => _session?.hold(value));
-  late final LedgerController _ledger = LedgerController(_input)..addListener(_keepTheme);
+  late final LedgerController _ledger = LedgerController(_input)..addListener(_keepTheme)..addListener(_forgetFocus);
   Widget? _world;
 
   @override
@@ -100,6 +100,14 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     _volume = level;
     unawaited(_session?.act('volume', args: {'level': level}));
     unawaited(_settings?.commit('volume', level).catchError((Object _) {}));
+  }
+
+  /// A place the journal asked the map to open on, for as long as the map is the page open.
+  Offset? _mapFocus;
+  void _forgetFocus() { if (_ledger.route != 'map') _mapFocus = null; }
+  void _showOnMap(Offset place) {
+    _mapFocus = place;
+    _ledger.open('map');
   }
 
   LedgerTheme? _keptTheme;
@@ -241,9 +249,9 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         pages: {
           'pack': (context, tokens) => PackPage(pack: Map<String, dynamic>.from(models['pack'] as Map? ?? const {}), tokens: tokens,
             take: (id) => unawaited(session.act('take', target: id)), stow: (slot) => unawaited(session.act('stow', target: slot))),
-          'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens),
+          'journal': (context, tokens) => JournalPage(journal: session.journal, tokens: tokens, show: _showOnMap),
           'map': (context, tokens) => MapPage(picture: session.mapPicture, map: session.map, walked: session.walked,
-            charted: session.charted, hero: hero, tokens: tokens, floor: session.floor),
+            charted: session.charted, hero: hero, tokens: tokens, floor: session.floor, focus: _mapFocus),
           'options': (context, tokens) => OptionsPage(slot: session.slot, tokens: tokens, controller: _ledger,
             leave: () => unawaited(_leave()), seeThrough: () => unawaited(session.act('seeThrough')),
             volume: ((hud['volume'] as num?) ?? 0.6).toDouble(), setVolume: _setVolume),

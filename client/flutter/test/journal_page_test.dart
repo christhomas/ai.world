@@ -8,20 +8,21 @@ final journal = <String, dynamic>{
   'day': 4, 'season': 'autumn', 'hp': 8, 'maxHp': 10, 'attack': 3, 'defence': 1, 'gold': 42,
   'placesFound': 2, 'errandsDone': 1, 'cellsWalked': 310,
   'errands': [
-    {'id': 'q-1', 'done': false, 'what': 'find the Old Mill', 'village': 'Ashford', 'tiles': 12, 'bearing': 'NE'},
-    {'id': 'q-2', 'done': true, 'what': 'bring 2× Bread', 'village': 'Nowhere', 'tiles': null, 'bearing': null},
+    {'id': 'q-1', 'done': false, 'what': 'find the Old Mill', 'village': 'Ashford', 'tiles': 12, 'bearing': 'NE', 'at': {'x': 9, 'z': -8}},
+    {'id': 'q-2', 'done': true, 'what': 'bring 2× Bread', 'village': 'Nowhere', 'tiles': null, 'bearing': null, 'at': null},
   ],
   'found': [
-    for (var i = 0; i < 30; i++) {'name': 'Stone $i', 'icon': '⭐', 'tiles': 10 + i, 'bearing': 'W'},
+    for (var i = 0; i < 30; i++) {'name': 'Stone $i', 'icon': '⭐', 'tiles': 10 + i, 'bearing': 'W', 'at': {'x': -10 - i, 'z': 0}},
   ],
   'ferries': <Map<String, dynamic>>[],
 };
 
 void main() {
-  Future<void> page(WidgetTester tester, Map<String, dynamic> model) async {
+  Future<void> page(WidgetTester tester, Map<String, dynamic> model, {void Function(Offset place)? show}) async {
     await tester.binding.setSurfaceSize(const Size(328, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: JournalPage(journal: model, tokens: LedgerTokens.all[LedgerTheme.stone]!))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: JournalPage(journal: model, tokens: LedgerTokens.all[LedgerTheme.stone]!,
+      show: show))));
   }
 
   testWidgets('owes, finds and sails as the game says, one 44px row each', (tester) async {
@@ -33,6 +34,15 @@ void main() {
     expect(find.text('Ashford, 12 tiles'), findsOneWidget);
     expect(find.text('NE'), findsOneWidget, reason: 'an errand points the way to the village that asked');
     expect(find.text('DONE'), findsOneWidget, reason: 'a met errand says so, and points nowhere');
+  });
+
+  testWidgets('a row that knows where it is opens the map there, and one that does not is only read', (tester) async {
+    final shown = <Offset>[];
+    await page(tester, journal, show: shown.add);
+    await tester.tap(find.byKey(const ValueKey('errand-q-1')));
+    await tester.tap(find.byKey(const ValueKey('errand-q-2')));
+    await tester.tap(find.byKey(const ValueKey('found-Stone 0')));
+    expect(shown, [const Offset(9, -8), const Offset(-10, 0)]);
   });
 
   testWidgets('a long list of finds scrolls to its last', (tester) async {

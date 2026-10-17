@@ -30,7 +30,7 @@ Uint8List mapPixels(Map<String, dynamic> picture) {
 /// not been walked, the markers and the hero.
 class MapPainter extends CustomPainter {
   MapPainter({required this.picture, required this.image, required this.map, required this.walked,
-    required this.charted, required this.hero, required this.zoom});
+    required this.charted, required this.hero, required this.zoom, this.focus});
   final Map<String, dynamic> picture;
   final ui.Image? image;
   final Map<String, dynamic> map;
@@ -38,6 +38,8 @@ class MapPainter extends CustomPainter {
   final Map<String, dynamic> hero;
   /// How far the reader has zoomed in, so what should stay one size on the glass does.
   final double zoom;
+  /// A place the journal asked to be shown, in the world's tiles, ringed.
+  final Offset? focus;
 
   /// The dark over the unknown and how soft its edge is, as the page's map has them (`mapbase.ts`).
   static const fog = Color(0xe0060a1a);
@@ -93,6 +95,10 @@ class MapPainter extends CustomPainter {
             shadows: const [Shadow(color: Color(0xff060916), blurRadius: 2)])))..layout();
         text.paint(canvas, where + Offset(6 / zoom, -text.height / 2));
       }
+    }
+    if (focus case final focus?) {
+      canvas.drawCircle(at(focus.dx, focus.dy), 12 / zoom, Paint()..style = PaintingStyle.stroke..strokeWidth = 2 / zoom
+        ..color = const Color(0xffffd479));
     }
     if (hero['x'] is num && hero['z'] is num) {
       // the hero as an arrow the way he faces: a rig's yaw runs the other way to the map's z
@@ -154,10 +160,11 @@ class FloorPainter extends CustomPainter {
 /// The map (#575): the country as the page's map draws it, pannable and zoomable, with the dark
 /// taken off what has been walked or charted, the places the game marks, and the hero. A page of
 /// the book, so reading it parks the world and no pinch or drag here can steer him. Recentre and
-/// zoom are buttons as well as gestures, so they are there at any size.
+/// zoom are buttons as well as gestures, so they are there at any size. Opened from the journal, it
+/// opens on the place asked about, ringed, rather than on the hero.
 class MapPage extends StatefulWidget {
   const MapPage({super.key, required this.picture, required this.map, required this.walked,
-    required this.charted, required this.hero, required this.tokens, this.floor});
+    required this.charted, required this.hero, required this.tokens, this.floor, this.focus});
   final Map<String, dynamic>? picture;
   /// The floor the hero is on, while he is underground; the map is that floor then, as on the page.
   final Map<String, dynamic>? floor;
@@ -165,6 +172,8 @@ class MapPage extends StatefulWidget {
   final Set<String> walked, charted;
   final Map<String, dynamic> hero;
   final LedgerTokens tokens;
+  /// A place to open on instead of the hero, in the world's tiles: the journal's errand or find.
+  final Offset? focus;
 
   /// Logical pixels to a tile with nothing zoomed.
   static const double tile = 1;
@@ -206,13 +215,19 @@ class _MapPageState extends State<MapPage> {
     ? (shown['size'] as num).toDouble() * MapPage.floorTile
     : 2 * (shown['pad'] as num).toDouble() * MapPage.tile;
 
-  /// Where the hero is in the drawing.
-  Offset _heroIn(Map<String, dynamic> shown) {
-    final x = ((widget.hero['x'] as num?) ?? 0).toDouble(), z = ((widget.hero['z'] as num?) ?? 0).toDouble();
+  /// Where a place in the world is in the drawing.
+  Offset _placeIn(Map<String, dynamic> shown, double x, double z) {
     if (widget.floor != null) return Offset(x * MapPage.floorTile, z * MapPage.floorTile);
     final pad = (shown['pad'] as num).toDouble();
     return Offset((x + pad) * MapPage.tile, (z + pad) * MapPage.tile);
   }
+
+  /// Where the hero is in the drawing.
+  Offset _heroIn(Map<String, dynamic> shown) =>
+    _placeIn(shown, ((widget.hero['x'] as num?) ?? 0).toDouble(), ((widget.hero['z'] as num?) ?? 0).toDouble());
+
+  /// What the journal asked to be shown, on the country's map; underground the floor is the map.
+  Offset? get _focus => widget.floor == null ? widget.focus : null;
 
   void _zoomed() => setState(() {});
 
@@ -229,14 +244,14 @@ class _MapPageState extends State<MapPage> {
 
   double get _scale => _view.value.getMaxScaleOnAxis();
 
-  /// Put the hero in the middle of the glass, at this zoom.
-  void _centre([double? scale]) {
+  /// Put the hero, or a place, in the middle of the glass, at this zoom.
+  void _centre([double? scale, Offset? place]) {
     final shown = _shown;
     if (shown == null || _viewport.isEmpty) return;
     final s = scale ?? _scale;
-    final hero = _heroIn(shown);
+    final middle = place == null ? _heroIn(shown) : _placeIn(shown, place.dx, place.dy);
     _view.value = Matrix4.diagonal3Values(s, s, 1)
-      ..setTranslationRaw(_viewport.width / 2 - hero.dx * s, _viewport.height / 2 - hero.dy * s, 0);
+      ..setTranslationRaw(_viewport.width / 2 - middle.dx * s, _viewport.height / 2 - middle.dy * s, 0);
   }
 
   /// Zoom about the middle of the glass, keeping what is there in the middle.
@@ -277,7 +292,7 @@ class _MapPageState extends State<MapPage> {
             _viewport = box.biggest;
             if (!_placed) {
               _placed = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _centre(floor != null ? 1 : 2); });
+              WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _centre(floor != null ? 1 : 2, _focus); });
             }
             final side = _side(picture);
             return ClipRect(child: InteractiveViewer(key: const ValueKey('map-view'), transformationController: _view,
@@ -285,7 +300,8 @@ class _MapPageState extends State<MapPage> {
               child: SizedBox(width: side, height: side, child: CustomPaint(painter: floor != null
                 ? FloorPainter(floor: floor, image: identical(_imageOf, floor) ? _image : null, hero: widget.hero, zoom: _scale)
                 : MapPainter(picture: picture, image: identical(_imageOf, picture) ? _image : null,
-                    map: widget.map, walked: widget.walked, charted: widget.charted, hero: widget.hero, zoom: _scale)))));
+                    map: widget.map, walked: widget.walked, charted: widget.charted, hero: widget.hero, zoom: _scale,
+                    focus: _focus)))));
           })),
     ]);
   }

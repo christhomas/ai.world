@@ -64,6 +64,23 @@ void main() {
     expect(middle.dy, closeTo(30 * MapPage.floorTile, 0.01));
   });
 
+  testWidgets('opened from the journal, it opens on the place asked about, and still finds the hero', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(328, 390));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: MapPage(picture: picture,
+      map: const {'title': 'Ashford', 'fogged': false, 'markers': []}, walked: const {}, charted: const {},
+      hero: const {'x': 5, 'z': -5}, focus: const Offset(-20, 12), tokens: LedgerTokens.all[LedgerTheme.stone]!))));
+    await tester.pumpAndSettle();
+    final view = tester.widget<InteractiveViewer>(find.byKey(const ValueKey('map-view'))).transformationController!;
+    final glass = tester.getSize(find.byKey(const ValueKey('map-view')));
+    Offset middle() => view.toScene(glass.center(Offset.zero));
+    expect(middle().dx, closeTo(-20 + 32, 0.01), reason: "the errand's village is in the middle of the glass");
+    expect(middle().dy, closeTo(12 + 32, 0.01));
+    await tester.tap(find.byKey(const ValueKey('map-centre')));
+    await tester.pump();
+    expect(middle().dx, closeTo(5 + 32, 0.01), reason: 'and the hero is a tap away');
+  });
+
   testWidgets('opens on the hero, pans by drag, zooms by button, and finds him again', (tester) async {
     await tester.binding.setSurfaceSize(const Size(328, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));

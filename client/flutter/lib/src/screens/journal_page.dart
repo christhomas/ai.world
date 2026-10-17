@@ -6,12 +6,22 @@ import '../shell/ledger_tokens.dart';
 /// The journal (#575): the hero in a line, then the errands owed with where each leads, the places
 /// found nearest first, and the ferries. The handoff left the journal undrawn, so it is a page of
 /// the same book in the 44px row grammar. The rows are the game's own (`src/game/journal-view.ts`),
-/// so it shows exactly what the page's journal does and nothing that has not been found.
+/// so it shows exactly what the page's journal does and nothing that has not been found. A row that
+/// knows where it is opens the map there.
 class JournalPage extends StatelessWidget {
-  const JournalPage({super.key, required this.journal, required this.tokens});
+  const JournalPage({super.key, required this.journal, required this.tokens, this.show});
   /// The engine's `journal` model.
   final Map<String, dynamic> journal;
   final LedgerTokens tokens;
+  /// Open the map on a place, in the world's tiles.
+  final void Function(Offset place)? show;
+
+  VoidCallback? _showing(Object? at) {
+    final show = this.show;
+    if (show == null || at is! Map || at['x'] is! num || at['z'] is! num) return null;
+    final place = Offset((at['x'] as num).toDouble(), (at['z'] as num).toDouble());
+    return () => show(place);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,12 +56,13 @@ class JournalPage extends StatelessWidget {
             chip: errand['done'] == true ? const Color(0xff3d6b34) : const Color(0xff8a6a3d),
             name: '${errand['done'] == true ? '✅' : '📜'} ${errand['what']}',
             consequence: errand['tiles'] == null ? '${errand['village']}' : '${errand['village']}, ${errand['tiles']} tiles',
-            verb: errand['done'] == true ? 'DONE' : '${errand['bearing'] ?? ''}'),
+            verb: errand['done'] == true ? 'DONE' : '${errand['bearing'] ?? ''}', onPressed: _showing(errand['at'])),
         label('PLACES FOUND'),
         if (found.isEmpty) empty('Nothing yet. Follow the roads.'),
         for (final place in found)
           LedgerRow(key: ValueKey('found-${place['name']}'), tokens: t,
-            name: '${place['icon']} ${place['name']}', consequence: '${place['tiles']} tiles', verb: '${place['bearing']}'),
+            name: '${place['icon']} ${place['name']}', consequence: '${place['tiles']} tiles', verb: '${place['bearing']}',
+            onPressed: _showing(place['at'])),
         label('FERRIES'),
         if (ferries.isEmpty) empty('No crossings known.'),
         for (final line in ferries)
