@@ -12,13 +12,31 @@ every person with the same trade.
 The web fixture drives `Conversation`, the controller inside `DialogueBox`, with its keyboard
 operations. The phone fixture assembles the real `headlessGame` through `create` in
 `src/mobile/game-engine.ts`, sends JSON `interact`, `choose` and `nudge` requests, and reads the
-serialized native models. It compares every page's words, the complete ordered choice list,
-notes, quantity controls, reading ownership, gold, pack and quest statuses. A spy keeps the host
-available for arranging state; it does not replace its implementation or the request handler.
-This does not instantiate browser DOM widgets or Flutter widgets.
+serialized native models. A spy keeps the host available for arranging state; it does not replace
+its implementation or the request handler. This does not instantiate browser DOM widgets or
+Flutter widgets.
 
-Both sides get independent heroes with the same possessions and independent conversation
-contexts. The assembled phone world uses road seed 3. Rule targets are explicit: Testford's
+What a "web and phone" comparison proves depends on how the conversation was opened:
+
+- **Paired cases** (most of the tables below). Both sides start from the test's own `build(state)`,
+  so the same function makes both conversations. These cases prove that the phone's JSON gate,
+  its serializer (`presentation()` in `game-engine.ts`) and its action routing show and commit
+  exactly what the web controller does: every page's words, the ordered choice list, notes,
+  quantity controls, reading ownership, gold, pack, quests, hit points, day and time. They do not
+  prove the phone would reach that conversation by itself. Where both sides could be wrong
+  together, the expected rows and refusal words are written out in the test rather than read off
+  the web side.
+- **Real-path cases.** The phone's hero walks into a real seed-3 store and a real seed-3 inn
+  through `Places.enterBuilding`, stands where `nearKeeper` is true and sends `interact`. The
+  conversation comes from the host's own interaction chain and `meeting.ts`, which builds the
+  keeper's context from the host's state. The root rows are asserted against fixed lists: Buy,
+  Sell, Chat, Leave for the store, and Buy, Sell, Take a room, Chat, Leave for the inn, with no post
+  shelf in a local world.
+- **Rule tests.** The rain-and-fire and shrine-raising cases call the same interaction rule on
+  each side with a fixture HUD. They check the rule's words and unchanged state, not the phone.
+
+In paired cases both sides get independent heroes with the same possessions and independent
+conversation contexts. The assembled phone world uses road seed 3. Rule targets are explicit: Testford's
 register is founded with seed 1, counter names and speech use seed 5, and contextual targets are
 placed in reach. Books contain real register records, including a burial and a charge. Elder
 quests come from `generateQuests`, including their words; the fetch fixture selects a two-loaf
@@ -29,7 +47,12 @@ are controlled rule fixtures, not evidence of a generated-world walk.
 ## People and counters
 
 These families come from `game/talk.ts`, `game/counter.ts`, `game/enquiry.ts` and `game/shops.ts`.
-The fixture checks the root choices and opens the listed shop/book/room/post submenus too.
+The fixture checks the root choices against the written-out list and opens the listed
+shop/book/room/post submenus too. Each submenu has its own fixed row list: Buy is the catalogue in
+order, each with a price and a note, then Back; Sell is the carried goods (three of something the
+counter buys) with a quantity dial, Sell the lot, and Back; Chat is Back and Leave; a book is See
+the book itself and Back; a room is Sleep and Not tonight; the post shelf is Anything for me?,
+Leave a parcel and Back.
 
 | Fixture family | Preconditions | Web actions offered, in order |
 | --- | --- | --- |
@@ -90,18 +113,46 @@ specified target; it does not reproduce the rows in a phone implementation.
 | `context:cell` | At a standing station's cell door; `jail.ts` | Speech only: who is held and time left, or an empty-cell description. The fixture checks the empty-cell branch without skipping it. |
 | `context:carrier` | Connected world, current unfinished load halfway along a connected road; `carrier.ts` | Guard the load; Rob the load; Let them pass. |
 | `context:gift` | In reach of a registered resident, two loaves carried; `gifts.ts` | Give Bread; Never mind. Earned favours may add a collection row; gift order follows what the recipient values. |
-| `context:hire` | In reach of a registered, willing soldier; `hire.ts` | All coin now; part coin and share; share only; Not today. Existing hires offer orders, parting, and renewal near expiry. |
+| `context:hire` | In reach of a registered, willing soldier; `hire.ts` | “N gold, all of it now”; “N gold now, and N in the hundred of what we take”; “nothing now, and N in the hundred of what we take”; Not today. Existing hires offer orders, parting, and renewal near expiry. |
 | `context:rescue` | Elder in a failing village, seeded trouble at nearby stones; `rescue.ts` | I will go; Not today. Accepted work gives a reminder; completed work offers settlement. |
 | `context:prayer` | Local connected world, shrine named Echoes; `prayer.ts` | Four named directions; Not now. A direction opens a warning and explicit confirmation or leaving the ground alone. |
+| `context:empty-house` | Inside a house nobody lives in; `village.ts` | Sleep until morning; Leave it be. |
+| `context:fingerpost` | At a fingerpost naming one village; `village.ts` | Speech only: each settlement with its direction and distance. |
+| `context:shipwreck` | At a wreck whose hold has not been searched; `wild.ts` | Search; Go below; Leave it. A searched hold offers only Go below and Leave it. |
+| `context:trade-offer` | Another player has offered gold and a loaf; `people.ts` | Accept; Decline. |
+| `context:trade-menu` | Connected, another player in reach, no duel, 100 gold, empty pack; `people.ts` | Challenge to a friendly bout; Offer 25 gold; Never mind. Carried goods add an offer row each; hired swords add a call-out. |
+| `context:party` | Connected, nobody near, no party; `people.ts` | Close. Somebody near adds an invitation; a party adds Go your own way. |
 
-The matrix checks the complete native choice list against the web for every listed fixture. It
-does not claim branch coverage of every possible stock list, civic ballot, building catalogue or
+The matrix checks the complete native choice list against the web for every listed fixture, and
+against the written-out list in the fixture. Where a family visits a row, the visit must leave
+gold, pack, quests, charts, discoveries, hit points, day, time and the state version as they were.
+Where that row is a refusal (horse, ferry, loft, boat, sky, mortar and field), its exact words are
+written out too. It does not claim branch coverage of every possible stock list, civic ballot, building catalogue or
 world seed. In particular, the hall fixture does not force a promotion ballot ready.
+
+## Menus without a fixture
+
+`contextual-dialogue.test.ts` counts the `dialogue.start(` call sites in each
+`src/game/interact/*.ts` file against a recorded table, and the roles, trade and kinds that
+`dialogueFor` in `talk.ts` answers for. A new call site fails that test until somebody adds a
+fixture above or a row here. These are the menus that remain without one, and why:
+
+| Menu | Source | Why it has no fixture |
+| --- | --- | --- |
+| Wild camps | `wildcamps.ts` (2 sites) | The camp underfoot is derived from the seeded country round the hero and its theft rules. A faithful fixture needs that country, not a hand-made one. |
+| Old Nettle | `nemesis.ts` (2 sites) | The scheme and the timed choice belong to the nemesis director's state across days. Building that by hand would test the fixture, not the game. |
+| Builder placement | `builder.ts` (placement prompts and “Not here” refusals) | They answer terrain verdicts for a commissioned job at the hero's tile. The strongbox and the builder's offer are covered; placement is not. |
+| Unfinished or unpaid house | `builder.ts` (`tryChest`) | Speech only, keyed to a job's build days and balance. |
+| Hire orders and parting | `hire.ts` | Needs a soldier already hired; the offer of terms is covered. |
+| Rescue reminder and settlement | `rescue.ts` | Needs an accepted contract; the offer is covered. |
+| Carcass, tent and stairs variants | `camp.ts`, `index.ts` | The covered fixtures take one branch each; the knife, cart and lock branches are not separate fixtures. |
+| Occupied cell | `jail.ts` | The empty-cell branch is covered; a held prisoner needs the jail's sentence state. |
 
 ## Refusals and unchanged state
 
 `src/mobile/dialogue-refusals.test.ts` drives both paths from matching state and checks the exact
-web words plus gold, pack, quest status, charts, discoveries and the state version:
+web words plus gold, pack, quest status, charts, discoveries, hit points, day, time and the
+state version:
 
 - Every shop: insufficient gold and night closure.
 - Store: a chart already owned, even with no gold; an empty sell list.
@@ -115,12 +166,20 @@ web words plus gold, pack, quest status, charts, discoveries and the state versi
 
 The last sale case follows the web's existing policy: it sells only the amount still carried and
 pays for that amount. It is a partial successful sale, not a refusal of the entire stale quantity.
-`contextual-dialogue.test.ts` also compares the fare/load refusal for sky flight, a shared-world
-prayer, a shrine's unaffordable raising and rain refusing a fire. The family visits compare the
-boat, ferry, loft, horse, recipe and wrong-season refusal pages as well. The keeper-refusal fixture
-enters a real store in seed 3 through `Places.enterBuilding`, finds clear floor beyond counter and
-door reach, and compares the phone's `interact` result with the web selector, with the keeper both
-present and absent. Both produce the same HUD words and preserve possessions.
+“Sell the lot” after the goods have left the pack is the same policy: the keeper answers “The lot
+for 0 gold. Pleasure doing business.” and nothing changes hands. A test pins that answer, so a
+change to it is a decision rather than an accident.
+
+`contextual-dialogue.test.ts` also compares the fare/load refusal for sky flight and a shared-world
+prayer through paired cases. The family visits check the boat, ferry, loft, horse, recipe and
+wrong-season refusal words against fixed text. The shrine's unaffordable raising and rain refusing
+a fire are rule tests: the rows are chosen through the phone ABI in the shrine case, but both
+refusals are said into fixture HUDs, so neither proves anything about the host's HUD or weather.
+The keeper-refusal fixture enters a real store in seed 3 through `Places.enterBuilding`, finds
+clear floor beyond counter and door reach, and compares the phone's `interact` result with the web
+selector, with the keeper both present and absent. Both produce the same HUD words and preserve
+possessions. Here the phone side is the host's own interaction chain; the web side is the same
+selector given a fixture context.
 
 There is no pack capacity check in these shop/quest rules. `GameState.give` adds to an item map;
 inventing a “pack full” response on the phone would create a difference. A shop's unsuitable items

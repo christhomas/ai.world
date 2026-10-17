@@ -252,6 +252,20 @@ describe('the web counter refuses the same way through the phone ABI (#574)', ()
     expect(possessions(pair.webState)).toEqual(before);
   });
 
+  // Not a refusal, and pinned so that nobody mistakes it for one: the lot was priced when the
+  // trestle was shown, takes whatever is still there when chosen, and pays for exactly that.
+  it('selling a stale lot of goods no longer carried answers a sale for 0 gold', () => {
+    const pair = new DialoguePair(phone);
+    pair.open((state) => { state.give('wood', 6); return dialogueFor(person('', 'shopkeeper', 'store'), talkContext(state)); });
+    pair.choose('Sell');
+    for (const state of [pair.webState, pair.phoneState]) state.take('wood', 6);
+    const before = possessions(pair.webState);
+    pair.choose(/^Sell the lot \(\d+g\)$/);
+    expect(pair.read()).toEqual(['The lot for 0 gold. Pleasure doing business.']);
+    expect(phone.talk!.choices.map((row) => row.label)).toEqual(['Buy something', 'Done']);
+    expect(possessions(pair.webState)).toEqual(before);
+  });
+
   it('a stale quantity sells only the goods still carried, at the web price', () => {
     const pair = new DialoguePair(phone);
     pair.open((state) => { state.give('wood', 6); return dialogueFor(person('', 'shopkeeper', 'store'), talkContext(state)); });

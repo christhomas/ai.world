@@ -14,6 +14,7 @@ import { giftInteractions } from '../game/interact/gifts';
 import { hireInteractions } from '../game/interact/hire';
 import { rescueInteractions } from '../game/interact/rescue';
 import { prayerInteractions } from '../game/interact/prayer';
+import { peopleInteractions } from '../game/interact/people';
 import { createInteractions } from '../game/interact';
 import { Market } from '../game/market';
 import { questLine } from '../game/quests';
@@ -26,7 +27,10 @@ import { Gifts } from '../game/gifts';
 import { Standing } from '../game/standing';
 import { Hires, quoteFor } from '../game/hire';
 import { Rescues, contractFor } from '../game/rescue';
-import { Plots } from '../game/farming';
+import { CROPS, Plots, daysUntilSeason } from '../game/farming';
+import { ITEMS } from '../game/items';
+import { BOAT } from '../game/sailing';
+import { SKYWARD } from '../game/eyries';
 import { Manifest } from '../world/manifest';
 import { Register } from '../world/register';
 import { StructureKind } from '../world/structures';
@@ -86,6 +90,11 @@ export interface ContextFamily {
   choices: Array<string | RegExp>;
   extraChoices?: boolean;
   visit?: string | RegExp;
+  /**
+   * The words the visited row answers with, where the visit is a refusal. Written out here rather
+   * than read back off the web side, which `open` built from the same function as the phone's.
+   */
+  refusal?: (state: GameState) => string;
 }
 
 const eyries = [
@@ -102,7 +111,7 @@ export const contextualFamilies: ContextFamily[] = [
     expect(villageInteractions(f.ctx).tryHorse()).toBe(true);
     return f.take();
   }, choices: [/Riding Horse \(140g\)/, /Mountain Goat \(90g\)/, /Desert Camel \(170g\)/, 'Not today'],
-  visit: /Riding Horse/ },
+  visit: /Riding Horse/, refusal: () => 'Come back with 140 gold.' },
   { id: 'fallen-craft', build(state) {
     const f = setting(state);
     f.ctx.structures.derelicts.push({ id: 'fallen', name: 'Fallen Star', x: 0.5, z: 0.5 });
@@ -172,7 +181,8 @@ export const contextualFamilies: ContextFamily[] = [
     f.ctx.ferries = [{ line, visual: {} as never }];
     expect(travelInteractions(f.ctx).tryFerry()).toBe(true);
     return f.take();
-  }, choices: ['Board (12g)', 'Not now'], visit: 'Board (12g)' },
+  }, choices: ['Board (12g)', 'Not now'], visit: 'Board (12g)',
+  refusal: () => '12 gold, and you have 0. I am not a charity and the tide is not waiting.' },
   { id: 'loft', build(state) {
     state.inventory.gold = 0; state.discovered.add('Far Shrine');
     const f = setting(state);
@@ -180,7 +190,8 @@ export const contextualFamilies: ContextFamily[] = [
     f.ctx.skies = { aloft: { site: { x: 0, z: 0 } }, atLoft: () => true } as never;
     expect(travelInteractions(f.ctx).trySky()).toBe(true);
     return f.take();
-  }, choices: ['Far Shrine — 300 tiles (39g)', 'Not today'], visit: /Far Shrine/ },
+  }, choices: ['Far Shrine — 300 tiles (39g)', 'Not today'], visit: /Far Shrine/,
+  refusal: () => '39 gold for that one, and you have 0.' },
   { id: 'shrine', build(state) {
     const f = setting(state);
     f.ctx.structures.pois.push({ name: 'Echoes', kind: StructureKind.Shrine, x: 0.5, z: 0.5 } as never);
@@ -211,13 +222,15 @@ export const contextualFamilies: ContextFamily[] = [
     expect(state.can('grind')).toBe(true);
     expect(herbInteractions(f.ctx).tryGrind()).toBe(true);
     return f.take();
-  }, choices: [/Salve.*short/, /Warding Draught.*short/, 'Not now'], visit: /Salve/ },
+  }, choices: [/Salve.*short/, /Warding Draught.*short/, 'Not now'], visit: /Salve/,
+  refusal: () => `Not without 1× ${ITEMS.herb.name}.` },
   { id: 'boatwright', build(state) {
     const f = setting(state);
     f.ctx.structures.piers.push({ dockX: 0, dockZ: 0, dx: 1, dz: 0 } as never);
     expect(travelInteractions(f.ctx).tryBoat()).toBe(true);
     return f.take();
-  }, choices: [/Buy the boat \(\d+g\)/, 'Another time'], visit: /Buy the boat/ },
+  }, choices: [/Buy the boat \(\d+g\)/, 'Another time'], visit: /Buy the boat/,
+  refusal: () => `Come back with ${BOAT.PRICE} gold.` },
   { id: 'eagle', build(state) {
     const f = setting(state);
     f.ctx.eyries = eyries;
@@ -230,7 +243,8 @@ export const contextualFamilies: ContextFamily[] = [
     f.ctx.skies = { calledFrom: () => ({ name: 'Cloud Village' }) } as never;
     expect(travelInteractions(f.ctx).trySkyward()).toBe(true);
     return f.take();
-  }, choices: [/Fly up \(\d+g\)/, 'Stand and watch'], visit: /Fly up/ },
+  }, choices: [/Fly up \(\d+g\)/, 'Stand and watch'], visit: /Fly up/,
+  refusal: () => `${SKYWARD.FARE} gold to go up, and you have 0.` },
   { id: 'sky-return', build(state) {
     const f = setting(state);
     f.ctx.skies = { aloft: { name: 'Cloud Village' }, atLoft: () => false, atPerch: () => true } as never;
@@ -256,7 +270,8 @@ export const contextualFamilies: ContextFamily[] = [
     const f = setting(state);
     expect(wildInteractions(f.ctx).tryFarm()).toBe(true);
     return f.take();
-  }, choices: [/Wheat \(2\)/, /Pumpkin \(2\).*wrong season/, 'Leave it'], visit: /Pumpkin/ },
+  }, choices: [/Wheat \(2\)/, /Pumpkin \(2\).*wrong season/, 'Leave it'], visit: /Pumpkin/,
+  refusal: (state) => `Pumpkin will not take now. Wait about ${daysUntilSeason(CROPS.pumpkin, state.day)} days.` },
   { id: 'camp', build(state) {
     state.give('tent', 1); state.time = 0.95;
     const f = setting(state);
@@ -311,7 +326,13 @@ export const contextualFamilies: ContextFamily[] = [
     f.ctx.entities = { within: () => [entity] } as never;
     expect(hireInteractions(f.ctx).tryHire()).toBe(true);
     return f.take();
-  }, choices: [/.+/, /.+/, /.+/, 'Not today'] },
+  }, choices: [
+    // the three ways of settling, in `termsFor`'s order: all coin, part coin and part share, all share
+    /^\d+ gold, all of it now$/,
+    /^\d+ gold now, and \d+ in the hundred of what we take$/,
+    /^nothing now, and \d+ in the hundred of what we take$/,
+    'Not today',
+  ] },
   { id: 'rescue', build(state) {
     const f = setting(state);
     const village = f.ctx.structures.villages[0];
@@ -339,4 +360,41 @@ export const contextualFamilies: ContextFamily[] = [
     expect(villageInteractions(f.ctx).tryFreeBed()).toBe(true);
     return f.take();
   }, choices: ['Sleep until morning', 'Leave it be'] },
+  { id: 'fingerpost', build(state) {
+    const f = setting(state);
+    f.ctx.structures.signposts.push({ x: 0.5, z: 0.5, directions: [{ name: 'Otherford', dir: 'north', tiles: 40 }] });
+    expect(villageInteractions(f.ctx).trySignpost()).toBe(true);
+    const node = f.take();
+    expect(node.pages).toEqual(['Otherford — north, 40 tiles']);
+    return node;
+  }, choices: [] },
+  { id: 'shipwreck', build(state) {
+    const f = setting(state);
+    f.ctx.structures.wrecks.push({ id: 'gull', name: 'The Gull', x: 0.5, z: 0.5 });
+    expect(wildInteractions(f.ctx).tryWreck()).toBe(true);
+    return f.take();
+  }, choices: ['Search', 'Go below', 'Leave it'] },
+  { id: 'trade-offer', build(state) {
+    const f = setting(state);
+    peopleInteractions(f.ctx).showOffer({ from: 'rowan', to: '', gold: 10, items: [['bread', 1]] }, 'Rowan');
+    const node = f.take();
+    expect(node.pages).toEqual([`Rowan offers you 10 gold, 1× ${ITEMS.bread.name}.`]);
+    return node;
+  }, choices: ['Accept', 'Decline'] },
+  { id: 'trade-menu', build(state) {
+    const f = setting(state);
+    f.ctx.online = { ...f.ctx.online, nearest: () => ({ id: 'rowan', name: 'Rowan' }) } as never;
+    f.ctx.duel = { active: false } as never;
+    peopleInteractions(f.ctx).offerTrade();
+    return f.take();
+  }, choices: ['Challenge to a friendly bout', 'Offer 25 gold', 'Never mind'] },
+  { id: 'party', build(state) {
+    const f = setting(state);
+    f.ctx.online = { ...f.ctx.online, nearest: () => null } as never;
+    f.ctx.party = { size: 0, has: () => false } as never;
+    peopleInteractions(f.ctx).partyMenu();
+    const node = f.take();
+    expect(node.pages).toEqual(['You are travelling alone.']);
+    return node;
+  }, choices: ['Close'] },
 ];

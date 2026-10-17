@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { dialogueFor, type TalkCtx } from '../game/talk';
 import type { GameState } from '../game/state';
-import { SHOP_DEFS } from '../game/shops';
+import { ITEMS, SHOP_DEFS } from '../game/shops';
+import type { ShopType } from '../world/structures';
 import type { DialogueNode } from '../ui/dialogue';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
@@ -10,15 +11,40 @@ import { mulberry32 } from '../core/rng';
 import { DialoguePair, PhoneDialogue, possessions } from './dialogue-parity.test.fixture';
 import { errand, person, records, talkContext, VILLAGE } from './dialogue-targets.test.fixture';
 
+type Rows = Array<string | RegExp>;
+
 interface Family {
   id: string;
   build(state: GameState): DialogueNode;
-  choices: Array<string | RegExp>;
-  visit?: string[];
+  choices: Rows;
+  /** A root row to take, and the rows it must open onto, in order. */
+  visit?: Array<[row: string, rows: Rows]>;
 }
 
-const counter = (shop: 'store' | 'smith' | 'inn' | 'apothecary', extra?: (state: GameState) => Partial<TalkCtx>) =>
-  (state: GameState) => dialogueFor(person('', 'shopkeeper', shop), { ...talkContext(state), ...extra?.(state) });
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * What each counter sells, in catalogue order, with a price against every row. The price itself is
+ * the shop's arithmetic and varies with the village, so only its shape is written down here.
+ */
+const shelf = (shop: ShopType): Rows => [
+  ...SHOP_DEFS[shop].items.map((id) => new RegExp(`^.+ ${escaped(ITEMS[id].name)} — \\d+g( ✓)?$`)),
+  'Back',
+];
+/** Three of the one thing a counter buys, so its row carries a dial and the lot can go at once. */
+const GOODS: Record<ShopType, string> = { store: 'bread', smith: 'arrow', inn: 'bread', apothecary: 'bread' };
+const sale = (shop: ShopType): Rows => [
+  new RegExp(`^.+ ${escaped(ITEMS[GOODS[shop]].name)} — \\d+g  ◀ 1 of 3 ▶$`), /^Sell the lot \(\d+g\)$/, 'Back',
+];
+const chat: Rows = ['Back', 'Leave'];
+const book: Rows = [/^See the book itself( \(\d+ gold\))?$/, 'Back'];
+const bed: Rows = ['Sleep', 'Not tonight'];
+
+const counter = (shop: ShopType, extra?: (state: GameState) => Partial<TalkCtx>) => (state: GameState) => {
+  // set rather than given, because a family's build runs again for every visit
+  state.inventory.items.set(GOODS[shop], 3);
+  return dialogueFor(person('', 'shopkeeper', shop), { ...talkContext(state), ...extra?.(state) });
+};
 
 const bookkeeper = (trade: string, room: string) => (state: GameState) =>
   dialogueFor(person(trade, trade === 'priest' ? 'congregation' : 'keeper'), {
@@ -34,25 +60,31 @@ const doctor = (state: GameState, terms = mending) => {
 
 /** The rows here are the web's actual families and conditions, also named in the document. */
 const families: Family[] = [
-  { id: 'store', build: counter('store'), choices: ['Buy', 'Sell', 'Chat', 'Leave'], visit: ['Buy', 'Sell', 'Chat'] },
-  { id: 'smith', build: counter('smith'), choices: ['Buy', 'Sell', 'Chat', 'Leave'], visit: ['Buy', 'Sell', 'Chat'] },
+  { id: 'store', build: counter('store'), choices: ['Buy', 'Sell', 'Chat', 'Leave'],
+    visit: [['Buy', shelf('store')], ['Sell', sale('store')], ['Chat', chat]] },
+  { id: 'smith', build: counter('smith'), choices: ['Buy', 'Sell', 'Chat', 'Leave'],
+    visit: [['Buy', shelf('smith')], ['Sell', sale('smith')], ['Chat', chat]] },
   { id: 'apothecary', build: counter('apothecary', (state) => ({ enquiry: records(state, 'apothecary') })),
-    choices: ['Buy', 'Sell', 'Ask about the births', 'Chat', 'Leave'], visit: ['Buy', 'Sell', 'Ask about the births'] },
+    choices: ['Buy', 'Sell', 'Ask about the births', 'Chat', 'Leave'],
+    visit: [['Buy', shelf('apothecary')], ['Sell', sale('apothecary')], ['Ask about the births', book]] },
   { id: 'inn-local', build: counter('inn', () => ({ room })),
-    choices: ['Buy', 'Sell', 'Take a room (12g)', 'Chat', 'Leave'], visit: ['Buy', 'Sell', 'Take a room (12g)'] },
+    choices: ['Buy', 'Sell', 'Take a room (12g)', 'Chat', 'Leave'],
+    visit: [['Buy', shelf('inn')], ['Sell', sale('inn')], ['Take a room (12g)', bed]] },
   { id: 'inn-shared', build: counter('inn', () => ({ room: { ...room, shared: true },
     post: { folk: ['Rowan'], collect: () => {}, send: () => {} } })),
-    choices: ['Buy', 'Sell', 'Take a room (12g)', 'The post shelf', 'Chat', 'Leave'], visit: ['The post shelf'] },
+    choices: ['Buy', 'Sell', 'Take a room (12g)', 'The post shelf', 'Chat', 'Leave'],
+    visit: [['The post shelf', ['Anything for me?', 'Leave a parcel', 'Back']]] },
   { id: 'inn-night', build: (state) => {
     state.time = 0.95;
     return counter('inn', () => ({ room }))(state);
-  }, choices: ['Take a room (12g)', 'Back out into the dark'], visit: ['Take a room (12g)'] },
-  { id: 'priest', build: bookkeeper('priest', 'church'), choices: ['Ask about the dead', 'Leave'], visit: ['Ask about the dead'] },
+  }, choices: ['Take a room (12g)', 'Back out into the dark'], visit: [['Take a room (12g)', bed]] },
+  { id: 'priest', build: bookkeeper('priest', 'church'), choices: ['Ask about the dead', 'Leave'],
+    visit: [['Ask about the dead', book]] },
   { id: 'clerk', build: bookkeeper('clerk', 'townhall'),
     choices: ['Ask about the people here', 'Ask who is descended from whom', 'Leave'],
-    visit: ['Ask about the people here', 'Ask who is descended from whom'] },
+    visit: [['Ask about the people here', book], ['Ask who is descended from whom', book]] },
   { id: 'sergeant', build: bookkeeper('sergeant', 'watchhouse'),
-    choices: ['Ask about the charge sheet', 'Leave'], visit: ['Ask about the charge sheet'] },
+    choices: ['Ask about the charge sheet', 'Leave'], visit: [['Ask about the charge sheet', book]] },
   { id: 'doctor-paid', build: (state) => doctor(state),
     choices: ['Pay 14 gold', 'Wait your turn (6 hours)', 'Not now'] },
   { id: 'doctor-poor', build: (state) => {
@@ -99,7 +131,9 @@ describe('the per-family web and native conversation matrix (#574)', () => {
     expect(documented.sort()).toEqual(families.map((family) => family.id).sort());
   });
 
-  it.each(families)('$id offers exactly the web rows through the native ABI', (family) => {
+  // `open` builds both sides from the family's own function, so the web rows prove the phone shows
+  // what the web does. The written-out rows below are what stop both from being wrong together.
+  it.each(families)('$id offers the written-out rows on both sides through the native ABI', (family) => {
     const pair = new DialoguePair(phone);
     pair.open(family.build);
     const before = possessions(pair.webState);
@@ -110,11 +144,23 @@ describe('the per-family web and native conversation matrix (#574)', () => {
     expect(possessions(pair.webState), 'reading is not a commit').toEqual(before);
     // Buying, selling, books, beds and the post each open a different menu. Check those too;
     // comparing just the greeting would miss a native adapter dropping shelf notes or dials.
-    for (const row of family.visit ?? []) {
+    for (const [row, rows] of family.visit ?? []) {
       pair.open(family.build);
       pair.choose(row);
       pair.read();
-      expect(phone.talk!.choices.length, `${family.id}: ${row} offers a way back`).toBeGreaterThan(0);
+      const shown = phone.talk!.choices;
+      expect(shown.map((choice) => choice.label), `${family.id}: ${row}`)
+        .toEqual(rows.map((want) => typeof want === 'string' ? want : expect.stringMatching(want)));
+      // every thing on a shelf says what it is for; Back says nothing
+      if (row === 'Buy') expect(shown.map((choice) => choice.note !== null)).toEqual(rows.map((want) => want !== 'Back'));
+      // the one row that carries a dial is the goods; the lot and Back do not
+      if (row === 'Sell') expect(shown.map((choice) => choice.adjusts)).toEqual([true, false, false]);
+    }
+    if (family.id === 'store') {
+      pair.open(family.build);
+      pair.choose('Buy');
+      const bread = phone.talk!.choices.find((choice) => /Bread — \d+g/.test(choice.label));
+      expect(bread?.note, 'the loaf on the shelf has its note').toBeTruthy();
     }
   });
 });

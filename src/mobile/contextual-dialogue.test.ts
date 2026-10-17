@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { DialoguePair, PhoneDialogue, possessions } from './dialogue-parity.test.fixture';
+import { DialoguePair, PhoneDialogue, insideWith, possessions } from './dialogue-parity.test.fixture';
 import { contextualFamilies, setting } from './contextual-targets.test.fixture';
 import { travelInteractions } from '../game/interact/travel';
 import { wildInteractions } from '../game/interact/wild';
@@ -8,6 +8,7 @@ import { craftInteractions } from '../game/interact/craft';
 import { prayerInteractions } from '../game/interact/prayer';
 import { createInteractions } from '../game/interact';
 import { Places } from '../game/places';
+import { ITEMS as SHOP_ITEMS, SHOP_DEFS } from '../game/shops';
 import { SKYWARD } from '../game/eyries';
 import { ITEMS } from '../game/items';
 import { SHRINE_FEE } from '../world/shrine';
@@ -21,7 +22,81 @@ beforeAll(() => {
 });
 afterAll(() => { phone?.dispose(); vi.unstubAllGlobals(); });
 
-describe('contextual menus use the same rows on web and phone (#574)', () => {
+/**
+ * Every place in `game/interact/` that opens a conversation, counted by file.
+ *
+ * A new `dialogue.start(` makes this fail until somebody decides what it is: a fixture in
+ * contextual-targets.test.fixture.ts, or a row in the document's "Menus without a fixture" table
+ * saying why not. The counts are of call sites, not of menus a player sees, so a refusal said
+ * through the same call as its menu is one site. See the document for which is which.
+ */
+const MENUS: Record<string, number> = {
+  'builder.ts': 10, 'buildercoast.ts': 0, 'camp.ts': 4, 'carrier.ts': 1, 'context.ts': 0, 'craft.ts': 0,
+  'gifts.ts': 1, 'herbs.ts': 1, 'hire.ts': 3, 'index.ts': 2, 'jail.ts': 2, 'nemesis.ts': 2, 'people.ts': 3,
+  'prayer.ts': 0, 'rescue.ts': 3, 'travel.ts': 10, 'village.ts': 12, 'wild.ts': 8, 'wildcamps.ts': 2, 'wright.ts': 0,
+};
+
+describe('every menu that can open is classified (#574)', () => {
+  it('counts the conversation starts in each interaction file against the recorded table', () => {
+    const dir = 'src/game/interact';
+    const counted = Object.fromEntries(readdirSync(dir)
+      .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+      .map((file) => [file, readFileSync(`${dir}/${file}`, 'utf8').match(/dialogue\.start\(/g)?.length ?? 0]));
+    expect(counted).toEqual(MENUS);
+  });
+
+  it('knows every kind of person dialogueFor answers for', () => {
+    const source = readFileSync('src/game/talk.ts', 'utf8');
+    const from = source.indexOf('export function dialogueFor(');
+    expect(from, 'talk.ts still has dialogueFor').toBeGreaterThanOrEqual(0);
+    const body = source.slice(from, source.indexOf('\n}\n', from));
+    const all = (pattern: RegExp) => [...body.matchAll(pattern)].map((match) => match[1]);
+    // each of these is a `talk:` family in dialogue-families.test.ts
+    expect(all(/e\.role === '(\w+)'/g)).toEqual(['shopkeeper', 'elder', 'congregation', 'keeper']);
+    expect(all(/e\.trade === '(\w+)'/g)).toEqual(['doctor']);
+    expect(all(/k\.id === '(\w+)'/g)).toEqual(['villager', 'traveller']);
+  });
+});
+
+/** Read to the end of the greeting with the phone alone, as somebody tapping through it would. */
+function readOnPhone(): void {
+  for (let tap = 0; tap < 20 && phone.talk && !phone.talk.atChoices; tap++) phone.act('interact');
+  expect(phone.talk?.atChoices, 'the greeting ends at its choices').toBe(true);
+}
+
+describe('the phone reaches a real counter through its own meeting (#574)', () => {
+  // No `build` here: `interact` goes through the host's interaction chain and meeting.ts, which
+  // makes the keeper's context out of the host's own state. The rows are written out, not read back.
+  const counters: Array<['store' | 'inn', string[]]> = [
+    ['store', ['Buy', 'Sell', 'Chat', 'Leave']],
+    ['inn', ['Buy', 'Sell', `Take a room (${SHOP_ITEMS.room.price}g)`, 'Chat', 'Leave']],
+  ];
+  it.each(counters)('a %s keeper in seed 3 offers the fixed root rows', (shop, rows) => {
+    const pair = new DialoguePair(phone);
+    const { structures } = phone.host.handles();
+    // an inn that is one of the village's shops, not its pub, where the landlord answers instead
+    const door = structures.doors.find((door) => door.kind === shop && structures.villages.some((village) =>
+      village.name === door.village && village.shops.some((s) => s.type === shop && s.house.tx === door.bx && s.house.tz === door.bz)));
+    expect(door, `seed 3 has a ${shop} counter to walk into`).toBeDefined();
+    insideWith(phone, door!, (visit, x, z) => visit.world.nearKeeper(x, z) && !visit.world.atDoor(x, z), (visit) => {
+      expect(visit.keeper, `the ${shop} has somebody behind the counter`).not.toBeNull();
+      const before = possessions(pair.phoneState);
+      phone.act('interact');
+      expect(phone.talk, 'interact at the counter starts a conversation').not.toBeNull();
+      expect(phone.talk!.speaker).toBe(`${visit.keeper!.name}, ${SHOP_DEFS[shop].title}`);
+      readOnPhone();
+      expect(phone.talk!.choices.map((row) => row.label)).toEqual(rows);
+      // a local world has nobody to send a parcel to, so the shelf is not offered at all
+      if (shop === 'inn') expect(phone.talk!.choices.map((row) => row.label)).not.toContain('The post shelf');
+      expect(phone.shown.owner).toBe('BOOK');
+      expect(possessions(pair.phoneState), 'talking is not a commit').toEqual(before);
+    });
+  });
+});
+
+// Paired: both sides open from the family's own build, so the written-out rows and refusal words are
+// the independent check, and the comparison proves the phone shows and commits what the web does.
+describe('contextual menus show their written-out rows, the same on web and phone (#574)', () => {
   it('keeps the documented contextual family list attached to executable cases', () => {
     const document = readFileSync('docs/mobile/dialogue-feature-matrix.md', 'utf8');
     const documented = [...document.matchAll(/^\| `context:([^`]+)` \|/gm)].map((row) => row[1]);
@@ -36,8 +111,12 @@ describe('contextual menus use the same rows on web and phone (#574)', () => {
     const expected = family.choices.map((row) => typeof row === 'string' ? row : expect.stringMatching(row));
     expect(labels).toEqual(family.extraChoices ? expect.arrayContaining(expected) : expected);
     if (family.visit) {
+      const before = possessions(pair.webState);
       pair.choose(family.visit);
-      pair.read();
+      const said = pair.read();
+      if (family.refusal) expect(said[0]).toBe(family.refusal(pair.webState));
+      expect(possessions(pair.webState), `${family.id}: the visit changes nothing`).toEqual(before);
+      expect(possessions(pair.phoneState)).toEqual(before);
     }
   });
 });
@@ -48,21 +127,9 @@ describe('contextual refusals keep the web words and possessions', () => {
     const { places, player, structures } = phone.host.handles();
     const door = structures.doors.find((door) => door.kind === 'store');
     expect(door, 'seed 3 has a store to enter').toBeDefined();
-    places.enterBuilding(door!);
-    try {
-      const visit = places.indoors!;
+    // clear floor away from both the counter and the threshold
+    insideWith(phone, door!, (visit, x, z) => !visit.world.atDoor(x, z) && !visit.world.nearKeeper(x, z), (visit) => {
       expect(visit.keeper, 'the store started with a keeper').not.toBeNull();
-      // Find actual clear floor away from the counter and threshold, rather than assuming a
-      // generated room has either at a fixed coordinate. Missing suitable floor fails the case.
-      let spot: [number, number] | null = null;
-      for (let z = 1; z < visit.world.map.h - 1; z++) {
-        for (let x = 1; x < visit.world.map.w - 1; x++) {
-          const at: [number, number] = [x + 0.5, z + 0.5];
-          if (!visit.world.blocked(...at) && !visit.world.atDoor(...at) && !visit.world.nearKeeper(...at)) spot = at;
-        }
-      }
-      expect(spot, 'clear floor beyond talking reach').not.toBeNull();
-      player.teleport(...spot!);
       if (why === 'absent') visit.keeper = null;
       expect(places.interactIndoors(true)).toBeNull();
       const f = setting(pair.webState);
@@ -77,7 +144,7 @@ describe('contextual refusals keep the web words and possessions', () => {
       expect(hud.toasts.at(-1)).toBe(f.flashes[0]);
       pair.same();
       expect(possessions(pair.webState)).toEqual(before);
-    } finally { places.leaveBuilding(); }
+    });
   });
 
   it('an eagle refuses a pack too heavy to lift before charging the fare', () => {
@@ -125,7 +192,9 @@ describe('contextual refusals keep the web words and possessions', () => {
     expect(possessions(pair.webState)).toEqual(before);
   });
 
-  it('an empty village shrine refuses an unpaid raising without changing the register', () => {
+  // A rule test. The rows are chosen through the phone ABI, but the refusal is said into each
+  // side's own fake HUD and the register is the fixture's, so the host's HUD is never consulted.
+  it('rule: an empty village shrine refuses an unpaid raising without changing the register', () => {
     const pair = new DialoguePair(phone);
     const settings: ReturnType<typeof setting>[] = [];
     pair.open((state) => {
@@ -148,7 +217,9 @@ describe('contextual refusals keep the web words and possessions', () => {
     expect(possessions(pair.webState)).toEqual(before);
   });
 
-  it('rain refuses a fire without consuming wood or raw food', () => {
+  // A rule test, not a phone one: both sides call the same kindling rule with a fake HUD and a
+  // `raining` that says yes. The host's weather is never asked; only its unchanged state is compared.
+  it('rule: rain refuses a fire without consuming wood or raw food', () => {
     const pair = new DialoguePair(phone);
     const refused = [pair.webState, pair.phoneState].map((state) => {
       state.give('firerocks', 1); state.give('wood', 3); state.give('meat', 1);

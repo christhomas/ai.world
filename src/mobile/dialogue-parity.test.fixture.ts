@@ -6,6 +6,8 @@ import type { DialogueNode } from '../ui/dialogue';
 import { GameState } from '../game/state';
 import { packView } from '../game/pack';
 import { SLOTS } from '../game/items';
+import type { Doorway } from '../world/structures';
+import type { Places } from '../game/places';
 import { create } from './game-engine';
 
 interface TalkModel {
@@ -77,6 +79,7 @@ function reset(state: GameState): void {
   state.charted.clear();
   state.explored.clear();
   state.prayers.length = 0;
+  state.opened.clear();
   state.shouldering = null;
   state.practice = 0;
   state.hp = state.maxHp;
@@ -88,13 +91,54 @@ function reset(state: GameState): void {
 export const possessions = (state: GameState) => ({
   gold: state.inventory.gold, pack: [...state.inventory.items], quests: [...state.quests],
   charted: [...state.charted], discovered: [...state.discovered], version: state.version,
+  hp: state.hp, day: state.day, time: state.time,
 });
 
+type Visit = NonNullable<Places['indoors']>;
+
 /**
- * Web keys drive the Conversation used by DialogueBox; phone taps cross create().request, just as
- * Flutter's ConversationBand does. At each page and choice we compare the serialized native model
- * with the web controller, as well as the gold, carried items and quest statuses underneath it.
- * This is about rules and offered rows, not a substitute for the touch/layout playtest in #584.
+ * Walk the phone's hero through a real seed-3 door and stand them on floor that answers `want`.
+ *
+ * The floor is searched for rather than assumed, because a generated room has its counter and
+ * threshold wherever its seed put them. No suitable floor fails the case. The hero always walks
+ * back out afterwards, so the next case starts in the same overworld.
+ */
+export function insideWith(phone: PhoneDialogue, door: Doorway, want: (visit: Visit, x: number, z: number) => boolean,
+  then: (visit: Visit) => void): void {
+  const { places, player } = phone.host.handles();
+  places.enterBuilding(door);
+  try {
+    const visit = places.indoors!;
+    expect(visit, `${door.kind} door opened onto a room`).not.toBeNull();
+    let spot: [number, number] | null = null;
+    for (let z = 1; z < visit.world.map.h - 1; z++) {
+      for (let x = 1; x < visit.world.map.w - 1; x++) {
+        const at: [number, number] = [x + 0.5, z + 0.5];
+        if (!visit.world.blocked(...at) && want(visit, ...at)) spot = at;
+      }
+    }
+    expect(spot, `floor in the ${door.kind} that suits the case`).not.toBeNull();
+    player.teleport(...spot!);
+    then(visit);
+  } finally {
+    phone.host.conversation.close();
+    places.leaveBuilding();
+  }
+}
+
+/**
+ * Two halves, and they are not equally independent.
+ *
+ * The phone half is the real app ABI: JSON requests through create().request, the host's own
+ * conversation, `presentation()`'s serializer and the action routing for `interact`, `choose` and
+ * `nudge`, just as Flutter's ConversationBand sends them. The web half is the Conversation that
+ * DialogueBox drives, with its keyboard operations.
+ *
+ * `open` starts both from the same `build`, so it does not prove the phone would reach that
+ * conversation by itself: the meeting that builds a keeper's context on the host is only taken by
+ * the real-path cases in contextual-dialogue.test.ts. What `same` does prove is that the phone shows
+ * and commits exactly what the web controller does, page by page and row by row, with the gold,
+ * pack and quests underneath it. Not a substitute for the touch/layout playtest in #584.
  */
 export class DialoguePair {
   readonly web = new Conversation();
