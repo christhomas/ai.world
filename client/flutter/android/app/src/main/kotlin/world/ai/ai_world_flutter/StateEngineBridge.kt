@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal object NativeStateEngine {
     init { System.loadLibrary("ai_world_state_engine") }
     external fun create(source: ByteArray, entry: ByteArray, session: ByteArray, options: ByteArray?,
-        memoryMb: Int, budgetMs: Int, replyMb: Int): Long
-    external fun request(handle: Long, request: ByteArray): ByteArray
+        memoryMb: Int, budgetMs: Int, replyMb: Int, requestMb: Int): Long
+    external fun request(handle: Long, request: ByteArray, jobs: ByteArray?): ByteArray
     external fun dispose(handle: Long)
 }
 
@@ -23,7 +23,7 @@ internal object NativeStateEngine {
  * What each bundled engine is allowed. The hero alone is small and quick; the whole game holds a
  * world, takes a while to open one, and answers with the ground it streams.
  */
-private data class EngineLimits(val memoryMb: Int, val budgetMs: Int, val replyMb: Int)
+private data class EngineLimits(val memoryMb: Int, val budgetMs: Int, val replyMb: Int, val requestMb: Int = 1)
 private val LIMITS = mapOf(
     "AiWorldStateEngine" to EngineLimits(64, 5_000, 1),
     // a runaway guard, not a performance target: QuickJS interprets the whole game without a JIT and
@@ -31,7 +31,8 @@ private val LIMITS = mapOf(
     // measured instead of an interrupt (#559, #563). Five minutes was not enough for the installed
     // journey's new game on 2026-10-17, opened on the same emulator straight after the capture and
     // short of memory; ten is as long as the native side allows a request
-    "AiWorldGameEngine" to EngineLimits(768, 600_000, 32),
+    "AiWorldGameEngine" to EngineLimits(768, 600_000, 32, 16),
+    "AiWorldJobEngine" to EngineLimits(384, 600_000, 32, 16),
 )
 
 /** One engine and the one thread it lives and dies on, which is never another engine's (#559). */
@@ -77,7 +78,7 @@ class StateEngineBridge(messenger: BinaryMessenger, context: Context) : MethodCh
                     val options = (call.argument<String>("options") ?: call.argument<String>("savedHero"))?.toByteArray(Charsets.UTF_8)
                     require(options == null || options.size <= 8 * 1024 * 1024) { "Engine options too large" }
                     val handle = NativeStateEngine.create(source, entry.toByteArray(Charsets.UTF_8),
-                        session.toByteArray(Charsets.UTF_8), options, limits.memoryMb, limits.budgetMs, limits.replyMb)
+                        session.toByteArray(Charsets.UTF_8), options, limits.memoryMb, limits.budgetMs, limits.replyMb, limits.requestMb)
                     check(handle != 0L) { "Cannot initialize bundled state engine; see native log" }
                     val token = UUID.randomUUID().toString()
                     engines[token] = Owned(handle, own)
@@ -92,7 +93,9 @@ class StateEngineBridge(messenger: BinaryMessenger, context: Context) : MethodCh
                     val request = requireNotNull(call.argument<String>("request")).toByteArray(Charsets.UTF_8)
                     // a parcel of ground from a world engine can be large; the contract bounds it at 8 MiB
                     require(request.size <= 16 * 1024 * 1024) { "Request too large" }
-                    val bytes = NativeStateEngine.request(owned.handle, request)
+                    val jobs = call.argument<String>("jobs")?.toByteArray(Charsets.UTF_8)
+                    require(jobs == null || jobs.size <= 16 * 1024 * 1024) { "Job replies too large" }
+                    val bytes = NativeStateEngine.request(owned.handle, request, jobs)
                     check(bytes.isNotEmpty()) { "Native engine returned no response" }
                     val text = String(bytes, 1, bytes.size - 1, Charsets.UTF_8)
                     check(bytes[0] == 0.toByte()) { text }

@@ -16,9 +16,11 @@ one bundle. The steady game is fast enough on both. Opening a world, and the fir
 not yet fast enough on Android, and the V8 row says why: even with a JIT, opening takes 14 seconds
 and the first ground 20 more. The cost is the work itself, the private world, the country and the
 ground, which the page runs in Web Workers beside the game and an engine runs in the game's own
-thread. So the slow start is not QuickJS's fault, and changing engines would not cure it. The fix is to move the game's ground and country jobs into a second
-engine context on their own thread, as the page moves them into Web Workers; the engine is already
-built for that split (`chunksInProcess`, `countryInProcess`). Changing engines is held in reserve, and
+thread. So the slow start is not QuickJS's fault, and changing engines would not cure it. The installed
+game now moves its background ground and country jobs into a second engine context on its own thread,
+as the page moves them into Web Workers (`chunk-jobs.md`, `country-jobs.md`). The private world's
+simulation and the synchronous country fallback remain in the game context. These measurements
+predate that split; opening and step timings after it still need to be measured. Changing engines is held in reserve, and
 would only follow if that split does not bring opening under ten seconds on a mid-range phone.
 
 ## What was measured
@@ -70,6 +72,7 @@ iPhone app's JavaScriptCore may not. The iOS numbers are the best case until #58
 ## Still open
 
 - **Memory.** Read from the next hosted run's `installed_game.memoryKb`, and recorded here.
-- **The job split.** Ground and country jobs in a second context on their own thread, so that opening
-  and the first ground stop blocking the game's own steps.
+- **The job split's measurements.** Ground meshing and background country growth now have a second
+  native context. Hosted measurements must establish how much opening and first-ground latency
+  remain in private-world simulation and initial country construction.
 - **A physical phone.** #582 measures each platform on one.

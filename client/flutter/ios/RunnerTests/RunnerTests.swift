@@ -7,6 +7,30 @@ import simd
 
 class RunnerTests: XCTestCase {
 
+  func testStateEngineDeliversJobRepliesBeforeTheNextRequestAndReportsDeliveryErrors() throws {
+    let source = """
+    var AiWorldGameEngine = { create: function() {
+      var replies = [];
+      return {
+        deliverJobs: function(text) {
+          if (text === 'broken') throw new Error('bad job reply');
+          replies.push.apply(replies, JSON.parse(text));
+        },
+        request: function() { var sent = replies; replies = []; return JSON.stringify(sent); }
+      };
+    }};
+    """
+    let game = try StateEngineVM(source: source, session: "game", entry: "AiWorldGameEngine")
+    XCTAssertEqual(try game.request("step", jobs: "[1,2]"), "[1,2]")
+    XCTAssertEqual(try game.request("step"), "[]")
+    XCTAssertThrowsError(try game.request("step", jobs: "broken")) { error in
+      XCTAssertTrue(String(describing: error).contains("bad job reply"))
+    }
+    XCTAssertEqual(try game.request("step", jobs: "[3]"), "[3]")
+    XCTAssertEqual(StateEngineVM.requestLimits["AiWorldJobEngine"], 16 * 1024 * 1024)
+    XCTAssertEqual(StateEngineVM.replyLimits["AiWorldJobEngine"], 32 * 1024 * 1024)
+  }
+
   func testStateEngineContextsIsolateGlobalsAndRecoverAfterAnException() throws {
     let source = """
     var AiWorldStateEngine = { create: function(session) {

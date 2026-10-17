@@ -19,6 +19,7 @@ import { PROVINCE, provinceCorner } from '../world/provinces';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
 import { ROSTER_ORDERS, type RosterOrder } from '../game/roster-view';
+import { EngineJobs } from './engine-jobs';
 
 /** What an app asks for when it opens a game: which world, which save, and how big the picture is. */
 export interface EngineOptions {
@@ -39,6 +40,8 @@ export interface EngineOptions {
    * the country and what it was authored with, which the save is joined to as the page joins it.
    */
   invite?: WorldInvite;
+  /** Installed apps own a second native context; bare hosts may still run jobs on the step clock. */
+  jobs?: 'host';
 }
 
 function optionsFrom(text: string): EngineOptions {
@@ -47,6 +50,7 @@ function optionsFrom(text: string): EngineOptions {
   if (!value || typeof value !== 'object' || !Number.isSafeInteger(value.seed) || (value.kind !== 'road' && value.kind !== 'endless')
     || typeof value.slot !== 'string' || !value.slot || !value.viewport || !positive(value.viewport.width) || !positive(value.viewport.height)
     || (value.name !== undefined && typeof value.name !== 'string')
+    || (value.jobs !== undefined && value.jobs !== 'host')
     || (value.server !== undefined && (typeof value.server !== 'string' || !/^wss?:\/\/[^\s]+$/.test(value.server)))
     || (value.world !== undefined && (typeof value.world !== 'object' || value.world === null
       || Object.values(value.world).some((text) => typeof text !== 'string')))
@@ -132,7 +136,7 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  *   everything it was sent;
  * - `dispose` saves nothing more and lets everything go.
  */
-export function create(session: string, optionsText: string): { request(text: string): string } {
+export function create(session: string, optionsText: string): { request(text: string): string; deliverJobs(text: string): void } {
   const options = optionsFrom(optionsText);
   const gate = new RequestGate(session);
   const store = savedInMemory();
@@ -140,6 +144,7 @@ export function create(session: string, optionsText: string): { request(text: st
   const portraits = new Portraits();
   const parcels = new ParcelLink();
   const world = new KeptWorld(options.world);
+  const jobs = options.jobs === 'host' ? new EngineJobs(() => engineClock.now()) : null;
   let host: HeadlessGame | null = null;
   let game: GameHandle | null = null;
   let revision = 0;
@@ -274,11 +279,13 @@ export function create(session: string, optionsText: string): { request(text: st
   };
 
   return {
+    deliverJobs(text) { jobs?.deliver(text); },
     request(text) {
       const request = gate.accept(JSON.parse(text));
       const base = { version: HOST_CONTRACT_VERSION, session, sequence: request.sequence, requestId: request.id };
       const reply = (payload: HostResult['payload'], type: 'result' | 'error' = 'result') =>
-        JSON.stringify({ ...base, type, payload } satisfies HostResult, plainArrays);
+        JSON.stringify({ ...({ ...base, type, payload } satisfies HostResult),
+          ...(jobs ? { jobs: jobs.take() } : {}) }, plainArrays);
       try {
         if (request.type === 'start') {
           // a private world, or the shared one the options named: the app says which it expects
@@ -287,6 +294,7 @@ export function create(session: string, optionsText: string): { request(text: st
           }
           host = headlessGame({ viewport: options.viewport, clock: engineClock, now: () => engineClock.now(),
             random: Math.random, name: options.name, vault: world,
+            jobs: jobs ?? undefined,
             server: options.server ? { url: options.server, link: parcels.connect } : undefined });
           game = composeGame({ store, slotKey: options.slot, seed: options.seed, world: options.kind,
             saved: options.invite ? joinNamed(options.invite, options.saved) : options.saved,
@@ -295,6 +303,7 @@ export function create(session: string, optionsText: string): { request(text: st
         }
         if (request.type === 'dispose') {
           game?.dispose();
+          jobs?.dispose();
           game = null;
           host = null;
           return reply({});
