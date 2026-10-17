@@ -33,14 +33,10 @@ void main() {
     final within = walked.inside, inward = walked.inward;
 
     // and back out the way he came, once the door has rested
-    String? out;
-    for (var tries = 0; tries < 80 && out == null; tries++) {
-      await lean(tester, -inward, const Duration(milliseconds: 500));
-      final area = '${hudOf(session)['area']}';
-      if (area != within) out = area;
-    }
-    expect(out, isNotNull, reason: 'leaning back never took him out of $within');
-    passed('walked out', {'place': out});
+    String area() => '${hudOf(session)['area']}';
+    final out = await leanUntil(tester, -inward, () => area() != within, const Duration(minutes: 3));
+    expect(out, isTrue, reason: 'leaning back never took him out of $within');
+    passed('walked out', {'place': area()});
     await shot('door-outside-again');
   }, timeout: const Timeout(Duration(minutes: 40)));
 }
