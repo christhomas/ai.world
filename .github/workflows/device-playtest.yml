@@ -6,10 +6,16 @@ name: Device playtest
 # every step. It is its own workflow so the renderer capture in "Hosted mobile evidence" and the
 # playtest do not share one job's time.
 #
-# Run on demand (`chore device-playtest [parts…]`, or the Actions tab) and every night on main. It is
-# not on pull requests yet: the release tool waits on every check of the release pull request, and
-# this joins them once every part passes on both phones.
+# Run on demand (`chore device-playtest [parts…]`, or the Actions tab), every night on main, and on a
+# pull request that changes the suite itself, which is how a new part proves itself before it lands.
+# Not on other pull requests yet: the release tool waits on every check of the release pull request,
+# and this joins them once every part passes on both phones.
 on:
+  pull_request:
+    paths:
+      - 'client/flutter/integration_test/**'
+      - 'tools/mobile/journey.py'
+      - '.github/workflows/device-playtest.yml'
   workflow_dispatch:
     inputs:
       parts:
