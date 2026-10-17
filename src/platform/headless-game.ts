@@ -19,6 +19,8 @@ import type { Speaker } from '../ui/dialogue';
 import { stowWorn, takeFromPack } from '../game/pack';
 import { journalView, type JournalView } from '../game/journal-view';
 import { OtherBodies, type NamePlate } from '../render/other-bodies';
+import { inReachOnScreen, type InReach } from '../render/in-reach';
+import { GAMEPLAY } from '../core/config';
 import { BEDS, SOUNDS, STRIDE, waterBed, wildlifeCall, windLevel, type SoundVoice } from '../game/sound-recipes';
 import { CAVE, MOODS, beat, noteAt, pluck } from '../game/music-score';
 import { Biome } from '../world/biomes';
@@ -139,6 +141,11 @@ export interface HeadlessGame {
    * count changes each time, so the app opens the page again for a book bought or looked at again.
    */
   kin(): { unrolled: number; view: KinView } | null;
+  /**
+   * Whoever the action key would talk to, where they stand on the screen (#571): an installed app
+   * rings their feet and hangs their name over them, which is how the design says who is in reach.
+   */
+  subject(): InReach | null;
   /**
    * A line typed into the console, as the page's console takes it (#576): `?` asks the game, `/` is
    * a gesture or a command, and anything else is said out loud to whoever is in the world.
@@ -630,6 +637,14 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       return companyView(travelling()());
     },
     kin: () => lineage,
+    subject() {
+      const said = shown.action;
+      if (!handles || !said?.startsWith('Talk to ')) return null;
+      const { entities, player, iso } = handles;
+      // the person the interaction chain would talk to: the nearest in talking range, by that name
+      const who = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
+      return who && `Talk to ${who.name}` === said ? inReachOnScreen(iso, who, viewport.width, viewport.height) : null;
+    },
     journal() {
       if (!reading) throw new Error('the game has not been assembled on this host yet');
       return journalView(reading());

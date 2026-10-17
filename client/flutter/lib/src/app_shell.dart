@@ -27,6 +27,7 @@ import 'shell/ledger_stick.dart';
 import 'shell/ledger_tokens.dart';
 import 'shell/more_controls.dart';
 import 'shell/name_plates.dart';
+import 'shell/subject_ring.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
 
@@ -252,6 +253,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           _world!,
           // other players' names, where the game says they hang over their heads
           NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
+          // and whoever is in reach, ringed where they stand
+          SubjectRing(subject: models['subject'] as Map?, tokens: t),
           LedgerStick(input: _input, health: hp / maxHp, breath: wind,
             onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
           // the rest of the keyboard, under the clock, as the page's touch controls keep it; the

@@ -183,6 +183,8 @@ export function create(session: string, optionsText: string): { request(text: st
       pack: json(packView(state)),
       hero: json({ x: player.x, z: player.z, yaw: player.entity.yaw, hp: state.hp, maxHp: state.maxHpTotal, gold: state.inventory.gold,
         day: state.day, time: state.time, season: SEASON_NAMES[seasonOf(state.day)], playerId: state.playerId }),
+      // whoever is in reach, where they stand on the screen, for the app to ring (#571)
+      subject: json(host!.subject()),
     };
     if (scene) models.scene = scene;
     // the sounds the game made since the last reply, as the voices each is made of (#578)
