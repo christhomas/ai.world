@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ai_world_flutter/src/game_session.dart';
+import 'package:ai_world_flutter/src/invite.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -124,4 +125,31 @@ void main() {
     expect(sent.take(2), [['attack'], <Object?>[]]);
     await session.close();
   });
+
+  test('a named world is asked about each time it is opened, and the engine joins what its server said (#565)', () async {
+    final root = await Directory.systemTemp.createTemp('game-session-named');
+    addTearDown(() => root.delete(recursive: true));
+    final engine = StandInEngine();
+    messenger.setMockMethodCallHandler(channel, engine.answer);
+    const slot = GameSlot(slot: 'named-1-worlds.example', seed: 907, kind: 'road', name: 'Rowan',
+      server: 'wss://worlds.example/play', world: 'Hollowmere');
+    final asked = <Uri>[];
+    var described = <String, dynamic>{'name': 'Hollowmere', 'seed': 907, 'kind': 'road',
+      'layers': [{'id': 'highland:a', 'kind': 'highland', 'x': 1, 'z': 2, 'seed': 3, 'parent': null, 'version': 1}]};
+    Future<Map<String, dynamic>> describe(Uri endpoint) async { asked.add(endpoint); return described; }
+
+    final session = await GameSession.open(slot, root: root, viewport: const Size(844, 390), channel: channel,
+      assets: GameAssets(), describe: describe);
+    expect(asked.single.toString(), 'https://worlds.example/world?name=Hollowmere');
+    expect(engine.opened.single['invite'], described, reason: 'what the server said, for the engine to join as the page does');
+    expect(engine.opened.single['server'], 'wss://worlds.example/play');
+    await session.close();
+
+    // grown again since, under the same name: not the world this hero was kept in
+    described = {...described, 'seed': 908};
+    await expectLater(GameSession.open(slot, root: root, viewport: const Size(844, 390), channel: channel,
+      assets: GameAssets(), describe: describe), throwsA(isA<WorldRefused>()));
+    expect(engine.opened, hasLength(1), reason: 'refused before an engine was opened');
+  });
 }
+

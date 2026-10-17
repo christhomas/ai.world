@@ -6,7 +6,9 @@ import { composeGame, type GameHandle } from '../game/compose';
 import { PLAYER_ACTION_KEYS, type PlayerAction } from '../game/player-actions';
 import { headlessGame, type HeadlessGame } from '../platform/headless-game';
 import { savedInMemory } from '../save/memory';
-import type { SessionSave } from '../save/store';
+import { kindOf, type SessionSave } from '../save/store';
+import { joinNamed } from '../save/named-world';
+import type { WorldInvite } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';
 import { ScenePackets, plainArrays } from './scene-packet';
@@ -32,6 +34,11 @@ export interface EngineOptions {
   world?: Record<string, string>;
   /** A shared world's address to join instead of the private one (#565); `start` then says `remote`. */
   server?: string;
+  /**
+   * A named shared world, as its server described it when the app asked for it by name: the seed,
+   * the country and what it was authored with, which the save is joined to as the page joins it.
+   */
+  invite?: WorldInvite;
 }
 
 function optionsFrom(text: string): EngineOptions {
@@ -42,7 +49,11 @@ function optionsFrom(text: string): EngineOptions {
     || (value.name !== undefined && typeof value.name !== 'string')
     || (value.server !== undefined && (typeof value.server !== 'string' || !/^wss?:\/\/[^\s]+$/.test(value.server)))
     || (value.world !== undefined && (typeof value.world !== 'object' || value.world === null
-      || Object.values(value.world).some((text) => typeof text !== 'string')))) {
+      || Object.values(value.world).some((text) => typeof text !== 'string')))
+    // a named world is somebody's server's, and is the seed and the country that server said it is
+    || (value.invite !== undefined && (typeof value.invite !== 'object' || value.invite === null || value.server === undefined
+      || typeof value.invite.name !== 'string' || !value.invite.name || value.invite.seed !== value.seed
+      || kindOf(value.invite.kind) !== value.kind))) {
     throw new Error('Invalid game options');
   }
   return value as EngineOptions;
@@ -275,8 +286,9 @@ export function create(session: string, optionsText: string): { request(text: st
           host = headlessGame({ viewport: options.viewport, clock: engineClock, now: () => engineClock.now(),
             random: Math.random, name: options.name, vault: world,
             server: options.server ? { url: options.server, link: parcels.connect } : undefined });
-          game = composeGame({ store, slotKey: options.slot, saved: options.saved, seed: options.seed,
-            worldName: undefined, world: options.kind }, host.platform);
+          game = composeGame({ store, slotKey: options.slot, seed: options.seed, world: options.kind,
+            saved: options.invite ? joinNamed(options.invite, options.saved) : options.saved,
+            worldName: options.invite?.name }, host.platform);
           return reply({ full: true, state: presentation(null) });
         }
         if (request.type === 'dispose') {

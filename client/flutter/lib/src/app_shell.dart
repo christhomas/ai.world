@@ -36,11 +36,13 @@ enum _Phase { title, opening, playing }
 /// behind the Ledger shell. This is the one owner of the world view, the session, the controls and
 /// the routes; screens register pages with it rather than building their own.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets});
+  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets, this.describeWorld});
   /// App-private storage; the native host's when not given.
   final Directory? storageRoot;
   final MethodChannel? engineChannel;
   final AssetBundle? assets;
+  /// How a named world's server is asked what it is; over https when not given.
+  final DescribeWorld? describeWorld;
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -134,10 +136,19 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   /// A shared world, from the invite link somebody sent (#565, #572).
   bool _joining = false;
   final _invite = TextEditingController();
-  void _join() {
+  Future<void> _join() async {
     final (invite, why) = WorldInvite.parse(_invite.text);
     if (invite == null) { setState(() => _trouble = why); return; }
-    _open(invite.slot());
+    final named = invite.name;
+    if (invite.seed != null || named == null) { _open(invite.slot()); return; }
+    // a named world is the server's to say: which seed, which country, before anything is grown
+    setState(() => _trouble = 'Asking that server about “$named”…');
+    try {
+      final described = await (widget.describeWorld ?? describeWorld)(WorldInvite.endpoint(invite.server, named));
+      if (mounted) _open(invite.described(described).slot());
+    } catch (error) {
+      if (mounted) setState(() => _trouble = error is WorldRefused ? error.message : 'Could not reach that world: $error');
+    }
   }
 
   void _open(GameSlot slot) {
@@ -168,7 +179,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     try {
       final size = MediaQuery.sizeOf(context);
       final session = await GameSession.open(slot, root: _root!, viewport: size,
-        pipeline: FlutterFramePipeline(renderer), channel: widget.engineChannel, assets: widget.assets);
+        pipeline: FlutterFramePipeline(renderer), channel: widget.engineChannel, assets: widget.assets,
+        describe: widget.describeWorld);
       if (!mounted) { await session.close(); return; }
       session.trouble.addListener(() => setState(() => _trouble = session.trouble.value));
       // a conversation parks the world's controls, as the game does on the page
@@ -321,9 +333,9 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         SizedBox(width: 240, child: TextField(key: const ValueKey('invite'), controller: _invite, autocorrect: false,
           keyboardType: TextInputType.url, style: t.numbers(12, t.ink, spacing: 0),
           decoration: InputDecoration(hintText: 'Paste the invite link', hintStyle: t.numbers(12, t.dim, spacing: 0)),
-          onSubmitted: (_) => _join())),
+          onSubmitted: (_) => unawaited(_join()))),
         const SizedBox(height: 8),
-        _titleButton('Join', t, _join, const ValueKey('join-world')),
+        _titleButton('Join', t, () => unawaited(_join()), const ValueKey('join-world')),
       ],
       if (_trouble != null) Padding(padding: const EdgeInsets.only(top: 16),
         child: Text(_trouble!, style: t.numbers(11, t.dim, spacing: 0))),
