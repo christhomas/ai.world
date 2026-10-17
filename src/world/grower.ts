@@ -1,5 +1,5 @@
 import { rebuildPatch } from './endless';
-import { boundsOf, type Patchwork } from './patchwork';
+import { PATCH, boundsOf, type Patchwork } from './patchwork';
 import type { CountryReply, CountryRequest } from './countrymessages';
 import type { TerrainSampler } from './terrain';
 
@@ -37,6 +37,8 @@ export class Grower {
   private readonly asked: string[] = [];
   private active: string | null = null;
   private retired = false;
+  /** The square the hero is in, once somebody has said: the nearest square asked for is grown first. */
+  private hero: { px: number; pz: number } | null = null;
   /** How many squares this session has grown elsewhere, and how long the last one took. */
   grown = 0;
   lastTook = 0;
@@ -67,6 +69,30 @@ export class Grower {
     if (this.retired || this.patches.wanted(patch) || this.asked.includes(patch)) return;
     this.asked.push(patch);
     this.pump();
+  }
+
+  /**
+   * Where the hero is now.
+   *
+   * The queue was grown in the order it was asked, which is not the order anybody needs it in. A
+   * hero who is moved — a jump, a shrine, a probe hopping between paddocks — leaves behind every
+   * square that was wanted where he was, and each of them is seconds of a worker. Grown first come
+   * first served, those stood between him and the square under his own feet: on 2026-10-17 a jump
+   * home from four hundred tiles away waited more than three minutes for ground. So the nearest
+   * square asked for goes first, and a square more than one beyond the ring round him is no longer
+   * asked for at all; if he goes back, it is asked for again.
+   */
+  near(x: number, z: number): void {
+    this.hero = { px: Math.floor(x / PATCH), pz: Math.floor(z / PATCH) };
+    for (let at = this.asked.length - 1; at >= 0; at--) if (this.away(this.asked[at]) > 2) this.asked.splice(at, 1);
+    this.pump();
+  }
+
+  /** How many squares a square is from the hero's, in the larger of the two directions. */
+  private away(patch: string): number {
+    if (!this.hero) return 0;
+    const [px, pz] = patch.split(',').map(Number);
+    return Math.max(Math.abs(px - this.hero.px), Math.abs(pz - this.hero.pz));
   }
 
   /** A square has come back. Rebuild it here — about fifteen milliseconds — and put it with the rest. */
@@ -106,8 +132,13 @@ export class Grower {
    */
   private pump(): void {
     if (this.retired || this.active !== null) return;
-    const next = this.asked.find((patch) => !this.patches.wanted(patch));
-    if (!next) return;
+    // the nearest to the hero of the squares still wanted, and of those the first asked for
+    let next: string | null = null;
+    for (const patch of this.asked) {
+      if (this.patches.wanted(patch)) continue;
+      if (next === null || this.away(patch) < this.away(next)) next = patch;
+    }
+    if (next === null) return;
     this.active = next;
     // the layers come off the patchwork rather than from anything this was told: one list per
     // country, held where the country is, so a worker cannot be sent a different one

@@ -173,6 +173,28 @@ export class ChunkManager implements TileWorld, ChunkSource {
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
   /** Capture waits for the worker queue itself, not a debug label from the previous frame. */
+  /**
+   * What is happening to the chunks round a point, for a probe that has to say why ground is not
+   * there: whether each is drawn, being meshed, filed with the world's bytes, queued, and whether
+   * the square it is painted from is to hand; with the workers free and the focus.
+   */
+  workAt(x: number, z: number): {
+    focus: [number, number]; workers: number; ready: number; idle: number; paused: boolean; queued: number;
+    chunks: Array<{ key: string; loaded: boolean; pending: boolean; sent: boolean; queued: boolean; patch: string | null; held: boolean | null }>;
+  } {
+    const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
+    const queued = new Set(this.queue.map((job) => chunkKey(job.cx, job.cz)));
+    const chunks = [];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const key = chunkKey(cx + dx, cz + dz);
+      const patch = this.patches ? patchOfChunk(cx + dx, cz + dz) : null;
+      chunks.push({ key, loaded: this.loaded.has(key), pending: this.pending.has(key), sent: this.sent.has(key),
+        queued: queued.has(key), patch, held: patch === null ? null : this.patches!.has(patch) });
+    }
+    return { focus: [this.focusCx, this.focusCz], workers: this.workers.length, ready: this.ready, idle: this.idle.length,
+      paused: this.paused, queued: this.queue.length, chunks };
+  }
+
   captureProgress(): { loaded: number; pending: number; desired: number; grown: number } {
     return {
       loaded: this.loaded.size,

@@ -115,7 +115,7 @@ export interface Framing {
    */
   endless: PatchCountry | null;
   /** Who is growing the country elsewhere, so a patch boundary is not five seconds of nothing. */
-  grower: { want: (patch: string) => void } | null;
+  grower: { want: (patch: string) => void; near: (x: number, z: number) => void } | null;
   mountains: Mountains;
   daycycle: DayCycle;
   weather: Weather;
@@ -480,7 +480,11 @@ export function createFrame(ctx: Framing) {
      * frame it matters is the one where he has just crossed into a new square and the ring of
      * neighbours moved with him.
      */
-    if (endless && grower) for (const patch of endless.wants(player.entity.x, player.entity.z)) grower.want(patch);
+    if (endless && grower) {
+      // where he is first, so the square under him is grown before any he has left behind
+      grower.near(player.entity.x, player.entity.z);
+      for (const patch of endless.wants(player.entity.x, player.entity.z)) grower.want(patch);
+    }
     if (endless && endless.moveTo(player.entity.x, player.entity.z)) {
       const now = endless.sampler;
       mountains.show(now.ranges);

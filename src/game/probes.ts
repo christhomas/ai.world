@@ -338,6 +338,7 @@ export function installProbes(ctx: Probed): void {
   });
   (debug as { __grownDetails?: () => unknown }).__grownDetails = () => chunks.grownDetails();
   (debug as { __shotChunks?: () => unknown }).__shotChunks = () => chunks.captureProgress();
+  (debug as { __chunkWork?: (x: number, z: number) => unknown }).__chunkWork = (x, z) => chunks.workAt(x, z);
   Object.defineProperty(debug, '__wire', {
     configurable: true,
     get: () => ({ sent: Object.fromEntries(online.tally.sent), heard: Object.fromEntries(online.tally.heard) }),
