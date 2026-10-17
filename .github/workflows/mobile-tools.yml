@@ -1,0 +1,23 @@
+name: Mobile tools
+
+# The Python that runs the phones' hosted proofs and the device playtest (tools/mobile/): its own
+# tests, which nothing ran until now, so the runner's rules about what passes and what fails are
+# checked before a two-hour emulator run finds out the hard way.
+on:
+  pull_request:
+    paths:
+      - 'tools/mobile/**'
+      - '.github/workflows/mobile-tools.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: python3 -m pip install Pillow==11.3.0
+      - run: python3 -m unittest discover -s tools/mobile -p 'test_*.py' -v

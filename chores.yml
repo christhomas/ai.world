@@ -364,6 +364,15 @@ tasks:
       OUT: '{{.REPORT}}'
     cmds: [node tools/playtest.cjs]
 
+  # The same game on the phones, played by touch (#681): this machine has no simulator or emulator to
+  # run, so it asks GitHub to run the Device playtest workflow on this branch's pushed commit, waits,
+  # and downloads both phones' reports into docs/reports/device-playtest/<run>/.
+  # `chore device-playtest -- combat doors` for only those parts.
+  device-playtest:
+    desc: Play the installed game by touch on a hosted Android emulator and iPhone simulator, and fetch the reports
+    cmds:
+      - 'python3 tools/mobile/device_playtest.py {{.CLI_ARGS}}'
+
   # The same game with nothing drawn: `?record-only` hands every frame to the recording pipeline
   # instead of WebGL, and this walks it through a village, a shop, a dungeon and the sea asking each
   # for a frame that JSON carries whole and the Flutter feed can pack. It is the proof #249 wants
