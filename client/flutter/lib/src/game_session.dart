@@ -60,6 +60,9 @@ class GameSession {
   final Map<String, String> _records;
   final FlutterFramePipeline? _pipeline;
   final ParcelSocketFactory _sockets;
+  /// What draws the frames, for the installed-app journeys to read back and refuse a blank one.
+  @visibleForTesting
+  FlutterFramePipeline? get pipeline => _pipeline;
   /// The shared world's socket the game asked for, and which of its connections that was.
   ParcelSocket? _socket;
   int _connection = 0;

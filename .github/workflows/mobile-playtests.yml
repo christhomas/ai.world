@@ -16,12 +16,6 @@ on:
       - 'tools/shots.cjs'
       - 'server/flutter-packet.ts'
   workflow_dispatch:
-    inputs:
-      gate:
-        description: Renderer smoke or installed gameplay (currently blocked prerequisites)
-        type: choice
-        options: [renderer, gameplay]
-        default: renderer
 
 permissions:
   contents: read
@@ -126,7 +120,8 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           emulator-options: -no-window -accel on -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 tools/mobile/hosted.py capture android
+          # the renderer's frames, then the installed journey by touch (#584) on the same emulator; both run, and either failing fails the step
+          script: python3 tools/mobile/hosted.py capture android; capture=$?; python3 tools/mobile/journey.py android; journey=$?; [ $capture -eq 0 ] && [ $journey -eq 0 ]
       - name: Compare each native frame with the web picture of it
         run: python3 tools/mobile/hosted.py compare android
         env:
@@ -139,6 +134,13 @@ jobs:
         with:
           name: mobile-android-evidence
           path: ${{ runner.temp }}/mobile-evidence
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-android-journey
+          path: ${{ runner.temp }}/mobile-journey
           if-no-files-found: error
           retention-days: 30
 
@@ -193,12 +195,14 @@ jobs:
           path: ${{ runner.temp }}/mobile-evidence
           if-no-files-found: error
           retention-days: 30
-
-  installed-gameplay:
-    if: github.event_name == 'workflow_dispatch' && inputs.gate == 'gameplay'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Refuse to count renderer replay as installed gameplay
+      - name: The installed journey by touch on its own simulator (#584)
+        if: always()
         run: |
-          echo '::error::Installed gameplay is pending #558 #563 #564 #571 #572. No executable offline session/touch/save journey exists. Renderer smoke cannot satisfy #584.'
-          exit 78
+          "$RUNNER_TEMP/mobile-python/bin/python" tools/mobile/journey.py ios
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-ios-journey
+          path: ${{ runner.temp }}/mobile-journey
+          if-no-files-found: error
+          retention-days: 30

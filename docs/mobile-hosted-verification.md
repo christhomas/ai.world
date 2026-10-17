@@ -91,43 +91,9 @@ scenario names and observed assertions. Reports are generated even after setup/b
 failure. A missing report fails artifact upload. `prepare` and `capture` expose failure stages.
 Future #569 fixtures should consume this same output directory and manifest/report interface.
 
-## Pending acceptance
+## Installed journeys
 
-`gate=gameplay` deliberately fails its separately named installed-gameplay job. A successful
-renderer job cannot satisfy #584. The current app follows an external scene feed and has no
-independent offline player session, visible touch controls or persisted gameplay journey.
-Required production dependencies are #558 (shared contract), #563 (bundled session), #564
-(offline host), #571 (touch controls) and #572 (entry flows). Once available, add actual installed
-production-app scenarios: fresh install, new offline world, world/HUD, touch movement and
-collision, open/close book, save, process termination, relaunch and persisted continuation.
-These must run without a scene feed, direct action injection or fake session; touches must cause
-observable state changes. Network disabling, journey recordings, save-loss/control-disconnect
-regressions, production artifact checksum, zero-scenario rejection and required merge/release
-gate integration remain acceptance work. Do not change this pending gate to success until those
-scenarios actually execute on both platforms.
-
-**Thresholds** (`tools/mobile/parity-thresholds.json`) are set from hosted run 38972400131, which
-measured every scene on both backends against the web picture of the same frame:
-
-| scene | mean, Android / iOS | worst region, Android / iOS |
-|---|---|---|
-| town | 1.55 / 1.65 | 4.3 / 4.2 |
-| night | 0.89 / 0.92 | 2.8 / 2.8 |
-| autumn | 1.52 / 1.60 | 6.0 / 5.9 |
-| interior | 0.05 / 0.08 | 0.1 / 0.1 |
-| dungeon | 0.06 / 0.08 | 0.2 / 0.2 |
-| sea | 0.15 / 0.16 | 0.2 / 0.2 |
-| night-sea | 0.09 / 0.10 | 0.8 / 0.8 |
-
-Two reads of one frame differed by nothing on either backend, so the noise floor is a hair (0.5
-mean, 1 in a region). No scene was found to be shifted. Each scene allows about two and a half
-times the worst of the two backends, and at least 0.5 mean and 1.5 in a region.
-
-**Lights.** The game lights a scene with one ambient light, one hemisphere and, out of doors, one
-sun, plus point lights. The dungeon floor carries eleven point lights with their decay. Each bridge
-sums every light of a kind up to its caps: 16 point lights and 4 directional lights. Ambient and
-hemisphere light are summed without a cap. One shadow map is cast, by the first directional light
-that casts shadows; three.js casts one per light, and the game only ever has one sun.
-`scene_frame_test.dart` pins that every light in a frame reaches the bridges. On Android,
-`tools/mobile/glsl.py` puts the GLSL through `glslangValidator`; Metal's shaders are compiled for
-real by `RunnerTests` on the simulator.
+The renderer replay above proves the native renderers; it does not prove the game. That is the
+installed journey (#584; `docs/mobile/installed-journey.md`), which runs in the same jobs after the
+frames: `tools/mobile/journey.py` drives the production app by touch on the emulator and on its own
+simulator, and keeps its report as `mobile-<platform>-journey`.

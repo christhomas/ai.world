@@ -39,6 +39,11 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
+/// The game being played, for the installed-app journeys (`integration_test/`, #584) to watch. They
+/// read it and never act through it: every move they make is a touch on the screen.
+@visibleForTesting
+final playing = ValueNotifier<GameSession?>(null);
+
 class _AppShellState extends State<AppShell> with TickerProviderStateMixin, WidgetsBindingObserver {
   _Phase _phase = _Phase.title;
   Directory? _root;
@@ -130,6 +135,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       session.presentation.addListener(() => _ledger.talking(session.presentation.value['busy'] == 'talking'));
       session.run(this);
       setState(() { _session = session; _phase = _Phase.playing; });
+      playing.value = session;
     } catch (error) {
       if (mounted) setState(() { _phase = _Phase.title; _world = null; _trouble = 'Could not open the game: $error'; });
     }
@@ -139,6 +145,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     final session = _session;
     _ledger.close();
     setState(() { _session = null; _phase = _Phase.title; _world = null; });
+    playing.value = null;
     try {
       await session?.close();
     } catch (error) {
