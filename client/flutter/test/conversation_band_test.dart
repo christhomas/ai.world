@@ -66,6 +66,9 @@ void main() {
     final words = tester.getRect(find.text('What will it be?'));
     expect(tester.getSize(find.byType(ListView)).height, lessThanOrEqualTo(44 * 4.5));
     await tester.scrollUntilVisible(find.byKey(const ValueKey('choice-16')), 44, scrollable: find.byType(Scrollable).last);
+    // all the way into view, as a thumb would bring it, rather than half of it under the edge
+    await tester.ensureVisible(find.byKey(const ValueKey('choice-16')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('choice-16')));
     expect(calls, ['choose 16']);
     expect(tester.getRect(find.text('What will it be?')), words);
