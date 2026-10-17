@@ -284,7 +284,14 @@ class GameSession {
     }
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {
-      unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry)));
+      unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry))
+        .catchError((Object error, StackTrace stack) {
+          // a frame still being drawn when the game is left has nowhere to go: the world view it
+          // was drawing into goes with the game, and its renderer refuses it. That is the leaving,
+          // not a fault; a frame that fails while the game is being played still is one
+          if (_closing || _closed) return;
+          Error.throwWithStackTrace(error, stack);
+        }));
     }
     presentation.value = state;
     return state;
