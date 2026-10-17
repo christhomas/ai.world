@@ -121,22 +121,26 @@ Future<int> openWorld(WidgetTester tester) async {
 }
 
 /// A line typed into the game's own console by touch: the more controls, the console, the line, SAY.
-/// Returns what the console said back.
-Future<String> typed(WidgetTester tester, String line) async {
-  // the chat keeps its last forty lines, so a new one is a change to them rather than more of them
-  String lines() => jsonEncode(hudOf(session)['chat'] ?? const []);
+/// Returns the lines the console said back, in order.
+Future<List<String>> typed(WidgetTester tester, String line) async {
+  // the chat keeps its last forty lines, so what is new is what follows the old tail, not a longer list
+  List<String> lines() => [for (final said in hudOf(session)['chat'] as List? ?? const []) jsonEncode(said)];
   final before = lines();
   await press(tester, const ValueKey('more'));
   await press(tester, const ValueKey('more-console'));
   await until(tester, () => find.byKey(const ValueKey('console-line')).evaluate().isNotEmpty, 'the console');
   await tester.enterText(find.byKey(const ValueKey('console-line')), line);
   await press(tester, const ValueKey('console-say'));
-  final answer = await until(tester, () {
-    final chat = hudOf(session)['chat'] as List? ?? const [];
-    return lines() != before && chat.isNotEmpty ? '${(chat.last as Map)['text']}' : null;
-  }, 'the console answering $line', within: const Duration(minutes: 1));
+  await until(tester, () => lines().join() != before.join(), 'the console answering $line', within: const Duration(minutes: 1));
+  // everything a command says is said in one go, so a moment more has all of it
+  await Future<void>.delayed(const Duration(milliseconds: 500));
+  final after = lines();
+  var kept = math.min(before.length, after.length);
+  while (kept > 0 && before.sublist(before.length - kept).join('\n') != after.sublist(0, kept).join('\n')) {
+    kept--;
+  }
   await press(tester, const ValueKey('console-done'));
-  return answer;
+  return [for (final said in after.sublist(kept)) '${(jsonDecode(said) as Map)['text']}'];
 }
 
 /// Where a thumb lands to steer: in the walk field, clear of the tab gutter and the action corner.
