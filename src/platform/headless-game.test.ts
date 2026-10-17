@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { composeGame } from '../game/compose';
+import { booksKeptIn } from '../game/enquiry';
 import { savedInMemory } from '../save/memory';
 import { systemClock } from '../../server/host-clock';
 import type { FrameDescription } from '../core/scene';
@@ -105,6 +106,29 @@ describe('the game on a host with no page', () => {
       for (let step = 0; step < 20; step++) { game.frame(frame); await breathe(); }
       expect(game.recording.frames, `start ${start}: nothing draws after the game is disposed`).toBe(drawn);
       expect(online.connected, `start ${start}: the world is let go`).toBe(false);
+    }
+  });
+
+  it('lays a clerk\'s descent out for the app when it is paid for, as the page draws it (#575)', () => {
+    const game = headlessGame({
+      viewport: { width: 1200, height: 540 }, clock: systemClock, now: () => performance.now(), random: Math.random,
+    });
+    const opened = composeGame({ store: savedInMemory(), slotKey: 'lineage', saved: undefined, seed: 3,
+      worldName: undefined, world: 'road' }, game.platform);
+    try {
+      const { register, structures, state } = game.handles();
+      const village = structures.villages[0].name;
+      // the town hall's book, unrolled as the counter does once the fee is paid (`enquiry.ts`)
+      const descent = booksKeptIn('townhall', village, register, state.day).find((book) => book.unroll);
+      expect(descent, 'a town hall keeps the descent').toBeDefined();
+      expect(game.kin(), 'nothing on the table before it is bought').toBeNull();
+      descent!.unroll!();
+      expect(game.kin()?.view.village, 'paid for and shown nothing, as a production page did').toBe(village);
+      expect(game.kin()?.view.headline).toContain(village);
+      descent!.unroll!();
+      expect(game.kin()?.unrolled, 'looked at again, it is laid out again').toBe(2);
+    } finally {
+      opened.dispose();
     }
   });
 });

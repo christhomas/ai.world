@@ -4,7 +4,6 @@ import { QUALITY, createSceneRig } from '../render/scene';
 import { RecordingPipeline } from '../render/recording';
 import { mountainAt } from '../world/ranges';
 import { Sound } from '../game/audio';
-import { whereLineageIsDrawn } from '../game/enquiry';
 import { joinAWorld } from '../game/joining';
 import { installProbes } from '../game/probes';
 import { isOn } from '../ui/switches';
@@ -145,9 +144,6 @@ export function browserPlatform(url: URL): GamePlatform {
     visibility: observeVisibility,
     toTitle: () => returnToTitle(() => {}, () => {}),
     // stripped from production builds, where `import.meta.env.DEV` is false
-    probes: import.meta.env.DEV ? (handles) => {
-      whereLineageIsDrawn(handles.drawLineage);
-      installProbes(handles);
-    } : undefined,
+    probes: import.meta.env.DEV ? (handles) => { installProbes(handles); } : undefined,
   };
 }

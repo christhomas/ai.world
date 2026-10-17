@@ -44,6 +44,7 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   and the country, each as runs, total and longest, at most every two seconds;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - everybody else in this world (`company`), nearest first, read by `src/game/company-view.ts` as the page's travellers list is, only while the app has asked to read it and only when it has changed;
+- a village's descent (`kin`), once each time a town hall's clerk is paid to unroll it, laid out by `src/game/kin-view.ts` as the page's lineage panel draws it, with `unrolled` counting the times so a book looked at again opens again;
 - the map (`map`): its markers, title and whether it is fogged, and the chunks walked and provinces
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture

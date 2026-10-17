@@ -12,6 +12,7 @@ import 'screens/company_page.dart';
 import 'screens/console_page.dart';
 import 'screens/conversation_band.dart';
 import 'screens/journal_page.dart';
+import 'screens/kin_page.dart';
 import 'screens/map_page.dart';
 import 'screens/options_page.dart';
 import 'screens/roster_page.dart';
@@ -172,6 +173,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       session.trouble.addListener(() => setState(() => _trouble = session.trouble.value));
       // a conversation parks the world's controls, as the game does on the page
       session.presentation.addListener(() => _ledger.talking(session.presentation.value['busy'] == 'talking'));
+      // a clerk unrolling a descent lays it over the conversation, as the page's lineage panel does
+      session.kin.addListener(() { if (session.kin.value != null && _ledger.route != 'kin') _ledger.open('kin'); });
       session.run(this);
       // the volume the player chose last time, which a new game would otherwise not know
       if (_volume case final volume?) unawaited(session.act('volume', args: {'level': volume}));
@@ -271,6 +274,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           // and from the more controls
           'company': (context, tokens) => CompanyPage(company: session.company, tokens: tokens,
             read: (what) => unawaited(session.act('read', target: what))),
+          // and from a town hall's clerk, once he is paid for the descent
+          'kin': (context, tokens) => KinPage(kin: session.kin.value ?? const {}, tokens: tokens),
         },
         place: '${hud['area'] ?? ''}',
         readings: '${hp.round()}/${maxHp.round()} · ${(wind * 100).round()} BREATH',

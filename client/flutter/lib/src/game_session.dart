@@ -95,6 +95,8 @@ class GameSession {
   Map<String, dynamic> roster = const {};
   /// Everybody else in this world as the game last sent them, while the travellers page asks.
   Map<String, dynamic> company = const {};
+  /// The descent a clerk last unrolled (#575): sent once each time he does, which opens its page.
+  final ValueNotifier<Map<String, dynamic>?> kin = ValueNotifier(null);
   /// The floor the hero is on while he is underground; null above ground.
   Map<String, dynamic>? floor;
   /// The map's ground and roads, sent once (`src/world/map-ground.ts`).
@@ -228,6 +230,8 @@ class GameSession {
     if (register is Map) roster = Map<String, dynamic>.from(register);
     final others = models['company'];
     if (others is Map) company = Map<String, dynamic>.from(others);
+    final descent = models['kin'];
+    if (descent is Map) kin.value = Map<String, dynamic>.from(descent);
     if (models.containsKey('floor')) {
       final below = models['floor'];
       floor = below is Map ? Map<String, dynamic>.from(below) : null;

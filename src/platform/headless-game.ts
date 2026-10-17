@@ -24,6 +24,7 @@ import { CAVE, MOODS, beat, noteAt, pluck } from '../game/music-score';
 import { Biome } from '../world/biomes';
 import { doingNear, rosterView, type RosterOrder, type RosterView } from '../game/roster-view';
 import { companyView, type CompanyView } from '../game/company-view';
+import { kinView, type KinView } from '../game/kin-view';
 import { mapPicture, type MapGround, type MapPicture } from '../world/map-ground';
 import { FloorSight, floorPicture, type FloorPicture } from '../dungeon/floor-picture';
 import { mountainAt } from '../world/ranges';
@@ -127,6 +128,11 @@ export interface HeadlessGame {
   roster(by: RosterOrder): RosterView;
   /** Everybody else in this world, nearest first, as the page's travellers list reads them (#576). */
   company(): CompanyView;
+  /**
+   * The descent a clerk last laid out on the table, and how many times one has been (#575): the
+   * count changes each time, so the app opens the page again for a book bought or looked at again.
+   */
+  kin(): { unrolled: number; view: KinView } | null;
   /**
    * A line typed into the console, as the page's console takes it (#576): `?` asks the game, `/` is
    * a gesture or a command, and anything else is said out loud to whoever is in the world.
@@ -408,6 +414,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
   let registered: Parameters<ScreenParts['roster']['reads']> | null = null;
   let charting: ScreenParts['mapInput'] | null = null;
   let travelling: ScreenParts['companyInput'] | null = null;
+  let lineage: { unrolled: number; view: KinView } | null = null;
   let mapped: { graph: RoadGraph; ground: MapGround; picture?: MapPicture } | null = null;
   let below: { sight: FloorSight; opened: (i: number) => boolean; unlocked: boolean } | null = null;
 
@@ -467,7 +474,8 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
         },
       };
     },
-    kin: () => ({ show() {} }),
+    // the descent a clerk unrolls, kept for the app's kin page, which opens when it changes
+    kin: () => ({ show: (tree, placed) => { lineage = { unrolled: (lineage?.unrolled ?? 0) + 1, view: kinView(tree, placed) }; } }),
     // what the roster reads, kept for when the app's roster page asks
     roster: () => ({ reads: (...read) => { registered = read; } }),
     dialogue: () => dialogue,
@@ -594,6 +602,7 @@ export function headlessGame(options: HeadlessOptions): HeadlessGame {
       if (!travelling) throw new Error('the game has not been assembled on this host yet');
       return companyView(travelling()());
     },
+    kin: () => lineage,
     journal() {
       if (!reading) throw new Error('the game has not been assembled on this host yet');
       return journalView(reading());

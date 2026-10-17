@@ -147,6 +147,7 @@ export function create(session: string, optionsText: string): { request(text: st
   let readingCompany = false;
   let lastRoster = '';
   let lastCompany = '';
+  let lastKin = 0;
   let mapDrawn = false;
   let lastFloor: string | null = null;
   let lastMap = '';
@@ -191,6 +192,9 @@ export function create(session: string, optionsText: string): { request(text: st
       const company = JSON.stringify(host!.company());
       if (company !== lastCompany) { lastCompany = company; models.company = JSON.parse(company) as Json; }
     }
+    // a descent the clerk has just unrolled, once each time he does: the app opens its kin page on it
+    const kin = host!.kin();
+    if (kin && kin.unrolled !== lastKin) { lastKin = kin.unrolled; models.kin = json({ unrolled: kin.unrolled, ...kin.view }); }
     // where the time went on this phone's engine (#559): each kind of job's runs, total and longest,
     // at most every two seconds and only when it has changed
     if (renderTimeMs - lastPerfAt >= 2000) {
