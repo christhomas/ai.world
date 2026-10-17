@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'game_file_ports.dart';
 import 'game_session.dart';
+import 'game_transfer.dart';
 import 'invite.dart';
 import 'kept_games.dart';
 import 'screens/company_page.dart';
@@ -30,6 +33,7 @@ import 'shell/name_plates.dart';
 import 'shell/subject_ring.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
+import 'storage/game_file.dart';
 
 enum _Phase { title, opening, playing }
 
@@ -37,13 +41,17 @@ enum _Phase { title, opening, playing }
 /// behind the Ledger shell. This is the one owner of the world view, the session, the controls and
 /// the routes; screens register pages with it rather than building their own.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets, this.describeWorld});
+  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets, this.describeWorld, this.shareFile, this.pickFile});
   /// App-private storage; the native host's when not given.
   final Directory? storageRoot;
   final MethodChannel? engineChannel;
   final AssetBundle? assets;
   /// How a named world's server is asked what it is; over https when not given.
   final DescribeWorld? describeWorld;
+  /// Where an exported game goes, and where an imported one comes from: the OS share sheet and
+  /// document picker when not given (#577).
+  final ShareGameFile? shareFile;
+  final PickGameFile? pickFile;
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -163,6 +171,67 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     });
     unawaited(_games?.played(slot).catchError((Object _) {}));
   }
+
+  /// What became of the last export, shown under the saved games.
+  String? _exported;
+  /// A file is being written or read: a second tap waits for the first.
+  bool _porting = false;
+
+  /// Export a kept game to one file and hand it to the share sheet, to save or send (#577).
+  Future<void> _export(GameSlot slot, Rect? origin) async {
+    final root = _root;
+    if (root == null || _porting) return;
+    _porting = true;
+    try {
+      final at = DateTime.now();
+      final file = await exportGame(slot, root: root, at: at);
+      final status = await (widget.shareFile ?? shareGameFile)(gameFileName(slot, at), utf8.encode(file.encode()), origin);
+      if (mounted) {
+        setState(() => _exported = switch (status) {
+          ShareResultStatus.success => "Exported ${slot.name}'s game to a file.",
+          ShareResultStatus.dismissed => "${slot.name}'s game was not exported.",
+          ShareResultStatus.unavailable => 'The share sheet closed. This phone cannot say whether the game was exported.',
+        });
+      }
+    } on GameFileRefused catch (refused) {
+      if (mounted) setState(() => _exported = refused.message);
+    } on StorageFailure catch (error) {
+      if (mounted) setState(() => _exported = 'Could not export that game. ${_storageReason(error)}');
+    } catch (_) {
+      if (mounted) setState(() => _exported = 'Could not export that game. Please try again.');
+    } finally {
+      _porting = false;
+    }
+  }
+
+  /// Import a game from a file the player picks, into a slot of its own: never over a kept game.
+  Future<void> _import() async {
+    final games = _games;
+    if (games == null || _porting) return;
+    _porting = true;
+    try {
+      final bytes = await (widget.pickFile ?? pickGameFile)();
+      if (bytes == null) {
+        if (mounted) setState(() => _trouble = null);
+        return;
+      }
+      final slot = await importGame(bytes, games);
+      final where = slot.server == null ? '' : ' on ${Uri.parse(slot.server!).host}';
+      if (mounted) setState(() => _trouble = "Imported ${slot.name}'s game$where. Continue plays it.");
+    } on GameFileRefused catch (refused) {
+      if (mounted) setState(() => _trouble = refused.message);
+    } on StorageFailure catch (error) {
+      if (mounted) setState(() => _trouble = 'Could not import that game. ${_storageReason(error)}');
+    } catch (_) {
+      if (mounted) setState(() => _trouble = 'Could not import that game. Please try again.');
+    } finally {
+      _porting = false;
+    }
+  }
+
+  String _storageReason(StorageFailure error) => error.code == StorageError.quota
+    ? 'There is not enough space on this phone.'
+    : 'The game storage could not be read or written. Please try again.';
 
   /// Delete a kept game; the saved games list has asked the player first.
   Future<void> _delete(GameSlot slot) async {
@@ -322,18 +391,21 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     final games = _games?.games ?? const [];
     if (_browsing) {
       return ColoredBox(color: t.surface, child: SafeArea(child: Center(child: SavedGames(games: games, tokens: t,
-        play: _open, delete: (slot) => unawaited(_delete(slot)), back: () => setState(() => _browsing = false)))));
+        play: _open, delete: (slot) => unawaited(_delete(slot)), back: () => setState(() => _browsing = false),
+        exportGame: (slot, origin) => unawaited(_export(slot, origin)), note: _exported))));
     }
     return _titleButtons(t, games.firstOrNull?.slot, games.length);
   }
 
-  Widget _titleButtons(LedgerTokens t, GameSlot? last, int kept) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
-    mainAxisSize: MainAxisSize.min, children: [
+  // scrolled when a phone held sideways is too short for every button and the invite box at once
+  Widget _titleButtons(LedgerTokens t, GameSlot? last, int kept) => ColoredBox(color: t.surface, child: SafeArea(child: Center(
+    child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
       Text('AI WORLD', style: t.face(27, t.ink, weight: FontWeight.w500, spacing: 10)),
       const SizedBox(height: 24),
       if (last != null) _titleButton('Continue', t, () => _open(last), const ValueKey('continue')),
       _titleButton('New game', t, _root == null ? null : _newGame, const ValueKey('new-game')),
-      if (kept > 0) _titleButton('Saved games', t, () => setState(() => _browsing = true), const ValueKey('saved-games')),
+      if (kept > 0) _titleButton('Saved games', t, () => setState(() { _browsing = true; _exported = null; }), const ValueKey('saved-games')),
+      _titleButton('Import a game', t, _games == null ? null : () => unawaited(_import()), const ValueKey('import-game')),
       if (!_joining) _titleButton('Join a world', t, _root == null ? null : () => setState(() => _joining = true), const ValueKey('join'))
       else ...[
         SizedBox(width: 240, child: TextField(key: const ValueKey('invite'), controller: _invite, autocorrect: false,
@@ -344,8 +416,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         _titleButton('Join', t, () => unawaited(_join()), const ValueKey('join-world')),
       ],
       if (_trouble != null) Padding(padding: const EdgeInsets.only(top: 16),
-        child: Text(_trouble!, style: t.numbers(11, t.dim, spacing: 0))),
-    ]))));
+        child: Text(_trouble!, key: const ValueKey('title-note'), style: t.numbers(11, t.dim, spacing: 0))),
+    ])))));
 
   Widget _titleButton(String label, LedgerTokens t, VoidCallback? onPressed, Key key) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
