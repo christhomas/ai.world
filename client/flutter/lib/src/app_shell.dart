@@ -21,6 +21,7 @@ import 'shell/ledger_action_card.dart';
 import 'shell/ledger_shell.dart';
 import 'shell/ledger_stick.dart';
 import 'shell/ledger_tokens.dart';
+import 'shell/more_controls.dart';
 import 'shell/name_plates.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
@@ -211,11 +212,10 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
           NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
           LedgerStick(input: _input, health: hp / maxHp, breath: wind,
             onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
-          // the console, under the clock: typing parks the world, as it does on the page
-          Positioned(top: 40, right: 8, child: Semantics(button: true, label: 'Console', excludeSemantics: true,
-            onTap: _ledger.typing, child: SizedBox(width: 44, height: 44, child: Material(color: t.surface,
-              child: InkWell(key: const ValueKey('console'), onTap: _ledger.typing,
-                child: Center(child: Text('›_', style: t.numbers(13, t.ink, spacing: 0)))))))),
+          // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
+          // console is among them, and typing parks the world as it does on the page
+          Positioned(top: 40, right: 8, child: MoreControls(tokens: t,
+            onAction: (action) => action == 'console' ? _ledger.typing() : unawaited(session.act(action)))),
         ]),
         controller: _ledger,
         typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
