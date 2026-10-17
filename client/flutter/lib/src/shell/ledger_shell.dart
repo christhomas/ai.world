@@ -265,7 +265,8 @@ class LedgerThemePicker extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(theme.name[0].toUpperCase() + theme.name.substring(1), style: page.face(17, page.pageInk).copyWith(fontFamily: 'EBGaramond')),
-            Text(ledgerThemeNotes[theme]!, maxLines: 2, overflow: TextOverflow.ellipsis, style: page.numbers(9.5, page.pageDim, spacing: 0)),
+            // the note gives way to the row's height on a narrow page rather than overflowing it
+            Flexible(child: Text(ledgerThemeNotes[theme]!, maxLines: 2, overflow: TextOverflow.ellipsis, style: page.numbers(9.5, page.pageDim, spacing: 0))),
           ])),
           const SizedBox(width: 8),
           // ink on the page and the page on ink, so both read on every theme's page
