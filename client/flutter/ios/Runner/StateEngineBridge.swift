@@ -3,10 +3,21 @@ import Foundation
 import Flutter
 import JavaScriptCore
 
-/// Each owned context lives and dies on this serial queue. JSValue never crosses to Flutter.
+/// One engine and the serial queue it lives and dies on, which is never another engine's (#559).
+private final class OwnedEngine {
+  let vm: StateEngineVM
+  let queue: DispatchQueue
+  init(vm: StateEngineVM, queue: DispatchQueue) { self.vm = vm; self.queue = queue }
+}
+
+/// Each owned context lives and dies on a serial queue of its own, so a game's world can run in a
+/// second engine beside the game, as the page runs it in a Web Worker, without either waiting on the
+/// other. JSValue never crosses to Flutter.
 final class StateEngineBridge: NSObject, FlutterPlugin {
-  private let queue = DispatchQueue(label: "world.ai.state-engine")
-  private var engines: [String: StateEngineVM] = [:]
+  /// For what belongs to no engine: the storage root.
+  private let control = DispatchQueue(label: "world.ai.state-engine")
+  private let lock = NSLock()
+  private var engines: [String: OwnedEngine] = [:]
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let instance = StateEngineBridge()
@@ -14,53 +25,17 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
       name: "world.ai/state-engine", binaryMessenger: registrar.messenger()))
   }
 
-  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    let arguments = call.arguments as? [String: Any] ?? [:]
+  private func owned(_ token: String?) -> OwnedEngine? {
+    guard let token else { return nil }
+    lock.lock(); defer { lock.unlock() }
+    return engines[token]
+  }
+
+  /// Do this on that queue, and answer Flutter on the main one.
+  private func on(_ queue: DispatchQueue, _ result: @escaping FlutterResult, _ work: @escaping () throws -> Any?) {
     queue.async {
       do {
-        let response: Any?
-        switch call.method {
-        case "storageRoot":
-          let root = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-            appropriateFor: nil, create: true).appendingPathComponent("ai-world", isDirectory: true)
-          try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-          response = root.path
-        case "create":
-          guard self.engines.count < 4,
-                let session = arguments["session"] as? String, !session.isEmpty, session.count <= 256,
-                let bytes = arguments["source"] as? FlutterStandardTypedData,
-                bytes.data.count <= 32 * 1024 * 1024,
-                let digest = arguments["bundleSha256"] as? String,
-                SHA256.hash(data: bytes.data).map({ String(format: "%02x", $0) }).joined() == digest,
-                let source = String(data: bytes.data, encoding: .utf8) else {
-            throw StateEngineFailure("Invalid or corrupted bundled engine")
-          }
-          // the hero engine is handed a saved hero; the game engine its options
-          let entry = arguments["entry"] as? String ?? "AiWorldStateEngine"
-          guard let replyLimit = StateEngineVM.replyLimits[entry] else { throw StateEngineFailure("Unknown bundled engine \(entry)") }
-          let options = arguments["options"] as? String ?? arguments["savedHero"] as? String
-          guard options == nil || options!.utf8.count <= 8 * 1024 * 1024 else {
-            throw StateEngineFailure("Engine options too large")
-          }
-          let engine = try StateEngineVM(source: source, session: session, savedHero: options, entry: entry, replyLimit: replyLimit)
-          let token = UUID().uuidString
-          self.engines[token] = engine
-          response = token
-        case "request":
-          guard let token = arguments["token"] as? String, let engine = self.engines[token],
-                let request = arguments["request"] as? String, request.utf8.count <= 1024 * 1024 else {
-            throw StateEngineFailure("Engine retired or request too large")
-          }
-          response = try engine.request(request)
-        case "dispose":
-          guard let token = arguments["token"] as? String else { throw StateEngineFailure("Missing engine token") }
-          // Removing on the owner queue releases the context and all its functions on that queue.
-          self.engines.removeValue(forKey: token)
-          response = nil
-        default:
-          DispatchQueue.main.async { result(FlutterMethodNotImplemented) }
-          return
-        }
+        let response = try work()
         DispatchQueue.main.async { result(response) }
       } catch {
         let message = String(describing: error)
@@ -69,8 +44,73 @@ final class StateEngineBridge: NSObject, FlutterPlugin {
     }
   }
 
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let arguments = call.arguments as? [String: Any] ?? [:]
+    switch call.method {
+    case "storageRoot":
+      on(control, result) {
+        let root = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+          appropriateFor: nil, create: true).appendingPathComponent("ai-world", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root.path
+      }
+    case "create":
+      // a new engine is made on its own new queue, and stays there
+      let own = DispatchQueue(label: "world.ai.state-engine.\(UUID().uuidString)")
+      on(own, result) {
+        self.lock.lock(); let count = self.engines.count; self.lock.unlock()
+        guard count < 4,
+              let session = arguments["session"] as? String, !session.isEmpty, session.count <= 256,
+              let bytes = arguments["source"] as? FlutterStandardTypedData,
+              bytes.data.count <= 32 * 1024 * 1024,
+              let digest = arguments["bundleSha256"] as? String,
+              SHA256.hash(data: bytes.data).map({ String(format: "%02x", $0) }).joined() == digest,
+              let source = String(data: bytes.data, encoding: .utf8) else {
+          throw StateEngineFailure("Invalid or corrupted bundled engine")
+        }
+        // the hero engine is handed a saved hero; the game engine its options
+        let entry = arguments["entry"] as? String ?? "AiWorldStateEngine"
+        guard let replyLimit = StateEngineVM.replyLimits[entry] else { throw StateEngineFailure("Unknown bundled engine \(entry)") }
+        let options = arguments["options"] as? String ?? arguments["savedHero"] as? String
+        guard options == nil || options!.utf8.count <= 8 * 1024 * 1024 else {
+          throw StateEngineFailure("Engine options too large")
+        }
+        let engine = try StateEngineVM(source: source, session: session, savedHero: options, entry: entry, replyLimit: replyLimit)
+        let token = UUID().uuidString
+        self.lock.lock(); self.engines[token] = OwnedEngine(vm: engine, queue: own); self.lock.unlock()
+        return token
+      }
+    case "request":
+      guard let owned = owned(arguments["token"] as? String) else {
+        result(FlutterError(code: "state-engine", message: "Engine retired", details: nil))
+        return
+      }
+      on(owned.queue, result) {
+        // a parcel of ground from a world engine can be large; the contract bounds it at 8 MiB
+        guard let request = arguments["request"] as? String, request.utf8.count <= 16 * 1024 * 1024 else {
+          throw StateEngineFailure("Request too large")
+        }
+        return try owned.vm.request(request)
+      }
+    case "dispose":
+      let token = arguments["token"] as? String
+      lock.lock()
+      let gone = token.flatMap { engines.removeValue(forKey: $0) }
+      lock.unlock()
+      guard let gone else { result(nil); return }
+      // released on its own queue, where it lived
+      on(gone.queue, result) { _ = gone; return nil }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
   func detachFromEngine(for registrar: FlutterPluginRegistrar) {
-    queue.async { self.engines.removeAll() }
+    lock.lock()
+    let all = engines.values
+    engines.removeAll()
+    lock.unlock()
+    for owned in all { owned.queue.async { _ = owned } }
   }
 }
 
