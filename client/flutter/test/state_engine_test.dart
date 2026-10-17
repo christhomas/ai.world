@@ -12,11 +12,40 @@ class EngineAssets extends CachingAssetBundle {
   }
 }
 
+class GameEngineAssets extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async {
+    final scope = key.contains('jobs') ? 'jobs' : 'game';
+    final text = key.endsWith('manifest.json') ? jsonEncode({'contractVersion': 1,
+      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': scope}) : 'bundled $scope';
+    return ByteData.sublistView(Uint8List.fromList(utf8.encode(text)));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('world.ai/state-engine-test');
   final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+  test('an installed game owns a second native engine for its ground and country jobs', () async {
+    final opened = <String>[];
+    final disposed = <String>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      final args = call.arguments as Map;
+      if (call.method == 'create') {
+        opened.add(args['entry'] as String);
+        return args['entry'];
+      }
+      if (call.method == 'dispose') disposed.add(args['token'] as String);
+      return null;
+    });
+    final game = await StateEngine.openGame('game:split', {'seed': 3}, assets: GameEngineAssets(), channel: channel);
+    expect(opened, containsAll(['AiWorldGameEngine', 'AiWorldJobEngine']));
+    await game.dispose();
+    expect(disposed, containsAll(['AiWorldGameEngine', 'AiWorldJobEngine']));
+    expect(disposed, hasLength(2));
+  });
 
   test('bundled source and digest cross once; requests ordered and disposal owned once', () async {
     final calls = <String>[];
