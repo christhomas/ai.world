@@ -183,6 +183,10 @@ module.exports = async function playCart(page, say, go, face) {
   await page.evaluate(() => window.__ride(false));
   await page.keyboard.press('Enter');
   await choose('Shoulder the carcass');
+  // the choice is acted on as the conversation closes, a frame or so after the tap, so the carcass
+  // is looked for until it is there rather than at the instant of the tap
+  await page.waitForFunction(() => window.__state.shouldering?.kind === 'goat', null, { timeout: 3000, polling: 100 })
+    .catch(() => {});
   const lifted = await snapshot();
   say('the hunter unloads for the on-foot climb', lifted.shoulder?.kind === 'goat' && lifted.horse.cargo === null,
     JSON.stringify(lifted.shoulder));
