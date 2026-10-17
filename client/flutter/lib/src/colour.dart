@@ -8,9 +8,9 @@
 ///   intensity as `WebGLLights` does. That decoding happens here, in Dart, and nowhere else: the
 ///   bridges receive linear numbers for everything they light.
 /// - vertex and instance colours are linear already, as three.js takes a colour attribute.
-/// - the bridges light in linear, with three.js's Lambert BRDF (albedo / pi), then encode the
-///   result to sRGB in the fragment shader before writing it to a plain 8-bit target. Blending then
-///   happens on encoded values, as it does in the web's default framebuffer.
+/// - the bridges apply three.js's Lambert BRDF (albedo / pi) to each direct light and to the
+///   indirect light, then add emissive. The fragment shader encodes that sum to sRGB before writing
+///   to a plain 8-bit target. Blending happens on encoded values, as in the web's default framebuffer.
 /// - every light in a frame is sent, and each bridge adds up the lights of each kind as
 ///   `WebGLLights` does (#512): ambient and hemisphere on the host, exactly, and up to four
 ///   directional lights in the shader, of which the first that casts a shadow takes it.
@@ -23,6 +23,8 @@ library;
 import 'dart:math' as math;
 
 /// One authored sRGB hex as linear RGB, the way three.js's `Color.setHex` decodes it.
+/// `src/render/graphmount.ts` uses setHex for material colours and hex lights, and setRGB for
+/// computed lights. Keep three.js's CPU SRGBToLinear constants and operation order here too.
 List<double> linearFromHex(int hex) => <double>[
   _decode((hex >> 16) & 255),
   _decode((hex >> 8) & 255),
@@ -31,9 +33,9 @@ List<double> linearFromHex(int hex) => <double>[
 
 double _decode(int bits) {
   final value = bits / 255;
-  return value <= 0.04045
-      ? value / 12.92
-      : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
+  return value < 0.04045
+      ? value * 0.0773993808
+      : math.pow(value * 0.9478672986 + 0.0521327014, 2.4).toDouble();
 }
 
 /// A frame light as the native bridges take it.
