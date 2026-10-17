@@ -13,7 +13,10 @@ what was measured and what was decided.
 
 Both run the whole game unchanged: the world, its jobs, the frame graph, saves and continuing, all from
 one bundle. The steady game is fast enough on both. Opening a world, and the first ground arriving, are
-not yet fast enough on Android. The fix is to move the game's ground and country jobs into a second
+not yet fast enough on Android, and the V8 row says why: even with a JIT, opening takes 14 seconds
+and the first ground 20 more. The cost is the work itself, the private world, the country and the
+ground, which the page runs in Web Workers beside the game and an engine runs in the game's own
+thread. So the slow start is not QuickJS's fault, and changing engines would not cure it. The fix is to move the game's ground and country jobs into a second
 engine context on their own thread, as the page moves them into Web Workers; the engine is already
 built for that split (`chunksInProcess`, `countryInProcess`). Changing engines is held in reserve, and
 would only follow if that split does not bring opening under ten seconds on a mid-range phone.
@@ -26,7 +29,8 @@ meshes had arrived, walking the hero with the stick, reading the drawn frame bac
 | | V8 (Node, CI runner) | JavaScriptCore (iPhone 16 simulator) | QuickJS `-O2` (Android 35 x86_64 emulator) |
 |---|---|---|---|
 | bundle evaluated | 140 ms | — | — |
-| opening a world (`start`) | measured by `game-proof.json` `startMs` | 6.8 s | 39.6 s |
+| opening a world (`start`) | 14.4 s | 6.8 s | 39.6 s |
+| first 40 meshes of ground | 20.1 s | — | — |
 | step, median | 5.9 ms | 22.8 ms | 28.0 ms |
 | step, 95th percentile | 347 ms | 289 ms | 738 ms |
 | slowest step (the first ground) | — | 5.2 s | 46.6 s |
@@ -34,7 +38,8 @@ meshes had arrived, walking the hero with the stick, reading the drawn frame bac
 | frame read back | — | not blank (stddev 35.5) | not blank (stddev 37.2) |
 
 The runs:
-- V8: `Portable mobile frame` (`tools/mobile-frame-proof/game.mjs`), run 38981712344.
+- V8: `Portable mobile frame` (`tools/mobile-frame-proof/game.mjs`), runs 38981712344 and 38985973009
+  (opening and ground timings).
 - JavaScriptCore: `Hosted mobile evidence` run 38978148828.
 - QuickJS: run 38982424563.
 
