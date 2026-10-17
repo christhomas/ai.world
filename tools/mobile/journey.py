@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""The installed-app journeys on a hosted emulator or simulator (#584; docs/mobile/installed-journey.md).
+"""The installed-app journeys and the device playtest (#584, #681; docs/mobile/installed-journey.md).
 
-    python3 tools/mobile/journey.py android    # on a running emulator, after hosted.py capture
-    python3 tools/mobile/journey.py ios        # makes, boots and removes its own simulator
+    python3 tools/mobile/journey.py android                 # on a running emulator: the journeys
+    python3 tools/mobile/journey.py ios                     # makes, boots and removes its own simulator
+    python3 tools/mobile/journey.py android combat doors    # only the parts named, in that order
+    python3 tools/mobile/journey.py ios all                 # every part
 
-Each journey part is a Flutter integration test in client/flutter/integration_test/ that drives the
-production app by touch. `flutter test` installs the app over itself, so the second part is a new launch
-of the same app with its storage intact: a save that did not survive fails it. While a part runs, every
-`JOURNEY_SHOT <name>` it prints is photographed with the OS's own capture, so the native world is in the
-picture, and every `JOURNEY_STEP {...}` is recorded. The report embeds the pictures, the steps, the
-commands and their output, and says whether a failure was the device (exit 2) or the game (exit 1).
+Each part is a Flutter integration test in client/flutter/integration_test/ that drives the production
+app by touch. `flutter test` installs the app over itself, so a later part is a new launch of the same
+app with its storage intact: a save that did not survive fails `continue`. While a part runs, every
+`JOURNEY_SHOT <name>` it prints is photographed with the OS's own capture, so the native world is in
+the picture, and every `JOURNEY_STEP {...}` is recorded. A part passes only when it said every step it
+owes. The report embeds the pictures, the steps, the commands and their output, and says whether a
+failure was the device (exit 2) or the game (exit 1).
 """
 import base64
 import html
@@ -24,10 +27,35 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / 'client/flutter'
 OUT = Path(os.environ.get('JOURNEY_EVIDENCE', os.environ.get('RUNNER_TEMP', '/tmp'))) / 'mobile-journey'
-PARTS = ['integration_test/journey_test.dart', 'integration_test/continue_test.dart']
 CROSSPLAY = 'integration_test/crossplay_test.dart'
-STEPS = {'new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left', 'continued',
-         'joined a shared world', 'saw the web player', 'stayed for the web player'}
+# Each part: the test that plays it, and the steps it must say it passed. A part that exits cleanly
+# without saying all of them has not shown it did anything, and fails.
+PARTS = {
+    'journey': ('integration_test/journey_test.dart',
+                ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left']),
+    'continue': ('integration_test/continue_test.dart', ['continued']),
+    'crossplay': (CROSSPLAY, ['joined a shared world', 'saw the web player', 'stayed for the web player',
+                              'the web player saw the phone']),
+}
+# what runs when nothing is named: the journeys the hosted evidence has always run
+JOURNEYS = ['journey', 'continue', 'crossplay']
+# a part that can only follow another in the same run: continuing needs the game the journey left
+NEEDS = {'continue': 'journey'}
+STEPS = {step for _, steps in PARTS.values() for step in steps}
+
+
+def chosen(names):
+    """The parts asked for, in order, or why they cannot be run."""
+    if not names:
+        return JOURNEYS, None
+    parts = list(PARTS) if names == ['all'] else names
+    unknown = [name for name in parts if name not in PARTS]
+    if unknown:
+        return None, f'no part called {", ".join(unknown)}; the parts are {", ".join(PARTS)}'
+    for part, before in NEEDS.items():
+        if part in parts and (before not in parts or parts.index(before) > parts.index(part)):
+            return None, f'{part} continues the game {before} leaves, so {before} has to run first'
+    return parts, None
 
 
 class Provisioning(Exception):
@@ -179,28 +207,40 @@ def report(platform, record):
                        f'({len(record["steps"])} steps, {len(record["shots"])} screens). {record.get("why", "")}\n')
 
 
-def main(platform):
+def main(platform, names=()):
     OUT.mkdir(parents=True, exist_ok=True)
     record = {'platform': platform, 'sourceSha': os.environ.get('GITHUB_SHA') or output(['git', 'rev-parse', 'HEAD']),
               'steps': [], 'shots': [], 'parts': [], 'commands': [], 'result': 'not run'}
+    parts, why = chosen(list(names))
+    if parts is None:
+        record['result'] = 'not run'
+        record['why'] = why
+        report(platform, record)
+        print(why, file=sys.stderr)
+        return 2
     made = None
     try:
         serial, made = device(platform)
         subprocess.run(['node', 'tools/mobile/build-engine.mjs'], cwd=ROOT, check=True, timeout=600)
-        for part in PARTS:
-            if run_part(platform, serial, part, record) != 0:
-                device_log(platform, serial)
-                record['result'] = 'failed'
-                record['why'] = f'{part} failed; its log and the last screens say where.'
-                return 1
-        if crossplay(platform, serial, record) != 0:
+        # every part is played and reported, so one that fails does not hide what the others found;
+        # only a part that continues another's game is let go when that one failed
+        failed = []
+        for part in parts:
+            if NEEDS.get(part) in failed:
+                record['parts'].append({'part': part, 'skipped': f'{NEEDS[part]} failed'})
+                failed.append(part)
+                continue
+            test, _ = PARTS[part]
+            code = crossplay(platform, serial, record) if test == CROSSPLAY else run_part(platform, serial, test, record)
+            said = {step['step'] for step in record['steps']}
+            if code != 0 or not set(PARTS[part][1]) <= said:
+                failed.append(part)
+        if failed:
+            device_log(platform, serial)
             record['result'] = 'failed'
-            record['why'] = 'the phone and the web player did not meet; crossplay_test.log and crossplay-web.log say where.'
-            return 1
-        missing = (STEPS | {'the web player saw the phone'}) - {step['step'] for step in record['steps']}
-        if missing:
-            record['result'] = 'failed'
-            record['why'] = f'the journey passed without saying it did: {sorted(missing)}'
+            silent = sorted(step for part in failed for step in PARTS[part][1] if step not in {s['step'] for s in record['steps']})
+            record['why'] = (f'{", ".join(failed)} failed; each part\'s log and the last screens say where.'
+                             + (f' Steps never said: {silent}.' if silent else ''))
             return 1
         record['result'] = 'passed'
         return 0
@@ -220,4 +260,4 @@ def main(platform):
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main(sys.argv[1], sys.argv[2:]))

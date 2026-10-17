@@ -32,28 +32,60 @@ phone, and takes a picture when it does; the journey passes only when each saw t
 ## The runner
 
 ```sh
-python3 tools/mobile/journey.py android    # on a running emulator
-python3 tools/mobile/journey.py ios        # makes, boots and removes its own simulator
+python3 tools/mobile/journey.py android                 # on a running emulator: the three journeys
+python3 tools/mobile/journey.py ios                     # makes, boots and removes its own simulator
+python3 tools/mobile/journey.py android combat doors    # only the parts named, in that order
+python3 tools/mobile/journey.py ios all                 # every part
 ```
 
 It bundles the game (`tools/mobile/build-engine.mjs`), then runs each part with `flutter test <part>
--d <device>`. Flutter installs the app over itself, so part two is a new process on the same app storage,
-and a save that did not survive fails it. Each picture is taken with the OS's own capture (`adb exec-out
-screencap`, `xcrun simctl io screenshot`), so the native world is in it.
+-d <device>`. Flutter installs the app over itself, so a later part is a new process on the same app
+storage, and a save that did not survive fails `continue`. Each picture is taken with the OS's own
+capture (`adb exec-out screencap`, `xcrun simctl io screenshot`), so the native world is in it.
 
-It writes `journey.json` and a self-contained `journey.html` (pictures embedded, steps, commands and
-exit codes) to `$RUNNER_TEMP/mobile-journey`. It exits 0 only when both parts passed **and** said every
-step. A part that passed without saying a step fails, because a journey that skipped something has not
-proved it. It exits 1 when the game failed, and 2 when the device was not ready, which is not a pass either.
+Every part is played and reported, so one that fails does not hide what the others found. The only
+exception is a part that continues another's game: `continue` is let go when `journey` failed, and
+naming it without `journey` before it is refused.
 
-In CI the journeys run in `Hosted mobile evidence` after the renderer frames: on Android on the same
-emulator, on iOS on a simulator of their own. They are kept as `mobile-<platform>-journey`.
+It writes `journey.json` and a self-contained `journey.html` to `$RUNNER_TEMP/mobile-journey`. The
+HTML has the pictures embedded, the steps, the commands and the exit codes. Exit codes:
+- 0 only when every part passed **and** said every step it owes (`PARTS` in the runner). A part that
+  passed without saying a step fails, because it has not shown it did anything.
+- 1 when the game failed.
+- 2 when the device was not ready or a part was named that does not exist. Neither is a pass.
 
-## Adding a journey
+## Where it runs
 
-Add a `*_test.dart` under `integration_test/` that uses `journey.dart`'s helpers (`press`, `until`,
-`passed`, `shot`), add it to `PARTS` in `tools/mobile/journey.py`, and add its steps to the runner's
-expected set. Combat, shops, quests, travel and shared worlds (#584's follow-ups) go here.
+- **`Hosted mobile evidence`** runs the three journeys after the renderer frames. On Android they run on
+  the same emulator; on iOS on a simulator of their own. The reports are kept as
+  `mobile-<platform>-journey`.
+- **`Device playtest`** (`.github/workflows/device-playtest.yml`, #682) is the suite on its own: every
+  part, or the parts asked for, on an emulator and a simulator, each job with two and a half hours.
+  It runs on demand and every night on main. The reports are kept as `device-playtest-<platform>`.
+  It joins the release pull request's checks once every part passes on both phones (#681).
+
+From this machine, which can run neither phone:
+
+```sh
+chore device-playtest                    # every part, on this branch's pushed commit
+chore device-playtest -- combat doors    # only those
+```
+
+That dispatches the workflow, waits for it, and downloads both reports into
+`docs/reports/device-playtest/<run>/`.
+
+The runner's own tests (`tools/mobile/test_*.py`) run in `Mobile tools` on any pull request that
+touches `tools/mobile/`.
+
+## Adding a part
+
+1. Write a `*_test.dart` under `integration_test/`, using `journey.dart`'s helpers (`press`, `until`,
+   `passed`, `shot`).
+2. Drive it by touch. Get it where it needs to be through the game's own console, typed by touch, not
+   through anything only a test can reach.
+3. Add it to `PARTS` in `tools/mobile/journey.py`, with the steps it must say.
+
+The parts the suite is working towards are listed in #681.
 
 ## What it does not cover
 
