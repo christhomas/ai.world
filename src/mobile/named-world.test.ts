@@ -3,7 +3,7 @@ import type { WorldInvite } from '../../server/protocol';
 import { Manifest } from '../world/manifest';
 import { Patchwork } from '../world/patchwork';
 import { joinNamed } from './named-world';
-import type { SessionSave } from './store';
+import type { SessionSave } from '../save/store';
 
 /** A named world joined from an installed app, as the page joins one in `boot.ts` (#565). */
 describe('a named world, joined', () => {

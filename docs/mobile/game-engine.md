@@ -75,7 +75,7 @@ invite links (`?seed=…&server=wss://…`); a release build reaches only `wss` 
 world's invite (`?world=<name>&server=wss://…`) has no seed: the app asks the server what it is
 (`GET /world?name=`, as `boot.ts` does) each time the game is opened, and hands the answer to the
 engine as the `invite` option. The engine joins it to the save with `joinNamed`
-(`src/save/named-world.ts`): the server's seed, country, layers, terrain and sites, and the page's
+(`src/mobile/named-world.ts`): the server's seed, country, layers, terrain and sites, and the page's
 refusal when that ground would bury the hero's own places.
 
 **Faces.** `portraits.ts` paints a face with the page's own `paint`, so a portrait in the app is

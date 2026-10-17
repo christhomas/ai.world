@@ -7,7 +7,7 @@ import { PLAYER_ACTION_KEYS, type PlayerAction } from '../game/player-actions';
 import { headlessGame, type HeadlessGame } from '../platform/headless-game';
 import { savedInMemory } from '../save/memory';
 import { kindOf, type SessionSave } from '../save/store';
-import { joinNamed } from '../save/named-world';
+import { joinNamed } from './named-world';
 import type { WorldInvite } from '../../server/protocol';
 import type { WorldKind } from '../world/countries';
 import type { Vault } from '../../server/vault';

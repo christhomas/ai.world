@@ -56,14 +56,15 @@ class _KinPageState extends State<KinPage> {
       Expanded(child: people.isEmpty
         ? Padding(padding: const EdgeInsets.all(12), child: Text('The clerk has an empty book.', style: t.face(14.5, t.pageDim)))
         : LayoutBuilder(builder: (context, room) => _tree(people, room.biggest))),
-      DecoratedBox(decoration: BoxDecoration(border: Border(top: BorderSide(color: t.rule, width: 1))),
-        child: Padding(key: const ValueKey('kin-record'), padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      // the same height whoever is chosen, so the tree does not move under the finger that chose them
+      SizedBox(height: 96, child: DecoratedBox(decoration: BoxDecoration(border: Border(top: BorderSide(color: t.rule, width: 1))),
+        child: SingleChildScrollView(key: const ValueKey('kin-record'), padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
           child: chosen == null
             ? Text('Tap somebody to see what the clerk has on them.', style: t.numbers(11, t.pageDim, spacing: 0))
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 for (final (i, line) in (chosen['record'] as List? ?? const []).indexed)
                   Text('$line', style: i == 0 ? t.face(14.5, t.pageInk, weight: FontWeight.w500) : t.numbers(11, t.pageDim, spacing: 0)),
-              ]))),
+              ])))),
     ]);
   }
 

@@ -1,7 +1,7 @@
 import type { WorldInvite } from '../../server/protocol';
 import { impactOnReturningSave } from '../world/editimpacts';
 import { joinedManifest } from '../world/manifest';
-import { kindOf, type SessionSave } from './store';
+import { kindOf, type SessionSave } from '../save/store';
 
 /**
  * A named shared world's save, as an installed app joins it (#565): what the server said the world

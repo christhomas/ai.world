@@ -49,10 +49,10 @@ void main() {
         controller.open(page);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: page);
+        if (page == 'pack') expect(tester.getSize(find.byKey(const ValueKey('row-1'))).height, greaterThanOrEqualTo(44));
         controller.close();
         await tester.pumpAndSettle();
       }
-      expect(tester.getSize(find.byKey(const ValueKey('row-1'))).height, greaterThanOrEqualTo(44));
     });
   }
 }
