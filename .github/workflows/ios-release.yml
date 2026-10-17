@@ -1,0 +1,144 @@
+name: iOS release
+
+# The installed iOS game as a tester gets it (#581; docs/mobile/ios-release.md): a device build from
+# the same commit as the game's own release, with its dSYMs and checksums. With the team's certificate,
+# profile and App Store Connect key in the repository's secrets it is a signed IPA, and a published
+# release sends it to TestFlight. Without them it is an unsigned device build, which proves the release
+# compiles for a phone and nothing more, and is named so.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ios-release.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+      - name: Bundle the game the app plays, from this commit
+        run: node tools/mobile/build-engine.mjs
+      - name: Name the build after the game's own release
+        id: version
+        run: |
+          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Put the team's certificate, profile and App Store Connect key in place, if the repository has them
+        id: sign
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.AI_WORLD_IOS_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.AI_WORLD_IOS_CERTIFICATE_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.AI_WORLD_IOS_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.AI_WORLD_ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.AI_WORLD_ASC_KEY_P8_BASE64 }}
+        run: |
+          if [ -z "$CERTIFICATE_P12_BASE64" ] || [ -z "$PROFILE_BASE64" ]; then
+            echo "signed=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::No iOS signing certificate or profile is configured; this is an unsigned device build (#581)."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/ai-world.keychain-db"
+          password="$(uuidgen)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$CERTIFICATE_P12_BASE64" | base64 -d > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security list-keychain -d user -s "$keychain"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          printf '%s' "$PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/profile.mobileprovision"
+          uuid=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract UUID raw -)
+          name=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract Name raw -)
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>43UMKXZ8P4</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>world.ai.aiWorldFlutter</key><string>$name</string></dict>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_KEY_P8_BASE64" ]; then
+            mkdir -p "$HOME/.appstoreconnect/private_keys"
+            printf '%s' "$ASC_KEY_P8_BASE64" | base64 -d > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          fi
+          echo "signed=yes" >> "$GITHUB_OUTPUT"
+      - name: Build for a phone
+        working-directory: client/flutter
+        run: |
+          flutter pub get
+          if [ "${{ steps.sign.outputs.signed }}" = yes ]; then
+            flutter build ipa --release --build-name "${{ steps.version.outputs.name }}" --build-number "${{ steps.version.outputs.number }}" \
+              --export-options-plist "$RUNNER_TEMP/ExportOptions.plist"
+          else
+            flutter build ios --release --no-codesign --build-name "${{ steps.version.outputs.name }}" --build-number "${{ steps.version.outputs.number }}"
+          fi
+      - name: Gather the build, its symbols and checksums
+        id: out
+        run: |
+          version="${{ steps.version.outputs.name }}"
+          out="$RUNNER_TEMP/ios-release"
+          mkdir -p "$out"
+          if [ "${{ steps.sign.outputs.signed }}" = yes ]; then
+            cp client/flutter/build/ios/ipa/*.ipa "$out/ai-world-$version.ipa"
+            (cd client/flutter/build/ios/archive/Runner.xcarchive/dSYMs && zip -qr "$out/ai-world-$version-dSYMs.zip" .)
+          else
+            (cd client/flutter/build/ios/iphoneos && zip -qry "$out/ai-world-$version-unsigned-device.app.zip" Runner.app)
+          fi
+          cp client/flutter/assets/engine/game-manifest.json "$out/ai-world-$version-game-manifest.json"
+          (cd "$out" && shasum -a 256 ai-world-* > SHA256SUMS && cat SHA256SUMS)
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+          {
+            echo "### iOS ${version} (build ${{ steps.version.outputs.number }})"
+            echo "Signed: **${{ steps.sign.outputs.signed }}**."
+            echo '```'; cat "$out/SHA256SUMS"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: ${{ steps.out.outputs.dir }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Send a signed build to TestFlight when the game is released
+        if: github.event_name == 'release' && steps.sign.outputs.signed == 'yes'
+        env:
+          ASC_KEY_ID: ${{ secrets.AI_WORLD_ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.AI_WORLD_ASC_ISSUER_ID }}
+        run: |
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ]; then
+            echo "::warning::No App Store Connect key is configured; the signed IPA is kept as an artifact only (#581)."
+            exit 0
+          fi
+          xcrun altool --upload-app --type ios -f "${{ steps.out.outputs.dir }}"/ai-world-*.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+      - name: Throw the temporary keychain away
+        if: always() && steps.sign.outputs.signed == 'yes'
+        run: security delete-keychain "$RUNNER_TEMP/ai-world.keychain-db" || true
