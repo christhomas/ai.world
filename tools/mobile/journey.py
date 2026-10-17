@@ -20,8 +20,10 @@ import io
 import json
 import os
 from pathlib import Path
+import queue
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -99,6 +101,14 @@ def photograph(platform, serial, name):
     return path
 
 
+# How long a part may say nothing before it is taken to have hung, and how long it may run at all. A
+# part waits up to ten minutes for a world to open on a slow emulator and says so either side, so a
+# silence twice that long is not slowness: on 2026-10-17 an iOS part built, said it was loading, and
+# then nothing for eighty minutes, until the job's own limit took the report with it.
+SILENT_MINUTES = 20
+PART_MINUTES = 40
+
+
 def run_part(platform, serial, part, record, defines=()):
     """One journey part, start to finish, photographing what it asks to be photographed."""
     args = ['flutter', 'test', part, '-d', serial, '--reporter', 'expanded', *[f'--dart-define={d}' for d in defines]]
@@ -106,7 +116,27 @@ def run_part(platform, serial, part, record, defines=()):
     log = (OUT / f'{Path(part).stem}.log').open('w')
     started = time.monotonic()
     process = subprocess.Popen(args, cwd=APP, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    for line in process.stdout:
+    # read on a thread of its own, so a part that goes quiet can be noticed rather than waited on
+    said = queue.Queue()
+    threading.Thread(target=lambda: ([said.put(line) for line in process.stdout], said.put(None)), daemon=True).start()
+    heard = time.monotonic()
+    stopped = None
+    while True:
+        try:
+            line = said.get(timeout=min(15, SILENT_MINUTES * 15))
+        except queue.Empty:
+            if time.monotonic() - heard > SILENT_MINUTES * 60:
+                stopped = f'said nothing for {SILENT_MINUTES} minutes'
+            elif time.monotonic() - started > PART_MINUTES * 60:
+                stopped = f'ran past {PART_MINUTES} minutes'
+            if stopped:
+                process.kill()
+                log.write(f'\n[journey.py] {Path(part).stem} {stopped}, and was stopped\n')
+                break
+            continue
+        if line is None:
+            break
+        heard = time.monotonic()
         log.write(line)
         log.flush()
         text = line.strip()
@@ -117,10 +147,11 @@ def run_part(platform, serial, part, record, defines=()):
         elif text.startswith('JOURNEY_STEP '):
             record['steps'].append({**json.loads(text.split(' ', 1)[1]), 'part': Path(part).stem,
                                     'atSeconds': round(time.monotonic() - started, 1)})
-    code = process.wait(timeout=60 * 40)
+    code = process.wait(timeout=120)
     log.close()
-    record['parts'].append({'part': part, 'exit': code, 'seconds': round(time.monotonic() - started, 1)})
-    return code
+    record['parts'].append({'part': part, 'exit': code if not stopped else 1, 'seconds': round(time.monotonic() - started, 1),
+                            **({'stopped': stopped} if stopped else {})})
+    return code if not stopped else 1
 
 
 def device_log(platform, serial):
