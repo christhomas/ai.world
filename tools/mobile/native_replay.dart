@@ -100,6 +100,10 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
     var tick = -1;
     var time = 0.0;
     var packets = 0;
+    // where the engine's time went, by kind of job, as the game last said (#559)
+    Map work = const {};
+    String jobs() => work.isEmpty ? 'jobs=none'
+      : 'jobs=${work.entries.map((e) => '${e.key}:${(e.value as Map)['runs']}/${((e.value as Map)['ms'] as num).round()}/${((e.value as Map)['longest'] as num).round()}').join(',')}';
     Future<Map<String, dynamic>> step({List<double> move = const [0, 0]}) async {
       tick++;
       time += 1000 / 30;
@@ -108,6 +112,7 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
         'input': {'move': move, 'look': [0, 0], 'held': {'guard': false, 'run': false}, 'actions': <String>[],
           'owner': 'WORLD', 'busy': null}}));
       stepMicros.add(watch.elapsedMicroseconds);
+      if ((reply['models'] as Map)['perf'] case {'jobs': final Map jobs}) work = jobs;
       final scene = (reply['models'] as Map)['scene'];
       if (scene != null) {
         packets++;
@@ -136,7 +141,7 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
       for (var n = 0; n < 15; n++) { await step(); }
       meshes = await drawn();
       debugPrint('HOSTED_GAME_PROGRESS platform=${Platform.operatingSystem} openMs=$opened round=$round '
-          'meshes=$meshes elapsedMs=${arriving.elapsedMilliseconds} ${timings()}');
+          'meshes=$meshes elapsedMs=${arriving.elapsedMilliseconds} ${timings()} ${jobs()}');
       if (arriving.elapsed > const Duration(minutes: 10)) break;
     }
     if (meshes < 40) {
@@ -157,7 +162,7 @@ Future<void> proveInstalledGame(NativeWorldRenderer renderer, FlutterFramePipeli
     final saved = ((asked['models'] as Map)['save'] ?? (await step())['models']['save']) as Map?;
     if (saved == null || (saved['state'] as Map?)?['playerId'] != to['playerId']) throw StateError('The game saved nothing of the hero');
     debugPrint('HOSTED_GAME_READY platform=${Platform.operatingSystem} openMs=$opened ${timings()} '
-        'meshes=$meshes packets=$packets walked=${walked.toStringAsFixed(2)} framebuffer=${shot.width}x${shot.height}');
+        'meshes=$meshes packets=$packets walked=${walked.toStringAsFixed(2)} framebuffer=${shot.width}x${shot.height} ${jobs()}');
     // the game is held open a while so the runner can measure the app's memory with it loaded (#559)
     await Future<void>.delayed(const Duration(seconds: 15));
   } finally {
