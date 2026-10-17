@@ -13,6 +13,7 @@ except ImportError:  # the iOS prepare step runs the system Python, which has no
 import journey
 
 STEPS = ['new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left', 'continued']
+MET = ['joined a shared world', 'saw the web player', 'stayed for the web player', 'the web player saw the phone']
 
 
 @unittest.skipIf(Image is None, 'Pillow is not installed')
@@ -38,23 +39,33 @@ class JourneyRunner(unittest.TestCase):
             Image.new('RGB', (40, 20), (90, 140, 60)).save(self.out / f'{Path(name).stem}.png')
             record['shots'].append(Path(name).stem)
             return 0
+        def crossplay(platform, serial, record):
+            for step in said.get('crossplay', []):
+                record['steps'].append({'step': step, 'part': 'crossplay'})
+            return 0
         with mock.patch.object(journey, 'device', return_value=('emulator-5554', None)), \
              mock.patch.object(journey, 'run_part', side_effect=part), \
+             mock.patch.object(journey, 'crossplay', side_effect=crossplay), \
              mock.patch.object(journey.subprocess, 'run'):
             code = journey.main('android')
         return code, json.loads((self.out / 'journey.json').read_text()), (self.out / 'journey.html').read_text()
 
     def test_a_journey_that_said_every_step_passes_and_reports_its_screens(self):
-        code, record, page = self.run_with({journey.PARTS[0]: STEPS[:-1], journey.PARTS[1]: STEPS[-1:]})
+        code, record, page = self.run_with({journey.PARTS[0]: STEPS[:-1], journey.PARTS[1]: STEPS[-1:], 'crossplay': MET})
         self.assertEqual(code, 0)
         self.assertEqual(record['result'], 'passed')
         self.assertIn('data:image/jpeg;base64,', page, 'the screens are in the page, not beside it')
 
     def test_a_journey_that_passed_without_saying_so_fails(self):
-        code, record, _ = self.run_with({journey.PARTS[0]: STEPS[:2], journey.PARTS[1]: []})
+        code, record, _ = self.run_with({journey.PARTS[0]: STEPS[:2], journey.PARTS[1]: [], 'crossplay': MET})
         self.assertEqual(code, 1)
         self.assertEqual(record['result'], 'failed')
         self.assertIn('walked by touch', record['why'])
+
+    def test_players_who_never_met_fail_the_journey(self):
+        code, record, _ = self.run_with({journey.PARTS[0]: STEPS[:-1], journey.PARTS[1]: STEPS[-1:], 'crossplay': MET[:1]})
+        self.assertEqual(code, 1)
+        self.assertIn('saw the web player', record['why'])
 
     def test_a_missing_device_is_not_a_game_failure(self):
         with mock.patch.object(journey, 'device', side_effect=journey.Provisioning('no Android emulator is attached')):

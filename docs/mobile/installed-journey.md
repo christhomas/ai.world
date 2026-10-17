@@ -14,8 +14,20 @@ Every move is a touch on the screen; the tests read the game only to check that 
 | `journey_test.dart` | a fresh install opens a new offline world; the native renderer's own target is not blank; a thumb on the walk field walks the hero more than a tile, where the game's collision lets it; the pack opens as a book and closes; Options saves and returns to the title |
 | `continue_test.dart` | a new launch of the app, after the first was stopped, continues the same hero within half a tile of where he was left |
 
+| `crossplay_test.dart` | the app follows an invite into a shared world on a real world server, where a web player is standing, sees their name over their head, and stays until the web player has seen the phone |
+
 Each part prints `JOURNEY_STEP {…}` as it passes a step and `JOURNEY_SHOT <name>` where a picture
 should be taken, then waits while it is.
+
+## Meeting a web player (#583)
+
+`tools/mobile/crossplay-web.cjs` builds and starts a world server of its own on port 8787, with
+worlds it throws away, and serves the page. It opens a web player in the shared world `seed=7` road
+country and says `CROSSPLAY_READY` once that player is in. The runner then runs `crossplay_test.dart`
+with the invite as `--dart-define=CROSSPLAY_INVITE=…`: `10.0.2.2` from the Android emulator, which is
+how it reaches the machine it runs on, and `127.0.0.1` from the simulator. A debug build may reach a
+`ws` world on such an address; a release build may not. The web side records whether it saw the
+phone, and takes a picture when it does; the journey passes only when each saw the other.
 
 ## The runner
 

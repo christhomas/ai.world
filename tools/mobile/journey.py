@@ -25,6 +25,9 @@ ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / 'client/flutter'
 OUT = Path(os.environ.get('JOURNEY_EVIDENCE', os.environ.get('RUNNER_TEMP', '/tmp'))) / 'mobile-journey'
 PARTS = ['integration_test/journey_test.dart', 'integration_test/continue_test.dart']
+CROSSPLAY = 'integration_test/crossplay_test.dart'
+STEPS = {'new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left', 'continued',
+         'joined a shared world', 'saw the web player', 'stayed for the web player'}
 
 
 class Provisioning(Exception):
@@ -62,9 +65,9 @@ def photograph(platform, serial, name):
     return path
 
 
-def run_part(platform, serial, part, record):
+def run_part(platform, serial, part, record, defines=()):
     """One journey part, start to finish, photographing what it asks to be photographed."""
-    args = ['flutter', 'test', part, '-d', serial, '--reporter', 'expanded']
+    args = ['flutter', 'test', part, '-d', serial, '--reporter', 'expanded', *[f'--dart-define={d}' for d in defines]]
     record['commands'].append(' '.join(args))
     log = (OUT / f'{Path(part).stem}.log').open('w')
     started = time.monotonic()
@@ -83,6 +86,45 @@ def run_part(platform, serial, part, record):
     code = process.wait(timeout=60 * 40)
     log.close()
     record['parts'].append({'part': part, 'exit': code, 'seconds': round(time.monotonic() - started, 1)})
+    return code
+
+
+def crossplay(platform, serial, record):
+    """The phone meets a web player in one shared world on a real world server on this machine."""
+    # the emulator reaches the machine it runs on as 10.0.2.2; the simulator shares its network
+    host = '10.0.2.2' if platform == 'android' else '127.0.0.1'
+    invite = f'http://{host}:8787/?seed=7&world=road&server=ws://{host}:8787'
+    log = (OUT / 'crossplay-web.log').open('w')
+    web = subprocess.Popen(['node', 'tools/mobile/crossplay-web.cjs'], cwd=ROOT, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True,
+                           env={**os.environ, 'CROSSPLAY_OUT': str(OUT)})
+    try:
+        for line in web.stdout:
+            log.write(line)
+            log.flush()
+            if line.startswith('CROSSPLAY_READY'):
+                break
+            if line.startswith('CROSSPLAY_FAILED'):
+                raise Provisioning(f'the web player could not join: {line.strip()}')
+        else:
+            raise Provisioning('the web player stopped before it was in the world')
+        # keep reading the web side's output while the phone plays, so it never blocks on a full pipe
+        import threading
+        threading.Thread(target=lambda: [log.write(line) for line in web.stdout], daemon=True).start()
+        code = run_part(platform, serial, CROSSPLAY, record, defines=[f'CROSSPLAY_INVITE={invite}'])
+    finally:
+        try:
+            os.killpg(web.pid, 15)
+        except ProcessLookupError:
+            pass
+        web.wait(timeout=60)
+        log.close()
+    seen = json.loads((OUT / 'crossplay-web.json').read_text()) if (OUT / 'crossplay-web.json').exists() else {}
+    record['crossplay'] = seen
+    if (OUT / 'crossplay-web.png').exists():
+        record['shots'].append('crossplay-web')
+    if code == 0 and seen.get('sawPhone'):
+        record['steps'].append({'step': 'the web player saw the phone', 'part': 'crossplay-web', 'others': seen.get('others')})
     return code
 
 
@@ -130,8 +172,11 @@ def main(platform):
                 record['result'] = 'failed'
                 record['why'] = f'{part} failed; its log and the last screens say where.'
                 return 1
-        expected = {'new game', 'world visible', 'walked by touch', 'pack open', 'pack closed', 'saved and left', 'continued'}
-        missing = expected - {step['step'] for step in record['steps']}
+        if crossplay(platform, serial, record) != 0:
+            record['result'] = 'failed'
+            record['why'] = 'the phone and the web player did not meet; crossplay_test.log and crossplay-web.log say where.'
+            return 1
+        missing = (STEPS | {'the web player saw the phone'}) - {step['step'] for step in record['steps']}
         if missing:
             record['result'] = 'failed'
             record['why'] = f'the journey passed without saying it did: {sorted(missing)}'
