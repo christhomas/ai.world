@@ -25,6 +25,12 @@ export class Input extends GameInput {
     const signal = this.listening.signal;
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
+      // Text belongs to the field holding the cursor. Keeping this at the one document listener
+      // means a newly bound game key cannot accidentally become a chat shortcut.
+      if (isTextEntry(e.target)) {
+        this.keys.delete(k);
+        return;
+      }
       if (!e.repeat) {
         this.press(k);
       }
@@ -122,6 +128,12 @@ export class Input extends GameInput {
     this.listening.abort();
     super.dispose();
   }
+}
+
+/** Whether the browser has given the key to a field rather than the world. */
+function isTextEntry(target: EventTarget | null): boolean {
+  return target instanceof Element
+    && (target.matches('input, textarea, select') || target.closest('[contenteditable="true"]') !== null);
 }
 
 /** How far apart the first two fingers are, in pixels. */
