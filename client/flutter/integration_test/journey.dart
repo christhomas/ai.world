@@ -156,6 +156,24 @@ Future<void> lean(WidgetTester tester, Offset towards, Duration how) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
+/// Lean the stick toward a screen direction and hold it until something is so or a while has passed,
+/// as a player on a slow phone holds it for as long as the walk takes. Returns whether it came true.
+Future<bool> leanUntil(WidgetTester tester, Offset towards, bool Function() done, Duration within) async {
+  final reach = towards.distance == 0 ? Offset.zero : towards / towards.distance * 54;
+  final thumb = await tester.startGesture(walkField(tester));
+  await thumb.moveBy(reach * (20 / 54));
+  await thumb.moveBy(reach * (34 / 54));
+  final holding = Stopwatch()..start();
+  var came = done();
+  while (!came && holding.elapsed < within) {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    came = done();
+  }
+  await thumb.up();
+  await tester.pump(const Duration(milliseconds: 300));
+  return came;
+}
+
 /// How far the hero is from somewhere on the ground.
 double away(Map<String, dynamic> hero, double x, double z) =>
   math.sqrt(math.pow(x - (hero['x'] as num), 2) + math.pow(z - (hero['z'] as num), 2));
@@ -165,10 +183,14 @@ double away(Map<String, dynamic> hero, double x, double z) =>
 Future<({Offset up, Offset right})> stickBearings(WidgetTester tester) async {
   Future<Offset> moved(Offset towards) async {
     final from = heroOf(session)!;
-    await lean(tester, towards, const Duration(milliseconds: 900));
+    Offset delta() {
+      final to = heroOf(session)!;
+      return Offset(((to['x'] as num) - (from['x'] as num)).toDouble(), ((to['z'] as num) - (from['z'] as num)).toDouble());
+    }
+    // held until he has gone far enough to say which way, however long a slow phone takes
+    await leanUntil(tester, towards, () => delta().distance > 0.6, const Duration(minutes: 1));
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    final to = heroOf(session)!;
-    return Offset(((to['x'] as num) - (from['x'] as num)).toDouble(), ((to['z'] as num) - (from['z'] as num)).toDouble());
+    return delta();
   }
   var up = await moved(const Offset(0, -1));
   if (up.distance < 0.3) up = -(await moved(const Offset(0, 1)));
@@ -191,7 +213,7 @@ Offset leanFor(({Offset up, Offset right}) bearings, Offset ground) {
 
 /// Walk the hero by touch to within `within` tiles of somewhere, steering again every half second.
 Future<double> walkTo(WidgetTester tester, ({Offset up, Offset right}) bearings, double x, double z,
-    {double within = 1, Duration giveUp = const Duration(minutes: 2)}) async {
+    {double within = 1, Duration giveUp = const Duration(minutes: 6)}) async {
   final walking = Stopwatch()..start();
   var left = away(heroOf(session)!, x, z);
   while (left > within && walking.elapsed < giveUp) {
