@@ -35,11 +35,12 @@ final class PhotoShareBridge: NSObject, FlutterPlugin {
     }
     do {
       let share = try PhotoShare(png: png.data, directory: FileManager.default.temporaryDirectory
-        .appendingPathComponent("shared-photos", isDirectory: true), presenter: presenter) { [weak self] outcome in
+        .appendingPathComponent("shared-photos", isDirectory: true)) { [weak self] outcome in
         self?.active = nil
         result(outcome)
       }
       active = share
+      share.anchor(to: presenter)
       // UIKit can drop a presentation without a word, when a transition is under way or another
       // sheet got there first, and then the sheet never reports back. Look when UIKit says it has
       // presented and again a second later, rather than leave the shutter waiting and every later
@@ -58,7 +59,7 @@ final class PhotoShare {
   let file: URL
   private var completion: FlutterResult?
 
-  init(png: Data, directory: URL, presenter: UIViewController, completion: @escaping FlutterResult) throws {
+  init(png: Data, directory: URL, completion: @escaping FlutterResult) throws {
     guard png.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) else {
       throw NSError(domain: "world.ai/photo", code: 1,
         userInfo: [NSLocalizedDescriptionKey: "A photo needs PNG bytes"])
@@ -71,13 +72,14 @@ final class PhotoShare {
     controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
     // The app shares a file and never asks for access to the photo library.
     controller.excludedActivityTypes = [.saveToCameraRoll]
-    anchor(to: presenter)
     controller.completionWithItemsHandler = { [weak self] _, completed, _, error in
       self?.finish(completed: completed, error: error)
     }
   }
 
-  /// On an iPad the sheet is a popover, and a popover needs somewhere to point.
+  /// On an iPad the sheet is a popover, and a popover needs somewhere to point. Anchor just before
+  /// presenting: the first read of popoverPresentationController has UIKit build the presentation for
+  /// the style the sheet has then, and a style set afterwards is no longer asked for.
   func anchor(to presenter: UIViewController) {
     guard let popover = controller.popoverPresentationController else { return }
     popover.sourceView = presenter.view

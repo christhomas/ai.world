@@ -18,11 +18,12 @@ class RunnerTests: XCTestCase {
     let outcomes: [(Bool, Error?, String)] = [(true, nil, "shared"), (false, nil, "cancelled"), (false, denied, "share-failed")]
     for (completed, error, expected) in outcomes {
       var replies: [Any?] = []
-      let share = try PhotoShare(png: png, directory: directory, presenter: presenter) { replies.append($0) }
+      let share = try PhotoShare(png: png, directory: directory) { replies.append($0) }
       XCTAssertEqual(try Data(contentsOf: share.file), png)
       XCTAssertEqual(share.file.pathExtension, "png")
       XCTAssertTrue(share.controller.excludedActivityTypes?.contains(.saveToCameraRoll) == true)
-      // An iPhone simulator presents the sheet without a popover, so ask for the iPad's presentation.
+      // An iPhone simulator presents the sheet without a popover, so ask for the iPad's presentation,
+      // as the bridge does, before anything has read the sheet's popover.
       share.controller.modalPresentationStyle = .popover
       share.anchor(to: presenter)
       let popover = try XCTUnwrap(share.controller.popoverPresentationController)
@@ -45,8 +46,7 @@ class RunnerTests: XCTestCase {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     var replies: [Any?] = []
-    let share = try PhotoShare(png: Data([137, 80, 78, 71, 13, 10, 26, 10]), directory: directory,
-      presenter: UIViewController()) { replies.append($0) }
+    let share = try PhotoShare(png: Data([137, 80, 78, 71, 13, 10, 26, 10]), directory: directory) { replies.append($0) }
     share.abandonUnlessPresented()
     XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
     XCTAssertEqual(replies.count, 1)
@@ -59,13 +59,12 @@ class RunnerTests: XCTestCase {
   func testPhotoShareRefusesBadBytesAndAnUnwritableCache() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let presenter = UIViewController()
-    XCTAssertThrowsError(try PhotoShare(png: Data([1, 2, 3]), directory: directory, presenter: presenter) { _ in })
+    XCTAssertThrowsError(try PhotoShare(png: Data([1, 2, 3]), directory: directory) { _ in })
     XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     // A file where the directory should be gives a real write failure without changing permissions.
     try Data([0]).write(to: directory)
     let png = Data([137, 80, 78, 71, 13, 10, 26, 10])
-    XCTAssertThrowsError(try PhotoShare(png: png, directory: directory, presenter: presenter) { _ in })
+    XCTAssertThrowsError(try PhotoShare(png: png, directory: directory) { _ in })
   }
 
   func testPhotoShareWithoutAnAttachedViewReturnsAnError() {
