@@ -144,9 +144,10 @@ for (const kind of ['mesh', 'directional', 'ambient']) assert.ok(kinds.has(kind)
 // a thumb on the stick walks him
 let state = await step();
 const from = state.models.hero;
+const beforeWalkingChanges = nodeChanges;
 for (let n = 0; n < 45; n++) state = await step({ move: [0, 1] });
 hold(await sceneNow());
-assert.ok(nodeChanges > 0, 'walking produces node changes instead of complete records');
+assert.ok(nodeChanges > beforeWalkingChanges, 'walking produces node changes instead of complete records');
 state = await step();
 const walked = Math.hypot(state.models.hero.x - from.x, state.models.hero.z - from.z);
 assert.ok(walked > 1, `the hero walked ${walked} tiles from ${JSON.stringify(from)} to ${JSON.stringify(state.models.hero)}`);

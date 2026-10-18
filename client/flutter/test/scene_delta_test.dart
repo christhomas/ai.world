@@ -82,11 +82,14 @@ void main() {
     test('${bad.key} refuses the entire packet and requires full resync', () {
       final cache = SceneGeometryCache();
       final before = read(cache, packet(1, full: true, nodes: [node(1)], order: ['1']));
+      expect(cache.needsResync, isFalse);
       expect(() => read(cache, bad.value), throwsFormatException);
+      expect(cache.needsResync, isTrue);
       // Even a subsequent contiguous delta is unsafe after a rejected packet.
       expect(() => read(cache, packet(2)), throwsFormatException);
       final recovered = read(cache, packet(5, full: true, nodes: [node(2)], order: ['2']));
       expect(recovered.nodes.single['id'], 2);
+      expect(cache.needsResync, isFalse);
       expect(before.nodes.single['id'], 1, reason: 'a rejected packet cannot mutate the displayed scene');
       expect(() => read(cache, packet(4, full: true, nodes: [node(9)], order: ['9'])), throwsFormatException);
     });

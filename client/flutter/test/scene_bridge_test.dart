@@ -17,6 +17,7 @@ void main() {
       expect(source.indexOf('sceneGeneration.validate'), lessThan(source.indexOf(mutation)));
       expect(source, contains('sceneGeneration.commit'), reason: path);
       expect(source, contains('sceneMeshOrder'), reason: path);
+      expect(source, contains(path.endsWith('.kt') ? 'if (!sceneValid)' : 'guard sceneValid'), reason: path);
     });
   }
 }
