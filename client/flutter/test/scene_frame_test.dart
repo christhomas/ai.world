@@ -351,6 +351,8 @@ void main() {
       <String, dynamic>{
         'id': 5, 'kind': 'directional', 'colour': 0xffffff, 'intensity': 2.6, 'visible': true,
         'castShadow': true, 'world': at(38, 72, 22), 'target': <num>[0, 0, 0],
+        // the box the web fitted its shadow camera to, which the bridges cast through (#512)
+        'shadow': <String, num>{'left': -11, 'right': 11, 'top': 11, 'bottom': -11, 'near': 1, 'far': 95.26},
       },
       <String, dynamic>{
         'id': 6, 'kind': 'directional', 'colour': 0x808080, 'intensity': 1, 'visible': true,

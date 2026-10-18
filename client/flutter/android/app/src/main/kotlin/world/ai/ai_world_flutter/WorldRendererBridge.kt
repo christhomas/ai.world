@@ -165,6 +165,31 @@ private data class GpuMesh(val vertex: Int, val index: Int, val count: Int,
     val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
     val renderOrder: Int, val transparent: Boolean, val center: FloatArray)
 
+/**
+ * The camera the web's sun casts its shadow map through (#512). three.js stands it at the light and
+ * points it at the light's target; the web rig fits its orthographic box to the picture every time
+ * the view moves (`fitShadow`, src/render/scene.ts), and the frame sends that box with the light.
+ */
+private class ShadowCamera(val eye: FloatArray, val target: FloatArray,
+    val left: Float, val right: Float, val bottom: Float, val top: Float, val near: Float, val far: Float) {
+    companion object {
+        /** The camera of a light at [world]'s translation shining at [point], or null unless [box] is a whole box. */
+        fun of(box: Any?, world: List<Float>, point: List<Float>): ShadowCamera? {
+            val bounds = box as? Map<*, *> ?: return null
+            fun bound(key: String) = (bounds[key] as? Number)?.toFloat()?.takeIf { it.isFinite() }
+            val left = bound("left") ?: return null
+            val right = bound("right") ?: return null
+            val bottom = bound("bottom") ?: return null
+            val top = bound("top") ?: return null
+            val near = bound("near") ?: return null
+            val far = bound("far") ?: return null
+            if (right <= left || top <= bottom || far <= near) return null
+            return ShadowCamera(floatArrayOf(world[12], world[13], world[14]), floatArrayOf(point[0], point[1], point[2]),
+                left, right, bottom, top, near, far)
+        }
+    }
+}
+
 private class GLWorldRenderer(
     private val entry: TextureRegistry.SurfaceTextureEntry,
     width: Int,
@@ -198,6 +223,8 @@ private class GLWorldRenderer(
     private var background = 0x080b18
     /** Where the shadow map looks from: the shadow-casting directional light, pointing at the scene. */
     private var lightDirection = normalised(-.42f, .82f, -.38f)!!
+    /** The web's shadow camera for that light, when the frame says what it is; see [ShadowCamera]. */
+    private var shadowCamera: ShadowCamera? = null
     private var ambientLight = floatArrayOf(.35f, .35f, .35f)
     private var skyLight = floatArrayOf(0f, 0f, 0f)
     private var groundLight = floatArrayOf(0f, 0f, 0f)
@@ -295,7 +322,7 @@ private class GLWorldRenderer(
         gpu.remove(id)?.let { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
     }
     fun camera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) = post {
-        sceneProjection = null; sceneWorld = null; sceneRenderTimeSeconds = null
+        sceneProjection = null; sceneWorld = null; sceneRenderTimeSeconds = null; shadowCamera = null
         target = floatArrayOf(x, y, z); this.yaw = yaw; this.pitch = pitch; this.zoom = zoom.coerceIn(4f, 80f)
     }
     fun sceneFrame(projection: FloatArray, world: FloatArray, sky: Int,
@@ -325,6 +352,7 @@ private class GLWorldRenderer(
         sunDirections.fill(0f)
         sunColours.fill(0f)
         sunCastsShadow = false
+        shadowCamera = null
         suns.forEachIndexed { index, sun ->
             val matrix = (sun["world"] as? List<*>)?.map { (it as Number).toFloat() }
             val point = (sun["target"] as? List<*>)?.map { (it as Number).toFloat() }
@@ -337,6 +365,7 @@ private class GLWorldRenderer(
                 sunColours[index * 4 + 3] = 1f
                 sunCastsShadow = true
                 lightDirection = direction
+                shadowCamera = ShadowCamera.of(sun["shadow"], matrix, point)
             }
         }
         val points = visible("point").take(16)
@@ -631,10 +660,20 @@ private class GLWorldRenderer(
         val projection = FloatArray(16); val aspect = viewportWidth.toFloat() / viewportHeight
         Matrix.orthoM(projection, 0, -zoom * aspect / 2, zoom * aspect / 2, -zoom / 2, zoom / 2, .1f, 300f)
         val mvp = FloatArray(16); Matrix.multiplyMM(mvp, 0, projection, 0, view, 0)
-        val lightView = FloatArray(16); Matrix.setLookAtM(lightView, 0,
-            target[0]+lightDirection[0]*64, target[1]+lightDirection[1]*64, target[2]+lightDirection[2]*64,
-            target[0], target[1], target[2], 0f,1f,0f)
-        val lightProjection = FloatArray(16); Matrix.orthoM(lightProjection,0,-32f,32f,-32f,32f,.1f,120f)
+        val lightView = FloatArray(16); val lightProjection = FloatArray(16)
+        val sunCamera = shadowCamera
+        if (sunCamera != null) {
+            // three.js's DirectionalLightShadow: at the light, looking at its target, through the box the web fitted (#512)
+            Matrix.setLookAtM(lightView, 0, sunCamera.eye[0], sunCamera.eye[1], sunCamera.eye[2],
+                sunCamera.target[0], sunCamera.target[1], sunCamera.target[2], 0f, 1f, 0f)
+            Matrix.orthoM(lightProjection, 0, sunCamera.left, sunCamera.right, sunCamera.bottom, sunCamera.top, sunCamera.near, sunCamera.far)
+        } else {
+            // a frame that sends no box, or the native camera: a fixed window around what the camera looks at
+            Matrix.setLookAtM(lightView, 0,
+                target[0]+lightDirection[0]*64, target[1]+lightDirection[1]*64, target[2]+lightDirection[2]*64,
+                target[0], target[1], target[2], 0f,1f,0f)
+            Matrix.orthoM(lightProjection,0,-32f,32f,-32f,32f,.1f,120f)
+        }
         val lightMvp = FloatArray(16); Matrix.multiplyMM(lightMvp,0,lightProjection,0,lightView,0)
         val look = floatArrayOf(target[0]-eye[0], target[1]-eye[1], target[2]-eye[2]); val length = kotlin.math.sqrt(look.sumOf { (it*it).toDouble() }).toFloat()
         for(i in look.indices) look[i] /= length

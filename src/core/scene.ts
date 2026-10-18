@@ -20,6 +20,18 @@ export interface SeasonLook {
   snow: number;
 }
 
+/**
+ * The box a directional light casts its shadow map through, in the light's own view: the bounds of
+ * the orthographic shadow camera that stands at the light and looks at its target, as three.js's
+ * `light.shadow.camera` holds them. The web rig fits it to the picture every time the camera moves
+ * (`fitShadow` in `scene.ts`); a native renderer casts through the same box so it shadows what the
+ * web shadows, no more and no less (#512).
+ */
+export interface ShadowBox {
+  left: number; right: number; top: number; bottom: number;
+  near: number; far: number;
+}
+
 /** A scene description independent of the graphics API that displays it. */
 export interface FrameDescription {
   /** Captured engine animation time, in milliseconds; null on legacy/native-generated frames. */
@@ -69,6 +81,8 @@ export interface FrameDescription {
      * it, and the WebGL mount and both native bridges read it (#521).
      */
     target?: [number, number, number];
+    /** For a directional light that casts a shadow, the box its shadow map covers. */
+    shadow?: ShadowBox;
     castShadow: boolean;
     receiveShadow: boolean;
     renderOrder?: number;

@@ -372,6 +372,19 @@ export function createSceneRig(host: RigHost, asked = false, recording?: FramePi
   let groundRadius = 0;
   let shadowHalf = 0;
 
+  /**
+   * Put the shadow camera's box on the sun's node, so the frame carries it and the native bridges
+   * cast through the box this rig fitted rather than a window of their own (#512). A new object
+   * each time it changes, because the graph tells a light has changed by its box's identity.
+   */
+  const shareShadowBox = () => {
+    const { left, right, top, bottom, near, far } = sun.shadow.camera;
+    const box = lighting.sun.shadow;
+    if (box && box.left === left && box.right === right && box.top === top && box.bottom === bottom
+      && box.near === near && box.far === far) return;
+    lighting.sun.shadow = { left, right, top, bottom, near, far };
+  };
+
   /** The level chosen last time, if the player has ever chosen one. */
   const remembered: Quality = host.remembered() ?? 'high';
 
@@ -417,6 +430,7 @@ export function createSceneRig(host: RigHost, asked = false, recording?: FramePi
       if (cam.right !== half) {
         cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
         cam.updateProjectionMatrix();
+        shareShadowBox();
       }
       shadowHalf = half;
       sceneState.followWater(x, z);
@@ -455,6 +469,7 @@ export function createSceneRig(host: RigHost, asked = false, recording?: FramePi
       cam.far = far;
       sun.shadow.bias = -SHADOW_BIAS / (far - cam.near);
       cam.updateProjectionMatrix();
+      shareShadowBox();
     },
     redrawShadows() {
       if (renderer) renderer.shadowMap.needsUpdate = true;

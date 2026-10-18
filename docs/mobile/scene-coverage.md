@@ -42,7 +42,7 @@ limits in `tools/mobile/parity-thresholds.json`.
 | night, lamps, torches | lights | `night`, `night-sea`, `interior`, `dungeon` |
 | seasons | the season tint | `autumn`, `winter` |
 | weather | points | `rain` |
-| shadows | one directional caster | `autumn` |
+| shadows | one directional caster, cast through the shadow box the web fitted to the view and sent with the light (#512) | `autumn`, `see-through`, `sky-island` |
 | see-through walls | the cutaway | `see-through` |
 | sky islands, flying | meshes | `sky-island` |
 

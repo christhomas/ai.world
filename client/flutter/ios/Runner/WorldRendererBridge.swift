@@ -165,6 +165,33 @@ private struct MeshStyle {
   let renderOrder: Int; let transparent: Bool
 }
 private struct CpuMesh { let vertices: Data; let indices: Data; let style: MeshStyle }
+
+/// The camera the web's sun casts its shadow map through (#512). three.js stands it at the light and
+/// points it at the light's target; the web rig fits its orthographic box to the picture every time
+/// the view moves (`fitShadow`, src/render/scene.ts), and the frame sends that box with the light.
+private struct ShadowCamera {
+  let eye: SIMD3<Float>; let target: SIMD3<Float>
+  let left: Float; let right: Float; let bottom: Float; let top: Float; let near: Float; let far: Float
+
+  /// The camera of a light at `eye` shining at `target`, or nil unless `box` is a whole box.
+  static func of(_ box: Any?, eye: SIMD3<Float>, target: SIMD3<Float>) -> ShadowCamera? {
+    guard let bounds = box as? [String: Any] else { return nil }
+    func bound(_ key: String) -> Float? {
+      guard let value = (bounds[key] as? NSNumber)?.floatValue, value.isFinite else { return nil }
+      return value
+    }
+    guard let left = bound("left"), let right = bound("right"), let bottom = bound("bottom"),
+          let top = bound("top"), let near = bound("near"), let far = bound("far"),
+          right > left, top > bottom, far > near else { return nil }
+    return ShadowCamera(eye: eye, target: target, left: left, right: right, bottom: bottom, top: top, near: near, far: far)
+  }
+
+  /// Its view and projection together, in Metal's clip depth like every native light matrix.
+  var matrix: simd_float4x4 {
+    orthographic(left: left, right: right, bottom: bottom, top: top, near: near, far: far) *
+      lookAt(eye: eye, center: target, up: SIMD3(0,1,0))
+  }
+}
 private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle; let center: SIMD3<Float> }
 
 /// Decode the entire batch before any native scene state changes.
@@ -228,6 +255,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private var background = 0x080b18
   /// Where the shadow map looks from: the shadow-casting directional light, pointing at the scene.
   private var lightDirection = simd_normalize(SIMD3<Float>(-0.42, 0.82, -0.38))
+  /// The web's shadow camera for that light, when the frame says what it is; see `ShadowCamera`.
+  private var shadowCamera: ShadowCamera?
   private var ambientLight = SIMD3<Float>(repeating: 0.35)
   private var skyLight = SIMD3<Float>(repeating: 0)
   private var groundLight = SIMD3<Float>(repeating: 0)
@@ -363,7 +392,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   }
   func removeMesh(id: String) { pending.removeValue(forKey: id); meshes.removeValue(forKey: id) }
   func setCamera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) {
-    sceneProjection = nil; sceneWorld = nil; sceneRenderTimeMs = nil
+    sceneProjection = nil; sceneWorld = nil; sceneRenderTimeMs = nil; shadowCamera = nil
     target = SIMD3(x,y,z); self.yaw = yaw; self.pitch = pitch; self.zoom = max(4,min(80,zoom))
   }
   func setSceneFrame(projection: Data, world: Data, background: Int,
@@ -397,6 +426,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     sunDirections = [SIMD4<Float>](repeating: .zero, count: directionalLights)
     sunColours = [SIMD4<Float>](repeating: .zero, count: directionalLights)
     sunCastsShadow = false
+    shadowCamera = nil
     for (index, sun) in suns.enumerated() {
       guard let matrix = sun["world"] as? [NSNumber], matrix.count == 16,
             let point = sun["target"] as? [NSNumber], point.count == 3 else { continue }
@@ -410,6 +440,9 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       if index == shadowed {
         sunCastsShadow = true
         lightDirection = direction
+        shadowCamera = ShadowCamera.of(sun["shadow"],
+          eye: SIMD3(matrix[12].floatValue, matrix[13].floatValue, matrix[14].floatValue),
+          target: SIMD3(point[0].floatValue, point[1].floatValue, point[2].floatValue))
       }
     }
     pointPositions = [SIMD4<Float>](repeating: .zero, count: 16)
@@ -621,8 +654,12 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     let view = lookAt(eye: eye, center: target, up: SIMD3(0,1,0))
     let aspect = Float(width) / Float(height)
     let projection = orthographic(left: -zoom*aspect/2, right: zoom*aspect/2, bottom: -zoom/2, top: zoom/2, near: 0.1, far: 300)
+    // three.js's DirectionalLightShadow: at the light, looking at its target, through the box the
+    // web fitted (#512). A frame that sends no box, or the native camera, gets a fixed window
+    // around what the camera looks at.
     let lightEye = target + lightDirection * 64
-    let light = orthographic(left:-32,right:32,bottom:-32,top:32,near:0.1,far:120) * lookAt(eye: lightEye, center: target, up: SIMD3(0,1,0))
+    let light = shadowCamera?.matrix
+      ?? orthographic(left:-32,right:32,bottom:-32,top:32,near:0.1,far:120) * lookAt(eye: lightEye, center: target, up: SIMD3(0,1,0))
     let look = sceneWorld.map { simd_normalize(-SIMD3($0.columns.2.x, $0.columns.2.y, $0.columns.2.z)) }
       ?? simd_normalize(target-eye)
     return Uniforms(
