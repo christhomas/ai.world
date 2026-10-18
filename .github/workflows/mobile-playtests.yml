@@ -44,7 +44,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - name: Photograph the parity scenes on the web, keeping the frame each one drew
-        run: node tools/shots.cjs town night autumn winter cattle mountain farming horse estate interior dungeon sea night-sea
+        run: node tools/shots.cjs town night autumn winter cattle mountain farming horse estate rain see-through sky-island interior dungeon sea night-sea
         env:
           PORT: '5186'
           PARITY: ${{ runner.temp }}/parity-kept

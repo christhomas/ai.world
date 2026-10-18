@@ -41,10 +41,10 @@ limits in `tools/mobile/parity-thresholds.json`.
 | dungeons, caves, wrecks | the floor's own graph | `dungeon` |
 | night, lamps, torches | lights | `night`, `night-sea`, `interior`, `dungeon` |
 | seasons | the season tint | `autumn`, `winter` |
-| weather | points | none yet |
+| weather | points | `rain` |
 | shadows | one directional caster | `autumn` |
-| see-through walls | the cutaway | none yet |
-| sky islands, flying | meshes | none yet: no web reference shot of a sky island exists |
+| see-through walls | the cutaway | `see-through` |
+| sky islands, flying | meshes | `sky-island` |
 
 ## Not yet on the phone
 
@@ -53,5 +53,3 @@ These are tracked rather than left out:
 - **The subject in reach, ringed in the world.** The handoff (`design/mobile/README.md`, "In reach")
   rings the subject at their feet. The game has no such node yet; the action card names the
   subject instead. Tracked by #571.
-- **Parity scenes for weather, see-through walls and sky islands.** These need web reference shots in
-  `tools/shots.cjs` first.
