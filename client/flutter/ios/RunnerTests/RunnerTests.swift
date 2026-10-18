@@ -46,12 +46,19 @@ class RunnerTests: XCTestCase {
       XCTAssertEqual(try Data(contentsOf: share.file), png)
       XCTAssertEqual(share.file.pathExtension, "png")
       XCTAssertTrue(share.controller.excludedActivityTypes?.contains(.saveToCameraRoll) == true)
-      // An iPhone simulator presents the sheet without a popover, so ask for the iPad's presentation.
-      share.controller.modalPresentationStyle = .popover
-      share.anchor(to: presenter)
-      let popover = try XCTUnwrap(share.controller.popoverPresentationController)
+      // UIActivityViewController picks its presentation from the device: on the iPhone simulator it
+      // has no popover even when asked for .popover (Hosted mobile evidence run 39165127055), so the
+      // iPad's anchor is checked on a popover UIKit does build here, and on the sheet's own where it has one.
+      let stand = UIViewController()
+      stand.modalPresentationStyle = .popover
+      let popover = try XCTUnwrap(stand.popoverPresentationController)
+      PhotoShare.anchor(popover, to: presenter)
       XCTAssertTrue(popover.sourceView === presenter.view)
       XCTAssertTrue(presenter.view.bounds.contains(popover.sourceRect))
+      XCTAssertEqual(popover.permittedArrowDirections, [])
+      if let own = share.controller.popoverPresentationController {
+        XCTAssertTrue(own.sourceView === presenter.view)
+      }
       share.controller.completionWithItemsHandler?(nil, completed, nil, error)
       XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
       XCTAssertEqual(replies.count, 1)
