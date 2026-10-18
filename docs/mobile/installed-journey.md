@@ -54,9 +54,10 @@ HTML has the pictures embedded, the steps, the commands and the exit codes. Exit
 
 ## Where it runs
 
-- **`Hosted mobile evidence`** runs the journeys after the renderer frames. On Android they run on
-  the same emulator; on iOS on a simulator of their own. The reports are kept as
-  `mobile-<platform>-journey`.
+- **`Hosted mobile evidence`** runs the journeys. On Android they follow the renderer frames on the
+  same emulator. On iOS they are a job of their own (`ios-journey`) on a fresh runner, because after
+  the frames' replay was built in the same checkout the journey's app never began its test. The
+  reports are kept as `mobile-<platform>-journey`.
 - **`Device playtest`** (`.github/workflows/device-playtest.yml`, #682) is the suite on its own: every
   part, or the parts asked for, on an emulator and a simulator, each job with two and a half hours.
   It runs on demand and every night on main. The reports are kept as `device-playtest-<platform>`.
