@@ -170,8 +170,13 @@ class JourneyRunner(unittest.TestCase):
                         hangs=False)
         record = {'commands': [], 'steps': [], 'shots': [], 'parts': []}
         with mock.patch.object(journey, 'LAUNCH_MINUTES', 0.005), \
-             mock.patch.object(journey.subprocess, 'Popen', side_effect=[hung, played]):
+             mock.patch.object(journey.subprocess, 'Popen', side_effect=[hung, played]), \
+             mock.patch.object(journey.subprocess, 'run', return_value=mock.Mock(stdout='501 00:09:12 xcrun simctl install\n')) as ran:
             code = journey.run_part('ios', 'E333CE58', JOURNEY, record)
+        ran_args = [call.args[0] for call in ran.call_args_list]
+        self.assertLess(ran_args.index(['xcrun', 'simctl', 'shutdown', 'E333CE58']),
+                        ran_args.index(['xcrun', 'simctl', 'boot', 'E333CE58']), 'the simulator is started again')
+        self.assertIn('simctl install', (self.out / 'journey_test-launch.log').read_text(), 'what was stuck is kept')
         self.assertEqual(code, 0)
         self.assertTrue(hung.killed, 'the launch that hung was waited on rather than stopped')
         self.assertEqual(len(record['commands']), 2)
