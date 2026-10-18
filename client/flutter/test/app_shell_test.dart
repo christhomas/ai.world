@@ -14,8 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 class GameAssets extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
-    final text = key.endsWith('game-manifest.json') ? jsonEncode({'contractVersion': 1,
-      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': 'game'}) : 'bundled game';
+    final text = key.endsWith('manifest.json') ? jsonEncode({'contractVersion': 1,
+      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': key.contains('jobs') ? 'jobs' : 'game'}) : 'bundled game';
     return ByteData.sublistView(Uint8List.fromList(utf8.encode(text)));
   }
 }
