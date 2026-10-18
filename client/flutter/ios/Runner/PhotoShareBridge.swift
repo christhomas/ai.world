@@ -80,6 +80,11 @@ final class PhotoShare {
   /// On an iPad the sheet is a popover, and a popover needs somewhere to point.
   func anchor(to presenter: UIViewController) {
     guard let popover = controller.popoverPresentationController else { return }
+    PhotoShare.anchor(popover, to: presenter)
+  }
+
+  /// Points the popover at the middle of the game's bottom edge, with no arrow.
+  static func anchor(_ popover: UIPopoverPresentationController, to presenter: UIViewController) {
     popover.sourceView = presenter.view
     popover.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.maxY - 1, width: 1, height: 1)
     popover.permittedArrowDirections = []
