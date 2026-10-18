@@ -147,6 +147,38 @@ class JourneyRunner(unittest.TestCase):
         self.assertTrue(quiet.killed, 'the part was waited on rather than stopped')
         self.assertEqual(record['steps'][0]['step'], 'new game', 'what it said before going quiet is kept')
         self.assertIn('said nothing', record['parts'][0]['stopped'])
+        self.assertEqual(len(record['parts']), 1, 'a part that began and went quiet failed in the game, and is not played again')
+
+    def test_a_part_whose_app_never_started_after_its_build_is_played_again(self):
+        stop = threading.Event()
+        class Launch:
+            def __init__(self, lines, hangs):
+                self.lines, self.hangs, self.killed = lines, hangs, False
+                self.stdout = self.say()
+            def say(self):
+                yield from self.lines
+                if self.hangs:
+                    stop.wait(5)
+            def kill(self):
+                self.killed = True
+                stop.set()
+            def wait(self, timeout=None):
+                return -9 if self.killed else 0
+        hung = Launch(['00:00 +0: loading integration_test/journey_test.dart\n', 'Xcode build done.  48.9s\n'], hangs=True)
+        played = Launch(['Xcode build done.  41.2s\n', '00:52 +0: a new offline world\n',
+                         *[f'JOURNEY_STEP {json.dumps({"step": step})}\n' for step in STEPS], '00:58 +1: All tests passed!\n'],
+                        hangs=False)
+        record = {'commands': [], 'steps': [], 'shots': [], 'parts': []}
+        with mock.patch.object(journey, 'LAUNCH_MINUTES', 0.005), \
+             mock.patch.object(journey.subprocess, 'Popen', side_effect=[hung, played]):
+            code = journey.run_part('ios', 'E333CE58', JOURNEY, record)
+        self.assertEqual(code, 0)
+        self.assertTrue(hung.killed, 'the launch that hung was waited on rather than stopped')
+        self.assertEqual(len(record['commands']), 2)
+        self.assertIn('never started', record['parts'][0]['stopped'])
+        self.assertEqual(record['parts'][1], {**record['parts'][1], 'exit': 0, 'again': True})
+        self.assertEqual([step['step'] for step in record['steps']], STEPS)
+        self.assertIn('played again', (self.out / 'journey_test.log').read_text(), 'both goes are in the part\'s log')
 
     def test_a_missing_device_is_not_a_game_failure(self):
         with mock.patch.object(journey, 'device', side_effect=journey.Provisioning('no Android emulator is attached')):
