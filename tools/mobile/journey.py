@@ -125,8 +125,38 @@ def run_part(platform, serial, part, record, defines=()):
     whose app never started is played once more before it counts as failed."""
     code, launched = play_part(platform, serial, part, record, defines)
     if not launched:
+        launch_hung(platform, serial, part)
         code, _ = play_part(platform, serial, part, record, defines, again=True)
     return code
+
+
+def launch_hung(platform, serial, part):
+    """What the machine and the device were doing when a part's app never started, kept beside its
+    log; then, on iOS, the simulator is started again, so a stuck install or launch is not inherited
+    by the second go (a stopped `flutter test` leaves its `simctl` children running)."""
+    stem = Path(part).stem
+    try:
+        with (OUT / f'{stem}-launch.log').open('w') as file:
+            running = subprocess.run(['ps', '-ax', '-o', 'pid,etime,command'], capture_output=True, text=True,
+                                     timeout=60, check=False).stdout
+            file.write(''.join(line + '\n' for line in running.splitlines()
+                               if re.search(r'simctl|xcodebuild|xcrun|flutter|dart|adb|Simulator', line)))
+            if platform == 'ios':
+                file.write('\n')
+                file.flush()
+                subprocess.run(['xcrun', 'simctl', 'spawn', serial, 'log', 'show', '--last', f'{LAUNCH_MINUTES + 2}m',
+                                '--style', 'compact', '--predicate',
+                                'process == "installd" OR process == "SpringBoard" OR process == "Runner"'
+                                ' OR process == "CoreSimulatorBridge"'],
+                               stdout=file, stderr=subprocess.STDOUT, timeout=300, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if platform == 'ios':
+        for args, timeout in ((['shutdown', serial], 120), (['boot', serial], 180), (['bootstatus', serial, '-b'], 600)):
+            try:
+                subprocess.run(['xcrun', 'simctl', *args], check=False, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                pass
 
 
 def play_part(platform, serial, part, record, defines=(), again=False):
