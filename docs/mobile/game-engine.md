@@ -89,14 +89,38 @@ the same rectangles the dialogue box's canvas is filled with: five numbers a rec
 width, height, colour index), once with the mouth shut and once open. A face is sent the first time
 somebody wears it and named by key after that, so the app keeps them for the session.
 
-**Scene.** `ScenePackets` sends a frame with only the geometry the app has not been sent, named by
-the graph's own buffers rather than by hashing them. Each packet has a budget of numbers, so
-opening a world takes a few steps of arriving ground. A node waits for its geometry rather than
-being drawn without it. A geometry no packet has named for four packets in a row has left the
-scene, and the packet's `released` list says so; the app's `SceneGeometryCache` lets it go after
-resolving that frame, and it is sent again if it ever comes back (#566). The app holds what the
-scene holds, however far the hero walks; the bare-host proof keeps geometry the same way and
-reports how much it was sent, holds and let go.
+**Scene.** `ScenePackets` sends version 1 of the local scene channel. Every packet carries a
+strictly increasing `generation`, even after `resync renderer`. The first packet and the first
+packet after that request have `full: true`: discard the old node and geometry inventories and
+apply the admitted scene. Later packets have `full: false`. `frame` always contains complete
+camera/light-time globals; its `nodes` contain only additions and full replacements (for geometry,
+material or other structural changes). `changes` contain an `id`, optional expanded `part`, and
+only the changed `world` matrix, `instanceMatrices` and/or `visible` flag. An unchanged node sends nothing.
+
+A stable key is the decimal node id, or `id.part` for an expanded node. Wire `parent` is that key,
+or null for a root; it never depends on array offsets. `removed` lists departed keys. `order` lists
+the complete admitted node order on a full packet or when membership/order changes, and is absent
+otherwise. Dart resolves stable parents back to frame indexes only after reconstructing all nodes.
+
+Geometry is named by the graph's own buffers rather than by hashing them. Each packet retains the
+existing budget of numbers, so opening a world takes a few steps of arriving ground. A node waits
+for its geometry and parent rather than being drawn without them. A geometry no packet has named
+for four packets in a row has left the scene; `released` tells the app to let it go after resolving
+the packet. A geometry that returns is sent again under its previous name.
+
+`SceneGeometryCache` validates the version, generation, node inventory, ordering, parent and
+geometry references before committing any edits. A gap, stale/out-of-order packet, reset, or unknown
+reference invalidates deltas until a newer full packet arrives. `GameSession` requests `resync
+renderer` on rejection. Native receives a complete camera/light/cutaway state and the mesh edits in
+one `applyScene` transaction, with the generation and full expected mesh inventory. Both bridges
+reject missing meshes or a noncontiguous generation before applying it. A fresh native renderer
+requires a full submission. Dart serializes submissions and rebuilds every visible mesh on full
+resync, including meshes whose previous fingerprints match. GLES applies a batch in one GL-thread
+turn; Metal applies it in one platform-thread turn, so drawing cannot interleave its edits.
+
+This remains JSON, with Dart baking changed transforms into mesh buffers. Binary buffers,
+transform-only GPU updates, acknowledgement/backpressure and bridge instrumentation are later
+parts of #566. Shader and lighting calculations are unchanged.
 
 **Proof.** `tools/mobile-frame-proof/game.mjs` bundles the engine exactly as the apps do and
 plays it in a bare JavaScript context: no window, timers, performance clock, structuredClone,

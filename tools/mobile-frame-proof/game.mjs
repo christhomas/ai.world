@@ -87,12 +87,42 @@ await settle();
 // the world in this engine answers and the ground arrives, a budget of geometry at a time
 // held as an app holds it: what arrives is kept, and what the engine says has left the scene is let go
 const geometries = new Set();
+const nodes = new Map();
+let nodeOrder = [];
+let sceneGeneration = 0;
 let sent = 0;
 let released = 0;
+let nodeChanges = 0;
+const nodeKey = (node) => node.part === undefined ? `${node.id}` : `${node.id}.${node.part}`;
 const hold = (scene) => {
+  assert.equal(scene.version, 1);
+  assert.equal(scene.generation, sceneGeneration + 1, 'the app receives contiguous scene generations');
+  sceneGeneration = scene.generation;
+  if (scene.full) { nodes.clear(); geometries.clear(); nodeOrder = []; }
   for (const id of Object.keys(scene.geometries)) { geometries.add(id); sent++; }
+  for (const key of scene.removed) assert.ok(nodes.delete(key), `unknown removed node ${key}`);
+  for (const node of scene.frame.nodes) nodes.set(nodeKey(node), node);
+  for (const change of scene.changes) {
+    const key = nodeKey(change);
+    assert.ok(nodes.has(key), `unknown changed node ${key}`);
+    nodes.set(key, { ...nodes.get(key), ...change });
+    nodeChanges++;
+  }
+  nodeOrder = scene.order ?? nodeOrder;
+  assert.equal(nodeOrder.length, nodes.size);
+  assert.equal(new Set(nodeOrder).size, nodes.size);
+  const parents = new Set();
+  for (const key of nodeOrder) {
+    const node = nodes.get(key);
+    assert.ok(node, `missing ordered node ${key}`);
+    if (node.parent !== null) assert.ok(parents.has(node.parent), `missing parent ${node.parent}`);
+    parents.add(key);
+    if (node.geometryId) {
+      assert.ok(geometries.has(node.geometryId), `${node.geometryId} named but not held`);
+      assert.ok(!scene.released.includes(node.geometryId), `${node.geometryId} released while live`);
+    }
+  }
   for (const id of scene.released) { assert.ok(geometries.delete(id), `${id} released but never held`); released++; }
-  for (const node of scene.frame.nodes) if (node.geometryId) assert.ok(geometries.has(node.geometryId), `${node.geometryId} named but not held`);
 };
 let meshes = 0;
 let packetBytes = 0;
@@ -102,12 +132,12 @@ for (let round = 0; round < 200 && meshes < 40; round++) {
   const scene = await sceneNow();
   hold(scene);
   packetBytes = Math.max(packetBytes, JSON.stringify(scene).length);
-  meshes = scene.frame.nodes.filter((node) => node.kind === 'mesh').length;
+  meshes = [...nodes.values()].filter((node) => node.kind === 'mesh').length;
 }
 const groundMs = performance.now() - arriving;
 const scene = await sceneNow();
 hold(scene);
-const kinds = new Set(scene.frame.nodes.map((node) => node.kind));
+const kinds = new Set([...nodes.values()].map((node) => node.kind));
 assert.ok(meshes >= 40, `only ${meshes} meshes arrived`);
 for (const kind of ['mesh', 'directional', 'ambient']) assert.ok(kinds.has(kind), `no ${kind} in the frame`);
 
@@ -116,6 +146,7 @@ let state = await step();
 const from = state.models.hero;
 for (let n = 0; n < 45; n++) state = await step({ move: [0, 1] });
 hold(await sceneNow());
+assert.ok(nodeChanges > 0, 'walking produces node changes instead of complete records');
 state = await step();
 const walked = Math.hypot(state.models.hero.x - from.x, state.models.hero.z - from.z);
 assert.ok(walked > 1, `the hero walked ${walked} tiles from ${JSON.stringify(from)} to ${JSON.stringify(state.models.hero)}`);
@@ -165,7 +196,7 @@ const evidence = {
   steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
   stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometriesSent: sent,
   geometriesHeld: geometries.size, geometriesReleased: released,
-  largestScenePacketBytes: packetBytes, walked: +walked.toFixed(2),
+  largestScenePacketBytes: packetBytes, nodeChanges, sceneGeneration, walked: +walked.toFixed(2),
   worldRecords: Object.keys(worldRecords).length, continuedAt: resumed.models.hero,
 };
 await writeFile('mobile-frame-proof-out/game-proof.json', JSON.stringify(evidence, null, 2) + '\n');

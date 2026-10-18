@@ -53,20 +53,35 @@ class WorldRendererBridge(
                 }
                 "resize" -> renderer(call).resize(call.argument<Int>("width")!!, call.argument<Int>("height")!!).also { result.success(null) }
                 "putMesh" -> {
-                    val vertices = call.argument<FloatArray>("vertices") ?: error("vertices missing")
-                    val indices = call.argument<IntArray>("indices") ?: error("indices missing")
-                    renderer(call).putMesh(call.argument<String>("meshId")!!, vertices, indices,
-                        call.argument<Boolean>("castShadow") ?: true,
-                        call.argument<Boolean>("receiveShadow") ?: true,
-                        call.number("opacity"), call.argument<String>("blend") ?: "opaque",
-                        call.argument<List<*>>("emissive")?.linear() ?: FloatArray(3),
-                        call.argument<Boolean>("depthWrite") ?: true,
-                        call.argument<Boolean>("depthTest") ?: true,
-                        call.argument<Boolean>("doubleSided") ?: false,
-                        call.argument<Boolean>("backSide") ?: false,
-                        call.argument<Int>("renderOrder") ?: 0,
-                        call.argument<Boolean>("transparent") ?: false)
+                    renderer(call).putMesh(call.argument<String>("meshId")!!, call.mesh())
                     result.success(null)
+                }
+                "applyScene" -> {
+                    val renderer = renderer(call)
+                    val frame = MethodCall("sceneFrame", call.argument<Map<String, Any>>("frame") ?: error("frame missing"))
+                    val projection = frame.argument<FloatArray>("projection") ?: error("projection missing")
+                    val world = frame.argument<FloatArray>("world") ?: error("world missing")
+                    check(projection.size == 16 && world.size == 16) { "scene camera matrices must have 16 elements" }
+                    val cut = MethodCall("cutaway", call.argument<Map<String, Any>>("cutaway") ?: error("cutaway missing"))
+                    val rawMeshes = call.argument<List<Map<String, Any>>>("meshes") ?: error("meshes missing")
+                    val meshes = rawMeshes.associate { raw ->
+                        val mesh = MethodCall("putMesh", raw)
+                        (mesh.argument<String>("meshId") ?: error("mesh id missing")) to mesh.mesh()
+                    }
+                    check(meshes.size == rawMeshes.size) { "duplicate scene mesh" }
+                    renderer.applyScene(call.argument<Number>("generation")?.toLong() ?: error("generation missing"),
+                        call.argument<Boolean>("full") ?: error("full missing"),
+                        call.argument<List<String>>("meshIds") ?: error("meshIds missing"), meshes,
+                        call.argument<List<String>>("removed") ?: error("removed missing"), {
+                            renderer.sceneFrame(projection, world, frame.argument<Int>("background") ?: 0x080b18,
+                                frame.argument<List<Map<String, Any>>>("lights") ?: emptyList(),
+                                frame.argument<Map<String, Any>>("coast"), frame.argument<Map<String, Any>>("fog"),
+                                frame.argument<Number>("renderTimeMs")?.toDouble())
+                            renderer.cutaway(cut.argument<Boolean>("enabled") == true,
+                                cut.number("heroX"), cut.number("heroY"), cut.number("heroZ"))
+                        }) { outcome -> main.post {
+                            outcome.fold({ result.success(null) }, { result.error("scene-resync", it.message, null) })
+                        } }
                 }
                 "removeMesh" -> renderer(call).removeMesh(call.argument<String>("meshId")!!).also { result.success(null) }
                 "camera" -> renderer(call).camera(
@@ -127,6 +142,20 @@ private fun List<*>.linear(): FloatArray {
     return FloatArray(3) { (this[it] as Number).toFloat() }
 }
 
+/** Decode all uploads before the render thread is allowed to mutate a scene. */
+private fun MethodCall.mesh(): Mesh {
+    val vertices = argument<FloatArray>("vertices") ?: error("vertices missing")
+    val indices = argument<IntArray>("indices") ?: error("indices missing")
+    check(vertices.size % 16 == 0 && indices.size % 3 == 0 &&
+        indices.all { it >= 0 && it < vertices.size / 16 }) { "invalid scene mesh buffers" }
+    return Mesh(vertices, indices, argument<Boolean>("castShadow") ?: true,
+        argument<Boolean>("receiveShadow") ?: true, number("opacity"),
+        argument<List<*>>("emissive")?.linear() ?: FloatArray(3), argument<String>("blend") ?: "opaque",
+        argument<Boolean>("depthWrite") ?: true, argument<Boolean>("depthTest") ?: true,
+        argument<Boolean>("doubleSided") ?: false, argument<Boolean>("backSide") ?: false,
+        argument<Int>("renderOrder") ?: 0, argument<Boolean>("transparent") ?: false)
+}
+
 private data class Mesh(val vertices: FloatArray, val indices: IntArray,
     val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: FloatArray,
     val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
@@ -160,6 +189,9 @@ private class GLWorldRenderer(
     private var zoom = 18f
     private var cutOn = 1f
     private var hero = floatArrayOf(8f, 1f, 8f)
+    private val sceneGeneration = SceneGeneration()
+    private var sceneMeshOrder: List<String>? = null
+    private var sceneValid = true
     private var sceneProjection: FloatArray? = null
     private var sceneRenderTimeSeconds: Float? = null
     private var sceneWorld: FloatArray? = null
@@ -232,11 +264,31 @@ private class GLWorldRenderer(
         viewportHeight = height.coerceIn(1, 4096)
         entry.surfaceTexture().setDefaultBufferSize(viewportWidth, viewportHeight)
     }
-    fun putMesh(id: String, vertices: FloatArray, indices: IntArray,
-        castShadow: Boolean, receiveShadow: Boolean, opacity: Float, blend: String, emissive: FloatArray,
-        depthWrite: Boolean, depthTest: Boolean, doubleSided: Boolean, backSide: Boolean,
-        renderOrder: Int, transparent: Boolean) = post {
-        pending[id] = Mesh(vertices, indices, castShadow, receiveShadow, opacity, emissive, blend, depthWrite, depthTest, doubleSided, backSide, renderOrder, transparent)
+    fun putMesh(id: String, mesh: Mesh) = post { pending[id] = mesh }
+
+    /** One turn on the GL thread: no draw can observe a partially applied generation. */
+    fun applyScene(generation: Long, full: Boolean, meshIds: List<String>, updates: Map<String, Mesh>,
+        removed: List<String>, globals: () -> Unit, reply: (Result<Unit>) -> Unit) {
+        if (!running || !handler.post {
+            val outcome = runCatching {
+                sceneGeneration.validate(generation, full, pending.keys + gpu.keys, updates.keys, removed, meshIds)
+                sceneValid = false
+                if (full) {
+                    pending.clear()
+                    gpu.values.forEach { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
+                    gpu.clear()
+                }
+                removed.forEach(::removeMesh)
+                pending.putAll(updates)
+                globals()
+                sceneGeneration.commit(generation)
+                sceneMeshOrder = meshIds.toList()
+                sceneValid = true
+                changed = true
+            }
+            if (outcome.isFailure) { sceneGeneration.invalidate(); sceneValid = false }
+            reply(outcome)
+        }) reply(Result.failure(IllegalStateException("Scene resync required: renderer is not alive")))
     }
     fun removeMesh(id: String) = post {
         pending.remove(id)
@@ -344,7 +396,11 @@ private class GLWorldRenderer(
 
     /** Whether anything has been sent since the last frame: a scene, a mesh, a camera, a size, a picture asked for. */
     private var changed = true
-    private fun post(block: () -> Unit) { if (running) handler.post { changed = true; block() } }
+    private fun post(block: () -> Unit) {
+        if (!running) return
+        if (Looper.myLooper() == handler.looper) { changed = true; block() }
+        else handler.post { changed = true; block() }
+    }
 
     private fun initialize() {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
@@ -412,6 +468,7 @@ private class GLWorldRenderer(
 
     private fun drawLoop() {
         if (!running) return
+        if (!sceneValid) { handler.postDelayed(::drawLoop, 16); return }
         upload()
         /*
          * An empty scene nothing has changed is not drawn again sixty times a second.
@@ -504,7 +561,8 @@ private class GLWorldRenderer(
 
     private fun drawMeshes(activeProgram: Int, shadow: Boolean) {
         val camera = sceneWorld?.copyOfRange(12, 15) ?: target
-        val ordered = gpu.values.sortedWith(compareBy<GpuMesh> { it.renderOrder }
+        val meshes = sceneMeshOrder?.mapNotNull { gpu[it] } ?: gpu.values.toList()
+        val ordered = meshes.sortedWith(compareBy<GpuMesh> { it.renderOrder }
             .thenBy { if (it.transparent) 1 else 0 }
             .thenBy { mesh ->
                 val dx = mesh.center[0] - camera[0]; val dy = mesh.center[1] - camera[1]; val dz = mesh.center[2] - camera[2]

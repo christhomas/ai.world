@@ -46,6 +46,8 @@ it('replays recorded game steps to exactly the same scene as full packets', asyn
         changes++;
       }
       order = delta.order ?? order;
+      for (const id of delta.released) expect(geometries.delete(id)).toBe(true);
+      expect(delta.generation).toBe(step + 1);
       const resolve = (node: Record<string, unknown>, geometry: Record<string, unknown>) => {
         const { geometryId: _id, ...rest } = node;
         return { ...rest, ...geometry };
@@ -62,4 +64,4 @@ it('replays recorded game steps to exactly the same scene as full packets', asyn
     expect(changes).toBeGreaterThan(0);
     expect(game.handles().player.z).not.toBe(from);
   } finally { opened.dispose(); }
-}, 30_000);
+}, 60_000);

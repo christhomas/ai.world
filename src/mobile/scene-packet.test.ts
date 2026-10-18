@@ -54,6 +54,19 @@ describe('node changes on the local scene channel', () => {
     expect(JSON.stringify(hidden).length).toBeLessThan(JSON.stringify(first).length);
   });
 
+  it('sends animated instance transforms without repeating geometry or material', () => {
+    const packets = new ScenePackets();
+    const matrices = new Float32Array(identity);
+    const actor = mesh(1, { kind: 'instances', instanceMatrices: matrices });
+    wire(packets, frame([actor]));
+    matrices[12] = 3;
+    const moved = wire(packets, frame([actor]));
+    expect(moved.frame.nodes).toEqual([]);
+    expect(moved.geometries).toEqual({});
+    expect(moved.changes).toEqual([{ id: 1, instanceMatrices: Array.from(matrices) }]);
+    expect(wire(packets, frame([actor])).changes).toEqual([]);
+  });
+
   it('keeps parents and expanded parts stable through insertion, removal and reordering', () => {
     const packets = new ScenePackets();
     const parent = mesh(10, { kind: 'group' }), child = mesh(11, { parent: 0 });

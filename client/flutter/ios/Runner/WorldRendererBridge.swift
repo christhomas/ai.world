@@ -61,6 +61,35 @@ final class WorldRendererBridge: NSObject, FlutterPlugin {
           backSide: arguments["backSide"] as? Bool ?? false,
           renderOrder: (arguments["renderOrder"] as? NSNumber)?.intValue ?? 0,
           transparent: arguments["transparent"] as? Bool ?? false)
+      case "applyScene":
+        guard let generation = arguments["generation"] as? NSNumber,
+              let full = arguments["full"] as? Bool,
+              let meshIds = arguments["meshIds"] as? [String],
+              let removed = arguments["removed"] as? [String],
+              let rawMeshes = arguments["meshes"] as? [[String: Any]],
+              let frame = arguments["frame"] as? [String: Any],
+              let projection = frame["projection"] as? FlutterStandardTypedData,
+              let world = frame["world"] as? FlutterStandardTypedData,
+              projection.data.count == 64, world.data.count == 64,
+              let cut = arguments["cutaway"] as? [String: Any] else {
+          throw RenderFailure("Scene resync required: incomplete batch")
+        }
+        var updates: [String: CpuMesh] = [:]
+        for raw in rawMeshes {
+          guard let id = raw["meshId"] as? String, updates[id] == nil else {
+            throw RenderFailure("Scene resync required: duplicate mesh")
+          }
+          updates[id] = try sceneMesh(raw)
+        }
+        try renderer.applyScene(generation: generation.int64Value, full: full,
+          meshIds: meshIds, updates: updates, removed: removed) {
+          renderer.setSceneFrame(projection: projection.data, world: world.data,
+            background: Int(frame.number("background")), lights: frame["lights"] as? [[String: Any]] ?? [],
+            coast: frame["coast"] as? [String: Any], fog: frame["fog"] as? [String: Any],
+            renderTimeMs: (frame["renderTimeMs"] as? NSNumber)?.doubleValue)
+          renderer.setCutaway(enabled: cut["enabled"] as? Bool == true,
+            x: cut.float("heroX"), y: cut.float("heroY"), z: cut.float("heroZ"))
+        }
       case "removeMesh": renderer.removeMesh(id: arguments.string("meshId"))
       case "camera": renderer.setCamera(
         x: arguments.float("targetX"), y: arguments.float("targetY"), z: arguments.float("targetZ"),
@@ -138,6 +167,28 @@ private struct MeshStyle {
 private struct CpuMesh { let vertices: Data; let indices: Data; let style: MeshStyle }
 private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle; let center: SIMD3<Float> }
 
+/// Decode the entire batch before any native scene state changes.
+private func sceneMesh(_ raw: [String: Any]) throws -> CpuMesh {
+  guard let vertices = raw["vertices"] as? FlutterStandardTypedData,
+        let indices = raw["indices"] as? FlutterStandardTypedData,
+        vertices.data.count % 64 == 0, indices.data.count % 12 == 0 else {
+    throw RenderFailure("Scene resync required: invalid mesh buffers")
+  }
+  var indexValues = [Int32](repeating: 0, count: indices.data.count / 4)
+  _ = indexValues.withUnsafeMutableBytes { indices.data.copyBytes(to: $0) }
+  guard indexValues.allSatisfy({ $0 >= 0 && Int($0) < vertices.data.count / 64 }) else {
+    throw RenderFailure("Scene resync required: invalid mesh indices")
+  }
+  return CpuMesh(vertices: vertices.data, indices: indices.data,
+    style: MeshStyle(castShadow: raw["castShadow"] as? Bool ?? true,
+      receiveShadow: raw["receiveShadow"] as? Bool ?? true, opacity: raw.float("opacity"),
+      emissive: linear(raw["emissive"]) ?? .zero, blend: raw.string("blend"),
+      depthWrite: raw["depthWrite"] as? Bool ?? true, depthTest: raw["depthTest"] as? Bool ?? true,
+      doubleSided: raw["doubleSided"] as? Bool ?? false, backSide: raw["backSide"] as? Bool ?? false,
+      renderOrder: (raw["renderOrder"] as? NSNumber)?.intValue ?? 0,
+      transparent: raw["transparent"] as? Bool ?? false))
+}
+
 /// One frame read back from the render target: RGBA8 as drawn, top row first, as Dart reads it.
 typealias RenderSnapshot = (width: Int, height: Int, rgba: Data)
 
@@ -169,6 +220,9 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private var zoom: Float = 18
   private var cutOn: Float = 1
   private var hero = SIMD3<Float>(8, 1, 8)
+  private var sceneGeneration = SceneGeneration()
+  private var sceneValid = true
+  private var sceneMeshOrder: [String]?
   private var sceneProjection: simd_float4x4?
   private var sceneWorld: simd_float4x4?
   private var background = 0x080b18
@@ -288,6 +342,25 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
         opacity: opacity, emissive: emissive, blend: blend, depthWrite: depthWrite, depthTest: depthTest,
         doubleSided: doubleSided, backSide: backSide, renderOrder: renderOrder, transparent: transparent))
   }
+  /// The platform thread owns both this transaction and CADisplayLink; drawing cannot interleave.
+  func applyScene(generation: Int64, full: Bool, meshIds: [String], updates: [String: CpuMesh],
+                  removed: [String], globals: () -> Void) throws {
+    do {
+      try sceneGeneration.validate(generation: generation, full: full,
+        current: Set(pending.keys).union(meshes.keys), updates: Set(updates.keys), removed: removed, expected: meshIds)
+      if full { pending.removeAll(); meshes.removeAll() }
+      removed.forEach { removeMesh(id: $0) }
+      pending.merge(updates) { _, new in new }
+      globals()
+      sceneGeneration.commit(generation)
+      sceneMeshOrder = meshIds
+      sceneValid = true
+    } catch {
+      sceneGeneration.invalidate()
+      sceneValid = false
+      throw error
+    }
+  }
   func removeMesh(id: String) { pending.removeValue(forKey: id); meshes.removeValue(forKey: id) }
   func setCamera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) {
     sceneProjection = nil; sceneWorld = nil; sceneRenderTimeMs = nil
@@ -401,7 +474,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   }
 
   @objc private func frame() {
-    guard !disposed, let drawable = CVMetalTextureGetTexture(colorTexture), let commands = queue.makeCommandBuffer() else { return }
+    guard sceneValid, !disposed, let drawable = CVMetalTextureGetTexture(colorTexture), let commands = queue.makeCommandBuffer() else { return }
     uploadPending()
     let uniforms = makeUniforms(time: metalRenderTimeSeconds(renderTimeMs: sceneRenderTimeMs,
       fallbackSeconds: CACurrentMediaTime()))
@@ -510,7 +583,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     // Both passes consume the same counterclockwise mesh indices. Depth conversion leaves XY intact.
     encoder.setFrontFacing(.counterClockwise)
     let camera = sceneWorld.map { SIMD3($0.columns.3.x, $0.columns.3.y, $0.columns.3.z) } ?? target
-    let ordered = meshes.values.sorted { left, right in
+    let ordered = (sceneMeshOrder?.compactMap { meshes[$0] } ?? Array(meshes.values)).sorted { left, right in
       if left.style.renderOrder != right.style.renderOrder { return left.style.renderOrder < right.style.renderOrder }
       if left.style.transparent != right.style.transparent { return !left.style.transparent }
       let lhs = simd_length_squared(left.center - camera)

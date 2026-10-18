@@ -41,6 +41,18 @@ void main() {
     expect(read(cache, packet(3)).nodes, changed.nodes);
   });
 
+  test('instance transform changes retain their expanded part and immutable definition', () {
+    final cache = SceneGeometryCache();
+    final actor = {...node(1, part: 0), 'kind': 'instances', 'instanceMatrices': identity};
+    final first = read(cache, packet(1, full: true, nodes: [actor], order: ['1.0']));
+    final moved = [...identity]..[12] = 5;
+    final changed = read(cache, packet(2, changes: [{'id': 1, 'part': 0, 'instanceMatrices': moved}]));
+    expect(changed.nodes.single['instanceMatrices'], moved);
+    expect(changed.nodes.single['part'], 0);
+    expect(changed.nodes.single['material'], first.nodes.single['material']);
+    expect(changed.nodes.single['attributes'], first.nodes.single['attributes']);
+  });
+
   test('removal and insertion preserve stable parents and distinguish expanded parts', () {
     final cache = SceneGeometryCache();
     read(cache, packet(1, full: true, nodes: [node(1), node(2, parent: '1'), node(3, part: 0), node(3, part: 1)],
@@ -61,7 +73,9 @@ void main() {
     'missing parent': packet(2, nodes: [node(3, parent: '99')], order: ['1', '3']),
     'missing geometry': packet(2, nodes: [{...node(1), 'geometryId': 'missing'}]),
     'live geometry released': {...packet(2), 'released': ['g1']},
+    'immutable geometry redefined': {...packet(2), 'geometries': {'g1': <String, dynamic>{}}},
     'bad transform': packet(2, changes: [{'id': 1, 'world': [1]}]),
+    'bad instance transform': packet(2, changes: [{'id': 1, 'instanceMatrices': [1]}]),
     'duplicate order': packet(2, order: ['1', '1']),
     'unsupported version': {...packet(2), 'version': 2},
   }.entries) {
@@ -107,13 +121,17 @@ void main() {
     final invalid = packet(2, nodes: [{...node(2), 'world': <double>[1]}]);
     expect(() => read(cache, invalid), throwsFormatException);
     expect(submitted, hasLength(1));
+    final singular = {...node(2), 'world': List<double>.filled(16, 0)};
+    await expectLater(pipeline.draw(read(cache, packet(3, full: true, nodes: [node(1, x: 7), singular], order: ['1', '2']))),
+      throwsFormatException);
+    expect(submitted, hasLength(1), reason: 'even a late mesh-baking failure cannot submit half a scene');
     reject = true;
-    await expectLater(pipeline.draw(read(cache, packet(3, full: true, nodes: [node(1), node(2)], order: ['1', '2']))),
+    await expectLater(pipeline.draw(read(cache, packet(4, full: true, nodes: [node(1), node(2)], order: ['1', '2']))),
       throwsA(isA<PlatformException>()));
     expect(submitted, hasLength(1));
     reject = false;
-    await expectLater(pipeline.draw(read(cache, packet(4))), throwsFormatException);
-    await pipeline.draw(read(cache, packet(5, full: true, nodes: [node(1), node(2)], order: ['1', '2'])));
+    await expectLater(pipeline.draw(read(cache, packet(5))), throwsFormatException);
+    await pipeline.draw(read(cache, packet(6, full: true, nodes: [node(1), node(2)], order: ['1', '2'])));
     expect(submitted, hasLength(2));
     expect((submitted.last['meshes'] as List).length, 2, reason: 'native reset must override matching fingerprints');
     expect(submitted.last['meshIds'], ['scene:1', 'scene:2']);
@@ -157,6 +175,8 @@ void main() {
       await full.draw(read(SceneGeometryCache(), packet(step, full: true, nodes: nodes, order: order)));
       if (step == 1) expect(buffers['delta'], isNotEmpty, reason: 'the scene must actually reach the native bridge');
       expect(buffers['delta'], buffers['full'], reason: 'step $step');
+      expect((calls['delta']!.last.arguments as Map)['frame'], (calls['full']!.last.arguments as Map)['frame']);
+      expect((calls['delta']!.last.arguments as Map)['cutaway'], (calls['full']!.last.arguments as Map)['cutaway']);
     }
     final submitted = calls['delta']!.where((call) => call.method != 'create');
     expect(submitted.map((call) => call.method).toSet(), {'applyScene'}, reason: 'a complete scene is one atomic native submission');

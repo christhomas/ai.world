@@ -87,7 +87,9 @@ final class NativeWorldRenderer {
   Future<void> resize(int width, int height) =>
       _invoke('resize', <String, Object>{'width': width, 'height': height});
 
-  Future<void> putMesh(RenderMesh mesh) => _invoke('putMesh', <String, Object>{
+  Future<void> putMesh(RenderMesh mesh) => _invoke('putMesh', _meshMessage(mesh));
+
+  static Map<String, Object> _meshMessage(RenderMesh mesh) => <String, Object>{
     'meshId': mesh.id,
     'vertices': mesh.vertices,
     'indices': mesh.indices,
@@ -104,7 +106,7 @@ final class NativeWorldRenderer {
     'backSide': mesh.backSide,
     'renderOrder': mesh.renderOrder,
     'transparent': mesh.transparent,
-  });
+  };
 
   Future<void> removeMesh(String meshId) =>
       _invoke('removeMesh', <String, Object>{'meshId': meshId});
@@ -120,6 +122,26 @@ final class NativeWorldRenderer {
     double? renderTimeMs,
     Map<String, dynamic>? fog,
     Map<String, dynamic>? coast,
+    required List<Map<String, dynamic>> nodes,
+  }) => _invoke('sceneFrame', _sceneMessage(projection: projection, world: world,
+    background: background, renderTimeMs: renderTimeMs, fog: fog, coast: coast, nodes: nodes));
+
+  /// A validated scene, committed by native code in one render-thread turn.
+  Future<void> applyScene({required int generation, required bool full,
+      required Float32List projection, required Float32List world, required int background,
+      double? renderTimeMs, Map<String, dynamic>? fog, Map<String, dynamic>? coast,
+      required List<Map<String, dynamic>> nodes, required CutawayState cutaway,
+      required List<RenderMesh> meshes, required List<String> removed, required List<String> meshIds}) =>
+    _invoke('applyScene', {
+      'generation': generation, 'full': full, 'meshIds': meshIds,
+      'frame': _sceneMessage(projection: projection, world: world, background: background,
+        renderTimeMs: renderTimeMs, fog: fog, coast: coast, nodes: nodes),
+      'cutaway': cutaway.toMessage(), 'meshes': meshes.map(_meshMessage).toList(), 'removed': removed,
+    });
+
+  static Map<String, Object> _sceneMessage({
+    required Float32List projection, required Float32List world, required int background,
+    double? renderTimeMs, Map<String, dynamic>? fog, Map<String, dynamic>? coast,
     required List<Map<String, dynamic>> nodes,
   }) {
     final message = <String, Object>{
@@ -145,7 +167,7 @@ final class NativeWorldRenderer {
         'values': Uint8List.fromList((coast['values'] as List).cast<int>()),
       };
     }
-    return _invoke('sceneFrame', message);
+    return message;
   }
 
   /// Read back the next frame the renderer draws, from its own target rather than the screen, so

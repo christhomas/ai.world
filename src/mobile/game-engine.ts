@@ -118,8 +118,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  * The app makes requests in the shared host contract (`shared/mobile/host-contract.ts`) and gets a
  * reply to each; nothing happens between them, and time moves only when a step says it has. Each
  * reply carries what the game has said (the HUD, the conversation, where the hero is) and, when the
- * app asked for one with `resync` `scene`, the next frame drawn with only the geometry the app has
- * not been sent.
+ * app asked for one with `resync` `scene`, the next scene changes: new geometry, node additions,
+ * removals and changed transforms or visibility. `resync renderer` starts a full scene again.
  *
  * - `start` opens the game the options named, against the world in this engine;
  * - `step` moves time on by `dtSeconds`, with the stick, the camera turning (`look[0]`), the held
