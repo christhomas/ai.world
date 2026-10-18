@@ -17,6 +17,7 @@ import { ParcelLink } from './parcel-link';
 import { MapModels } from './map-model';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { packView } from '../game/pack';
+import { SLOTS, type EquipSlot } from '../game/items';
 import { ROSTER_ORDERS, type RosterOrder } from '../game/roster-view';
 import { EngineJobs } from './engine-jobs';
 
@@ -128,7 +129,8 @@ const json = (value: unknown): Json => JSON.parse(JSON.stringify(value, plainArr
  *   conversation by index, `zoom` the camera by a pinch's wheel distance (`args.by`), `nudge` a row's
  *   number (`row:1` or `row:-1`), `read` the roster or the
  *   travellers while a page shows them (`roster:<order>` or `company`, or nothing to stop), `say` a line typed into the
- *   console (`args.text`), `take` a carried thing out of the pack by id or `stow` what a slot wears;
+ *   console (`args.text`), `take` a carried thing out of the pack by id or `stow` what a slot wears
+ *   (`slot:id`, refused unless the slot still wears that);
  * - `lifecycle` parks and resumes the game as the app goes to and from the background;
  * - `parcel` is what the app's socket to a shared world did: opened, a message, or closed (#565);
  * - `resync` `scene` asks for the next frame, and `renderer` says the app's renderer has forgotten
@@ -341,9 +343,19 @@ export function create(session: string, optionsText: string): { request(text: st
               const text = (request.payload.args as { text?: unknown } | null)?.text;
               if (typeof text !== 'string' || text.length > 500) throw new Error('say needs a line of at most 500 characters');
               host.say(text);
-            } else if (action === 'take' || action === 'stow') {
-              if (typeof target !== 'string') throw new Error(`${action} needs a thing to ${action}`);
-              host.pack()[action](target);
+            } else if (action === 'take') {
+              if (typeof target !== 'string') throw new Error('take needs a thing to take');
+              host.pack().take(target);
+            } else if (action === 'stow') {
+              // `slot:id`, the slot and what the app showed worn in it. The page's rucksack is
+              // redrawn the moment anything changes, so a click there stows what it shows; the app's
+              // page is as old as the last reply, and a cell tapped after the slot changed stows
+              // nothing rather than something the player never saw there (#562)
+              const [slot, shown, ...rest] = typeof target === 'string' ? target.split(':') : [];
+              if (!slot || !shown || rest.length) throw new Error('stow needs a slot and what is worn in it');
+              if ((SLOTS as readonly string[]).includes(slot) && host.handles().state.equipped[slot as EquipSlot] === shown) {
+                host.pack().stow(slot);
+              }
             } else act(action);
             return reply({ state: presentation(null) });
           }

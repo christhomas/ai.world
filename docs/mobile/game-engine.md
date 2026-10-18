@@ -18,7 +18,7 @@ The app then sends:
 | `start` `remote` | opens it against the shared world the `server` option names (#565) |
 | `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), the camera turning (`look[0]`: −1 left, 1 right), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster or the travellers while a page shows them (`roster:village`, `name`, `age`, `purse` or `hunger`, or `company`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster or the travellers while a page shows them (`roster:village`, `name`, `age`, `purse` or `hunger`, or `company`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot as `slot:id`, the slot and what the app showed worn in it (stows nothing if the slot no longer wears that) |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
@@ -45,6 +45,10 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   (`client/flutter/lib/src/audio/beds.dart`);
 - where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
   and the country, each as runs, total and longest, at most every two seconds;
+- the pack (`pack`), every reply, read by `src/game/pack.ts` as the page's rucksack draws it.
+  `src/mobile/pack-sequences.test.ts` taps the same sequence through the page's `Rucksack` and the
+  app's `inventory`, `take` and `stow`, and checks the hero, the rows and the words agree after each,
+  and that a stale or unavailable tap changes nothing;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - everybody else in this world (`company`), nearest first, read by `src/game/company-view.ts` as the page's travellers list is, only while the app has asked to read it and only when it has changed;
 - whoever the action key would talk to (`subject`), with their feet and head in screen pixels (`src/render/in-reach.ts`), every reply, for the app to ring them and hang their name over them as the design marks somebody in reach;

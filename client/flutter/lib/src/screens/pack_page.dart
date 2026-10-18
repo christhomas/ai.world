@@ -6,7 +6,8 @@ import '../shell/ledger_tokens.dart';
 /// The rucksack (#573; design/mobile/README.md, "The book — your pack"): what is worn, in six
 /// 44px cells, and what is carried, in the 44px row grammar. The rows are the game's own
 /// (`src/game/pack.ts`), and a tap is the game's own rule for that row: wear it, use it, or look at
-/// it; a worn cell is stowed. This page decides nothing.
+/// it; a worn cell is stowed, named with what it showed worn there so the game stows nothing if that has
+/// changed since (#562). This page decides nothing.
 class PackPage extends StatelessWidget {
   const PackPage({super.key, required this.pack, required this.tokens, required this.take, required this.stow});
   /// The engine's `pack` model.
@@ -37,7 +38,7 @@ class PackPage extends StatelessWidget {
         for (final slot in worn)
           Semantics(button: slot['id'] != null, label: slot['id'] == null ? '${slot['slotName']}: empty' : '${slot['slotName']}: ${slot['name']}, stow',
             child: SizedBox(key: ValueKey('worn-${slot['slot']}'), width: 44, height: 44, child: InkWell(
-              onTap: slot['id'] == null ? null : () => stow('${slot['slot']}'),
+              onTap: slot['id'] == null ? null : () => stow('${slot['slot']}:${slot['id']}'),
               child: DecoratedBox(decoration: BoxDecoration(
                   color: slot['id'] == null ? null : const Color(0xffffe9b8),
                   border: Border.all(color: slot['id'] == null ? t.pageDim : t.rule)),
