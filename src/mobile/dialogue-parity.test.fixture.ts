@@ -51,13 +51,19 @@ export class PhoneDialogue {
     } finally { spy.mockRestore(); }
   }
 
-  send(request: Request): void {
+  /** A request as the app makes it, and the reply whatever it was, a refusal included. */
+  ask(request: Request): HostResult {
     const sequence = this.sequence++;
     const reply = JSON.parse(this.engine.request(JSON.stringify({
       ...request, version: HOST_CONTRACT_VERSION, session: this.session, sequence, id: `dialogue-${sequence}`,
     }))) as HostResult;
-    expect(reply.type, JSON.stringify(reply.payload)).toBe('result');
     if (reply.payload.state) this.shown = reply.payload.state;
+    return reply;
+  }
+
+  send(request: Request): void {
+    const reply = this.ask(request);
+    expect(reply.type, JSON.stringify(reply.payload)).toBe('result');
   }
 
   act(action: string, target: string | null = null): void {
@@ -70,7 +76,7 @@ export class PhoneDialogue {
 }
 
 /** Only the fixture's purse, pack and errands; neither path inherits a previous case's hero. */
-function reset(state: GameState): void {
+export function reset(state: GameState): void {
   state.inventory.gold = 100;
   state.inventory.items.clear();
   for (const slot of SLOTS) delete state.equipped[slot];
