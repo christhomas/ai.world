@@ -86,6 +86,9 @@ The artifact contains `manifest.json`, `parity.json`, `commands.log`, native/app
 OS screenshots, the read-back targets, the web pictures and difference images, iOS XCTest results,
 and a self-contained `report.html`. The report embeds a thumbnail of each picture as a data URI,
 so it opens with no file beside it.
+When the app's XCTests fail, `capture` reads each failed assertion out of `RunnerTests.xcresult`
+with `xcresulttool` and prints it in the step log, the job summary, `manifest.json`
+(`xctest_failures`) and the report, since the bundle itself only opens on a Mac.
 Manifest fields include source SHA, app checksum/version, fixture checksum, configuration,
 scenario names and observed assertions. Reports are generated even after setup/build/device
 failure. A missing report fails artifact upload. `prepare` and `capture` expose failure stages.
