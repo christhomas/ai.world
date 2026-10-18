@@ -78,7 +78,7 @@ void main() {
     expect(find.text(PhotoResult.failed.message), findsOneWidget);
     share = (_) async => 'shared';
     await tester.runAsync(() async {
-      // Complete on the real event loop used by PNG encoding, outside the fake widget clock.
+      // completed on the real event loop, where the PNG is encoded and shared, outside the test's clock
       shown = Completer<void>();
       await tester.tap(find.byKey(const ValueKey('photo-shutter')));
       await shown.future.timeout(const Duration(seconds: 5));

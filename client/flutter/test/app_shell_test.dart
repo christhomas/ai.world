@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 class GameAssets extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
+    // a game opens its jobs engine beside the game engine (#559), each from a manifest of its own
     final text = key.endsWith('manifest.json') ? jsonEncode({'contractVersion': 1,
       'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': key.contains('jobs') ? 'jobs' : 'game'}) : 'bundled game';
     return ByteData.sublistView(Uint8List.fromList(utf8.encode(text)));
