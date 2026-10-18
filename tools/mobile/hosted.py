@@ -173,10 +173,16 @@ def capture(platform):
             command([*sim, 'boot', device])
             command([*sim, 'bootstatus', device, '-b'], timeout=180)
             # Execute XCTest on this exact simulator, including production Metal runtime coverage.
-            command(['xcodebuild', 'test', '-workspace', 'Runner.xcworkspace', '-scheme', 'Runner', '-configuration', 'Debug',
-                     '-destination', f'id={device}', '-only-testing:RunnerTests',
-                     '-resultBundlePath', str(OUT / 'RunnerTests.xcresult'), 'CODE_SIGNING_ALLOWED=NO', 'FLUTTER_TARGET=lib/hosted_replay.dart'],
-                    timeout=900, cwd=APP / 'ios')
+            if command(['xcodebuild', 'test', '-workspace', 'Runner.xcworkspace', '-scheme', 'Runner', '-configuration', 'Debug',
+                        '-destination', f'id={device}', '-only-testing:RunnerTests',
+                        '-resultBundlePath', str(OUT / 'RunnerTests.xcresult'), 'CODE_SIGNING_ALLOWED=NO', 'FLUTTER_TARGET=lib/hosted_replay.dart'],
+                       timeout=900, cwd=APP / 'ios', check=False):
+                # The assertion's own words live in the result bundle, which nobody can open off a Mac.
+                failures = read_xctest_failures(OUT / 'RunnerTests.xcresult')
+                save(xctest_failures=failures)
+                for failure in failures:
+                    print(f'XCTest failure: {failure}', flush=True)
+                raise RuntimeError('XCTest failed: ' + ('; '.join(failures) or 'no failure recorded; inspect commands.log'))
             # XCTest can shut the original device down after running on its testing clone.
             devices = json.loads(output([*sim, 'list', 'devices', '-j']))['devices']
             state = next(d['state'] for group in devices.values() for d in group if d['udid'] == device)
@@ -351,6 +357,44 @@ def capture(platform):
             command(['adb', '-s', device, 'shell', 'am', 'force-stop', 'world.ai.ai_world_flutter'], check=False)
 
 
+def xctest_failures(results):
+    """Each failed assertion as "test: message", from `xcresulttool get test-results tests` (Xcode 16)
+    or the legacy `xcresulttool get --format json` of the whole bundle."""
+    found = []
+
+    def walk(node, case):
+        if node.get('nodeType') == 'Test Case':
+            case = node.get('name')
+        if node.get('nodeType') == 'Failure Message':
+            found.append(f'{case}: {node.get("name")}')
+        for child in node.get('children', []):
+            walk(child, case)
+    for node in results.get('testNodes', []):
+        walk(node, None)
+    for failure in results.get('issues', {}).get('testFailureSummaries', {}).get('_values', []):
+        where = failure.get('documentLocationInCreatingWorkspace', {}).get('url', {}).get('_value', '')
+        line = re.search(r'StartingLineNumber=(\d+)', where)
+        found.append(f'{failure.get("testCaseName", {}).get("_value")}: '
+                     + (f'line {int(line[1]) + 1}: ' if line else '') + failure.get('message', {}).get('_value', ''))
+    return found
+
+
+def read_xctest_failures(bundle):
+    """The failed assertions in a result bundle; falls back to xcodebuild's own error lines."""
+    for args in (['xcrun', 'xcresulttool', 'get', 'test-results', 'tests', '--path', str(bundle)],
+                 ['xcrun', 'xcresulttool', 'get', '--legacy', '--format', 'json', '--path', str(bundle)],
+                 ['xcrun', 'xcresulttool', 'get', '--format', 'json', '--path', str(bundle)]):
+        try:
+            found = xctest_failures(json.loads(subprocess.run(args, capture_output=True, text=True, check=True, timeout=120).stdout))
+        except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
+            continue
+        if found:
+            return found
+    log = OUT / 'commands.log'
+    lines = log.read_text(errors='replace').splitlines() if log.exists() else []
+    return [line.strip() for line in lines if ': error: ' in line][-20:]
+
+
 def app_memory_kb(platform, adb):
     """The app's resident memory in KiB, or None where it could not be read: Android's total PSS,
     and the simulator app's resident size, which is a macOS process on the runner."""
@@ -459,6 +503,8 @@ def report(platform):
                 ('difference x4', f'{name}-diff.png', 0), (f'device screenshot, turned {turn}', f'{name}-first.png', turn))]
             sections.append('<table><tr>' + ''.join(f'<th>{html.escape(label)}</th>' for label, path, _ in cells if path.exists()) + '</tr><tr>' +
                             ''.join(f'<td><img src="{thumbnail(path, turn=angle)}"></td>' for _, path, angle in cells if path.exists()) + '</tr></table>')
+    if state.get('xctest_failures'):
+        sections.append('<h2>XCTest failures</h2><pre>' + html.escape('\n'.join(state['xctest_failures'])) + '</pre>')
     if state.get('installed_game'):
         sections.append('<h2>installed game</h2><pre>' + html.escape(json.dumps(state['installed_game'])) + '</pre>')
         if pictures:
@@ -472,6 +518,8 @@ def report(platform):
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
             summary.write(f'Native renderer: **{state["status"]}**. Installed gameplay: **pending** (#584). See evidence artifact.\n')
+            for failure in state.get('xctest_failures', []):
+                summary.write(f'- XCTest: {failure}\n')
             for found in state.get('parity', []):
                 summary.write(f'- {found["name"]}: {"FAIL " + "; ".join(found["failures"]) if found["failures"] else "pass"}'
                               f' (mae {found.get("mae", "-")}, worst region {found.get("region_max", "-")}, noise {found.get("noise", {}).get("mae", "-")})\n')
