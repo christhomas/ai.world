@@ -142,7 +142,7 @@ void main() {
   for (final world in [null, 'Harbour']) {
     testWidgets('an imported shared game names its server on the title (world: $world)', (tester) async {
       final root = await storage(tester);
-      final file = GameFile(slot: {...rowanFile.slot, 'server': 'wss://world.example/play', if (world != null) 'world': world},
+      final file = GameFile(slot: {...rowanFile.slot, 'server': 'wss://world.example/play', 'world': ?world},
         hero: rowanFile.hero, world: rowanFile.world, exported: rowanFile.exported);
       await title(tester, root, pick: () async => Uint8List.fromList(utf8.encode(file.encode())));
       await tester.tap(find.byKey(const ValueKey('import-game')));
