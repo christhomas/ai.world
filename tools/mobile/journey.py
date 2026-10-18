@@ -21,6 +21,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -102,28 +103,79 @@ def photograph(platform, serial, name):
 # then nothing for eighty minutes, until the job's own limit took the report with it.
 SILENT_MINUTES = 20
 PART_MINUTES = 40
+# A part whose app was built but never began its test hung while launching, not in the game: on
+# 2026-10-17 the first iOS part on a newly booted simulator did that in two of four runs, and the
+# next part passed on the same simulator. It is stopped this long after the build and played again.
+LAUNCH_MINUTES = 8
+BUILT = re.compile(r'Xcode build done|✓ Built ')
+BEGUN = re.compile(r'^\d+:\d+ \+\d+.*: (?!loading )')
 
 
 def run_part(platform, serial, part, record, defines=()):
-    """One journey part, start to finish, photographing what it asks to be photographed."""
+    """One journey part, start to finish, photographing what it asks to be photographed. A part
+    whose app never started is played once more before it counts as failed."""
+    code, launched = play_part(platform, serial, part, record, defines)
+    if not launched:
+        launch_hung(platform, serial, part)
+        code, _ = play_part(platform, serial, part, record, defines, again=True)
+    return code
+
+
+def launch_hung(platform, serial, part):
+    """What the machine and the device were doing when a part's app never started, kept beside its
+    log; then, on iOS, the simulator is started again, so a stuck install or launch is not inherited
+    by the second go (a stopped `flutter test` leaves its `simctl` children running)."""
+    stem = Path(part).stem
+    try:
+        with (OUT / f'{stem}-launch.log').open('w') as file:
+            running = subprocess.run(['ps', '-ax', '-o', 'pid,etime,command'], capture_output=True, text=True,
+                                     timeout=60, check=False).stdout
+            file.write(''.join(line + '\n' for line in running.splitlines()
+                               if re.search(r'simctl|xcodebuild|xcrun|flutter|dart|adb|Simulator', line)))
+            if platform == 'ios':
+                file.write('\n')
+                file.flush()
+                subprocess.run(['xcrun', 'simctl', 'spawn', serial, 'log', 'show', '--last', f'{LAUNCH_MINUTES + 2}m',
+                                '--style', 'compact', '--predicate',
+                                'process == "installd" OR process == "SpringBoard" OR process == "Runner"'
+                                ' OR process == "CoreSimulatorBridge"'],
+                               stdout=file, stderr=subprocess.STDOUT, timeout=300, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if platform == 'ios':
+        for args, timeout in ((['shutdown', serial], 120), (['boot', serial], 180), (['bootstatus', serial, '-b'], 600)):
+            try:
+                subprocess.run(['xcrun', 'simctl', *args], check=False, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                pass
+
+
+def play_part(platform, serial, part, record, defines=(), again=False):
+    """One go at a part: its exit code, and whether its app launched at all."""
     args = ['flutter', 'test', part, '-d', serial, '--reporter', 'expanded', *[f'--dart-define={d}' for d in defines]]
     record['commands'].append(' '.join(args))
-    log = (OUT / f'{Path(part).stem}.log').open('w')
+    log = (OUT / f'{Path(part).stem}.log').open('a' if again else 'w')
+    if again:
+        log.write('\n[journey.py] the app never started, so the part is played again\n')
     started = time.monotonic()
     process = subprocess.Popen(args, cwd=APP, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     # read on a thread of its own, so a part that goes quiet can be noticed rather than waited on
     said = queue.Queue()
     threading.Thread(target=lambda: ([said.put(line) for line in process.stdout], said.put(None)), daemon=True).start()
     heard = time.monotonic()
+    built = None
+    begun = False
     stopped = None
     while True:
         try:
-            line = said.get(timeout=min(15, SILENT_MINUTES * 15))
+            line = said.get(timeout=min(15, SILENT_MINUTES * 15, LAUNCH_MINUTES * 15))
         except queue.Empty:
             if time.monotonic() - heard > SILENT_MINUTES * 60:
                 stopped = f'said nothing for {SILENT_MINUTES} minutes'
             elif time.monotonic() - started > PART_MINUTES * 60:
                 stopped = f'ran past {PART_MINUTES} minutes'
+            elif built is not None and not begun and time.monotonic() - built > LAUNCH_MINUTES * 60:
+                stopped = f'never started in the {LAUNCH_MINUTES} minutes after it was built'
             if stopped:
                 process.kill()
                 log.write(f'\n[journey.py] {Path(part).stem} {stopped}, and was stopped\n')
@@ -135,18 +187,25 @@ def run_part(platform, serial, part, record, defines=()):
         log.write(line)
         log.flush()
         text = line.strip()
+        if built is None and BUILT.search(text):
+            built = heard
+        if BEGUN.match(text):
+            begun = True
         if text.startswith('JOURNEY_SHOT '):
             name = text.split(' ', 1)[1]
             record['shots'].append(name)
             photograph(platform, serial, name)
         elif text.startswith('JOURNEY_STEP '):
+            begun = True
             record['steps'].append({**json.loads(text.split(' ', 1)[1]), 'part': Path(part).stem,
                                     'atSeconds': round(time.monotonic() - started, 1)})
     code = process.wait(timeout=120)
     log.close()
     record['parts'].append({'part': part, 'exit': code if not stopped else 1, 'seconds': round(time.monotonic() - started, 1),
-                            **({'stopped': stopped} if stopped else {})})
-    return code if not stopped else 1
+                            **({'stopped': stopped} if stopped else {}), **({'again': True} if again else {})})
+    # a part stopped before its test began is the only kind played again: one that began and then
+    # failed or went quiet failed in the game, and another go would hide that
+    return (code if not stopped else 1), begun or not stopped
 
 
 def device_log(platform, serial):

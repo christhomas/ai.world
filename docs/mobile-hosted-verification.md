@@ -94,6 +94,8 @@ Future #569 fixtures should consume this same output directory and manifest/repo
 ## Installed journeys
 
 The renderer replay above proves the native renderers; it does not prove the game. That is the
-installed journey (#584; `docs/mobile/installed-journey.md`), which runs in the same jobs after the
-frames: `tools/mobile/journey.py` drives the production app by touch on the emulator and on its own
-simulator, and keeps its report as `mobile-<platform>-journey`.
+installed journey (#584; `docs/mobile/installed-journey.md`): `tools/mobile/journey.py` drives the
+production app by touch and keeps its report as `mobile-<platform>-journey`. On Android it runs in
+the same job after the frames, on the same emulator. On iOS it is a job of its own, `ios-journey`, on
+a fresh runner: after the replay was built and run in the same checkout, the journey's app launched
+but `flutter test` never began its test.
