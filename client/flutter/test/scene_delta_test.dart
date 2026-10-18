@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 const identity = <double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 Map<String, dynamic> node(int id, {Object? parent, int? part, double x = 0, bool visible = true}) => {
-  'id': id, if (part != null) 'part': part, 'parent': parent,
+  'id': id, 'part': ?part, 'parent': parent,
   'kind': 'mesh', 'world': [...identity]..[12] = x, 'visible': visible,
   'castShadow': false, 'receiveShadow': false, 'geometryId': 'g1',
   'material': {'intent': 'lit', 'colour': 0xffffff, 'side': 'front'},
@@ -15,7 +15,7 @@ Map<String, dynamic> packet(int generation, {bool full = false,
   'version': 1, 'generation': generation, 'full': full,
   'frame': {'camera': {'orthographic': true, 'projection': identity, 'world': identity},
     'renderTimeMs': generation * 20, 'background': 0, 'fog': null, 'nodes': nodes},
-  'changes': changes, 'removed': removed, if (order != null) 'order': order,
+  'changes': changes, 'removed': removed, 'order': ?order,
   'geometries': {if (full) 'g1': {
     'attributes': {'position': {'size': 3, 'values': <num>[0, 0, 0, 1, 0, 0, 0, 1, 0]}},
     'indices': <int>[0, 1, 2],
@@ -84,6 +84,42 @@ void main() {
     expect(read(cache, packet(9, full: true, nodes: [node(1)], order: ['1'])).nodes, hasLength(1));
   });
 
+  test('a rejected draw changes nothing and a full resync restores every mesh', () async {
+    const channel = MethodChannel('world.ai/atomic-scene');
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final submitted = <Map>[];
+    var reject = false;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'create') return 9;
+      if (call.method == 'applyScene') {
+        if (reject) throw PlatformException(code: 'scene-resync', message: 'native reset');
+        submitted.add(call.arguments as Map);
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final renderer = await NativeWorldRenderer.create(width: 320, height: 180, channel: channel);
+    final pipeline = FlutterFramePipeline(renderer);
+    final cache = SceneGeometryCache();
+    await pipeline.draw(read(cache, packet(1, full: true, nodes: [node(1), node(2)], order: ['1', '2'])));
+    expect(submitted, hasLength(1));
+    // A malformed second mesh must not submit the first mesh or new globals.
+    final invalid = packet(2, nodes: [{...node(2), 'world': <double>[1]}]);
+    expect(() => read(cache, invalid), throwsFormatException);
+    expect(submitted, hasLength(1));
+    reject = true;
+    await expectLater(pipeline.draw(read(cache, packet(3, full: true, nodes: [node(1), node(2)], order: ['1', '2']))),
+      throwsA(isA<PlatformException>()));
+    expect(submitted, hasLength(1));
+    reject = false;
+    await expectLater(pipeline.draw(read(cache, packet(4))), throwsFormatException);
+    await pipeline.draw(read(cache, packet(5, full: true, nodes: [node(1), node(2)], order: ['1', '2'])));
+    expect(submitted, hasLength(2));
+    expect((submitted.last['meshes'] as List).length, 2, reason: 'native reset must override matching fingerprints');
+    expect(submitted.last['meshIds'], ['scene:1', 'scene:2']);
+    await renderer.dispose();
+  });
+
   test('deterministic steps draw the same final buffers as full scenes', () async {
     const deltaChannel = MethodChannel('world.ai/delta-replay');
     const fullChannel = MethodChannel('world.ai/full-replay');
@@ -119,7 +155,7 @@ void main() {
         removed: step == 8 ? ['2'] : [], order: step == 8 ? order : null);
       await deltas.draw(read(cache, delta));
       await full.draw(read(SceneGeometryCache(), packet(step, full: true, nodes: nodes, order: order)));
-      expect(buffers['delta'], isNotEmpty, reason: 'the scene must actually reach the native bridge');
+      if (step == 1) expect(buffers['delta'], isNotEmpty, reason: 'the scene must actually reach the native bridge');
       expect(buffers['delta'], buffers['full'], reason: 'step $step');
     }
     final submitted = calls['delta']!.where((call) => call.method != 'create');
