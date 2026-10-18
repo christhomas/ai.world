@@ -174,8 +174,6 @@ jobs:
       - run: python3 -m venv "$RUNNER_TEMP/mobile-python"
       - run: |
           "$RUNNER_TEMP/mobile-python/bin/pip" install Pillow==11.3.0
-      # the web player the installed journey meets in a shared world (#583)
-      - run: pnpm exec playwright install chromium
       - uses: actions/download-artifact@v4
         with:
           name: parity-frames
@@ -204,8 +202,37 @@ jobs:
           path: ${{ runner.temp }}/mobile-evidence
           if-no-files-found: error
           retention-days: 30
+
+  # The installed journey on iOS (#584), on a runner of its own. After the replay above had been built
+  # and run in the same checkout, the journey's app launched and started its VM service, and then
+  # `flutter test` never began the test: five runs in a row on 2026-10-17 and 18 (#699, #706, #707),
+  # while the Device playtest's iOS job played the same journey on the same commits on a fresh runner.
+  # Android's journey still follows its frames on the same emulator, where it passes.
+  ios-journey:
+    runs-on: macos-15
+    timeout-minutes: 100
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+      - run: python3 -m venv "$RUNNER_TEMP/mobile-python"
+      - run: |
+          "$RUNNER_TEMP/mobile-python/bin/pip" install Pillow==11.3.0
+      # the web player the installed journey meets in a shared world (#583)
+      - run: pnpm exec playwright install chromium
       - name: The installed journey by touch on its own simulator (#584)
-        if: always()
         # its own limit inside the job's, so a journey that runs long fails here and its report is still
         # uploaded below, rather than the whole job being cancelled with nothing to show (2026-10-17)
         timeout-minutes: 80
