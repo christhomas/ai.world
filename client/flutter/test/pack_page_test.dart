@@ -32,7 +32,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('worn-hand')));
     await tester.tap(find.byKey(const ValueKey('worn-head')));
     expect(taken, ['bread']);
-    expect(stowed, ['hand'], reason: 'an empty slot has nothing to stow');
+    expect(stowed, ['hand:stick'], reason: 'a worn cell names what it shows, and an empty slot has nothing to stow');
     expect(tester.takeException(), isNull, reason: 'a long note gives way rather than overflowing the row');
   });
 

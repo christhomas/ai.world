@@ -287,7 +287,14 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Test native scene generation guards on iOS
+        run: |
+          swiftc -parse-as-library ios/Runner/SceneGeneration.swift test/native_scene_generation.swift -o "$RUNNER_TEMP/scene-generation-tests"
+          "$RUNNER_TEMP/scene-generation-tests"
       - run: flutter build apk --debug
+      - name: Test native scene generation guards on Android
+        working-directory: client/flutter/android
+        run: ./gradlew testDebugUnitTest
       - run: flutter build ios --simulator --debug
 
   # Each full capture gets its own hosted runner. Two passes in one playtest job took over an hour

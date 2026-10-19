@@ -1,10 +1,45 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:ai_world_flutter/src/app_shell.dart';
 import 'package:ai_world_flutter/src/game_session.dart';
+import 'package:ai_world_flutter/src/game_file_ports.dart';
 import 'package:ai_world_flutter/src/storage/checkpoint_store.dart';
+import 'package:ai_world_flutter/src/storage/game_file.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// The bundled game's manifest and source, as a test stands them in.
+class GameAssets extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async {
+    // a game opens its jobs engine beside the game engine (#559), each from a manifest of its own
+    final text = key.endsWith('manifest.json') ? jsonEncode({'contractVersion': 1,
+      'sourceSha': 'a' * 40, 'bundleSha256': 'b' * 64, 'scope': key.contains('jobs') ? 'jobs' : 'game'}) : 'bundled game';
+    return ByteData.sublistView(Uint8List.fromList(utf8.encode(text)));
+  }
+}
+
+/// An engine with one small world, where somebody starts talking whenever the test says so. It
+/// keeps the controls the last step was sent with, as the game would read them.
+class TalkingEngine {
+  var talking = false;
+  var disposed = false;
+  Map? input;
+
+  Future<Object?> answer(MethodCall call) async {
+    if (call.method == 'create') return 'owner';
+    if (call.method == 'dispose') { disposed = true; return null; }
+    final request = jsonDecode((call.arguments as Map)['request'] as String) as Map;
+    if (request['type'] == 'step') input = (request['payload'] as Map)['input'] as Map;
+    return jsonEncode({'version': 1, 'session': request['session'], 'sequence': request['sequence'],
+      'requestId': request['id'], 'type': 'result',
+      'payload': {'state': {'revision': 1, 'tick': 0, 'renderTimeMs': 0, 'owner': talking ? 'BOOK' : 'WORLD',
+        'busy': talking ? 'talking' : null,
+        'models': {'hero': {'x': 0, 'z': 0, 'playerId': 'hero-1', 'hp': 7, 'maxHp': 10}}}}});
+  }
+}
 
 void main() {
   Future<Directory> storage(WidgetTester tester) async {
@@ -13,10 +48,12 @@ void main() {
     return root;
   }
 
-  Future<void> title(WidgetTester tester, Directory root) async {
+  Future<void> title(WidgetTester tester, Directory root,
+      {MethodChannel? engine, AssetBundle? assets, ShareGameFile? share, PickGameFile? pick}) async {
     await tester.binding.setSurfaceSize(const Size(844, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AppShell(storageRoot: root))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AppShell(storageRoot: root, engineChannel: engine,
+      assets: assets, shareFile: share, pickFile: pick))));
     // the settings and the kept game are read from app-private storage, on real files; the new
     // game button is live once they have been
     bool ready() => tester.widget<TextButton>(find.descendant(
@@ -86,5 +123,199 @@ void main() {
     });
     await title(tester, root);
     expect(find.byKey(const ValueKey('continue')), findsNothing);
+  });
+
+  testWidgets('a conversation puts the camera away and Exit Photo gives the world back its controls (#578)', (tester) async {
+    final root = await storage(tester);
+    const engineChannel = MethodChannel('world.ai/app-shell-test');
+    const rendererChannel = MethodChannel('world.ai/renderer');
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final engine = TalkingEngine();
+    messenger.setMockMethodCallHandler(engineChannel, engine.answer);
+    messenger.setMockMethodCallHandler(rendererChannel, (call) async => call.method == 'create' ? 7 : null);
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(engineChannel, null);
+      messenger.setMockMethodCallHandler(rendererChannel, null);
+    });
+    // opening the game is real file work and the game steps on the display's frames, so both the
+    // real event loop and the test's clock are turned until what is waited for has happened
+    Future<void> until(bool Function() done, String why) async {
+      for (var n = 0; n < 400 && !done(); n++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(done(), isTrue, reason: why);
+    }
+    bool shown(Key key) => find.byKey(key).evaluate().isNotEmpty;
+    const hud = '7/10 · 100 BREATH';
+    Future<void> photo() async {
+      await tester.tap(find.byKey(const ValueKey('more')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('more-photo')));
+      await tester.pump();
+    }
+
+    await title(tester, root, engine: engineChannel, assets: GameAssets());
+    await tester.tap(find.byKey(const ValueKey('new-game')));
+    await until(() => find.text(hud).evaluate().isNotEmpty, 'the game never opened');
+
+    await photo();
+    expect(shown(const ValueKey('photo-shutter')), isTrue);
+    expect(find.text(hud), findsNothing);
+    expect(shown(const ValueKey('more')), isFalse);
+    engine.input = null;
+    await until(() => engine.input != null, 'the game stopped stepping');
+    expect(engine.input!['busy'], 'framing');
+
+    // somebody speaks to the hero: the conversation takes the screen, and the HUD comes back with it
+    engine.talking = true;
+    await until(() => !shown(const ValueKey('photo-shutter')), 'the camera stayed up through a conversation');
+    expect(find.text(hud), findsOneWidget);
+    expect(shown(const ValueKey('more')), isTrue);
+    engine.input = null;
+    await until(() => engine.input != null, 'the game stopped stepping');
+    expect(engine.input!['busy'], 'talking');
+
+    engine.talking = false;
+    await until(() => engine.input?['busy'] == null && engine.input?['owner'] == 'WORLD', 'the conversation never let the world go');
+    await photo();
+    expect(shown(const ValueKey('photo-shutter')), isTrue);
+    await tester.tap(find.byKey(const ValueKey('photo-exit')));
+    await tester.pump();
+    expect(shown(const ValueKey('photo-shutter')), isFalse);
+    expect(find.text(hud), findsOneWidget);
+    expect(shown(const ValueKey('more')), isTrue);
+    engine.input = null;
+    await until(() => engine.input != null, 'the game stopped stepping');
+    expect(engine.input!['busy'], isNull);
+    expect(engine.input!['owner'], 'WORLD');
+
+    // the game is closed and its engine let go before its storage is deleted
+    await tester.pumpWidget(const SizedBox());
+    await until(() => engine.disposed, 'the game was never closed');
+    expect(tester.takeException(), isNull);
+  });
+
+  /// Turns of the real event loop until `done`, for work on real files the test cannot pump through.
+  Future<void> until(WidgetTester tester, bool Function() done) async {
+    for (var n = 0; n < 400 && !done(); n++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    expect(done(), isTrue, reason: 'the file work never finished');
+  }
+
+  final rowanFile = GameFile(slot: const {'slot': 'local-1', 'seed': 9, 'kind': 'road', 'name': 'Rowan'},
+    hero: const {'state': {'playerId': 'hero'}}, world: const {'worlds/1/clock': '42'}, exported: DateTime(2026, 10, 1));
+
+  testWidgets('a game file picked from the title is imported and offered to continue', (tester) async {
+    final root = await storage(tester);
+    var picked = 0;
+    await title(tester, root, pick: () async { picked++; return Uint8List.fromList(utf8.encode(rowanFile.encode())); });
+    final button = find.byKey(const ValueKey('import-game'));
+    expect(find.text('IMPORT A GAME'), findsOneWidget);
+    expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
+    expect(find.byKey(const ValueKey('continue')), findsNothing);
+    await tester.tap(button);
+    await until(tester, () => find.text("Imported Rowan's game. Continue plays it.").evaluate().isNotEmpty);
+    expect(picked, 1);
+    expect(find.byKey(const ValueKey('continue')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('saved-games')));
+    await tester.pump();
+    expect(find.textContaining('Rowan'), findsWidgets);
+    final saved = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('saved-imported-'));
+    expect(saved, findsOneWidget, reason: 'in a slot of its own');
+  });
+
+  testWidgets('a damaged or newer game file is refused on the title with a reason', (tester) async {
+    final root = await storage(tester);
+    final text = rowanFile.encode();
+    final newer = jsonEncode((jsonDecode(text) as Map)..['version'] = 2);
+    final files = [text.substring(0, text.length ~/ 2), newer];
+    await title(tester, root, pick: () async => files.isEmpty ? null : Uint8List.fromList(utf8.encode(files.removeAt(0))));
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.textContaining('damaged or incomplete').evaluate().isNotEmpty);
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.textContaining('newer AI World').evaluate().isNotEmpty);
+    expect(find.byKey(const ValueKey('continue')), findsNothing, reason: 'nothing was kept');
+    expect(find.byKey(const ValueKey('saved-games')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => find.byKey(const ValueKey('title-note')).evaluate().isEmpty);
+  });
+
+  for (final world in [null, 'Harbour']) {
+    testWidgets('an imported shared game names its server on the title (world: $world)', (tester) async {
+      final root = await storage(tester);
+      final file = GameFile(slot: {...rowanFile.slot, 'server': 'wss://world.example/play', 'world': ?world},
+        hero: rowanFile.hero, world: rowanFile.world, exported: rowanFile.exported);
+      await title(tester, root, pick: () async => Uint8List.fromList(utf8.encode(file.encode())));
+      await tester.tap(find.byKey(const ValueKey('import-game')));
+      await until(tester, () => find.text("Imported Rowan's game on world.example. Continue plays it.").evaluate().isNotEmpty);
+      expect(find.byKey(const ValueKey('continue')), findsOneWidget);
+    });
+  }
+
+  for (final (code, note) in [
+    (StorageError.quota, 'Could not import that game. There is not enough space on this phone.'),
+    (StorageError.io, 'Could not import that game. The game storage could not be read or written. Please try again.'),
+  ]) {
+    testWidgets('import storage errors use plain words without a private path ($code)', (tester) async {
+      final root = await storage(tester);
+      await title(tester, root, pick: () async { throw StorageFailure(code, '${root.path}/private/save.json'); });
+      await tester.tap(find.byKey(const ValueKey('import-game')));
+      await until(tester, () => find.text(note).evaluate().isNotEmpty);
+      expect(find.textContaining('StorageFailure'), findsNothing);
+      expect(find.textContaining(root.path), findsNothing);
+      expect(find.byKey(const ValueKey('continue')), findsNothing);
+    });
+  }
+
+  testWidgets('a player who cancels the picker is told nothing and keeps the title as it was', (tester) async {
+    final root = await storage(tester);
+    var picked = false;
+    await title(tester, root, pick: () async { picked = true; return null; });
+    await tester.tap(find.byKey(const ValueKey('import-game')));
+    await until(tester, () => picked);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('title-note')), findsNothing);
+  });
+
+  testWidgets('a kept game is exported from the saved games to the share sheet as one file', (tester) async {
+    final root = await storage(tester);
+    const slot = GameSlot(slot: 'local-1', seed: 9, name: 'Rowan');
+    await tester.runAsync(() async {
+      final settings = await CheckpointStore.open(root,
+        const StorageScope(domain: 'settings', world: 'app', seed: 0, player: 'local-hero', kind: 'road'));
+      await settings.commit('last', slot.json);
+      await (await CheckpointStore.open(root, slot.scope('player'))).commit('save', {'state': {'playerId': 'hero'}});
+      await (await CheckpointStore.open(root, slot.scope('world'))).commit('records', {'worlds/1/clock': '42'});
+    });
+    final shared = <(String, Uint8List, Rect?)>[];
+    var status = ShareResultStatus.success;
+    await title(tester, root, share: (name, bytes, origin) async {
+      shared.add((name, bytes, origin));
+      return status;
+    });
+    await tester.tap(find.byKey(const ValueKey('saved-games')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('export-local-1')));
+    await until(tester, () => find.text("Exported Rowan's game to a file.").evaluate().isNotEmpty);
+    final (name, bytes, origin) = shared.single;
+    expect(name, startsWith('ai-world-rowan-'));
+    expect(origin, isNotNull);
+    final file = GameFile.decode(bytes);
+    expect(file.slot, slot.json);
+    expect(file.hero, {'state': {'playerId': 'hero'}});
+    expect(file.world, {'worlds/1/clock': '42'});
+    // A later cancelled export must replace the previous success note with what happened this time.
+    for (final (next, note) in [
+      (ShareResultStatus.dismissed, "Rowan's game was not exported."),
+      (ShareResultStatus.unavailable, 'The share sheet closed. This phone cannot say whether the game was exported.'),
+    ]) {
+      status = next;
+      await tester.tap(find.byKey(const ValueKey('export-local-1')));
+      await until(tester, () => find.text(note).evaluate().isNotEmpty);
+      expect(find.text("Exported Rowan's game to a file."), findsNothing);
+    }
   });
 }

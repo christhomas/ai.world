@@ -1,4 +1,4 @@
-import type { FrameDescription, ScenePlacement, ScenePropPart } from './scene';
+import type { FrameDescription, ScenePlacement, ScenePropPart, ShadowBox } from './scene';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -34,7 +34,9 @@ export type SceneNode =
   | { readonly kind: 'ambient'; colour: LightColour; intensity: number }
   | { readonly kind: 'hemisphere'; sky: LightColour; ground: LightColour; intensity: number }
   | { readonly kind: 'point'; colour: LightColour; intensity: number; distance: number; decay: number; position: [number, number, number] }
-  | { readonly kind: 'directional'; colour: LightColour; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean }
+  | { readonly kind: 'directional'; colour: LightColour; intensity: number; position: [number, number, number]; target: [number, number, number]; castShadow: boolean;
+      /** Where its shadow map reaches; replaced, never written into, to change it. */
+      shadow?: ShadowBox }
   | { readonly kind: 'prop-batch'; readonly parts: readonly ScenePropPart[]; readonly glowParts?: readonly ScenePropPart[];
       glowColour?: number; placements: readonly ScenePlacement[]; readonly castShadow: boolean; readonly receiveShadow: boolean;
       /** The body's material effects; see `FrameDescription['nodes'][number]['effects']`. */
@@ -98,7 +100,7 @@ function keep(node: SceneNode): unknown[] {
     case 'ambient': return [keepColour(node.colour), node.intensity];
     case 'hemisphere': return [keepColour(node.sky), keepColour(node.ground), node.intensity];
     case 'point': return [keepColour(node.colour), node.intensity, node.distance, node.decay, [...node.position]];
-    case 'directional': return [keepColour(node.colour), node.intensity, [...node.position], node.target, node.castShadow];
+    case 'directional': return [keepColour(node.colour), node.intensity, [...node.position], node.target, node.castShadow, node.shadow];
     case 'prop-batch': return [node.placements, node.glowColour];
     case 'instances': return [node.count, node.matrices, node.colours];
     case 'points': return [node.visible, node.positions, node.colour, node.size, node.opacity];
@@ -157,7 +159,7 @@ function unchanged(node: SceneNode, { kind, kept }: Slot): boolean {
     case 'directional': {
       const light = node as Of<'directional'>;
       return light.intensity === kept[1] && light.target === kept[3] && light.castShadow === kept[4]
-        && sameColour(light.colour, kept[0]) && samePosition(light.position, kept[2]);
+        && light.shadow === kept[5] && sameColour(light.colour, kept[0]) && samePosition(light.position, kept[2]);
     }
   }
 }
@@ -253,6 +255,7 @@ function describe(node: SceneNode, id: number): FrameNode {
     ...base, kind: 'directional' as const, ...lightColour(node.colour),
     intensity: node.intensity,
     castShadow: node.castShadow, target: node.target,
+    ...(node.shadow ? { shadow: { ...node.shadow } } : {}),
     world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ...node.position, 1],
   };
   if (node.kind === 'prop-batch') return {

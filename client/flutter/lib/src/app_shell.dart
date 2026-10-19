@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'game_file_ports.dart';
 import 'game_session.dart';
+import 'game_transfer.dart';
 import 'invite.dart';
 import 'kept_games.dart';
 import 'screens/company_page.dart';
@@ -27,9 +30,11 @@ import 'shell/ledger_stick.dart';
 import 'shell/ledger_tokens.dart';
 import 'shell/more_controls.dart';
 import 'shell/name_plates.dart';
+import 'shell/photo_controls.dart';
 import 'shell/subject_ring.dart';
 import 'state_engine.dart';
 import 'storage/checkpoint_store.dart';
+import 'storage/game_file.dart';
 
 enum _Phase { title, opening, playing }
 
@@ -37,13 +42,17 @@ enum _Phase { title, opening, playing }
 /// behind the Ledger shell. This is the one owner of the world view, the session, the controls and
 /// the routes; screens register pages with it rather than building their own.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets, this.describeWorld});
+  const AppShell({super.key, this.storageRoot, this.engineChannel, this.assets, this.describeWorld, this.shareFile, this.pickFile});
   /// App-private storage; the native host's when not given.
   final Directory? storageRoot;
   final MethodChannel? engineChannel;
   final AssetBundle? assets;
   /// How a named world's server is asked what it is; over https when not given.
   final DescribeWorld? describeWorld;
+  /// Where an exported game goes, and where an imported one comes from: the OS share sheet and
+  /// document picker when not given (#577).
+  final ShareGameFile? shareFile;
+  final PickGameFile? pickFile;
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -73,6 +82,7 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
   final _worldKey = GlobalKey(debugLabel: 'world');
   /// The view in `_world` has started its game: one game to a view, however often it makes a renderer.
   bool _started = false;
+  bool _framing = false;
 
   @override
   void initState() {
@@ -115,7 +125,10 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
 
   /// A place the journal asked the map to open on, for as long as the map is the page open.
   Offset? _mapFocus;
-  void _forgetFocus() { if (_ledger.route != 'map') _mapFocus = null; }
+  void _forgetFocus() {
+    if (_ledger.route != 'map') _mapFocus = null;
+    if (mounted && _framing && _input.busy != 'framing') setState(() => _framing = false);
+  }
   void _showOnMap(Offset place) {
     _mapFocus = place;
     _ledger.open('map');
@@ -164,6 +177,67 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     unawaited(_games?.played(slot).catchError((Object _) {}));
   }
 
+  /// What became of the last export, shown under the saved games.
+  String? _exported;
+  /// A file is being written or read: a second tap waits for the first.
+  bool _porting = false;
+
+  /// Export a kept game to one file and hand it to the share sheet, to save or send (#577).
+  Future<void> _export(GameSlot slot, Rect? origin) async {
+    final root = _root;
+    if (root == null || _porting) return;
+    _porting = true;
+    try {
+      final at = DateTime.now();
+      final file = await exportGame(slot, root: root, at: at);
+      final status = await (widget.shareFile ?? shareGameFile)(gameFileName(slot, at), utf8.encode(file.encode()), origin);
+      if (mounted) {
+        setState(() => _exported = switch (status) {
+          ShareResultStatus.success => "Exported ${slot.name}'s game to a file.",
+          ShareResultStatus.dismissed => "${slot.name}'s game was not exported.",
+          ShareResultStatus.unavailable => 'The share sheet closed. This phone cannot say whether the game was exported.',
+        });
+      }
+    } on GameFileRefused catch (refused) {
+      if (mounted) setState(() => _exported = refused.message);
+    } on StorageFailure catch (error) {
+      if (mounted) setState(() => _exported = 'Could not export that game. ${_storageReason(error)}');
+    } catch (_) {
+      if (mounted) setState(() => _exported = 'Could not export that game. Please try again.');
+    } finally {
+      _porting = false;
+    }
+  }
+
+  /// Import a game from a file the player picks, into a slot of its own: never over a kept game.
+  Future<void> _import() async {
+    final games = _games;
+    if (games == null || _porting) return;
+    _porting = true;
+    try {
+      final bytes = await (widget.pickFile ?? pickGameFile)();
+      if (bytes == null) {
+        if (mounted) setState(() => _trouble = null);
+        return;
+      }
+      final slot = await importGame(bytes, games);
+      final where = slot.server == null ? '' : ' on ${Uri.parse(slot.server!).host}';
+      if (mounted) setState(() => _trouble = "Imported ${slot.name}'s game$where. Continue plays it.");
+    } on GameFileRefused catch (refused) {
+      if (mounted) setState(() => _trouble = refused.message);
+    } on StorageFailure catch (error) {
+      if (mounted) setState(() => _trouble = 'Could not import that game. ${_storageReason(error)}');
+    } catch (_) {
+      if (mounted) setState(() => _trouble = 'Could not import that game. Please try again.');
+    } finally {
+      _porting = false;
+    }
+  }
+
+  String _storageReason(StorageFailure error) => error.code == StorageError.quota
+    ? 'There is not enough space on this phone.'
+    : 'The game storage could not be read or written. Please try again.';
+
   /// Delete a kept game; the saved games list has asked the player first.
   Future<void> _delete(GameSlot slot) async {
     try {
@@ -204,13 +278,24 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     // closing begins before the world view goes, so the session knows a frame it is still drawing
     // into that view's renderer was left behind rather than failed (journey_test, 2026-10-17)
     final closing = session?.close();
-    setState(() { _session = null; _phase = _Phase.title; _world = null; });
+    setState(() { _session = null; _phase = _Phase.title; _world = null; _framing = false; });
     playing.value = null;
     try {
       await closing;
     } catch (error) {
       if (mounted) setState(() => _trouble = 'Your game could not be saved: $error');
     }
+  }
+
+  void _photo() {
+    if (!_input.acceptsWorld) return;
+    _input.focus(InputOwner.book, busy: 'framing');
+    setState(() => _framing = true);
+  }
+
+  void _closePhoto() {
+    if (_input.busy == 'framing') _input.focus(InputOwner.world);
+    setState(() => _framing = false);
   }
 
   @override
@@ -254,26 +339,32 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
       return LedgerShell(
         world: Stack(fit: StackFit.expand, children: [
           _world!,
-          // other players' names, where the game says they hang over their heads
-          NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
-          // and whoever is in reach, ringed where they stand
-          SubjectRing(subject: models['subject'] as Map?, tokens: t),
-          LedgerStick(input: _input, health: hp / maxHp, breath: wind,
-            onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
-          // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
-          // console is among them, and typing parks the world as it does on the page
-          Positioned(top: 40, right: 8, child: MoreControls(tokens: t, onAction: (action) {
-            if (action == 'console') {
-              _ledger.typing();
-            } else if (action == 'company') {
-              // the travellers are a page of the app's own, as the roster is
-              _ledger.open('company');
-            } else {
-              unawaited(session.act(action));
-            }
-          })),
+          if (!_framing) ...[
+            // other players' names, where the game says they hang over their heads
+            NamePlates(plates: (hud['plates'] as List? ?? const []).cast<Map>(), tokens: t),
+            // and whoever is in reach, ringed where they stand
+            SubjectRing(subject: models['subject'] as Map?, tokens: t),
+            LedgerStick(input: _input, health: hp / maxHp, breath: wind,
+              onZoom: (by) => unawaited(session.act('zoom', args: {'by': by.clamp(-5000.0, 5000.0)}))),
+            // the rest of the keyboard, under the clock, as the page's touch controls keep it; the
+            // console is among them, and typing parks the world as it does on the page
+            Positioned(top: 40, right: 8, child: MoreControls(tokens: t, onAction: (action) {
+              if (action == 'console') {
+                _ledger.typing();
+              } else if (action == 'company') {
+                // the travellers are a page of the app's own, as the roster is
+                _ledger.open('company');
+              } else if (action == 'photo') {
+                _photo();
+              } else {
+                unawaited(session.act(action));
+              }
+            })),
+          ],
         ]),
         controller: _ledger,
+        photo: _framing ? PhotoControls(tokens: t, snapshot: session.snapshot, close: _closePhoto,
+          isCurrent: () => _framing && identical(_session, session)) : null,
         typingBuilder: (context) => ConsolePage(lines: (hud['chat'] as List? ?? const []).cast<Map>(), tokens: t,
           say: (text) => unawaited(session.act('say', args: {'text': text})), done: _ledger.finishTyping),
         // the four tabs, in the design's order; a screen registers its page here (#573–#575)
@@ -322,18 +413,21 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
     final games = _games?.games ?? const [];
     if (_browsing) {
       return ColoredBox(color: t.surface, child: SafeArea(child: Center(child: SavedGames(games: games, tokens: t,
-        play: _open, delete: (slot) => unawaited(_delete(slot)), back: () => setState(() => _browsing = false)))));
+        play: _open, delete: (slot) => unawaited(_delete(slot)), back: () => setState(() => _browsing = false),
+        exportGame: (slot, origin) => unawaited(_export(slot, origin)), note: _exported))));
     }
     return _titleButtons(t, games.firstOrNull?.slot, games.length);
   }
 
-  Widget _titleButtons(LedgerTokens t, GameSlot? last, int kept) => ColoredBox(color: t.surface, child: SafeArea(child: Center(child: Column(
-    mainAxisSize: MainAxisSize.min, children: [
+  // scrolled when a phone held sideways is too short for every button and the invite box at once
+  Widget _titleButtons(LedgerTokens t, GameSlot? last, int kept) => ColoredBox(color: t.surface, child: SafeArea(child: Center(
+    child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
       Text('AI WORLD', style: t.face(27, t.ink, weight: FontWeight.w500, spacing: 10)),
       const SizedBox(height: 24),
       if (last != null) _titleButton('Continue', t, () => _open(last), const ValueKey('continue')),
       _titleButton('New game', t, _root == null ? null : _newGame, const ValueKey('new-game')),
-      if (kept > 0) _titleButton('Saved games', t, () => setState(() => _browsing = true), const ValueKey('saved-games')),
+      if (kept > 0) _titleButton('Saved games', t, () => setState(() { _browsing = true; _exported = null; }), const ValueKey('saved-games')),
+      _titleButton('Import a game', t, _games == null ? null : () => unawaited(_import()), const ValueKey('import-game')),
       if (!_joining) _titleButton('Join a world', t, _root == null ? null : () => setState(() => _joining = true), const ValueKey('join'))
       else ...[
         SizedBox(width: 240, child: TextField(key: const ValueKey('invite'), controller: _invite, autocorrect: false,
@@ -344,8 +438,8 @@ class _AppShellState extends State<AppShell> with TickerProviderStateMixin, Widg
         _titleButton('Join', t, () => unawaited(_join()), const ValueKey('join-world')),
       ],
       if (_trouble != null) Padding(padding: const EdgeInsets.only(top: 16),
-        child: Text(_trouble!, style: t.numbers(11, t.dim, spacing: 0))),
-    ]))));
+        child: Text(_trouble!, key: const ValueKey('title-note'), style: t.numbers(11, t.dim, spacing: 0))),
+    ])))));
 
   Widget _titleButton(String label, LedgerTokens t, VoidCallback? onPressed, Key key) => Padding(
     padding: const EdgeInsets.only(bottom: 8),

@@ -71,3 +71,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    implementation("androidx.core:core:1.15.0")
+}

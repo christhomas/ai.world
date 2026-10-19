@@ -89,6 +89,8 @@ export const COMMANDS: Record<string, CommandSpec> = {
     [rest('like', true)], true),
   places: spec('places', 'List everything with a name on it: a word narrows it to a name, a kind, or a country',
     [rest('like', true)], true),
+  doors: spec('doors', 'List the doors nearest first: where to stand outside each, and the building it opens; a word narrows it to a kind of building or a village',
+    [rest('kind or village', true)], true),
   carts: spec('carts', 'Show any loaded cart and where it is now', [], true),
   'rob-cart': spec('rob-cart', 'Rob the cart when you are within four tiles of it'),
   'escort-cart': spec('escort-cart', 'Guard a nearby cart; stay with it to prevent robbery'),
@@ -99,6 +101,8 @@ export const COMMANDS: Record<string, CommandSpec> = {
   'stand-at-counter': spec('stand-at-counter', 'Stand where a shopkeeper will talk to you'),
 
   // What is in the world
+  'borrow-horse': spec('borrow-horse', 'Borrow a horse from the stable to ride, without buying one: it stands beside you',
+    [text('breed', true)]),
   spawn: spec('spawn', 'Put a creature into the world near the hero', [text('kind'), num('away', true)]),
   sow: spec('sow', 'Plant the crop in hand on a tile', [num('x'), num('z')]),
   drop: spec('drop', 'Drop what the hero is carrying where they stand'),

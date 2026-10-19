@@ -61,6 +61,35 @@ final class WorldRendererBridge: NSObject, FlutterPlugin {
           backSide: arguments["backSide"] as? Bool ?? false,
           renderOrder: (arguments["renderOrder"] as? NSNumber)?.intValue ?? 0,
           transparent: arguments["transparent"] as? Bool ?? false)
+      case "applyScene":
+        guard let generation = arguments["generation"] as? NSNumber,
+              let full = arguments["full"] as? Bool,
+              let meshIds = arguments["meshIds"] as? [String],
+              let removed = arguments["removed"] as? [String],
+              let rawMeshes = arguments["meshes"] as? [[String: Any]],
+              let frame = arguments["frame"] as? [String: Any],
+              let projection = frame["projection"] as? FlutterStandardTypedData,
+              let world = frame["world"] as? FlutterStandardTypedData,
+              projection.data.count == 64, world.data.count == 64,
+              let cut = arguments["cutaway"] as? [String: Any] else {
+          throw RenderFailure("Scene resync required: incomplete batch")
+        }
+        var updates: [String: CpuMesh] = [:]
+        for raw in rawMeshes {
+          guard let id = raw["meshId"] as? String, updates[id] == nil else {
+            throw RenderFailure("Scene resync required: duplicate mesh")
+          }
+          updates[id] = try sceneMesh(raw)
+        }
+        try renderer.applyScene(generation: generation.int64Value, full: full,
+          meshIds: meshIds, updates: updates, removed: removed) {
+          renderer.setSceneFrame(projection: projection.data, world: world.data,
+            background: Int(frame.number("background")), lights: frame["lights"] as? [[String: Any]] ?? [],
+            coast: frame["coast"] as? [String: Any], fog: frame["fog"] as? [String: Any],
+            renderTimeMs: (frame["renderTimeMs"] as? NSNumber)?.doubleValue)
+          renderer.setCutaway(enabled: cut["enabled"] as? Bool == true,
+            x: cut.float("heroX"), y: cut.float("heroY"), z: cut.float("heroZ"))
+        }
       case "removeMesh": renderer.removeMesh(id: arguments.string("meshId"))
       case "camera": renderer.setCamera(
         x: arguments.float("targetX"), y: arguments.float("targetY"), z: arguments.float("targetZ"),
@@ -136,7 +165,56 @@ private struct MeshStyle {
   let renderOrder: Int; let transparent: Bool
 }
 private struct CpuMesh { let vertices: Data; let indices: Data; let style: MeshStyle }
+
+/// The camera the web's sun casts its shadow map through (#512). three.js stands it at the light and
+/// points it at the light's target; the web rig fits its orthographic box to the picture every time
+/// the view moves (`fitShadow`, src/render/scene.ts), and the frame sends that box with the light.
+private struct ShadowCamera {
+  let eye: SIMD3<Float>; let target: SIMD3<Float>
+  let left: Float; let right: Float; let bottom: Float; let top: Float; let near: Float; let far: Float
+
+  /// The camera of a light at `eye` shining at `target`, or nil unless `box` is a whole box.
+  static func of(_ box: Any?, eye: SIMD3<Float>, target: SIMD3<Float>) -> ShadowCamera? {
+    guard let bounds = box as? [String: Any] else { return nil }
+    func bound(_ key: String) -> Float? {
+      guard let value = (bounds[key] as? NSNumber)?.floatValue, value.isFinite else { return nil }
+      return value
+    }
+    guard let left = bound("left"), let right = bound("right"), let bottom = bound("bottom"),
+          let top = bound("top"), let near = bound("near"), let far = bound("far"),
+          right > left, top > bottom, far > near else { return nil }
+    return ShadowCamera(eye: eye, target: target, left: left, right: right, bottom: bottom, top: top, near: near, far: far)
+  }
+
+  /// Its view and projection together, in Metal's clip depth like every native light matrix.
+  var matrix: simd_float4x4 {
+    orthographic(left: left, right: right, bottom: bottom, top: top, near: near, far: far) *
+      lookAt(eye: eye, center: target, up: SIMD3(0,1,0))
+  }
+}
 private struct GpuMesh { let vertices: MTLBuffer; let indices: MTLBuffer; let count: Int; let style: MeshStyle; let center: SIMD3<Float> }
+
+/// Decode the entire batch before any native scene state changes.
+private func sceneMesh(_ raw: [String: Any]) throws -> CpuMesh {
+  guard let vertices = raw["vertices"] as? FlutterStandardTypedData,
+        let indices = raw["indices"] as? FlutterStandardTypedData,
+        vertices.data.count % 64 == 0, indices.data.count % 12 == 0 else {
+    throw RenderFailure("Scene resync required: invalid mesh buffers")
+  }
+  var indexValues = [Int32](repeating: 0, count: indices.data.count / 4)
+  _ = indexValues.withUnsafeMutableBytes { indices.data.copyBytes(to: $0) }
+  guard indexValues.allSatisfy({ $0 >= 0 && Int($0) < vertices.data.count / 64 }) else {
+    throw RenderFailure("Scene resync required: invalid mesh indices")
+  }
+  return CpuMesh(vertices: vertices.data, indices: indices.data,
+    style: MeshStyle(castShadow: raw["castShadow"] as? Bool ?? true,
+      receiveShadow: raw["receiveShadow"] as? Bool ?? true, opacity: raw.float("opacity"),
+      emissive: linear(raw["emissive"]) ?? .zero, blend: raw.string("blend"),
+      depthWrite: raw["depthWrite"] as? Bool ?? true, depthTest: raw["depthTest"] as? Bool ?? true,
+      doubleSided: raw["doubleSided"] as? Bool ?? false, backSide: raw["backSide"] as? Bool ?? false,
+      renderOrder: (raw["renderOrder"] as? NSNumber)?.intValue ?? 0,
+      transparent: raw["transparent"] as? Bool ?? false))
+}
 
 /// One frame read back from the render target: RGBA8 as drawn, top row first, as Dart reads it.
 typealias RenderSnapshot = (width: Int, height: Int, rgba: Data)
@@ -169,11 +247,16 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   private var zoom: Float = 18
   private var cutOn: Float = 1
   private var hero = SIMD3<Float>(8, 1, 8)
+  private var sceneGeneration = SceneGeneration()
+  private var sceneValid = true
+  private var sceneMeshOrder: [String]?
   private var sceneProjection: simd_float4x4?
   private var sceneWorld: simd_float4x4?
   private var background = 0x080b18
   /// Where the shadow map looks from: the shadow-casting directional light, pointing at the scene.
   private var lightDirection = simd_normalize(SIMD3<Float>(-0.42, 0.82, -0.38))
+  /// The web's shadow camera for that light, when the frame says what it is; see `ShadowCamera`.
+  private var shadowCamera: ShadowCamera?
   private var ambientLight = SIMD3<Float>(repeating: 0.35)
   private var skyLight = SIMD3<Float>(repeating: 0)
   private var groundLight = SIMD3<Float>(repeating: 0)
@@ -239,6 +322,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     descriptor.vertexFunction = vertex
     descriptor.fragmentFunction = fragment
     descriptor.vertexDescriptor = Self.vertexDescriptor()
+    // src/render/scene.ts leaves WebGLRenderer at sRGB output and NoToneMapping. This plain
+    // target takes the shader's sRGB values; blending happens after that encode, as on the web.
     descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
     descriptor.depthAttachmentPixelFormat = .depth32Float
     pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
@@ -286,9 +371,28 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
         opacity: opacity, emissive: emissive, blend: blend, depthWrite: depthWrite, depthTest: depthTest,
         doubleSided: doubleSided, backSide: backSide, renderOrder: renderOrder, transparent: transparent))
   }
+  /// The platform thread owns both this transaction and CADisplayLink; drawing cannot interleave.
+  func applyScene(generation: Int64, full: Bool, meshIds: [String], updates: [String: CpuMesh],
+                  removed: [String], globals: () -> Void) throws {
+    do {
+      try sceneGeneration.validate(generation: generation, full: full,
+        current: Set(pending.keys).union(meshes.keys), updates: Set(updates.keys), removed: removed, expected: meshIds)
+      if full { pending.removeAll(); meshes.removeAll() }
+      removed.forEach { removeMesh(id: $0) }
+      pending.merge(updates) { _, new in new }
+      globals()
+      sceneGeneration.commit(generation)
+      sceneMeshOrder = meshIds
+      sceneValid = true
+    } catch {
+      sceneGeneration.invalidate()
+      sceneValid = false
+      throw error
+    }
+  }
   func removeMesh(id: String) { pending.removeValue(forKey: id); meshes.removeValue(forKey: id) }
   func setCamera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) {
-    sceneProjection = nil; sceneWorld = nil; sceneRenderTimeMs = nil
+    sceneProjection = nil; sceneWorld = nil; sceneRenderTimeMs = nil; shadowCamera = nil
     target = SIMD3(x,y,z); self.yaw = yaw; self.pitch = pitch; self.zoom = max(4,min(80,zoom))
   }
   func setSceneFrame(projection: Data, world: Data, background: Int,
@@ -298,7 +402,8 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     sceneRenderTimeMs = renderTimeMs
     target = SIMD3(world.columns.3.x, world.columns.3.y, world.columns.3.z) -
       SIMD3(world.columns.2.x, world.columns.2.y, world.columns.2.z) * 30
-    // Dart has already decoded each light to linear and applied its intensity (colour.dart)
+    // src/render/graphmount.ts prefers linearColour/linearGroundColour to hexes. Dart mirrors
+    // that and applies intensity once (colour.dart); these channels stay linear and unclamped.
     func colour(_ node: [String: Any]?, key: String = "linear") -> SIMD3<Float> {
       linear(node?[key]) ?? .zero
     }
@@ -321,6 +426,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     sunDirections = [SIMD4<Float>](repeating: .zero, count: directionalLights)
     sunColours = [SIMD4<Float>](repeating: .zero, count: directionalLights)
     sunCastsShadow = false
+    shadowCamera = nil
     for (index, sun) in suns.enumerated() {
       guard let matrix = sun["world"] as? [NSNumber], matrix.count == 16,
             let point = sun["target"] as? [NSNumber], point.count == 3 else { continue }
@@ -334,6 +440,9 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
       if index == shadowed {
         sunCastsShadow = true
         lightDirection = direction
+        shadowCamera = ShadowCamera.of(sun["shadow"],
+          eye: SIMD3(matrix[12].floatValue, matrix[13].floatValue, matrix[14].floatValue),
+          target: SIMD3(point[0].floatValue, point[1].floatValue, point[2].floatValue))
       }
     }
     pointPositions = [SIMD4<Float>](repeating: .zero, count: 16)
@@ -398,7 +507,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
   }
 
   @objc private func frame() {
-    guard !disposed, let drawable = CVMetalTextureGetTexture(colorTexture), let commands = queue.makeCommandBuffer() else { return }
+    guard sceneValid, !disposed, let drawable = CVMetalTextureGetTexture(colorTexture), let commands = queue.makeCommandBuffer() else { return }
     uploadPending()
     let uniforms = makeUniforms(time: metalRenderTimeSeconds(renderTimeMs: sceneRenderTimeMs,
       fallbackSeconds: CACurrentMediaTime()))
@@ -507,7 +616,7 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     // Both passes consume the same counterclockwise mesh indices. Depth conversion leaves XY intact.
     encoder.setFrontFacing(.counterClockwise)
     let camera = sceneWorld.map { SIMD3($0.columns.3.x, $0.columns.3.y, $0.columns.3.z) } ?? target
-    let ordered = meshes.values.sorted { left, right in
+    let ordered = (sceneMeshOrder?.compactMap { meshes[$0] } ?? Array(meshes.values)).sorted { left, right in
       if left.style.renderOrder != right.style.renderOrder { return left.style.renderOrder < right.style.renderOrder }
       if left.style.transparent != right.style.transparent { return !left.style.transparent }
       let lhs = simd_length_squared(left.center - camera)
@@ -545,8 +654,12 @@ private final class MetalWorldRenderer: NSObject, FlutterTexture {
     let view = lookAt(eye: eye, center: target, up: SIMD3(0,1,0))
     let aspect = Float(width) / Float(height)
     let projection = orthographic(left: -zoom*aspect/2, right: zoom*aspect/2, bottom: -zoom/2, top: zoom/2, near: 0.1, far: 300)
+    // three.js's DirectionalLightShadow: at the light, looking at its target, through the box the
+    // web fitted (#512). A frame that sends no box, or the native camera, gets a fixed window
+    // around what the camera looks at.
     let lightEye = target + lightDirection * 64
-    let light = orthographic(left:-32,right:32,bottom:-32,top:32,near:0.1,far:120) * lookAt(eye: lightEye, center: target, up: SIMD3(0,1,0))
+    let light = shadowCamera?.matrix
+      ?? orthographic(left:-32,right:32,bottom:-32,top:32,near:0.1,far:120) * lookAt(eye: lightEye, center: target, up: SIMD3(0,1,0))
     let look = sceneWorld.map { simd_normalize(-SIMD3($0.columns.2.x, $0.columns.2.y, $0.columns.2.z)) }
       ?? simd_normalize(target-eye)
     return Uniforms(
@@ -659,11 +772,24 @@ float3 animate(float3 p,float joint,float3 pivot,float time){if(joint<.5)return 
 vertex VOut worldVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){VOut o;o.world=animate(in.position,in.joint,in.pivot,u.lookAndTime.w);o.position=u.mvp*float4(o.world,1);o.normal=in.normal;o.color=in.color;o.material=in.material;o.flow=in.flow;o.sea=in.sea;o.shadow=u.lightMvp*float4(o.world,1);return o;}
 vertex float4 shadowVertex(VIn in [[stage_in]],constant Uniforms& u [[buffer(1)]]){return u.lightMvp*float4(animate(in.position,in.joint,in.pivot,u.lookAndTime.w),1);}
 constant float RECIPROCAL_PI=0.3183098861837907;
-// three.js's sRGBTransferOETF: lit in linear, written out encoded to the plain bgra8Unorm target
+// src/render/scene.ts keeps three.js's NoToneMapping and sRGB output: encode once after lighting.
 float3 encodeSrgb(float3 c){return select(pow(c,float3(0.41666))*1.055-0.055,c*12.92,c<=0.0031308);}
+float pow2(float x){return x*x;}
+float pow4(float x){float x2=x*x;return x2*x2;}
 // three.js r185's getDistanceAttenuation (lights_pars_begin): d^-decay, windowed to nothing at the
-// cutoff when there is one
-float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0){float x=d/cutoff;x*=x;x*=x;float w=saturate(1.0-x);f*=w*w;}return f;}
+// cutoff when there is one. src/render/interior.ts sets intensity 14 and decay 1.4, with no legacy pi.
+float attenuation(float d,float cutoff,float decay){
+  float f=1.0/max(pow(d,decay),0.01);
+  if(cutoff>0.0){f*=pow2(saturate(1.0-pow4(d/cutoff)));}
+  return f;
+}
+float3 BRDF_Lambert(float3 diffuseColor){return RECIPROCAL_PI*diffuseColor;}
+// RE_Direct_Lambert: attenuation/shadow first, then clamped cosine, then albedo/pi for each light.
+float3 lambertDirect(float3 lightColour,float3 lightDirection,float3 normal,float3 diffuseColor){
+  float dotNL=saturate(dot(normal,lightDirection));
+  float3 irradiance=dotNL*lightColour;
+  return irradiance*BRDF_Lambert(diffuseColor);
+}
 float hash(float2 p){return fract(sin(dot(floor(p),float2(12.9898,78.233)))*43758.5453);}
 // Light depth is already Metal depth; viewport/texture Y starts at the top.
 float3 shadowCoordinates(float4 clip){float3 ndc=clip.xyz/clip.w;return float3(ndc.x*.5+.5,.5-ndc.y*.5,ndc.z);}
@@ -730,8 +856,12 @@ if(in.material>1.5&&in.material<2.5){WaterSurface water=waterSurface(in.world,in
 float3 lit=u.ambient.xyz+mix(u.ground.xyz,u.sky.xyz,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
 float3 q=shadowCoordinates(in.shadow);constexpr sampler ss(coord::normalized,address::clamp_to_edge,filter::linear,compare_func::less_equal);float shade=1;if(u.renderFlags.y>.5&&all(q>=0)&&all(q<=1)){shade=0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)shade+=shadowMap.sample_compare(ss,q.xy+float2(x,y)/1024,q.z-.002);shade/=9;}
-for(int i=0;i<4;i++){float4 d=sunDirections[i];float4 s=sunColours[i];if(all(s.xyz==0.0))continue;lit+=s.xyz*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
-for(int i=0;i<16;i++){float4 p=pointPositions[i];float4 q=pointColours[i];if(all(q.xyz==0.0))continue;float3 toPoint=p.xyz-in.world;lit+=q.xyz*max(0.0,dot(n,normalize(toPoint)))*attenuation(length(toPoint),p.w,q.w);}
-float3 c=albedo*(in.material>2.5?float3(1):lit*RECIPROCAL_PI)+u.emissive.xyz;
+// lights_fragment_begin visits point lights before directional lights; meshlambert adds indirect
+// and emissive afterwards. Keep that order instead of multiplying one sum of all light by albedo/pi.
+float3 directDiffuse=float3(0.0);
+for(int i=0;i<16;i++){float4 p=pointPositions[i];float4 q=pointColours[i];if(all(q.rgb==0.0))continue;float3 l=p.xyz-in.world;float3 lightColour=q.rgb*attenuation(length(l),p.w,q.w);directDiffuse+=lambertDirect(lightColour,normalize(l),n,albedo);}
+for(int i=0;i<4;i++){float4 d=sunDirections[i];float4 s=sunColours[i];if(all(s.rgb==0.0))continue;float3 lightColour=s.rgb*(s.w>.5?shade:1.0);directDiffuse+=lambertDirect(lightColour,d.xyz,n,albedo);}
+float3 indirectDiffuse=lit*BRDF_Lambert(albedo);
+float3 c=in.material>2.5?albedo:directDiffuse+indirectDiffuse+u.emissive.xyz;
 c=encodeSrgb(c);if(u.fogRange.y>u.fogRange.x)c=mix(c,u.fogColour.xyz,smoothstep(u.fogRange.x,u.fogRange.y,dot(in.world-u.cameraPosition.xyz,u.lookAndTime.xyz)));return float4(c,opacity);}
 """

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'audio/beds.dart';
 import 'audio/synth.dart';
 import 'invite.dart';
+import 'native_world_renderer.dart';
 import 'network/world_socket_link.dart';
 import 'scene_frame.dart';
 import 'state_engine.dart';
@@ -89,10 +90,18 @@ class GameSession {
   /// What draws the frames, for the installed-app journeys to read back and refuse a blank one.
   @visibleForTesting
   FlutterFramePipeline? get pipeline => _pipeline;
+  /// The next frame the native renderer draws, if this game still has a renderer to ask.
+  Future<RenderSnapshot?> snapshot() async {
+    if (_closing || _closed) return null;
+    await _sceneDrawing;
+    return _closing || _closed ? null : _pipeline?.renderer.snapshot();
+  }
   /// The shared world's socket the game asked for, and which of its connections that was.
   ParcelSocket? _socket;
   int _connection = 0;
   final SceneGeometryCache _geometry = SceneGeometryCache();
+  Future<void> _sceneDrawing = Future<void>.value();
+  bool _resyncingScene = false;
   /// What the game last said: the HUD, the conversation, the hero, who owns the input.
   final ValueNotifier<Map<String, dynamic>> presentation = ValueNotifier(const {});
   /// A failure the player should be told about, such as a save that could not be written.
@@ -124,8 +133,8 @@ class GameSession {
   /// Closing: the renderer may already be gone, so nothing more is drawn.
   bool _closing = false;
   int _sinceScene = 0;
-  /// Frames are drawn every this many steps: a frame is the whole scene, and the phone's renderer
-  /// keeps drawing the last one between them.
+  /// Scene changes are requested every this many steps; native keeps drawing the last complete
+  /// scene between them.
   int sceneEvery = 2;
   Timer? _keeping;
 
@@ -290,17 +299,36 @@ class GameSession {
     }
     final scene = models['scene'];
     if (scene is Map && _pipeline != null && !_closing) {
-      unawaited(_pipeline.draw(SceneFrame.fromJson(Map<String, dynamic>.from(scene), geometryCache: _geometry))
-        .catchError((Object error, StackTrace stack) {
-          // a frame still being drawn when the game is left has nowhere to go: the world view it
-          // was drawing into goes with the game, and its renderer refuses it. That is the leaving,
-          // not a fault; a frame that fails while the game is being played still is one
-          if (_closing || _closed) return;
-          Error.throwWithStackTrace(error, stack);
-        }));
+      final packet = Map<String, dynamic>.from(scene);
+      _sceneDrawing = _sceneDrawing.then((_) => _drawScene(packet));
     }
     presentation.value = state;
     return state;
+  }
+
+  Future<void> _drawScene(Map<String, dynamic> packet) async {
+    if (_closing || _closed) return;
+    try {
+      final frame = SceneFrame.fromJson(packet, geometryCache: _geometry);
+      await _pipeline!.draw(frame);
+      if (frame.full) _resyncingScene = false;
+    } catch (error) {
+      if (_closing || _closed) return;
+      _geometry.invalidate();
+      if (error is! SceneResyncRequired && error is! PlatformException) {
+        trouble.value = 'Could not draw the scene: $error';
+      }
+      if (packet['full'] == true) _resyncingScene = false;
+      if (_resyncingScene) return;
+      _resyncingScene = true;
+      try {
+        // The engine keeps generation numbers increasing and resends a bounded full scene.
+        _take(await engine.request('resync', {'reason': 'renderer'}));
+      } catch (error) {
+        _resyncingScene = false;
+        trouble.value = 'Could not restore the scene: $error';
+      }
+    }
   }
 
   /// A shared world's socket, as the game asks for it: opened, sent on, closed (#565).

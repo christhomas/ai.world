@@ -53,20 +53,35 @@ class WorldRendererBridge(
                 }
                 "resize" -> renderer(call).resize(call.argument<Int>("width")!!, call.argument<Int>("height")!!).also { result.success(null) }
                 "putMesh" -> {
-                    val vertices = call.argument<FloatArray>("vertices") ?: error("vertices missing")
-                    val indices = call.argument<IntArray>("indices") ?: error("indices missing")
-                    renderer(call).putMesh(call.argument<String>("meshId")!!, vertices, indices,
-                        call.argument<Boolean>("castShadow") ?: true,
-                        call.argument<Boolean>("receiveShadow") ?: true,
-                        call.number("opacity"), call.argument<String>("blend") ?: "opaque",
-                        call.argument<List<*>>("emissive")?.linear() ?: FloatArray(3),
-                        call.argument<Boolean>("depthWrite") ?: true,
-                        call.argument<Boolean>("depthTest") ?: true,
-                        call.argument<Boolean>("doubleSided") ?: false,
-                        call.argument<Boolean>("backSide") ?: false,
-                        call.argument<Int>("renderOrder") ?: 0,
-                        call.argument<Boolean>("transparent") ?: false)
+                    renderer(call).putMesh(call.argument<String>("meshId")!!, call.mesh())
                     result.success(null)
+                }
+                "applyScene" -> {
+                    val renderer = renderer(call)
+                    val frame = MethodCall("sceneFrame", call.argument<Map<String, Any>>("frame") ?: error("frame missing"))
+                    val projection = frame.argument<FloatArray>("projection") ?: error("projection missing")
+                    val world = frame.argument<FloatArray>("world") ?: error("world missing")
+                    check(projection.size == 16 && world.size == 16) { "scene camera matrices must have 16 elements" }
+                    val cut = MethodCall("cutaway", call.argument<Map<String, Any>>("cutaway") ?: error("cutaway missing"))
+                    val rawMeshes = call.argument<List<Map<String, Any>>>("meshes") ?: error("meshes missing")
+                    val meshes = rawMeshes.associate { raw ->
+                        val mesh = MethodCall("putMesh", raw)
+                        (mesh.argument<String>("meshId") ?: error("mesh id missing")) to mesh.mesh()
+                    }
+                    check(meshes.size == rawMeshes.size) { "duplicate scene mesh" }
+                    renderer.applyScene(call.argument<Number>("generation")?.toLong() ?: error("generation missing"),
+                        call.argument<Boolean>("full") ?: error("full missing"),
+                        call.argument<List<String>>("meshIds") ?: error("meshIds missing"), meshes,
+                        call.argument<List<String>>("removed") ?: error("removed missing"), {
+                            renderer.sceneFrame(projection, world, frame.argument<Int>("background") ?: 0x080b18,
+                                frame.argument<List<Map<String, Any>>>("lights") ?: emptyList(),
+                                frame.argument<Map<String, Any>>("coast"), frame.argument<Map<String, Any>>("fog"),
+                                frame.argument<Number>("renderTimeMs")?.toDouble())
+                            renderer.cutaway(cut.argument<Boolean>("enabled") == true,
+                                cut.number("heroX"), cut.number("heroY"), cut.number("heroZ"))
+                        }) { outcome -> main.post {
+                            outcome.fold({ result.success(null) }, { result.error("scene-resync", it.message, null) })
+                        } }
                 }
                 "removeMesh" -> renderer(call).removeMesh(call.argument<String>("meshId")!!).also { result.success(null) }
                 "camera" -> renderer(call).camera(
@@ -127,6 +142,20 @@ private fun List<*>.linear(): FloatArray {
     return FloatArray(3) { (this[it] as Number).toFloat() }
 }
 
+/** Decode all uploads before the render thread is allowed to mutate a scene. */
+private fun MethodCall.mesh(): Mesh {
+    val vertices = argument<FloatArray>("vertices") ?: error("vertices missing")
+    val indices = argument<IntArray>("indices") ?: error("indices missing")
+    check(vertices.size % 16 == 0 && indices.size % 3 == 0 &&
+        indices.all { it >= 0 && it < vertices.size / 16 }) { "invalid scene mesh buffers" }
+    return Mesh(vertices, indices, argument<Boolean>("castShadow") ?: true,
+        argument<Boolean>("receiveShadow") ?: true, number("opacity"),
+        argument<List<*>>("emissive")?.linear() ?: FloatArray(3), argument<String>("blend") ?: "opaque",
+        argument<Boolean>("depthWrite") ?: true, argument<Boolean>("depthTest") ?: true,
+        argument<Boolean>("doubleSided") ?: false, argument<Boolean>("backSide") ?: false,
+        argument<Int>("renderOrder") ?: 0, argument<Boolean>("transparent") ?: false)
+}
+
 private data class Mesh(val vertices: FloatArray, val indices: IntArray,
     val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: FloatArray,
     val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
@@ -135,6 +164,31 @@ private data class GpuMesh(val vertex: Int, val index: Int, val count: Int,
     val castShadow: Boolean, val receiveShadow: Boolean, val opacity: Float, val emissive: FloatArray,
     val blend: String, val depthWrite: Boolean, val depthTest: Boolean, val doubleSided: Boolean, val backSide: Boolean,
     val renderOrder: Int, val transparent: Boolean, val center: FloatArray)
+
+/**
+ * The camera the web's sun casts its shadow map through (#512). three.js stands it at the light and
+ * points it at the light's target; the web rig fits its orthographic box to the picture every time
+ * the view moves (`fitShadow`, src/render/scene.ts), and the frame sends that box with the light.
+ */
+private class ShadowCamera(val eye: FloatArray, val target: FloatArray,
+    val left: Float, val right: Float, val bottom: Float, val top: Float, val near: Float, val far: Float) {
+    companion object {
+        /** The camera of a light at [world]'s translation shining at [point], or null unless [box] is a whole box. */
+        fun of(box: Any?, world: List<Float>, point: List<Float>): ShadowCamera? {
+            val bounds = box as? Map<*, *> ?: return null
+            fun bound(key: String) = (bounds[key] as? Number)?.toFloat()?.takeIf { it.isFinite() }
+            val left = bound("left") ?: return null
+            val right = bound("right") ?: return null
+            val bottom = bound("bottom") ?: return null
+            val top = bound("top") ?: return null
+            val near = bound("near") ?: return null
+            val far = bound("far") ?: return null
+            if (right <= left || top <= bottom || far <= near) return null
+            return ShadowCamera(floatArrayOf(world[12], world[13], world[14]), floatArrayOf(point[0], point[1], point[2]),
+                left, right, bottom, top, near, far)
+        }
+    }
+}
 
 private class GLWorldRenderer(
     private val entry: TextureRegistry.SurfaceTextureEntry,
@@ -160,12 +214,17 @@ private class GLWorldRenderer(
     private var zoom = 18f
     private var cutOn = 1f
     private var hero = floatArrayOf(8f, 1f, 8f)
+    private val sceneGeneration = SceneGeneration()
+    private var sceneMeshOrder: List<String>? = null
+    private var sceneValid = true
     private var sceneProjection: FloatArray? = null
     private var sceneRenderTimeSeconds: Float? = null
     private var sceneWorld: FloatArray? = null
     private var background = 0x080b18
     /** Where the shadow map looks from: the shadow-casting directional light, pointing at the scene. */
     private var lightDirection = normalised(-.42f, .82f, -.38f)!!
+    /** The web's shadow camera for that light, when the frame says what it is; see [ShadowCamera]. */
+    private var shadowCamera: ShadowCamera? = null
     private var ambientLight = floatArrayOf(.35f, .35f, .35f)
     private var skyLight = floatArrayOf(0f, 0f, 0f)
     private var groundLight = floatArrayOf(0f, 0f, 0f)
@@ -232,18 +291,38 @@ private class GLWorldRenderer(
         viewportHeight = height.coerceIn(1, 4096)
         entry.surfaceTexture().setDefaultBufferSize(viewportWidth, viewportHeight)
     }
-    fun putMesh(id: String, vertices: FloatArray, indices: IntArray,
-        castShadow: Boolean, receiveShadow: Boolean, opacity: Float, blend: String, emissive: FloatArray,
-        depthWrite: Boolean, depthTest: Boolean, doubleSided: Boolean, backSide: Boolean,
-        renderOrder: Int, transparent: Boolean) = post {
-        pending[id] = Mesh(vertices, indices, castShadow, receiveShadow, opacity, emissive, blend, depthWrite, depthTest, doubleSided, backSide, renderOrder, transparent)
+    fun putMesh(id: String, mesh: Mesh) = post { pending[id] = mesh }
+
+    /** One turn on the GL thread: no draw can observe a partially applied generation. */
+    fun applyScene(generation: Long, full: Boolean, meshIds: List<String>, updates: Map<String, Mesh>,
+        removed: List<String>, globals: () -> Unit, reply: (Result<Unit>) -> Unit) {
+        if (!running || !handler.post {
+            val outcome = runCatching {
+                sceneGeneration.validate(generation, full, pending.keys + gpu.keys, updates.keys, removed, meshIds)
+                sceneValid = false
+                if (full) {
+                    pending.clear()
+                    gpu.values.forEach { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
+                    gpu.clear()
+                }
+                removed.forEach(::removeMesh)
+                pending.putAll(updates)
+                globals()
+                sceneGeneration.commit(generation)
+                sceneMeshOrder = meshIds.toList()
+                sceneValid = true
+                changed = true
+            }
+            if (outcome.isFailure) { sceneGeneration.invalidate(); sceneValid = false }
+            reply(outcome)
+        }) reply(Result.failure(IllegalStateException("Scene resync required: renderer is not alive")))
     }
     fun removeMesh(id: String) = post {
         pending.remove(id)
         gpu.remove(id)?.let { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
     }
     fun camera(x: Float, y: Float, z: Float, yaw: Float, pitch: Float, zoom: Float) = post {
-        sceneProjection = null; sceneWorld = null; sceneRenderTimeSeconds = null
+        sceneProjection = null; sceneWorld = null; sceneRenderTimeSeconds = null; shadowCamera = null
         target = floatArrayOf(x, y, z); this.yaw = yaw; this.pitch = pitch; this.zoom = zoom.coerceIn(4f, 80f)
     }
     fun sceneFrame(projection: FloatArray, world: FloatArray, sky: Int,
@@ -252,7 +331,8 @@ private class GLWorldRenderer(
         sceneRenderTimeSeconds = renderTimeMs?.takeIf { it.isFinite() && it >= 0.0 }
             ?.let { (it / 1000.0).toFloat() }?.takeIf { it.isFinite() }
         target = floatArrayOf(world[12] - world[8] * 30f, world[13] - world[9] * 30f, world[14] - world[10] * 30f)
-        // Dart has already decoded each light to linear and applied its intensity (colour.dart)
+        // src/render/graphmount.ts prefers linearColour/linearGroundColour to hexes. Dart mirrors
+        // that and applies intensity once (colour.dart); these channels stay linear and unclamped.
         fun colour(node: Map<String, Any>?, key: String = "linear"): FloatArray =
             (node?.get(key) as? List<*>)?.linear() ?: FloatArray(3)
         fun visible(kind: String) = lights.filter { it["kind"] == kind && it["visible"] != false }
@@ -272,6 +352,7 @@ private class GLWorldRenderer(
         sunDirections.fill(0f)
         sunColours.fill(0f)
         sunCastsShadow = false
+        shadowCamera = null
         suns.forEachIndexed { index, sun ->
             val matrix = (sun["world"] as? List<*>)?.map { (it as Number).toFloat() }
             val point = (sun["target"] as? List<*>)?.map { (it as Number).toFloat() }
@@ -284,6 +365,7 @@ private class GLWorldRenderer(
                 sunColours[index * 4 + 3] = 1f
                 sunCastsShadow = true
                 lightDirection = direction
+                shadowCamera = ShadowCamera.of(sun["shadow"], matrix, point)
             }
         }
         val points = visible("point").take(16)
@@ -343,7 +425,11 @@ private class GLWorldRenderer(
 
     /** Whether anything has been sent since the last frame: a scene, a mesh, a camera, a size, a picture asked for. */
     private var changed = true
-    private fun post(block: () -> Unit) { if (running) handler.post { changed = true; block() } }
+    private fun post(block: () -> Unit) {
+        if (!running) return
+        if (Looper.myLooper() == handler.looper) { changed = true; block() }
+        else handler.post { changed = true; block() }
+    }
 
     private fun initialize() {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
@@ -361,6 +447,8 @@ private class GLWorldRenderer(
         eglSurface = EGL14.eglCreateWindowSurface(display, configs[0], surface, intArrayOf(EGL14.EGL_NONE), 0)
         check(eglSurface != EGL14.EGL_NO_SURFACE) { "Could not create EGL window surface" }
         check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) { "Could not bind GLES surface" }
+        // src/render/scene.ts leaves WebGLRenderer at sRGB output and NoToneMapping. This plain
+        // target takes the shader's sRGB values; blending happens after that encode, as on the web.
         program = link(VERTEX_SHADER, FRAGMENT_SHADER)
         shadowProgram = link(SHADOW_VERTEX_SHADER, SHADOW_FRAGMENT_SHADER)
         createShadowTarget()
@@ -409,6 +497,7 @@ private class GLWorldRenderer(
 
     private fun drawLoop() {
         if (!running) return
+        if (!sceneValid) { handler.postDelayed(::drawLoop, 16); return }
         upload()
         /*
          * An empty scene nothing has changed is not drawn again sixty times a second.
@@ -501,7 +590,8 @@ private class GLWorldRenderer(
 
     private fun drawMeshes(activeProgram: Int, shadow: Boolean) {
         val camera = sceneWorld?.copyOfRange(12, 15) ?: target
-        val ordered = gpu.values.sortedWith(compareBy<GpuMesh> { it.renderOrder }
+        val meshes = sceneMeshOrder?.mapNotNull { gpu[it] } ?: gpu.values.toList()
+        val ordered = meshes.sortedWith(compareBy<GpuMesh> { it.renderOrder }
             .thenBy { if (it.transparent) 1 else 0 }
             .thenBy { mesh ->
                 val dx = mesh.center[0] - camera[0]; val dy = mesh.center[1] - camera[1]; val dz = mesh.center[2] - camera[2]
@@ -570,10 +660,20 @@ private class GLWorldRenderer(
         val projection = FloatArray(16); val aspect = viewportWidth.toFloat() / viewportHeight
         Matrix.orthoM(projection, 0, -zoom * aspect / 2, zoom * aspect / 2, -zoom / 2, zoom / 2, .1f, 300f)
         val mvp = FloatArray(16); Matrix.multiplyMM(mvp, 0, projection, 0, view, 0)
-        val lightView = FloatArray(16); Matrix.setLookAtM(lightView, 0,
-            target[0]+lightDirection[0]*64, target[1]+lightDirection[1]*64, target[2]+lightDirection[2]*64,
-            target[0], target[1], target[2], 0f,1f,0f)
-        val lightProjection = FloatArray(16); Matrix.orthoM(lightProjection,0,-32f,32f,-32f,32f,.1f,120f)
+        val lightView = FloatArray(16); val lightProjection = FloatArray(16)
+        val sunCamera = shadowCamera
+        if (sunCamera != null) {
+            // three.js's DirectionalLightShadow: at the light, looking at its target, through the box the web fitted (#512)
+            Matrix.setLookAtM(lightView, 0, sunCamera.eye[0], sunCamera.eye[1], sunCamera.eye[2],
+                sunCamera.target[0], sunCamera.target[1], sunCamera.target[2], 0f, 1f, 0f)
+            Matrix.orthoM(lightProjection, 0, sunCamera.left, sunCamera.right, sunCamera.bottom, sunCamera.top, sunCamera.near, sunCamera.far)
+        } else {
+            // a frame that sends no box, or the native camera: a fixed window around what the camera looks at
+            Matrix.setLookAtM(lightView, 0,
+                target[0]+lightDirection[0]*64, target[1]+lightDirection[1]*64, target[2]+lightDirection[2]*64,
+                target[0], target[1], target[2], 0f,1f,0f)
+            Matrix.orthoM(lightProjection,0,-32f,32f,-32f,32f,.1f,120f)
+        }
         val lightMvp = FloatArray(16); Matrix.multiplyMM(lightMvp,0,lightProjection,0,lightView,0)
         val look = floatArrayOf(target[0]-eye[0], target[1]-eye[1], target[2]-eye[2]); val length = kotlin.math.sqrt(look.sumOf { (it*it).toDouble() }).toFloat()
         for(i in look.indices) look[i] /= length
@@ -699,11 +799,25 @@ uniform vec3 uEmissive;
 uniform sampler2D uCoast; uniform vec4 uCoastArea;
 out vec4 color;
 const float RECIPROCAL_PI=0.3183098861837907;
-// three.js's sRGBTransferOETF: lit in linear, written out encoded (client/flutter/lib/src/colour.dart)
+// src/render/scene.ts keeps three.js's NoToneMapping and sRGB output: encode once after lighting.
 vec3 encodeSrgb(vec3 c){return mix(pow(c,vec3(0.41666))*1.055-vec3(0.055),c*12.92,lessThanEqual(c,vec3(0.0031308)));}
+#define saturate(a) clamp(a,0.0,1.0)
+float pow2(float x){return x*x;}
+float pow4(float x){float x2=x*x;return x2*x2;}
 // three.js r185's getDistanceAttenuation (lights_pars_begin): d^-decay, windowed to nothing at the
-// cutoff when there is one
-float attenuation(float d,float cutoff,float decay){float f=1.0/max(pow(d,decay),0.01);if(cutoff>0.0){float x=d/cutoff;x*=x;x*=x;float w=clamp(1.0-x,0.0,1.0);f*=w*w;}return f;}
+// cutoff when there is one. src/render/interior.ts sets intensity 14 and decay 1.4, with no legacy pi.
+float attenuation(float d,float cutoff,float decay){
+  float f=1.0/max(pow(d,decay),0.01);
+  if(cutoff>0.0){f*=pow2(saturate(1.0-pow4(d/cutoff)));}
+  return f;
+}
+vec3 BRDF_Lambert(vec3 diffuseColor){return RECIPROCAL_PI*diffuseColor;}
+// RE_Direct_Lambert: attenuation/shadow first, then clamped cosine, then albedo/pi for each light.
+vec3 lambertDirect(vec3 lightColour,vec3 lightDirection,vec3 normal,vec3 diffuseColor){
+  float dotNL=saturate(dot(normal,lightDirection));
+  vec3 irradiance=dotNL*lightColour;
+  return irradiance*BRDF_Lambert(diffuseColor);
+}
 float hash(vec2 p){return fract(sin(dot(floor(p),vec2(12.9898,78.233)))*43758.5453);}
 // Kept formula-for-formula with src/render/water.ts by android-water.test.ts.
 const float PI2 = 6.283185307179586;
@@ -765,9 +879,13 @@ if(vMaterial>1.5&&vMaterial<2.5){
 vec3 lit=uAmbient+mix(uGround,uSky,n.y*.5+.5);
 // every directional light; the shadow-casting one is multiplied by its shadow, getShadow at shadowIntensity 1
 float shade=mix(1.0,shadow(),uReceiveShadow);
-for(int i=0;i<4;i++){vec4 d=uSunDirections[i];vec4 s=uSunColours[i];if(all(equal(s.rgb,vec3(0.0))))continue;lit+=s.rgb*max(0.0,dot(n,d.xyz))*(s.w>.5?shade:1.0);}
-for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;lit+=q.rgb*max(0.0,dot(n,normalize(l)))*attenuation(length(l),p.w,q.w);}
-vec3 c=albedo*(vMaterial>2.5?vec3(1.0):lit*RECIPROCAL_PI)+uEmissive;
+// lights_fragment_begin visits point lights before directional lights; meshlambert adds indirect
+// and emissive afterwards. Keep that order instead of multiplying one sum of all light by albedo/pi.
+vec3 directDiffuse=vec3(0.0);
+for(int i=0;i<16;i++){vec4 p=uPointPositions[i];vec4 q=uPointColours[i];if(all(equal(q.rgb,vec3(0.0))))continue;vec3 l=p.xyz-vWorld;vec3 lightColour=q.rgb*attenuation(length(l),p.w,q.w);directDiffuse+=lambertDirect(lightColour,normalize(l),n,albedo);}
+for(int i=0;i<4;i++){vec4 d=uSunDirections[i];vec4 s=uSunColours[i];if(all(equal(s.rgb,vec3(0.0))))continue;vec3 lightColour=s.rgb*(s.w>.5?shade:1.0);directDiffuse+=lambertDirect(lightColour,d.xyz,n,albedo);}
+vec3 indirectDiffuse=lit*BRDF_Lambert(albedo);
+vec3 c=vMaterial>2.5?albedo:directDiffuse+indirectDiffuse+uEmissive;
 c=encodeSrgb(c);if(uFogRange.y>uFogRange.x)c=mix(c,uFogColour,smoothstep(uFogRange.x,uFogRange.y,dot(vWorld-uCameraPos,uLook)));color=vec4(c,opacity);}
 """
 private const val SHADOW_VERTEX_SHADER = """#version 300 es

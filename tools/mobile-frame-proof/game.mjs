@@ -6,6 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { jobThread } from './job-thread.mjs';
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 await build({ configFile: false, logLevel: 'warn',
@@ -13,6 +14,11 @@ await build({ configFile: false, logLevel: 'warn',
   build: { target: 'es2022', minify: false, outDir: 'mobile-frame-proof-out', emptyOutDir: false,
     lib: { entry: 'src/mobile/game-engine.ts', name: 'AiWorldGameEngine', formats: ['iife'], fileName: () => 'game.js' } } });
 const source = await readFile('mobile-frame-proof-out/game.js', 'utf8');
+await build({ configFile: false, logLevel: 'warn',
+  build: { target: 'es2022', minify: false, outDir: 'mobile-frame-proof-out', emptyOutDir: false,
+    lib: { entry: 'src/mobile/job-engine.ts', name: 'AiWorldJobEngine', formats: ['iife'], fileName: () => 'jobs.js' } } });
+const jobSource = await readFile('mobile-frame-proof-out/jobs.js', 'utf8');
+let jobs = await jobThread(jobSource);
 
 // the one thing both native hosts put in the engine's context before the bundle: identifiers from
 // the platform's own secure randomness (state_engine.c, StateEngineBridge.swift)
@@ -26,7 +32,7 @@ call(source);
 const loadMs = performance.now() - loaded;
 
 const session = 'bare-game';
-bare.__options = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 } });
+bare.__options = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 }, jobs: 'host' });
 call(`globalThis.engine = AiWorldGameEngine.create(${JSON.stringify(session)}, __options)`);
 
 let sequence = 0;
@@ -37,17 +43,22 @@ const stepTimes = [];
 let work = {};
 // what the app keeps of the private world, as the replies hand it over
 const worldRecords = {};
+let requestsWhileMeshing = 0;
 const ask = (type, payload, engine = 'engine', id = session) => {
+  if (jobs.pendingMeshes) requestsWhileMeshing++;
+  const replies = jobs.take();
+  if (replies) { bare.__jobs = replies; call(`${engine}.deliverJobs(__jobs)`); }
   bare.__request = JSON.stringify({ version: 1, session: id, sequence, id: `r${sequence}`, type, payload });
   sequence++;
   const reply = JSON.parse(call(`${engine}.request(__request)`));
   assert.equal(reply.requestId, `r${sequence - 1}`);
   if (reply.type !== 'result') throw new Error(`${type} failed: ${JSON.stringify(reply.payload)}`);
+  jobs.send(reply.jobs);
   if (reply.payload.state?.models?.world) Object.assign(worldRecords, reply.payload.state.models.world);
   return reply.payload.state;
 };
 // an app's engine runs what was promised once the request returns; here that is the event loop's turn
-const settle = () => new Promise((resume) => setImmediate(resume));
+const settle = () => new Promise((resume) => setTimeout(resume, 16));
 const still = { move: [0, 0], look: [0, 0], held: { guard: false, run: false }, actions: [], owner: 'WORLD', busy: null };
 const step = async (input = {}, ms = 1000 / 30) => {
   tick++;
@@ -76,35 +87,67 @@ await settle();
 // the world in this engine answers and the ground arrives, a budget of geometry at a time
 // held as an app holds it: what arrives is kept, and what the engine says has left the scene is let go
 const geometries = new Set();
+const nodes = new Map();
+let nodeOrder = [];
+let sceneGeneration = 0;
 let sent = 0;
 let released = 0;
+let nodeChanges = 0;
+const nodeKey = (node) => node.part === undefined ? `${node.id}` : `${node.id}.${node.part}`;
 const hold = (scene) => {
+  assert.equal(scene.version, 1);
+  assert.equal(scene.generation, sceneGeneration + 1, 'the app receives contiguous scene generations');
+  sceneGeneration = scene.generation;
+  if (scene.full) { nodes.clear(); geometries.clear(); nodeOrder = []; }
   for (const id of Object.keys(scene.geometries)) { geometries.add(id); sent++; }
+  for (const key of scene.removed) assert.ok(nodes.delete(key), `unknown removed node ${key}`);
+  for (const node of scene.frame.nodes) nodes.set(nodeKey(node), node);
+  for (const change of scene.changes) {
+    const key = nodeKey(change);
+    assert.ok(nodes.has(key), `unknown changed node ${key}`);
+    nodes.set(key, { ...nodes.get(key), ...change });
+    nodeChanges++;
+  }
+  nodeOrder = scene.order ?? nodeOrder;
+  assert.equal(nodeOrder.length, nodes.size);
+  assert.equal(new Set(nodeOrder).size, nodes.size);
+  const parents = new Set();
+  for (const key of nodeOrder) {
+    const node = nodes.get(key);
+    assert.ok(node, `missing ordered node ${key}`);
+    if (node.parent !== null) assert.ok(parents.has(node.parent), `missing parent ${node.parent}`);
+    parents.add(key);
+    if (node.geometryId) {
+      assert.ok(geometries.has(node.geometryId), `${node.geometryId} named but not held`);
+      assert.ok(!scene.released.includes(node.geometryId), `${node.geometryId} released while live`);
+    }
+  }
   for (const id of scene.released) { assert.ok(geometries.delete(id), `${id} released but never held`); released++; }
-  for (const node of scene.frame.nodes) if (node.geometryId) assert.ok(geometries.has(node.geometryId), `${node.geometryId} named but not held`);
 };
 let meshes = 0;
 let packetBytes = 0;
 const arriving = performance.now();
-for (let round = 0; round < 60 && meshes < 40; round++) {
+for (let round = 0; round < 200 && meshes < 40; round++) {
   for (let n = 0; n < 15; n++) await step();
   const scene = await sceneNow();
   hold(scene);
   packetBytes = Math.max(packetBytes, JSON.stringify(scene).length);
-  meshes = scene.frame.nodes.filter((node) => node.kind === 'mesh').length;
+  meshes = [...nodes.values()].filter((node) => node.kind === 'mesh').length;
 }
 const groundMs = performance.now() - arriving;
 const scene = await sceneNow();
 hold(scene);
-const kinds = new Set(scene.frame.nodes.map((node) => node.kind));
+const kinds = new Set([...nodes.values()].map((node) => node.kind));
 assert.ok(meshes >= 40, `only ${meshes} meshes arrived`);
 for (const kind of ['mesh', 'directional', 'ambient']) assert.ok(kinds.has(kind), `no ${kind} in the frame`);
 
 // a thumb on the stick walks him
 let state = await step();
 const from = state.models.hero;
+const beforeWalkingChanges = nodeChanges;
 for (let n = 0; n < 45; n++) state = await step({ move: [0, 1] });
 hold(await sceneNow());
+assert.ok(nodeChanges > beforeWalkingChanges, 'walking produces node changes instead of complete records');
 state = await step();
 const walked = Math.hypot(state.models.hero.x - from.x, state.models.hero.z - from.z);
 assert.ok(walked > 1, `the hero walked ${walked} tiles from ${JSON.stringify(from)} to ${JSON.stringify(state.models.hero)}`);
@@ -126,11 +169,15 @@ assert.equal(save.state.playerId, state.models.hero.playerId);
 
 const left = state.models.hero;
 ask('dispose', {});
+assert.ok(requestsWhileMeshing > 0, 'no game request completed while ground was still on its own thread');
+const completedJobs = jobs.completed;
+await jobs.close();
 assert.ok(Object.keys(worldRecords).length > 0, 'the private world kept nothing for the app to keep');
 
 // and the app opens it again from what it kept: the save, and the world's own records
 bare.__continued = JSON.stringify({ seed: 3, kind: 'road', slot: 'bare', name: 'Rowan', viewport: { width: 1200, height: 540 },
-  saved: save, world: worldRecords });
+  saved: save, world: worldRecords, jobs: 'host' });
+jobs = await jobThread(jobSource);
 call(`globalThis.again = AiWorldGameEngine.create('bare-again', __continued)`);
 sequence = 0;
 tick = -1;
@@ -140,15 +187,17 @@ assert.equal(resumed.models.hero.playerId, left.playerId, 'a continued game is t
 assert.ok(Math.hypot(resumed.models.hero.x - left.x, resumed.models.hero.z - left.z) < 0.5,
   `continued at ${JSON.stringify(resumed.models.hero)}, left at ${JSON.stringify(left)}`);
 ask('dispose', {}, 'again', 'bare-again');
+await jobs.close();
 
 const sorted = [...stepTimes].sort((a, b) => a - b);
 const evidence = {
   sourceSha: process.env.GAME_SOURCE_SHA, bundleBytes: source.length, loadMs: Math.round(loadMs),
   startMs: Math.round(startMs), groundMs: Math.round(groundMs), jobs: work,
+  jobBundleBytes: jobSource.length, completedJobs, requestsWhileMeshing,
   steps: stepTimes.length, stepMedianMs: +sorted[Math.floor(sorted.length / 2)].toFixed(2),
   stepP95Ms: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2), meshes, geometriesSent: sent,
   geometriesHeld: geometries.size, geometriesReleased: released,
-  largestScenePacketBytes: packetBytes, walked: +walked.toFixed(2),
+  largestScenePacketBytes: packetBytes, nodeChanges, sceneGeneration, walked: +walked.toFixed(2),
   worldRecords: Object.keys(worldRecords).length, continuedAt: resumed.models.hero,
 };
 await writeFile('mobile-frame-proof-out/game-proof.json', JSON.stringify(evidence, null, 2) + '\n');

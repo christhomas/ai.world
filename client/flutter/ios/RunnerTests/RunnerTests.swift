@@ -7,6 +7,109 @@ import simd
 
 class RunnerTests: XCTestCase {
 
+  func testStateEngineDeliversJobRepliesBeforeTheNextRequestAndReportsDeliveryErrors() throws {
+    let source = """
+    var AiWorldGameEngine = { create: function() {
+      var replies = [];
+      return {
+        deliverJobs: function(text) {
+          if (text === 'broken') throw new Error('bad job reply');
+          replies.push.apply(replies, JSON.parse(text));
+        },
+        request: function() { var sent = replies; replies = []; return JSON.stringify(sent); }
+      };
+    }};
+    """
+    let game = try StateEngineVM(source: source, session: "game", entry: "AiWorldGameEngine")
+    XCTAssertEqual(try game.request("step", jobs: "[1,2]"), "[1,2]")
+    XCTAssertEqual(try game.request("step"), "[]")
+    XCTAssertThrowsError(try game.request("step", jobs: "broken")) { error in
+      XCTAssertTrue(String(describing: error).contains("bad job reply"))
+    }
+    XCTAssertEqual(try game.request("step", jobs: "[3]"), "[3]")
+    XCTAssertEqual(StateEngineVM.requestLimits["AiWorldJobEngine"], 16 * 1024 * 1024)
+    XCTAssertEqual(StateEngineVM.replyLimits["AiWorldJobEngine"], 32 * 1024 * 1024)
+  }
+
+  func testPhotoShareKeepsThePNGUntilCompletionAndReportsEachOutcomeOnce() throws {
+    let png = try XCTUnwrap(Data(base64Encoded:
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jqN8AAAAASUVORK5CYII="))
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let presenter = UIViewController()
+    presenter.view.frame = CGRect(x: 0, y: 0, width: 844, height: 390)
+    let denied = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)
+    let outcomes: [(Bool, Error?, String)] = [(true, nil, "shared"), (false, nil, "cancelled"), (false, denied, "share-failed")]
+    for (completed, error, expected) in outcomes {
+      var replies: [Any?] = []
+      let share = try PhotoShare(png: png, directory: directory, presenter: presenter) { replies.append($0) }
+      XCTAssertEqual(try Data(contentsOf: share.file), png)
+      XCTAssertEqual(share.file.pathExtension, "png")
+      XCTAssertTrue(share.controller.excludedActivityTypes?.contains(.saveToCameraRoll) == true)
+      // UIActivityViewController picks its presentation from the device: on the iPhone simulator it
+      // has no popover even when asked for .popover (Hosted mobile evidence run 39165127055), so the
+      // iPad's anchor is checked on a popover UIKit does build here, and on the sheet's own where it has one.
+      let stand = UIViewController()
+      stand.modalPresentationStyle = .popover
+      let popover = try XCTUnwrap(stand.popoverPresentationController)
+      PhotoShare.anchor(popover, to: presenter)
+      XCTAssertTrue(popover.sourceView === presenter.view)
+      XCTAssertTrue(presenter.view.bounds.contains(popover.sourceRect))
+      XCTAssertEqual(popover.permittedArrowDirections, [])
+      if let own = share.controller.popoverPresentationController {
+        XCTAssertTrue(own.sourceView === presenter.view)
+      }
+      share.controller.completionWithItemsHandler?(nil, completed, nil, error)
+      XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
+      XCTAssertEqual(replies.count, 1)
+      if expected == "share-failed" {
+        XCTAssertEqual((replies[0] as? FlutterError)?.code, expected)
+      } else {
+        XCTAssertEqual(replies[0] as? String, expected)
+      }
+      share.controller.completionWithItemsHandler?(nil, completed, nil, error)
+      XCTAssertEqual(replies.count, 1, "a repeated completion must not reply on the channel twice")
+    }
+  }
+
+  func testPhotoShareThatNeverAppearedRepliesOnceAndLetsTheFileGo() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var replies: [Any?] = []
+    let share = try PhotoShare(png: Data([137, 80, 78, 71, 13, 10, 26, 10]), directory: directory,
+      presenter: UIViewController()) { replies.append($0) }
+    share.abandonUnlessPresented()
+    XCTAssertFalse(FileManager.default.fileExists(atPath: share.file.path))
+    XCTAssertEqual(replies.count, 1)
+    XCTAssertEqual((replies[0] as? FlutterError)?.code, "share-unavailable")
+    share.abandonUnlessPresented()
+    share.controller.completionWithItemsHandler?(nil, false, nil, nil)
+    XCTAssertEqual(replies.count, 1, "a sheet given up on must not reply on the channel again")
+  }
+
+  func testPhotoShareRefusesBadBytesAndAnUnwritableCache() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let presenter = UIViewController()
+    XCTAssertThrowsError(try PhotoShare(png: Data([1, 2, 3]), directory: directory, presenter: presenter) { _ in })
+    XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    // A file where the directory should be gives a real write failure without changing permissions.
+    try Data([0]).write(to: directory)
+    let png = Data([137, 80, 78, 71, 13, 10, 26, 10])
+    XCTAssertThrowsError(try PhotoShare(png: png, directory: directory, presenter: presenter) { _ in })
+  }
+
+  func testPhotoShareWithoutAnAttachedViewReturnsAnError() {
+    let bridge = PhotoShareBridge(presenting: { nil })
+    let call = FlutterMethodCall(methodName: "share", arguments: ["png": FlutterStandardTypedData(bytes: Data([137, 80, 78, 71, 13, 10, 26, 10]))])
+    var replied = false
+    bridge.handle(call) { outcome in
+      replied = true
+      XCTAssertEqual((outcome as? FlutterError)?.code, "share-unavailable")
+    }
+    XCTAssertTrue(replied)
+  }
+
   func testStateEngineContextsIsolateGlobalsAndRecoverAfterAnException() throws {
     let source = """
     var AiWorldStateEngine = { create: function(session) {
@@ -127,6 +230,56 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(metalRenderTimeSeconds(renderTimeMs: 0, fallbackSeconds: 999), 0)
     XCTAssertEqual(metalRenderTimeSeconds(renderTimeMs: nil, fallbackSeconds: 123), 123)
     XCTAssertEqual(metalRenderTimeSeconds(renderTimeMs: .nan, fallbackSeconds: 123), 123)
+  }
+
+  func testProductionMetalLinearSunPointDecayLambertAndSrgbNumerically() throws {
+    let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+    let source = metalSource + """
+    \n kernel void testColour(device float4* output [[buffer(0)]], uint i [[thread_position_in_grid]]) {
+      const float distances[] = {0.01,1,3,9,12,3,3};
+      float falloff = attenuation(distances[i],i == 5 ? 0.0 : 9.0,i == 6 ? 0.0 : 1.4);
+      float3 normal = float3(0,i == 2 ? -1.0 : 1.0,0);
+      float3 direct = lambertDirect(float3(1.04,0.8,0.35)*2.6*falloff,
+        float3(0,1,0),normal,float3(0.2,0.4,0.6));
+      output[i*2] = float4(direct,falloff);
+      output[i*2+1] = float4(encodeSrgb(direct+float3(0.02,0.003,0.001)),1);
+    }
+    """
+    let library = try device.makeLibrary(source: source, options: nil)
+    let function = try XCTUnwrap(library.makeFunction(name: "testColour"))
+    let pipeline = try device.makeComputePipelineState(function: function)
+    let buffer = try XCTUnwrap(device.makeBuffer(length: MemoryLayout<SIMD4<Float>>.stride * 14, options: .storageModeShared))
+    let queue = try XCTUnwrap(device.makeCommandQueue())
+    let command = try XCTUnwrap(queue.makeCommandBuffer())
+    let encoder = try XCTUnwrap(command.makeComputeCommandEncoder())
+    encoder.setComputePipelineState(pipeline)
+    encoder.setBuffer(buffer, offset: 0, index: 0)
+    encoder.dispatchThreads(MTLSize(width: 7, height: 1, depth: 1), threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+    encoder.endEncoding()
+    command.commit()
+    command.waitUntilCompleted()
+    XCTAssertEqual(command.status, .completed, "\(String(describing: command.error))")
+    let values = buffer.contents().bindMemory(to: SIMD4<Float>.self, capacity: 14)
+    // three.js r185: the unclamped linear autumn sun, an interior lamp's decay, then Lambert and
+    // sRGBTransferOETF. Near-light cap, cutoff, unlimited range, a back-facing normal and both OETF
+    // branches are exercised by the real production Metal functions, without a screenshot tolerance.
+    let distances: [Double] = [0.01,1,3,9,12,3,3]
+    let sun: [Double] = [1.04,0.8,0.35], albedo: [Double] = [0.2,0.4,0.6]
+    let emissive: [Double] = [0.02,0.003,0.001]
+    for i in 0..<7 {
+      var falloff = 1 / max(pow(distances[i],i == 6 ? 0 : 1.4),0.01)
+      if i != 5 { falloff *= pow(max(0,1 - pow(distances[i]/9,4)),2) }
+      XCTAssertEqual(values[i*2].w,Float(falloff),accuracy: 0.0001)
+      for channel in 0..<3 {
+        let direct = i == 2 ? 0 : sun[channel] * 2.6 * falloff * (albedo[channel] / Double.pi)
+        XCTAssertEqual(values[i*2][channel],Float(direct),accuracy: 0.0001)
+        let linear = direct + emissive[channel]
+        let encoded = linear <= 0.0031308 ? linear * 12.92 : pow(linear,0.41666) * 1.055 - 0.055
+        XCTAssertEqual(values[i*2+1][channel],Float(encoded),accuracy: 0.0001)
+      }
+    }
+    XCTAssertGreaterThan(values[0].x,1) // the linear red was not clamped before lighting
+    XCTAssertGreaterThan(values[1].x,1) // nor was the encoded result clamped by the shader
   }
 
   func testProductionMetalWaterShoreRiverWaterfallAndOffFieldNumerically() throws {

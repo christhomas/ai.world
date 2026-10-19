@@ -15,6 +15,10 @@ class StateEngine {
   bool _retired = false;
   Future<void>? _disposal;
   Future<void> _tail = Future<void>.value();
+  StateEngine? _jobs;
+  Future<void> _jobTail = Future<void>.value();
+  final List<String> _jobReplies = [];
+  Object? _jobFailure;
   bool get isRetired => _retired;
 
   static Future<StateEngine> open(String session, {Object? savedHero, AssetBundle? assets, MethodChannel? channel}) =>
@@ -25,10 +29,22 @@ class StateEngine {
   /// The whole game: `options` names the seed, kind of world, save slot, hero and viewport (see
   /// `src/mobile/game-engine.ts`). Nothing in it is fetched; the bundle was built with the app.
   static Future<StateEngine> openGame(String session, Map<String, Object?> options,
-      {AssetBundle? assets, MethodChannel? channel}) =>
-    _open(session, manifestPath: 'assets/engine/game-manifest.json', sourcePath: 'assets/engine/game.js',
-      scope: 'game', arguments: {'entry': 'AiWorldGameEngine', 'options': jsonEncode(options)},
-      assets: assets, channel: channel);
+      {AssetBundle? assets, MethodChannel? channel}) async {
+    final jobs = await _open(session, manifestPath: 'assets/engine/jobs-manifest.json', sourcePath: 'assets/engine/jobs.js',
+      scope: 'jobs', arguments: {'entry': 'AiWorldJobEngine'}, assets: assets, channel: channel);
+    StateEngine? game;
+    try {
+      game = await _open(session, manifestPath: 'assets/engine/game-manifest.json', sourcePath: 'assets/engine/game.js',
+        scope: 'game', arguments: {'entry': 'AiWorldGameEngine', 'options': jsonEncode({...options, 'jobs': 'host'})},
+        assets: assets, channel: channel);
+      if (game.sourceSha != jobs.sourceSha) throw const FormatException('Game and jobs came from different sources');
+      game._jobs = jobs;
+      return game;
+    } catch (_) {
+      try { await game?.dispose(); } finally { await jobs.dispose(); }
+      rethrow;
+    }
+  }
 
   static Future<StateEngine> _open(String session, {required String manifestPath, required String sourcePath,
       required String scope, required Map<String, Object?> arguments, AssetBundle? assets, MethodChannel? channel}) async {
@@ -66,7 +82,13 @@ class StateEngine {
     _sequence++;
     final result = _tail.then((_) async {
       if (_retired) throw StateError('Engine retired');
-      final text = await _channel.invokeMethod<String>('request', {'token': _token, 'request': jsonEncode(value)});
+      if (_jobFailure != null) throw StateError('Background game jobs failed: $_jobFailure');
+      // Job replies are opaque wire strings. Dart never unpacks or copies their geometry arrays.
+      final jobs = _jobReplies.isEmpty ? null : '[${_jobReplies.join(',')}]';
+      _jobReplies.clear();
+      final text = await _channel.invokeMethod<String>('request', {
+        'token': _token, 'request': jsonEncode(value), 'jobs': ?jobs,
+      });
       if (_retired) throw StateError('Engine retired');
       final reply = jsonDecode(text ?? '') as Map<String, dynamic>;
       if (reply['version'] != hostContractVersion || reply['session'] != session ||
@@ -74,6 +96,7 @@ class StateEngine {
           !const ['result', 'error'].contains(reply['type']) || reply['payload'] is! Map) {
         throw const FormatException('Invalid engine result');
       }
+      _relayJobs(reply['jobs']);
       return reply;
     });
     // A lost native reply leaves sequence consumption unknown. Retire rather than guess/replay.
@@ -83,9 +106,36 @@ class StateEngine {
     return result;
   }
 
+  /// One ordered stream to the second context, without ever joining it to the game's request tail.
+  /// A slow mesh may still be running when an action, save or next frame returns from the game.
+  void _relayJobs(Object? commands) {
+    if (commands == null) return;
+    final owner = _jobs;
+    if (owner == null || commands is! List || commands.any((command) => command is! String)) {
+      throw const FormatException('Invalid game job commands');
+    }
+    for (final command in commands.cast<String>()) {
+      _jobTail = _jobTail.then((_) async {
+        if (_retired || _jobFailure != null) return;
+        final reply = await _channel.invokeMethod<String>('request', {'token': owner._token, 'request': command});
+        if (_retired) return;
+        if (reply == null || reply.isEmpty) throw const FormatException('Missing game job reply');
+        _jobReplies.add(reply);
+      }).catchError((Object error) {
+        if (!_retired) _jobFailure = error;
+      });
+    }
+  }
+
   Future<void> dispose() {
     if (_disposal != null) return _disposal!;
     _retired = true;
-    return _disposal = _tail.then((_) => _channel.invokeMethod<void>('dispose', {'token': _token}));
+    _jobReplies.clear();
+    // Removing both native owners fences queued jobs now. Each context is released on its own
+    // native thread after its current call; the game's thread never waits for that CPU work.
+    return _disposal = Future.wait<void>([
+      _tail.then((_) => _channel.invokeMethod<void>('dispose', {'token': _token})),
+      if (_jobs case final jobs?) jobs.dispose(),
+    ]).then((_) {});
   }
 }

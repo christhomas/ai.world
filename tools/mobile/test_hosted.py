@@ -5,7 +5,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from hosted import scene_manifest, validate_android_ui
+from hosted import scene_manifest, validate_android_ui, xctest_failures
 
 
 def packet(*kinds):
@@ -80,6 +80,26 @@ class AndroidCaptureUiTests(unittest.TestCase):
     def test_rejects_truncated_hierarchy(self):
         with self.assertRaises(ET.ParseError):
             validate_android_ui('<hierarchy><node package="world.ai.ai_world_flutter">')
+
+
+class XCTestFailureTests(unittest.TestCase):
+    def test_reads_each_failed_assertion_from_the_xcode_16_test_tree(self):
+        tree = {'testNodes': [{'nodeType': 'Test Plan', 'name': 'Runner', 'children': [
+            {'nodeType': 'Unit test bundle', 'name': 'RunnerTests', 'children': [
+                {'nodeType': 'Test Suite', 'name': 'RunnerTests', 'children': [
+                    {'nodeType': 'Test Case', 'name': 'testPasses()', 'result': 'Passed'},
+                    {'nodeType': 'Test Case', 'name': 'testFails()', 'result': 'Failed', 'children': [
+                        {'nodeType': 'Failure Message', 'name': 'RunnerTests.swift:31: XCTAssertTrue failed'}]}]}]}]}]}
+        self.assertEqual(xctest_failures(tree), ['testFails(): RunnerTests.swift:31: XCTAssertTrue failed'])
+
+    def test_reads_the_legacy_bundle_summary_with_its_line(self):
+        legacy = {'issues': {'testFailureSummaries': {'_values': [{
+            'testCaseName': {'_value': 'RunnerTests.testFails()'}, 'message': {'_value': 'XCTAssertEqual failed'},
+            'documentLocationInCreatingWorkspace': {'url': {'_value': 'file:///RunnerTests.swift#EndingLineNumber=30&StartingLineNumber=30'}}}]}}}
+        self.assertEqual(xctest_failures(legacy), ['RunnerTests.testFails(): line 31: XCTAssertEqual failed'])
+
+    def test_a_passing_bundle_has_no_failures(self):
+        self.assertEqual(xctest_failures({'testNodes': [{'nodeType': 'Test Case', 'name': 'testPasses()'}]}), [])
 
 
 if __name__ == '__main__':

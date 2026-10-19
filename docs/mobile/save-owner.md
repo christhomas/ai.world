@@ -32,3 +32,6 @@ checkpoint before normal exit. See [the world vault](world-vault.md) and
 evidence. Player and authority saves remain separate transactions; abrupt termination before the
 acknowledgement is outside this guarantee. Native adapter composition, interruption recovery and
 full installed offline save/terminate/continue acceptance on both OSes remain open.
+
+A kept game can be exported to one versioned, checksummed file and imported back into a new slot
+from the installed app's title; see [exporting and importing a kept game](game-file.md).

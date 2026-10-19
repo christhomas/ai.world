@@ -61,7 +61,8 @@ describe('the scene a step at a time', () => {
     expect(Object.keys(first.geometries)).toHaveLength(2);
     const second = packets.packet(frame([mesh('ground', ground), mesh('hut', hut)]));
     expect(second.geometries).toEqual({});
-    expect(second.frame.nodes.map((node) => node.geometryId)).toEqual(first.frame.nodes.map((node) => node.geometryId));
+    expect(second.frame.nodes, 'unchanged nodes do not recur with cached geometry').toEqual([]);
+    expect(second.changes).toEqual([]);
     const rebuilt = packets.packet(frame([mesh('ground', ground), mesh('hut', new Float32Array(9))]));
     expect(Object.keys(rebuilt.geometries)).toHaveLength(1);
     packets.forget();
@@ -78,7 +79,7 @@ describe('the scene a step at a time', () => {
     expect(packets.held).toBe(1);
     const back = packets.packet(frame([mesh('ground', ground), mesh('hut', hut)]));
     expect(Object.keys(back.geometries), 'back again, it is sent again under its own name').toEqual([hutId]);
-    expect(back.frame.nodes[1].geometryId).toBe(hutId);
+    expect(back.frame.nodes[0].geometryId).toBe(hutId);
     // walking on over new ground: the app never holds more than the scene and the last packet or so
     for (let n = 0; n < 50; n++) packets.packet(frame([mesh('ground', new Float32Array(9))]));
     expect(packets.held).toBeLessThanOrEqual(2);
@@ -93,7 +94,7 @@ describe('the scene a step at a time', () => {
     expect(first.withheld).toBe(2);
     // a geometry bigger than the budget still goes, on its own, rather than never
     const second = packets.packet(scene());
-    expect(second.frame.nodes.map((node) => node.id)).toEqual(['a', 'b']);
-    expect(packets.packet(scene()).frame.nodes.map((node) => node.id)).toEqual(['a', 'b', 'child']);
+    expect(second.frame.nodes.map((node) => node.id)).toEqual(['b']);
+    expect(packets.packet(scene()).frame.nodes.map((node) => node.id)).toEqual(['child']);
   });
 });

@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'colour.dart';
 import 'native_world_renderer.dart';
 import 'render_mesh.dart';
+import 'scene_geometry_cache.dart';
+export 'scene_geometry_cache.dart';
 
 /// Dart's consumer of the engine-owned FrameDescription in src/core/scene.ts.
 /// The JSON form uses ordinary arrays for typed geometry buffers.
@@ -13,49 +15,39 @@ final class SceneFrame {
     Map<String, dynamic> json, {
     SceneGeometryCache? geometryCache,
   }) {
-    final packet = json['frame'] is Map
-        ? Map<String, dynamic>.from(json['frame'] as Map)
-        : json;
-    final time = packet['renderTimeMs'];
-    if (time != null && (time is! num || !time.isFinite || time < 0)) {
-      throw const FormatException('Scene animation time must be finite nonnegative milliseconds');
-    }
-    geometryCache?.accept(json['geometries']);
-    final nodes = (packet['nodes'] as List).map((raw) {
-      final node = Map<String, dynamic>.from(raw as Map);
-      final geometryId = node['geometryId'] as String?;
-      if (geometryId == null) return node;
-      final geometry = geometryCache?.lookup(geometryId);
-      if (geometry == null) {
-        throw FormatException('Frame refers to unknown geometry $geometryId');
+    return (geometryCache ?? SceneGeometryCache()).resolve(json, (packet, nodes) {
+      final time = packet['renderTimeMs'];
+      if (time != null && (time is! num || !time.isFinite || time < 0)) {
+        throw const FormatException('Scene animation time must be finite nonnegative milliseconds');
       }
-      return <String, dynamic>{...node, ...geometry};
-    }).toList();
-    // what has left the scene is let go once this frame, which no longer names it, is resolved
-    geometryCache?.release(json['released']);
-    return SceneFrame._(
-      renderTimeMs: (time as num?)?.toDouble(),
-      camera: Map<String, dynamic>.from(packet['camera'] as Map),
-      background: packet['background'] as int?,
-      coast: packet['coast'] == null
-          ? null
-          : Map<String, dynamic>.from(packet['coast'] as Map),
-      cutaway: packet['cutaway'] == null
-          ? null
-          : Map<String, dynamic>.from(packet['cutaway'] as Map),
-      season: packet['season'] == null
-          ? null
-          : SeasonTint.fromJson(
-              Map<String, dynamic>.from(packet['season'] as Map),
-            ),
-      fog: packet['fog'] == null
-          ? null
-          : Map<String, dynamic>.from(packet['fog'] as Map),
-      nodes: nodes,
-    );
+      return SceneFrame._(
+        generation: json['generation'] as int?,
+        full: json['full'] == true,
+        renderTimeMs: (time as num?)?.toDouble(),
+        camera: Map<String, dynamic>.from(packet['camera'] as Map),
+        background: packet['background'] as int?,
+        coast: packet['coast'] == null
+            ? null
+            : Map<String, dynamic>.from(packet['coast'] as Map),
+        cutaway: packet['cutaway'] == null
+            ? null
+            : Map<String, dynamic>.from(packet['cutaway'] as Map),
+        season: packet['season'] == null
+            ? null
+            : SeasonTint.fromJson(
+                Map<String, dynamic>.from(packet['season'] as Map),
+              ),
+        fog: packet['fog'] == null
+            ? null
+            : Map<String, dynamic>.from(packet['fog'] as Map),
+        nodes: nodes,
+      );
+    });
   }
 
   const SceneFrame._({
+    required this.generation,
+    required this.full,
     required this.renderTimeMs,
     required this.camera,
     required this.background,
@@ -66,6 +58,8 @@ final class SceneFrame {
     required this.nodes,
   });
 
+  final int? generation;
+  final bool full;
   final Map<String, dynamic> camera;
   final double? renderTimeMs;
   final int? background;
@@ -123,34 +117,6 @@ final class SeasonTint {
   };
 }
 
-/// Keeps immutable mesh data once per WebSocket connection. The server sends
-/// each geometry the first time it appears, then subsequent frames only carry
-/// its digest plus changing transforms and materials.
-final class SceneGeometryCache {
-  final Map<String, Map<String, dynamic>> _geometries = {};
-
-  void accept(Object? raw) {
-    if (raw == null) return;
-    final geometries = Map<String, dynamic>.from(raw as Map);
-    for (final entry in geometries.entries) {
-      _geometries[entry.key] = Map<String, dynamic>.from(entry.value as Map);
-    }
-  }
-
-  Map<String, dynamic>? lookup(String id) => _geometries[id];
-
-  /// Geometry the engine says has left the scene (#566). If it comes back it is sent again.
-  void release(Object? raw) {
-    if (raw == null) return;
-    for (final id in raw as List) {
-      _geometries.remove('$id');
-    }
-  }
-
-  /// How many geometries are held: bounded by the scene, not by how far the hero has walked.
-  int get length => _geometries.length;
-}
-
 /// Maps the same neutral frame submitted to WebGL and recording onto native buffers.
 final class FlutterFramePipeline {
   FlutterFramePipeline(this.renderer);
@@ -159,7 +125,20 @@ final class FlutterFramePipeline {
   final Set<String> _mounted = <String>{};
   final Map<String, String> _fingerprints = <String, String>{};
 
-  Future<void> draw(SceneFrame frame) async {
+  Future<void> _drawing = Future<void>.value();
+  bool _needsFull = true;
+
+  Future<void> draw(SceneFrame frame) {
+    final next = _drawing.then((_) => _draw(frame));
+    // A failed frame is reported to its caller; it must not poison the submission queue.
+    _drawing = next.catchError((Object error) { _needsFull = true; });
+    return next;
+  }
+
+  Future<void> _draw(SceneFrame frame) async {
+    if (frame.generation != null && _needsFull && !frame.full) {
+      throw const SceneResyncRequired('Native renderer needs a full scene');
+    }
     final camera = frame.camera;
     if (camera['orthographic'] != true) {
       throw UnsupportedError('Flutter supports orthographic scene cameras');
@@ -169,43 +148,16 @@ final class FlutterFramePipeline {
     if (projection.length != 16 || world.length != 16) {
       throw FormatException('Scene camera matrices must have 16 elements');
     }
-    await renderer.setSceneFrame(
-      projection: Float32List.fromList(projection),
-      world: Float32List.fromList(world),
-      background: frame.background ?? 0x080b18,
-      renderTimeMs: frame.renderTimeMs,
-      fog: frame.fog,
-      coast: frame.coast,
-      nodes: frame.nodes
-          .where(
-            (node) =>
-                node['kind'] == 'directional' ||
-                node['kind'] == 'ambient' ||
-                node['kind'] == 'hemisphere' ||
-                node['kind'] == 'point',
-          )
-          .map(nativeLight)
-          .toList(),
-    );
-    if (frame.cutaway case final cutaway?) {
-      final hero = _numbers(cutaway['hero']);
-      if (hero.length != 3) {
-        throw const FormatException('Cutaway hero must have three coordinates');
-      }
-      await renderer.setCutaway(
-        CutawayState(
-          enabled: cutaway['enabled'] == true,
-          heroX: hero[0],
-          heroY: hero[1],
-          heroZ: hero[2],
-        ),
-      );
-    } else {
-      await renderer.setCutaway(
-        const CutawayState(enabled: false, heroX: 0, heroY: 0, heroZ: 0),
-      );
+    final lights = frame.nodes.where((node) => const {'directional', 'ambient', 'hemisphere', 'point'}.contains(node['kind']))
+      .map(nativeLight).toList();
+    var cutaway = const CutawayState(enabled: false, heroX: 0, heroY: 0, heroZ: 0);
+    if (frame.cutaway case final state?) {
+      final hero = _numbers(state['hero']);
+      if (hero.length != 3) throw const FormatException('Cutaway hero must have three coordinates');
+      cutaway = CutawayState(enabled: state['enabled'] == true, heroX: hero[0], heroY: hero[1], heroZ: hero[2]);
     }
-
+    final uploads = <RenderMesh>[];
+    final fingerprints = <String, String>{};
     final next = <String>{};
     for (final node in frame.nodes) {
       if (node['visible'] == false) continue;
@@ -249,7 +201,8 @@ final class FlutterFramePipeline {
       if (!next.add(id)) {
         throw FormatException('Two scene nodes are both named $id');
       }
-      if (_fingerprints[id] == fingerprint) continue;
+      fingerprints[id] = fingerprint;
+      if (!frame.full && _fingerprints[id] == fingerprint) continue;
       final mesh = _mesh(
         kind == 'points' ? _expandPoints(node) : node,
         id,
@@ -257,15 +210,30 @@ final class FlutterFramePipeline {
       );
       if (mesh == null) {
         next.remove(id);
+        fingerprints.remove(id);
         continue;
       }
-      await renderer.putMesh(mesh);
-      _fingerprints[id] = fingerprint;
+      uploads.add(mesh);
     }
-    for (final old in _mounted.difference(next)) {
-      await renderer.removeMesh(old);
-      _fingerprints.remove(old);
+    final removed = _mounted.difference(next).toList();
+    if (frame.generation case final generation?) {
+      await renderer.applyScene(generation: generation, full: frame.full,
+        projection: Float32List.fromList(projection), world: Float32List.fromList(world),
+        background: frame.background ?? 0x080b18, renderTimeMs: frame.renderTimeMs,
+        fog: frame.fog, coast: frame.coast, nodes: lights, cutaway: cutaway,
+        meshes: uploads, removed: frame.full ? [] : removed, meshIds: next.toList());
+    } else {
+      await renderer.setSceneFrame(projection: Float32List.fromList(projection), world: Float32List.fromList(world),
+        background: frame.background ?? 0x080b18, renderTimeMs: frame.renderTimeMs,
+        fog: frame.fog, coast: frame.coast, nodes: lights);
+      await renderer.setCutaway(cutaway);
+      for (final mesh in uploads) { await renderer.putMesh(mesh); }
+      for (final old in removed) { await renderer.removeMesh(old); }
     }
+    _needsFull = false;
+    _fingerprints
+      ..clear()
+      ..addAll(fingerprints);
     _mounted
       ..clear()
       ..addAll(next);

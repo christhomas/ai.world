@@ -41,7 +41,7 @@ import { Director } from './director';
 import { minesOfAVillage } from './minesofavillage';
 import { type Luxury } from '../world/prosperity';
 import { Hires } from './hire';
-import { stableAt } from './stables';
+import { breedOf, stableAt } from './stables';
 import { lineageDrawing } from './lineage';
 import { whereLineageIsDrawn } from './enquiry';
 import { openConsole } from './console';
@@ -519,6 +519,11 @@ export function composeGame(start: GameStart, platform: GamePlatform): GameHandl
     plots, remains, hires, eyries, skyIsles, beam, placeName, discover,
     areaLabel: () => frames.areaLabel(),
     flash: (message) => hud.flash(message),
+    // a horse lent from the stable for the console's `borrow-horse`, beside him for him to get on
+    lendHorse: (breed) => {
+      mount.borrow(player.x, player.z, chunks, entityRenderer, breedOf(breed));
+      return { name: mount.name, breed: mount.breed.id };
+    },
   });
 
   const watch = createWatch({

@@ -20,6 +20,7 @@ import type { Online } from './online';
 import type { Places } from './places';
 import type { Remains } from './remains';
 import type { GameState } from './state';
+import { doorsNear } from './doors-near';
 
 /**
  * The console, and everything the game can be told to do through it.
@@ -83,6 +84,8 @@ export interface Consoled {
   areaLabel: () => string;
   discover: (name: string) => void;
   flash: (message: string) => void;
+  /** Lend the hero a horse from the stable, beside him and not yet ridden; what it is, or null. */
+  lendHorse?: (breed?: string) => unknown;
 }
 
 /** How far outside a castle's gate a teleport puts you, in tiles. See the note where it is used. */
@@ -364,6 +367,7 @@ export function openConsole(ctx: Consoled) {
       return { name: found.name, x: Math.round(landed.x), z: Math.round(landed.z), kind: found.kind };
     },
     places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),
+    doors: (like) => doorsNear(structures.doors, player.x, player.z, like),
     // The villages, in the order somebody standing here cares about them. Distance and heading
     // rather than coordinates, because "Silverholm, 240 paces north-west" is an answer and
     // "Silverholm, 280, -110" is a lookup.
@@ -413,6 +417,7 @@ export function openConsole(ctx: Consoled) {
       }
       return null;
     },
+    borrowHorse: (breed) => ctx.lendHorse?.(breed) ?? null,
     standAtCounter: () => {
       const spot = places.indoors?.world.map.keeper;
       if (!spot) return null;

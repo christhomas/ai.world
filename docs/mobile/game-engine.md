@@ -18,7 +18,7 @@ The app then sends:
 | `start` `remote` | opens it against the shared world the `server` option names (#565) |
 | `parcel` | what the app's socket to that world did: `open`, a `message` (text, or binary as base64), or `close` with why |
 | `step` | moves time on by `dtSeconds`, with the stick (`move` right/forward), the camera turning (`look[0]`: −1 left, 1 right), held guard and run, and one-shot actions |
-| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster or the travellers while a page shows them (`roster:village`, `name`, `age`, `purse` or `hunger`, or `company`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot |
+| `action` | a player action by name (`interact`, `attack`, `inventory`, `close`…), `choose` a conversation row by index, `volume` (`args.level`, nought to one), `zoom` the camera by a pinch's wheel distance (`args.by`, positive is out), `nudge` a row's number (`row:1`, `row:-1`), `read` the roster or the travellers while a page shows them (`roster:village`, `name`, `age`, `purse` or `hunger`, or `company`; no target stops it), `say` a line typed into the console (`args.text`), `take` a carried thing by id, or `stow` a worn slot as `slot:id`, the slot and what the app showed worn in it (stows nothing if the slot no longer wears that) |
 | `lifecycle` | parks the game in the background and resumes it |
 | `resync` `scene` | the next step's reply carries the frame |
 | `resync` `renderer` | the app's renderer has forgotten what it was sent |
@@ -45,6 +45,10 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   (`client/flutter/lib/src/audio/beds.dart`);
 - where the engine's time went (`perf`): real milliseconds spent on the private world, the ground
   and the country, each as runs, total and longest, at most every two seconds;
+- the pack (`pack`), every reply, read by `src/game/pack.ts` as the page's rucksack draws it.
+  `src/mobile/pack-sequences.test.ts` taps the same sequence through the page's `Rucksack` and the
+  app's `inventory`, `take` and `stow`, and checks the hero, the rows and the words agree after each,
+  and that a stale or unavailable tap changes nothing;
 - the roster (`roster`), only while the app has asked to read it and only when it has changed;
 - everybody else in this world (`company`), nearest first, read by `src/game/company-view.ts` as the page's travellers list is, only while the app has asked to read it and only when it has changed;
 - whoever the action key would talk to (`subject`), with their feet and head in screen pixels (`src/render/in-reach.ts`), every reply, for the app to ring them and hang their name over them as the design marks somebody in reach;
@@ -53,7 +57,13 @@ go through `PLAYER_ACTION_KEYS`, so they meet the same bindings and screen guard
   charted since the last one sent. New ground goes every time; markers and title go when they
   change, at most once a second, because a ferry's marker moves every step. The map's picture
   (`mapPicture`, `world/map-ground.ts`: the page map's own ground colours and roads at a cell to
-  two tiles, sent as runs of colour) goes once, with the first step;
+  two tiles, sent as runs of colour) goes once, with the first step. Both map models are built by
+  `src/mobile/map-model.ts` from what the page's maps read: the dark is the squares `knownSquares`
+  (`world/map-ground.ts`) gives the page's fog, and an underground title names the floor past the
+  first as the HUD does. `src/mobile/map-discovery.test.ts` walks a hero across the country, down
+  two floors of a shrine, back up, through a bought province, a save and rejoin and into another
+  world, and checks at each stop that the app's map and the page's agree on the dark, the marks,
+  the title and the floor, cell for cell;
 - where the hero is and which way he faces (`yaw`);
 - the owner (WORLD or BOOK) and busy mode;
 - for a shared world, `link` (`connect` an address, with the connection's generation, or `close`
@@ -83,20 +93,47 @@ the same rectangles the dialogue box's canvas is filled with: five numbers a rec
 width, height, colour index), once with the mouth shut and once open. A face is sent the first time
 somebody wears it and named by key after that, so the app keeps them for the session.
 
-**Scene.** `ScenePackets` sends a frame with only the geometry the app has not been sent, named by
-the graph's own buffers rather than by hashing them. Each packet has a budget of numbers, so
-opening a world takes a few steps of arriving ground. A node waits for its geometry rather than
-being drawn without it. A geometry no packet has named for four packets in a row has left the
-scene, and the packet's `released` list says so; the app's `SceneGeometryCache` lets it go after
-resolving that frame, and it is sent again if it ever comes back (#566). The app holds what the
-scene holds, however far the hero walks; the bare-host proof keeps geometry the same way and
-reports how much it was sent, holds and let go.
+**Scene.** `ScenePackets` sends version 1 of the local scene channel. Every packet carries a
+strictly increasing `generation`, even after `resync renderer`. The first packet and the first
+packet after that request have `full: true`: discard the old node and geometry inventories and
+apply the admitted scene. Later packets have `full: false`. `frame` always contains complete
+camera/light-time globals; its `nodes` contain only additions and full replacements (for geometry,
+material or other structural changes). `changes` contain an `id`, optional expanded `part`, and
+only the changed `world` matrix, `instanceMatrices` and/or `visible` flag. An unchanged node sends nothing.
+
+A stable key is the decimal node id, or `id.part` for an expanded node. Wire `parent` is that key,
+or null for a root; it never depends on array offsets. `removed` lists departed keys. `order` lists
+the complete admitted node order on a full packet or when membership/order changes, and is absent
+otherwise. Dart resolves stable parents back to frame indexes only after reconstructing all nodes.
+
+Geometry is named by the graph's own buffers rather than by hashing them. Each packet retains the
+existing budget of numbers, so opening a world takes a few steps of arriving ground. A node waits
+for its geometry and parent rather than being drawn without them. A geometry no packet has named
+for four packets in a row has left the scene; `released` tells the app to let it go after resolving
+the packet. A geometry that returns is sent again under its previous name.
+
+`SceneGeometryCache` validates the version, generation, node inventory, ordering, parent and
+geometry references before committing any edits. A gap, stale/out-of-order packet, reset, or unknown
+reference invalidates deltas until a newer full packet arrives. `GameSession` requests `resync
+renderer` on rejection. Native receives a complete camera/light/cutaway state and the mesh edits in
+one `applyScene` transaction, with the generation and full expected mesh inventory. Both bridges
+reject missing meshes or a noncontiguous generation before applying it. A fresh native renderer
+requires a full submission. Dart serializes submissions and rebuilds every visible mesh on full
+resync, including meshes whose previous fingerprints match. GLES applies a batch in one GL-thread
+turn; Metal applies it in one platform-thread turn, so drawing cannot interleave its edits.
+
+This remains JSON, with Dart baking changed transforms into mesh buffers. Binary buffers,
+transform-only GPU updates, acknowledgement/backpressure and bridge instrumentation are later
+parts of #566. Shader and lighting calculations are unchanged.
 
 **Proof.** `tools/mobile-frame-proof/game.mjs` bundles the engine exactly as the apps do and
 plays it in a bare JavaScript context: no window, timers, performance clock, structuredClone,
 require or worker. It opens a world, waits for the ground to arrive, walks the hero with the stick,
 opens and closes the pack as a book, saves, and records bundle size, load time and step timings.
 It runs in the "Portable mobile frame" workflow.
+The proof runs the jobs bundle in a second bare context on an actual host worker thread and
+records `requestsWhileMeshing`, requiring game requests to finish while a mesh is still pending.
+Both contexts lack browser and Node globals; only their host transports the wire strings.
 
 ## In the installed apps
 
@@ -104,6 +141,12 @@ It runs in the "Portable mobile frame" workflow.
 hero engine, from the same commit, into the app's assets; nothing is fetched at run time.
 `StateEngine.openGame` loads it through the same checked channel as the hero engine, naming the
 global `AiWorldGameEngine` and handing it the options.
+
+It also opens the bundled `jobs.js` and its `jobs-manifest.json` (scope `jobs`), requiring the same
+source commit as the game. This second engine owns ground meshing and background country growth
+on a separate native thread (`chunk-jobs.md`, `country-jobs.md`). The game queues requests and Dart
+returns replies asynchronously before a later game request; its game requests never await that
+queue. Bare hosts may omit the `jobs: 'host'` option to keep using the in-process step-clock jobs.
 
 The native hosts give the whole game more than the hero:
 

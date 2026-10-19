@@ -948,6 +948,87 @@ SHOTS.push({
   },
 });
 
+/*
+ * Three parts of the world that the phones draw and had nothing to be compared with (#561): the
+ * weather, the walls the hero is seen through, and a village in the clouds. Each is a shot of its
+ * own, a reference picture like any other, and a scene the native renderers replay.
+ */
+SHOTS.push(
+  {
+    /*
+     * Rain on the square, which is the one kind of node only weather makes: a cloud of points that
+     * follows the camera.
+     *
+     * Whether it rains is the world's own decision, made from the seed, the day and the ground
+     * underfoot (`isWet` in `game/seasons.ts`), so the day is looked for rather than forced. Spring
+     * then autumn, only ever forward, because both rain rather than snow and a clock wound back is
+     * a world being asked to forget what it did. The glyph by the clock is how the page itself says
+     * it is raining, and it shows once the drops have eased past four tenths of full.
+     */
+    name: 'rain', title: 'Rain on the square', settle: 3000, cleanFrame: true,
+    setup: async (p, { village, day, time, zoom, wait, ask }) => {
+      await time(NOON);
+      const v = await village();
+      let wet = null;
+      for (const d of [1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21]) {
+        await day(d);
+        await wait(2500);
+        if (await ask(() => document.getElementById('clockWeather')?.textContent)) { wet = d; break; }
+      }
+      if (wet === null) return null;             // a fortnight of dry days at this village: not today
+      await zoom(22);
+      return `${v.name}, day ${wet}`;
+    },
+  },
+  {
+    /*
+     * The hero stood at a cottage door with the cottage between him and the camera, and the player's
+     * see-through switch on (`render/cutaway.ts`), so the picture is of the hole kept open in the
+     * wall rather than of a roof with somebody behind it.
+     *
+     * The door is the one nearest the middle of the village, and the camera is turned to look out
+     * of it: whatever the door is in front of is then in front of the hero.
+     */
+    name: 'see-through', title: 'Seen through the cottage in front of him', settle: 2500, cleanFrame: true,
+    storage: { 'ai.world/see-through': 'on' },
+    setup: async (p, { village, time, zoom, stand, face, ask }) => {
+      await time(NOON);
+      const v = await village();
+      const door = await ask(([x, z]) => window.__doors.filter((one) => one.kind === 'house')
+        .map((one) => ({ ...one, away: Math.hypot(one.x - x, one.z - z) }))
+        .sort((a, b) => a.away - b.away)[0] ?? null, [v.x, v.z]);
+      if (!door) return null;
+      const x = door.x + 0.5, z = door.z + 0.5;
+      const out = Math.hypot(x - door.bx, z - door.bz) || 1;
+      await stand(x, z, 2500);
+      await zoom(10);
+      await face(x + ((x - door.bx) / out) * 10, z + ((z - door.bz) / out) * 10);
+      const on = await ask(() => localStorage.getItem('ai.world/see-through'));
+      return `${door.village} ${door.kind} door at ${door.x},${door.z}, see-through ${on}`;
+    },
+  },
+  {
+    /*
+     * A village in the clouds, stood on (`game/skies.ts`). Flown to by the probe rather than by the
+     * eagles, because the picture is of the island and not of the fare, and turned to look across
+     * it at the loft from the crag the bird sets you down on.
+     */
+    name: 'sky-island', title: 'A village in the clouds', settle: 3000, cleanFrame: true,
+    setup: async (p, { time, zoom, face, wait, ask }) => {
+      await time(NOON);
+      const isle = await ask(() => window.__skies().isles[0] ?? null);
+      if (!isle) return null;                    // a world with nothing in its sky
+      const up = await ask(() => window.__sky(0));
+      if (!up) return null;
+      await wait(4000);
+      await settleCountry(p);
+      await zoom(20);
+      await face(isle.loft.x, isle.loft.z);
+      return `${up.on}, ${Math.round(up.y)} up`;
+    },
+  },
+);
+
 /**
  * The world server, for the shots that are of a tool rather than of the game.
  *
@@ -1092,6 +1173,12 @@ async function take(browser, shot) {
   if (PATIENCE) page.setDefaultTimeout(PATIENCE);
   await captureClock(page);
   if (shot.join) await page.addInitScript(() => localStorage.setItem('ai.world/name', 'Ash'));
+  // a player's own setting the picture depends on, set before boot the way a returning player has it
+  if (shot.storage) {
+    await page.addInitScript((pairs) => {
+      for (const [key, value] of Object.entries(pairs)) localStorage.setItem(key, value);
+    }, shot.storage);
+  }
   if (RIG) {
     await page.addInitScript((on) => {
       try { localStorage.setItem('ai.world/new/composer', on); } catch { /* no storage, no switch */ }

@@ -39,6 +39,21 @@ PARTS = {
                  'continued']),
     'crossplay': (CROSSPLAY, ['joined a shared world', 'saw the web player', 'stayed for the web player',
                               'the web player saw the phone']),
+    # the device playtest's parts (#681), each opening a new game: flutter test uninstalls the app between them
+    'combat': ('integration_test/combat_test.dart',
+               ['world open', 'stick bearings measured', 'a creature to fight', 'walked up to it', 'a blow landed',
+                'guard held and let go']),
+    'doors': ('integration_test/doors_test.dart',
+              ['world open', 'a door to walk into', 'on the doorstep', 'walked in', 'walked out']),
+    'shop': ('integration_test/shop_test.dart',
+             ['world open', 'a shop to walk into', 'in the shop', 'at the counter', 'talking to the keeper',
+              'bought something', 'done talking']),
+    'horse': ('integration_test/horse_test.dart',
+              ['world open', 'a horse to ride', 'mounted', 'rode by touch', 'got off']),
+    'map': ('integration_test/map_test.dart',
+            ['world open', 'a place found', 'in the journal', 'on the map', 'map moved, hero still', 'closed']),
+    'dungeon': ('integration_test/dungeon_test.dart',
+                ['world open', 'in the shrine', 'the floor on the map', 'a floor down', 'back on the surface']),
 }
 # what runs when nothing is named: the journeys the hosted evidence has always run
 JOURNEYS = ['journey', 'crossplay']
