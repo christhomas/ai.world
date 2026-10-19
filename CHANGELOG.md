@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.106.0 — 2026-10-19
+
+Pack actions as the page has them, scene changes as deltas, shadows fitted to the view, the iPhone photo test, three more parity scenes, the device playtest parts, and saved games to and from a file
+
 ## v0.105.0 — 2026-10-17
 
 The installed journey on both phones, its own device playtest workflow, back faces lit as on the web, and leaving the game cleanly
