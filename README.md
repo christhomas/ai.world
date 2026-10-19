@@ -591,6 +591,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.106.0 — 2026-10-19
+
+Pack actions as the page has them, scene changes as deltas, shadows fitted to the view, the iPhone photo test, three more parity scenes, the device playtest parts, and saved games to and from a file
+
 ### v0.105.0 — 2026-10-17
 
 The installed journey on both phones, its own device playtest workflow, back faces lit as on the web, and leaving the game cleanly
@@ -626,10 +630,6 @@ Native mobile renderer fixes and portable host foundations
 ### v0.103.8 — 2026-10-01
 
 The Domesday shot waits for every toured village to settle
-
-### v0.103.7 — 2026-09-30
-
-A move never carries the hero, nests need a real ledge, record-only needs no WebGL, and the message log keeps its newest line
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
